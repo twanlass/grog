@@ -1,0 +1,116 @@
+# Prompt Build Log
+
+This documents the prompts used to build this project with Claude.
+
+---
+
+## 1. User prompt
+> let's iterate on the hex map
+1. it should be dynamic each time 
+2. Can we do an overall square shape? 
+
+## 2. User prompt
+> huh still not a square. here's the shape: 
+
+## 3. User prompt
+> can we investigate too why panning around is slow? zooming in and panning is faster; zooming out and panning is slower. 
+
+## 4. User prompt
+> we can remove the outlines 
+
+## 5. User prompt
+> Much smoother! Okay, next let's designate potential port sites
+
+## 6. User prompt
+> now let's create some of our units, ships and ports. Let's add a separate page to work on these accessed from the main menu. Can you create pixel versions of our 4 ship types to start? 
+
+## 7. User prompt
+> let's draw the ships from a side view so that we can make out the silouette better 
+
+## 8. User prompt
+> now let's create our port units 
+
+## 9. User prompt
+> now let's add a single outpost and cutter to the map as the player's starting position 
+
+## 10. User prompt
+> now let's start working on the main game loop
+
+## 11. User prompt
+> let's implement the basic economic units (wood, steel, food, grog). Let's add simple UI to show the units and current value. Read the design doc for more details. 
+
+## 12. User prompt
+> error when refreshing: kaplay.js?v=8270b6e8:5276 Error: Styled text error: unclosed tags Drag,Scroll
+    at Object.<anonymous> (gameScene.js:229:15)
+xn    @    kaplay.js?v=8270b6e8:5276
+
+## 13. User prompt
+> let's work on basic navigation & ship movement. Things to do: 
+1. ship selection; click to select a ship. Maybe render a cricle around it to show it's selected. Should work for selecting all units like ports etc. 
+2. with a ship selected, shift+left click should place a point on the map (a future navigation destination). Maybe show a red block to indicate the selected location. 
+
+## 14. User prompt
+> clicking on the ship does nothing; no circle appears 
+
+## 15. User prompt
+> now lets work on navigation. When a waypoint is set, the ship should auto-navigate to the waypoint. Things to consider: 
+1. It should navigate around land, only passing through deep and shallow water tiles. 
+2. a ships speed is based on the specific unit 
+3. we should implement or use Kaplay's global time tick rate so we can globally adjust a play rate multiplier 
+
+## 16. User prompt
+> let's make some improvements to waypoints:
+1. Allow land to be selected as a waypoint. Ship can then navigate to the nearest coast of that island/land
+2. Don't deselect a unit on drag; only on left click. This allows the player to select a unit, drag explore the map, then place a waypoint. 
+
+## 17. User prompt
+> still seeing the ship be deselected on drag. Are we implementing custom click handlers or using Kaplay's built in ones?
+
+## 18. User prompt
+>  let's improve the rendering of the waypoint line from ship to waypoint:
+  instead of straight light, let's render the A* path so you can see the route the ship would actually take
+
+## 19. User prompt
+> let's add a second ship to our start of the game
+
+## 20. User prompt
+> when pathfinding, ensure a ship doesn't occupy the same hex as another ship 
+
+## 21. User prompt
+> instead of blocky hex by hex ship moving, can we explore smooth ship movement? 
+
+## 22. User prompt
+> how is game speed working at the moment? I think the ships move too fast. So I'm wondering if I should edit ship speeds or overall game speed
+
+## 23. User prompt
+> yea, update ship speeds 
+
+## 24. User prompt
+> let's fix a bug: when a ship tries to navigate to hex already occupied by another ship it gets stuck (keeps tring to move there there). Can we have it pick a nearest availble hex instead? 
+
+## 25. User prompt
+> the ship still tries to occupy the occupied hex. Could we check other ship waypoints or do a check before moving to the next hex? 
+
+## 26. User prompt
+> let's work on multiple ship selection and navigation: 
+1. Implement a drag select box
+2. On release ^, select all units within the box 
+3. On shift + left click, set a waypoint for all selected units 
+4. All units should navigate to waypoint 
+
+## 27. User prompt
+> something is buggy w/ the selection box; it appears as soon as I move the mouse, not on drag 
+
+## 28. User prompt
+> let's have the map scroll when the mouse reaches the edges of the screen (like classic RTSs)
+
+## 29. User prompt
+> lets update some hotkeys: 
+- setting a destination should use ctrl + left click
+- selecting multiple units should use shift + left click
+
+## 30. User prompt
+> let's work on the collision detection a bit: when a ship is already occupying a waypoint, the incoming ship will collide w/ the occupying ship then snap out to another hex and navigate elsewhere. Can we check before the ship moves to it's next hex if it's occupied and if so, navigate to another near avaiilabe hex instead 
+
+## 31. User prompt
+> let's init a git repo (connect to https://github.com/twanlass/grog.git) and save our work. 
