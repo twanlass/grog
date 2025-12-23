@@ -1,0 +1,364 @@
+// Trade route system - handles loading, unloading, and docking at ports
+import { findFreeAdjacentWater, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
+import { SHIPS } from "../sprites/index.js";
+
+// Loading/unloading speed
+const LOAD_TIME_PER_UNIT = 1.0;  // seconds per wood/food unit
+
+// Dock retry interval for waiting ships
+const DOCK_RETRY_INTERVAL = 2.0;
+
+/**
+ * Updates all trade route logic including loading, unloading, and dock waiting
+ * @param {Object} gameState - The game state
+ * @param {Object} map - The game map
+ * @param {number} dt - Delta time (already scaled by timeScale)
+ */
+export function updateTradeRoutes(gameState, map, dt) {
+    if (dt === 0) return; // Paused
+
+    // Process trade route state machine for each ship
+    for (const ship of gameState.ships) {
+        if (!ship.tradeRoute) continue;
+
+        const foreignPort = gameState.ports[ship.tradeRoute.foreignPortIndex];
+        const homePort = gameState.ports[ship.tradeRoute.homePortIndex];
+
+        // Check if foreign port still exists and is complete
+        if (!foreignPort || foreignPort.construction) {
+            cancelTradeRoute(ship);
+            continue;
+        }
+
+        // Initialize cargo if not present (for ships created before this feature)
+        if (!ship.cargo) ship.cargo = { wood: 0, food: 0 };
+
+        const isAtForeignPort = isShipAdjacentToPort(ship, foreignPort) && !ship.waypoint;
+        const isAtHomePort = isShipAdjacentToPort(ship, homePort) && !ship.waypoint;
+
+        // Handle LOADING state
+        if (ship.dockingState?.action === 'loading') {
+            ship.dockingState.progress += dt;
+
+            const unitsToLoad = Math.floor(ship.dockingState.progress / LOAD_TIME_PER_UNIT);
+
+            if (unitsToLoad > ship.dockingState.unitsTransferred) {
+                // Transfer resources from port to ship
+                const toLoad = unitsToLoad - ship.dockingState.unitsTransferred;
+                for (let i = 0; i < toLoad; i++) {
+                    const space = getCargoSpace(ship, SHIPS);
+                    if (space <= 0) break;
+
+                    // Ratio-based loading: load whichever resource is further behind target
+                    const ds = ship.dockingState;
+                    const woodNeeded = ds.targetWood - ds.woodLoaded;
+                    const foodNeeded = ds.targetFood - ds.foodLoaded;
+
+                    let loaded = false;
+                    // Prefer loading whichever is further behind (or either if equal)
+                    if (woodNeeded >= foodNeeded && foreignPort.storage.wood > 0) {
+                        foreignPort.storage.wood--;
+                        ship.cargo.wood++;
+                        ds.woodLoaded++;
+                        ds.unitsTransferred++;
+                        loaded = true;
+                    } else if (foodNeeded > 0 && foreignPort.storage.food > 0) {
+                        foreignPort.storage.food--;
+                        ship.cargo.food++;
+                        ds.foodLoaded++;
+                        ds.unitsTransferred++;
+                        loaded = true;
+                    }
+
+                    // Fallback if preferred resource ran out
+                    if (!loaded) {
+                        if (foreignPort.storage.wood > 0) {
+                            foreignPort.storage.wood--;
+                            ship.cargo.wood++;
+                            ds.woodLoaded++;
+                            ds.unitsTransferred++;
+                        } else if (foreignPort.storage.food > 0) {
+                            foreignPort.storage.food--;
+                            ship.cargo.food++;
+                            ds.foodLoaded++;
+                            ds.unitsTransferred++;
+                        }
+                    }
+                }
+            }
+
+            // Check if loading complete
+            const portEmpty = foreignPort.storage.wood === 0 && foreignPort.storage.food === 0;
+            const cargoFull = getCargoSpace(ship, SHIPS) === 0;
+            const expectedDuration = ship.dockingState.totalUnits * LOAD_TIME_PER_UNIT;
+
+            if (portEmpty || cargoFull || ship.dockingState.progress >= expectedDuration) {
+                ship.dockingState = null;
+                // Navigate to home port
+                const homeWater = findFreeAdjacentWater(map, homePort.q, homePort.r, gameState.ships);
+                if (homeWater) {
+                    ship.waypoint = { q: homeWater.q, r: homeWater.r };
+                    ship.path = null;
+                    ship.waitingForDock = null;
+                } else {
+                    // Dock busy - wait nearby or in place
+                    const waitingSpot = findNearbyWaitingHex(map, homePort.q, homePort.r, gameState.ships);
+                    if (waitingSpot) {
+                        ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                        ship.path = null;
+                    }
+                    // Always set waiting state
+                    ship.waitingForDock = { portIndex: 0, retryTimer: 0 };
+                }
+            }
+            continue;
+        }
+
+        // Handle UNLOADING state
+        if (ship.dockingState?.action === 'unloading') {
+            ship.dockingState.progress += dt;
+
+            const unitsToUnload = Math.floor(ship.dockingState.progress / LOAD_TIME_PER_UNIT);
+
+            if (unitsToUnload > ship.dockingState.unitsTransferred) {
+                const toUnload = unitsToUnload - ship.dockingState.unitsTransferred;
+                for (let i = 0; i < toUnload; i++) {
+                    // Unload wood first, then food
+                    if (ship.cargo.wood > 0) {
+                        ship.cargo.wood--;
+                        gameState.resources.wood++;
+                        ship.dockingState.unitsTransferred++;
+                    } else if (ship.cargo.food > 0) {
+                        ship.cargo.food--;
+                        gameState.resources.food++;
+                        ship.dockingState.unitsTransferred++;
+                    }
+                }
+            }
+
+            // Check if unloading complete
+            const cargoEmpty = ship.cargo.wood === 0 && ship.cargo.food === 0;
+            const expectedDuration = ship.dockingState.totalUnits * LOAD_TIME_PER_UNIT;
+
+            if (cargoEmpty || ship.dockingState.progress >= expectedDuration) {
+                ship.dockingState = null;
+                // Return to foreign port (auto-loop)
+                const foreignWater = findFreeAdjacentWater(map, foreignPort.q, foreignPort.r, gameState.ships);
+                if (foreignWater) {
+                    ship.waypoint = { q: foreignWater.q, r: foreignWater.r };
+                    ship.path = null;
+                    ship.waitingForDock = null;
+                } else {
+                    // Dock busy - wait nearby or in place
+                    const waitingSpot = findNearbyWaitingHex(map, foreignPort.q, foreignPort.r, gameState.ships);
+                    if (waitingSpot) {
+                        ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                        ship.path = null;
+                    }
+                    // Always set waiting state (wait in place if no spot found)
+                    ship.waitingForDock = { portIndex: ship.tradeRoute.foreignPortIndex, retryTimer: 0 };
+                }
+            }
+            continue;
+        }
+
+        // Handle arrival at foreign port (start loading)
+        if (isAtForeignPort && !ship.dockingState) {
+            const availableResources = foreignPort.storage.wood + foreignPort.storage.food;
+            const space = getCargoSpace(ship, SHIPS);
+            const toLoad = Math.min(availableResources, space);
+
+            if (toLoad > 0) {
+                // Calculate target amounts based on port's resource ratio
+                const totalInPort = foreignPort.storage.wood + foreignPort.storage.food;
+                const woodRatio = totalInPort > 0 ? foreignPort.storage.wood / totalInPort : 0.5;
+                const targetWood = Math.round(toLoad * woodRatio);
+                const targetFood = toLoad - targetWood;
+
+                // Start loading
+                ship.dockingState = {
+                    action: 'loading',
+                    progress: 0,
+                    totalUnits: toLoad,
+                    unitsTransferred: 0,
+                    targetPortIndex: ship.tradeRoute.foreignPortIndex,
+                    // Ratio-based loading targets
+                    targetWood: targetWood,
+                    targetFood: targetFood,
+                    woodLoaded: 0,
+                    foodLoaded: 0,
+                };
+            }
+            // If no resources, ship just waits (checked each frame)
+            continue;
+        }
+
+        // Handle arrival at home port (start unloading)
+        if (isAtHomePort && !ship.dockingState) {
+            const cargoTotal = ship.cargo.wood + ship.cargo.food;
+
+            if (cargoTotal > 0) {
+                // Start unloading
+                ship.dockingState = {
+                    action: 'unloading',
+                    progress: 0,
+                    totalUnits: cargoTotal,
+                    unitsTransferred: 0,
+                    targetPortIndex: 0,
+                };
+            } else {
+                // No cargo - go back to foreign port
+                const foreignWater = findFreeAdjacentWater(map, foreignPort.q, foreignPort.r, gameState.ships);
+                if (foreignWater) {
+                    ship.waypoint = { q: foreignWater.q, r: foreignWater.r };
+                    ship.path = null;
+                    ship.waitingForDock = null;
+                } else {
+                    // Dock busy - wait nearby or in place
+                    const waitingSpot = findNearbyWaitingHex(map, foreignPort.q, foreignPort.r, gameState.ships);
+                    if (waitingSpot) {
+                        ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                        ship.path = null;
+                    }
+                    // Always set waiting state
+                    ship.waitingForDock = { portIndex: ship.tradeRoute.foreignPortIndex, retryTimer: 0 };
+                }
+            }
+            continue;
+        }
+
+        // Catch-all: ship has trade route but is stuck (no waypoint, not at either port, not waiting)
+        // This can happen if pathfinding failed - try to navigate again
+        if (!ship.waypoint && !ship.dockingState && !ship.waitingForDock) {
+            const cargoTotal = ship.cargo.wood + ship.cargo.food;
+            // Decide where to go based on cargo
+            const targetPort = cargoTotal > 0 ? homePort : foreignPort;
+            const targetPortIndex = cargoTotal > 0 ? 0 : ship.tradeRoute.foreignPortIndex;
+
+            const adjacentWater = findFreeAdjacentWater(map, targetPort.q, targetPort.r, gameState.ships);
+            if (adjacentWater) {
+                ship.waypoint = { q: adjacentWater.q, r: adjacentWater.r };
+                ship.path = null;
+                ship.waitingForDock = null;
+            } else {
+                // Dock busy - wait nearby or in place
+                const waitingSpot = findNearbyWaitingHex(map, targetPort.q, targetPort.r, gameState.ships);
+                if (waitingSpot) {
+                    ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                    ship.path = null;
+                }
+                ship.waitingForDock = { portIndex: targetPortIndex, retryTimer: 0 };
+            }
+        }
+    }
+
+    // Handle ships with pendingUnload flag (one-time unload at home port)
+    updatePendingUnloads(gameState, map, dt);
+
+    // Handle ships waiting for dock (retry every 2 seconds)
+    updateDockWaiting(gameState, map, dt);
+}
+
+/**
+ * Handle ships with pendingUnload flag (one-time unload at home port)
+ */
+function updatePendingUnloads(gameState, map, dt) {
+    if (gameState.ports.length === 0) return;
+
+    const homePort = gameState.ports[0];
+
+    for (const ship of gameState.ships) {
+        if (!ship.pendingUnload) continue;
+
+        // Initialize cargo if not present
+        if (!ship.cargo) ship.cargo = { wood: 0, food: 0 };
+
+        const isAtHomePort = isShipAdjacentToPort(ship, homePort) && !ship.waypoint;
+
+        // Handle UNLOADING state for pendingUnload ships
+        if (ship.dockingState?.action === 'unloading') {
+            ship.dockingState.progress += dt;
+
+            const unitsToUnload = Math.floor(ship.dockingState.progress / LOAD_TIME_PER_UNIT);
+
+            if (unitsToUnload > ship.dockingState.unitsTransferred) {
+                const toUnload = unitsToUnload - ship.dockingState.unitsTransferred;
+                for (let i = 0; i < toUnload; i++) {
+                    if (ship.cargo.wood > 0) {
+                        ship.cargo.wood--;
+                        gameState.resources.wood++;
+                        ship.dockingState.unitsTransferred++;
+                    } else if (ship.cargo.food > 0) {
+                        ship.cargo.food--;
+                        gameState.resources.food++;
+                        ship.dockingState.unitsTransferred++;
+                    }
+                }
+            }
+
+            // Check if unloading complete
+            const cargoEmpty = ship.cargo.wood === 0 && ship.cargo.food === 0;
+            const expectedDuration = ship.dockingState.totalUnits * LOAD_TIME_PER_UNIT;
+
+            if (cargoEmpty || ship.dockingState.progress >= expectedDuration) {
+                ship.dockingState = null;
+                ship.pendingUnload = false;  // Clear the flag, ship is done
+            }
+            continue;
+        }
+
+        // Start unloading when ship arrives at home port
+        if (isAtHomePort && !ship.dockingState) {
+            const cargoTotal = ship.cargo.wood + ship.cargo.food;
+
+            if (cargoTotal > 0) {
+                ship.dockingState = {
+                    action: 'unloading',
+                    progress: 0,
+                    totalUnits: cargoTotal,
+                    unitsTransferred: 0,
+                    targetPortIndex: 0,
+                };
+            } else {
+                // No cargo - clear the flag
+                ship.pendingUnload = false;
+            }
+        }
+    }
+}
+
+/**
+ * Handle ships waiting for dock (retry every DOCK_RETRY_INTERVAL seconds)
+ */
+function updateDockWaiting(gameState, map, dt) {
+    for (const ship of gameState.ships) {
+        if (!ship.waitingForDock) continue;
+        // Only check when ship has arrived at waiting spot (or is waiting in place with no waypoint)
+        if (ship.waypoint && ship.path && ship.path.length > 0) continue;
+
+        ship.waitingForDock.retryTimer += dt;
+
+        if (ship.waitingForDock.retryTimer >= DOCK_RETRY_INTERVAL) {
+            ship.waitingForDock.retryTimer = 0;
+
+            const portIndex = ship.waitingForDock.portIndex;
+            const port = gameState.ports[portIndex];
+            if (!port) {
+                // Port no longer exists
+                ship.waitingForDock = null;
+                continue;
+            }
+
+            // Check if dock is now free
+            const adjacentWater = findFreeAdjacentWater(map, port.q, port.r, gameState.ships);
+            if (adjacentWater) {
+                // Dock is free! Navigate to it
+                ship.waypoint = { q: adjacentWater.q, r: adjacentWater.r };
+                ship.path = null;
+                ship.moveProgress = 0;
+                ship.waitingForDock = null;
+                console.log(`Ship found free dock at port ${portIndex}`);
+            }
+        }
+    }
+}

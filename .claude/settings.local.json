@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline -10)",
+      "Bash(git -C /Users/tylerwanlass/code/grog status)",
+      "WebFetch(domain:kaplayjs.com)",
+      "Bash(npx create-kaplay:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(npx vite build)",
+      "Bash(cat:*)",
+      "Bash(node:*)",
+      "Bash(lsof:*)"
+    ]
+  },
+  "disabledMcpjsonServers": [
+    "bear-notes"
+  ]
+}

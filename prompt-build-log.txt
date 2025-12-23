@@ -5,182 +5,170 @@ This documents the prompts used to build this project with Claude.
 ---
 
 ## 1. User prompt
-> let's iterate on the hex map
-1. it should be dynamic each time 
-2. Can we do an overall square shape? 
+> we're building a simple sim game using Kaplay as our game engine (https://kaplayjs.com/docs/guides/). I've put together a game design doc (game-design-doc.md). Review that first. Lets then make a plan. I'd suggest creating a todo.md file to track our progress. Suggest first steps: get Kaplay setup and render hello world on the screen. Next, maybe we start working on the hex map generation. 
 
 ## 2. User prompt
-> huh still not a square. here's the shape: 
+> lets refactor sprites.js into files for ships and ports. Do whatever Kaplay docs suggest is best practice
 
 ## 3. User prompt
-> can we investigate too why panning around is slow? zooming in and panning is faster; zooming out and panning is slower. 
+> let's implement a fog of war mechanic. Here's how it should work: 
+1. At game start, shroud the entire map in blackness (fog)
+2. Expose (hide fog) a 1 hex radius around every ship and port
+3. As ships sail, expose 1 hex radius of fog around the ship 
+4. Fog should remain exposed
 
 ## 4. User prompt
-> we can remove the outlines 
+> update the visuals for the path rendered to be a dashed orange line isntead of solid red
 
 ## 5. User prompt
-> Much smoother! Okay, next let's designate potential port sites
+> can we experiment with having the ships rotate to face the direction they are heading? 
 
 ## 6. User prompt
-> now let's create some of our units, ships and ports. Let's add a separate page to work on these accessed from the main menu. Can you create pixel versions of our 4 ship types to start? 
+> let's document features so that future coding work is faster for our LLM. To start: 
+1. create a new directory in our project
+2. document our fog of war feature. keep it short and sweet. include paths to relevant files. write it in markdown so an LLM (claude code) can read it. 
+3. update or create our .claude file for this project to include a reference to our new directory and markdown feature files
 
 ## 7. User prompt
-> let's draw the ships from a side view so that we can make out the silouette better 
+> let make the the background pitch black (the part beyond the hexes) so the end of the world is visually obvious
 
 ## 8. User prompt
-> now let's create our port units 
+> let's work on a new feature: building ships! We'll start simple: 
+1. when a port is selected, we should show a simple UI that lists the type of boats that port can build (see #### Port Progression in game-design-doc.md)
+2. when clicking on the UI for a specific ship, show a progress bar above the port (progress bar should use the `build_time` specfied in game/src/sprites/ships.js
+3. when progress bar is complete, add a ship in the ocean near the port on an availble free hex
+4. don't worry about ecnomoy / resources yet. 
 
 ## 9. User prompt
-> now let's add a single outpost and cutter to the map as the player's starting position 
+> how big is the map?
 
 ## 10. User prompt
-> now let's start working on the main game loop
+> can we make it 60x60? 
 
 ## 11. User prompt
-> let's implement the basic economic units (wood, steel, food, grog). Let's add simple UI to show the units and current value. Read the design doc for more details. 
+> replace our starting port with a Stronghold
 
 ## 12. User prompt
-> error when refreshing: kaplay.js?v=8270b6e8:5276 Error: Styled text error: unclosed tags Drag,Scroll
-    at Object.<anonymous> (gameScene.js:229:15)
-xn    @    kaplay.js?v=8270b6e8:5276
+> let's update our fog of war mechanic to take into account the ship and it's specific `sight_distance` for uncovering fog/map. Read about the mechanic in docs/features/fog-of-war.md first. Then update the feature to expose more of the fog based on the ship. 
 
 ## 13. User prompt
-> let's work on basic navigation & ship movement. Things to do: 
-1. ship selection; click to select a ship. Maybe render a cricle around it to show it's selected. Should work for selecting all units like ports etc. 
-2. with a ship selected, shift+left click should place a point on the map (a future navigation destination). Maybe show a red block to indicate the selected location. 
+> lets experiment with updating our controls: 
+Instead of command + left click to set a waypoint, lets use just left cilck _when_ a ship unit(s) is selected. This should make basic nav easier.   
 
 ## 14. User prompt
-> clicking on the ship does nothing; no circle appears 
+> one more logic change: 
+after a way point has been set, the next left click should clear the selection instead of setting another waypoint
 
 ## 15. User prompt
-> now lets work on navigation. When a waypoint is set, the ship should auto-navigate to the waypoint. Things to consider: 
-1. It should navigate around land, only passing through deep and shallow water tiles. 
-2. a ships speed is based on the specific unit 
-3. we should implement or use Kaplay's global time tick rate so we can globally adjust a play rate multiplier 
+> update the waypoint visual marker from a red square to a chunky red x (like an x marks the spot on a pirate map!)
 
 ## 16. User prompt
-> let's make some improvements to waypoints:
-1. Allow land to be selected as a waypoint. Ship can then navigate to the nearest coast of that island/land
-2. Don't deselect a unit on drag; only on left click. This allows the player to select a unit, drag explore the map, then place a waypoint. 
+> one more logic update to waypoints; if a ship is selected and it's reached its waypoint, the next left click should set a new waypoint, not unselect the ship
 
 ## 17. User prompt
-> still seeing the ship be deselected on drag. Are we implementing custom click handlers or using Kaplay's built in ones?
+> can we add a little texture to the tiles? I'm thinking for each tile type, choose 3 similar colors (so for deep water, pick 3 deep blues) and then use that to stiple the hex tile. 
 
 ## 18. User prompt
->  let's improve the rendering of the waypoint line from ship to waypoint:
-  instead of straight light, let's render the A* path so you can see the route the ship would actually take
+> rendering is much much slower. Shoudl we pre-calc the stiple and use components? Just render instances? 
 
 ## 19. User prompt
-> let's add a second ship to our start of the game
+> let's document our ship construction feature in docs/features
 
 ## 20. User prompt
-> when pathfinding, ensure a ship doesn't occupy the same hex as another ship 
+> let's implement a port building feature. 
+1. Ports can be built when a ship is "docked" (on a shore hex, water adjacent to land)
+2. When a ship is docked and selected, show a build menu (bottom left)
+3. Build menu should only show the first port type in the tech tree
+4. Once a menu item is chosen, we want to activate a selection mode: allow the user to hover over hexs of the docked landmass; on hover, highlight the hovered hex; 
+5. On click (ports can only be built on shore line hex), place the port sprite and show a progress bar indicating it's `buildTime`. 
+6. Once complete, the port can be selected and ships may be built from it. 
 
 ## 21. User prompt
-> instead of blocky hex by hex ship moving, can we explore smooth ship movement? 
+> lets update the port selection to only allow hexs within 5 of the boat to be selected (so that a boat can't build a port across the map lol)
 
 ## 22. User prompt
-> how is game speed working at the moment? I think the ships move too fast. So I'm wondering if I should edit ship speeds or overall game speed
+> one more update – don't clear any fog of war until the port has successfully been completed / built 
 
 ## 23. User prompt
-> yea, update ship speeds 
+> let's document port building in /docs/features. Focus on behavior, key files, key functions. Don't
+  worry about documenting variable values (like buildTime etc) as those change.  
 
 ## 24. User prompt
-> let's fix a bug: when a ship tries to navigate to hex already occupied by another ship it gets stuck (keeps tring to move there there). Can we have it pick a nearest availble hex instead? 
+> next, lets add support for upgrading your port: 
+1. When a user selects a port (must be complete, not in a building state), show an upgrade menu (bottom left)
+2. Options should include only the next available port type in the tech tree
+3. Once selected, show the build progress bar and use the `buildTime` of the upgraded port
 
 ## 25. User prompt
-> the ship still tries to occupy the occupied hex. Could we check other ship waypoints or do a check before moving to the next hex? 
+> a few small tweaks: 
+1. while first construction a port, don't allow the ship that initiated it to move
+2. Don't allow the ship that initiated to build another port (only one at a time)
 
 ## 26. User prompt
-> let's work on multiple ship selection and navigation: 
-1. Implement a drag select box
-2. On release ^, select all units within the box 
-3. On shift + left click, set a waypoint for all selected units 
-4. All units should navigate to waypoint 
+> cool. update the port building docs
 
 ## 27. User prompt
-> something is buggy w/ the selection box; it appears as soon as I move the mouse, not on drag 
+> let's implement a new unit type: farm. 
+1. Read up on how ports work: docs/features/port-building.md
+2. Farms can be built from Ports. Much like building a port from a ship: 
+2a. select a port
+2b. show it's menu (today has options to build ships or upgrade)
+2c. add a new option to build a farm
+3. when farm is selected, intialize the hex selection mode (green)
+4. Allow the player to select any contiguous land hex within 10 hex of the port
+5. when chosen, build a farm on the selected hex
 
 ## 28. User prompt
-> let's have the map scroll when the mouse reaches the edges of the screen (like classic RTSs)
+> make sure that building farms and ships and outputs uses the same progress bar 
 
 ## 29. User prompt
-> lets update some hotkeys: 
-- setting a destination should use ctrl + left click
-- selecting multiple units should use shift + left click
+> make sure that building farms and ships and outputs uses the same progress bar ui / visual  
 
 ## 30. User prompt
-> let's work on the collision detection a bit: when a ship is already occupying a waypoint, the incoming ship will collide w/ the occupying ship then snap out to another hex and navigate elsewhere. Can we check before the ship moves to it's next hex if it's occupied and if so, navigate to another near avaiilabe hex instead 
+> let's tidy up units a bit: 
+1. rename outpost to dock
+2. rename sloop to schooner
 
 ## 31. User prompt
-> let's init a git repo (connect to https://github.com/twanlass/grog.git) and save our work. 
+> update our starting state to: 
+1. a port instead of a stronghold
+2. place 2 farms near by
+3. give us just one cutter 
 
 ## 32. User prompt
-> lets update our starting wood and food to 25 each 
+> let's add a new economoy feature. To start, let's add some build costs to our units: 
+1. Ships and ports should require wood to be built. Stub in some values and I'll tweak them code
 
 ## 33. User prompt
-> ive updated the ships cost to include food. can you update code to reflect that? 
+> let's introduce a new mechanic: collecting resources from foreign ports
+1. Foreign ports already collect resources from thier nearby settlements
+2. Let's allow for a foreign port to be a waypoint selection; with a ship selected, left click a foriegn port to target it. 
+2a. the selected ship will navigate to the foriegn port
+2b. the selected ship will load up wood and food 
+2c. loading wood and food should take 0.25 seconds per wood and food unit loaded, up to the maximum `cargo` of the selected ship
+2d. show a loading progress bar above the ship
+3. once loaded, the selected ship will navigate back to the home port and unload.
+4. once unloaded, the ship will wait for it's next orders   
 
 ## 34. User prompt
-> lets rename the "farm" unit to "settlement" 
+> confirm that the resources loaded are deducted from the foreign port and when unloaded are added to the global store. Also increase load/unload time to 1s per resource 
 
 ## 35. User prompt
-> let's add some logic to our settlements: 
-1. When created, they should contain a reference to the port they were built from
-2. If the settlement is from the home port (initial port), it should generate 5 wood and 5 food every 30 seconds and be added to the global wood and food store
-3. if the settlement is from a built port (a new island discoverd by a ship and built there), it should also generate 5 wood and 5 food. But rather than be added to the global store, it should be added to the built port where a ship must collect it later and return it home (we'll build this shipping feature later)
-4. When a settlement generates wood and food, let's spawn a number above it and animate it up and fade it out. Use the color of the resource to indicate what was generated (brown = wood, green = food). 
+> update the default home port to have no settlements intially 
 
 ## 36. User prompt
-> lets double the size of the floating +5's and reduce the animation time by half 
+> two small updates: 
+1. when selecting a boat, show a menu bottom right that lists it's name and any cargo it's carrying (wood or food count) 
+2. if a ship is carrying cargo and the user clicks on the home port, navigate the ship to the home port and unload it (right now if the auto route is interupted, the ship can't be unloaded)
 
 ## 37. User prompt
-> lets double the horizontal gap/space between them too 
+> how might we support some sort of waiting retry system for ships that are trying to load/unload by find their waypoint busy / in use by another ship? 
 
 ## 38. User prompt
-> `sight_distance` added to farms; use that to update fog of war
+> option b! 
 
 ## 39. User prompt
-> only allow a port to build a single settlement at a time
+> let's make a plan to refactor game/src/scenes/gameScene.js – it's getting quite large. 
 
 ## 40. User prompt
-> when clicking on a built port, let's display how much wood and food it's collected from it's settlements 
-
-## 41. User prompt
-> lets make it so that ports can only build one thing at a time; a settlement, ships, etc. 
-
-## 42. User prompt
-> update our docs/features as needed 
-
-## 43. User prompt
-> lets add an icon to the selected ship card to indicate when it's in an auto loop mode. This will help debug as well. 
-
-## 44. User prompt
-> there appears to be a bug. It looks like when a ship is in auto-loop mode and the foriegn port if occupied, it pasues, but never resumes, even after the port is vacated by another ship
-
-## 45. User prompt
-> still seeing the bug: see selected ship in screenshot. It's in auto-loop mode, not attempting to dock at foreign port; not in waiting mode either. 
-
-## 46. User prompt
-> document (docs/features) the trade route feature
-
-## 47. User prompt
-> how do we decide what resources a ship loads? wood vs food etc? 
-
-## 48. User prompt
-> let's do ratio based! 
-
-## 49. User prompt
-> small adjustment to the unloading: let's reverse the loading bar so it goes from full to empty (to visulize the ship _unloading_)
-
-## 50. User prompt
-> unit selection is getting tricky. Let's update it: 
-1. left click to select a unit (ship, port, settlement)
-2. command + left click with a _ship_ selected to set a waypoint or target port
-3. left click anywhere else to unselect all units 
-
-## 51. User prompt
-> update docs/features if needed then prep a commit 
-
-## 52. User prompt
-> commit everythign please 
+> I think we need to fix our git repo; it looks like just the game directory is included/tracked but we need /Users/tylerwanlass/code/grog to be tracked included. What should we do? 
