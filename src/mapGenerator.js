@@ -205,3 +205,48 @@ export function getTileColor(tile) {
             return [100, 100, 100];
     }
 }
+
+// Get 3 stipple colors for tile texture (base + 2 variations)
+export function getStippleColors(tile) {
+    if (tile.type === TILE_TYPES.DEEP_OCEAN) {
+        return [
+            [15, 50, 100],   // Darker
+            [20, 60, 120],   // Base
+            [30, 75, 140],   // Lighter
+        ];
+    }
+
+    if (tile.type === TILE_TYPES.SHALLOW) {
+        return [
+            [35, 85, 140],   // Darker
+            [40, 100, 160],  // Base
+            [55, 120, 175],  // Lighter
+        ];
+    }
+
+    // Port sites
+    if (tile.isPortSite) {
+        switch (tile.climate) {
+            case CLIMATE_ZONES.ARCTIC:
+                return [[165, 175, 190], [180, 190, 200], [195, 205, 215]];
+            case CLIMATE_ZONES.TEMPERATE:
+                return [[140, 120, 85], [160, 140, 100], [175, 155, 115]];
+            case CLIMATE_ZONES.TROPICAL:
+                return [[200, 180, 130], [220, 200, 150], [235, 215, 170]];
+            default:
+                return [[130, 110, 85], [150, 130, 100], [165, 145, 115]];
+        }
+    }
+
+    // Inland land by climate
+    switch (tile.climate) {
+        case CLIMATE_ZONES.ARCTIC:
+            return [[200, 210, 225], [220, 230, 240], [235, 245, 250]];
+        case CLIMATE_ZONES.TEMPERATE:
+            return [[65, 120, 55], [80, 140, 70], [95, 155, 85]];
+        case CLIMATE_ZONES.TROPICAL:
+            return [[180, 160, 85], [200, 180, 100], [215, 195, 115]];
+        default:
+            return [[85, 85, 85], [100, 100, 100], [115, 115, 115]];
+    }
+}

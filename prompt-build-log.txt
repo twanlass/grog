@@ -114,3 +114,73 @@ xn    @    kaplay.js?v=8270b6e8:5276
 
 ## 31. User prompt
 > let's init a git repo (connect to https://github.com/twanlass/grog.git) and save our work. 
+
+## 32. User prompt
+> lets update our starting wood and food to 25 each 
+
+## 33. User prompt
+> ive updated the ships cost to include food. can you update code to reflect that? 
+
+## 34. User prompt
+> lets rename the "farm" unit to "settlement" 
+
+## 35. User prompt
+> let's add some logic to our settlements: 
+1. When created, they should contain a reference to the port they were built from
+2. If the settlement is from the home port (initial port), it should generate 5 wood and 5 food every 30 seconds and be added to the global wood and food store
+3. if the settlement is from a built port (a new island discoverd by a ship and built there), it should also generate 5 wood and 5 food. But rather than be added to the global store, it should be added to the built port where a ship must collect it later and return it home (we'll build this shipping feature later)
+4. When a settlement generates wood and food, let's spawn a number above it and animate it up and fade it out. Use the color of the resource to indicate what was generated (brown = wood, green = food). 
+
+## 36. User prompt
+> lets double the size of the floating +5's and reduce the animation time by half 
+
+## 37. User prompt
+> lets double the horizontal gap/space between them too 
+
+## 38. User prompt
+> `sight_distance` added to farms; use that to update fog of war
+
+## 39. User prompt
+> only allow a port to build a single settlement at a time
+
+## 40. User prompt
+> when clicking on a built port, let's display how much wood and food it's collected from it's settlements 
+
+## 41. User prompt
+> lets make it so that ports can only build one thing at a time; a settlement, ships, etc. 
+
+## 42. User prompt
+> update our docs/features as needed 
+
+## 43. User prompt
+> lets add an icon to the selected ship card to indicate when it's in an auto loop mode. This will help debug as well. 
+
+## 44. User prompt
+> there appears to be a bug. It looks like when a ship is in auto-loop mode and the foriegn port if occupied, it pasues, but never resumes, even after the port is vacated by another ship
+
+## 45. User prompt
+> still seeing the bug: see selected ship in screenshot. It's in auto-loop mode, not attempting to dock at foreign port; not in waiting mode either. 
+
+## 46. User prompt
+> document (docs/features) the trade route feature
+
+## 47. User prompt
+> how do we decide what resources a ship loads? wood vs food etc? 
+
+## 48. User prompt
+> let's do ratio based! 
+
+## 49. User prompt
+> small adjustment to the unloading: let's reverse the loading bar so it goes from full to empty (to visulize the ship _unloading_)
+
+## 50. User prompt
+> unit selection is getting tricky. Let's update it: 
+1. left click to select a unit (ship, port, settlement)
+2. command + left click with a _ship_ selected to set a waypoint or target port
+3. left click anywhere else to unselect all units 
+
+## 51. User prompt
+> update docs/features if needed then prep a commit 
+
+## 52. User prompt
+> commit everythign please 

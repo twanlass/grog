@@ -3,14 +3,14 @@ import { createGameScene } from "./scenes/gameScene.js";
 import { createGalleryScene } from "./scenes/galleryScene.js";
 
 const k = kaplay({
-    background: [20, 60, 100], // Ocean blue
+    background: [0, 0, 0], // Pitch black - edge of the world
 });
 
 // Register scenes
 k.scene("title", () => {
     // Title text
     k.add([
-        k.text("Trade Winds", { size: 64 }),
+        k.text("Grog", { size: 64 }),
         k.pos(k.center().x, k.center().y - 40),
         k.anchor("center"),
         k.color(255, 255, 255),
@@ -18,7 +18,7 @@ k.scene("title", () => {
 
     // Subtitle
     k.add([
-        k.text("Build your trading empire", { size: 24 }),
+        k.text("Trade, steal, and plunder your way to empire", { size: 24 }),
         k.pos(k.center().x, k.center().y + 20),
         k.anchor("center"),
         k.color(200, 220, 255),

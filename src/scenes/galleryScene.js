@@ -1,5 +1,5 @@
 // Gallery scene - Display ships and ports
-import { SHIPS, PORTS, drawSprite, getSpriteSize } from "../sprites.js";
+import { SHIPS, PORTS, drawSprite, getSpriteSize } from "../sprites/index.js";
 
 export function createGalleryScene(k) {
     return function galleryScene() {
