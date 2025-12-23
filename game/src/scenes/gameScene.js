@@ -1,8 +1,8 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createFarm, findStartingPosition, findAdjacentWater, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterFarmBuildMode, exitFarmBuildMode, isValidFarmSite, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
-import { drawSprite, getSpriteSize, PORTS, SHIPS, FARMS } from "../sprites/index.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findAdjacentWater, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
+import { drawSprite, getSpriteSize, PORTS, SHIPS, SETTLEMENTS } from "../sprites/index.js";
 import { findPath, findNearestWater, findNearestAvailable } from "../pathfinding.js";
 import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../fogOfWar.js";
 
@@ -12,7 +12,7 @@ import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
 import {
-    handlePortPlacementClick, handleFarmPlacementClick,
+    handlePortPlacementClick, handleSettlementPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
     handleUnitSelection, handleWaypointClick
@@ -73,7 +73,7 @@ export function createGameScene(k) {
         // Build panel state (for click detection)
         let buildPanelBounds = null;  // { x, y, width, height, buttons: [{y, height, shipType}] }
         let shipBuildPanelBounds = null;  // For ship's port build panel
-        let farmBuildPanelBounds = null;  // For farm build button in port panel
+        let settlementBuildPanelBounds = null;  // For settlement build button in port panel
 
         // Floating numbers for resource generation animation
         const floatingNumbers = [];
@@ -82,6 +82,17 @@ export function createGameScene(k) {
 
         // Stipple animation timer for water twinkling effect
         let stippleAnimTime = 0;
+
+        // Bird state (world coordinates with circular orbit)
+        const birdState = startTile ? {
+            q: startTile.q,
+            r: startTile.r,
+            frame: 0,
+            frameTimer: 0,
+            angle: 0,           // Current angle in radians
+            orbitRadius: 50,    // Pixels from center
+            orbitSpeed: 0.3,    // Radians per second (~20s per revolution)
+        } : null;
 
         // Pre-calculate world positions for all tiles (once at load)
         const tilePositions = new Map();
@@ -138,6 +149,17 @@ export function createGameScene(k) {
             updateTradeRoutes(gameState, map, dt);
             updateConstruction(gameState, map, fogState, dt);
             updateResourceGeneration(gameState, floatingNumbers, dt);
+
+            // Animate bird
+            if (birdState) {
+                birdState.frameTimer += rawDt;  // Use rawDt so it animates even when paused
+                if (birdState.frameTimer > 0.25) {  // ~4 FPS flapping
+                    birdState.frameTimer = 0;
+                    birdState.frame = (birdState.frame + 1) % 2;
+                }
+                // Update orbit position
+                birdState.angle += birdState.orbitSpeed * rawDt;
+            }
         });
 
         // Check if a ship is docked (on water adjacent to land, and stationary)
@@ -364,9 +386,9 @@ export function createGameScene(k) {
                 }
             }
 
-            // Draw farms
-            for (const farm of gameState.farms) {
-                const pos = hexToPixel(farm.q, farm.r);
+            // Draw settlements
+            for (const settlement of gameState.settlements) {
+                const pos = hexToPixel(settlement.q, settlement.r);
                 const screenX = (pos.x - cameraX) * zoom + halfWidth;
                 const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
@@ -374,23 +396,23 @@ export function createGameScene(k) {
                 if (screenX < -100 || screenX > k.width() + 100 ||
                     screenY < -100 || screenY > k.height() + 100) continue;
 
-                const farmData = FARMS.farm;
-                const spriteSize = getSpriteSize(farmData.sprite, unitScale);
+                const settlementData = SETTLEMENTS.settlement;
+                const spriteSize = getSpriteSize(settlementData.sprite, unitScale);
 
-                // Draw farm sprite (semi-transparent if under construction)
-                const isConstructing = farm.construction !== null;
-                drawSprite(k, farmData.sprite,
+                // Draw settlement sprite (semi-transparent if under construction)
+                const isConstructing = settlement.construction !== null;
+                drawSprite(k, settlementData.sprite,
                     screenX - spriteSize.width / 2,
                     screenY - spriteSize.height / 2,
                     unitScale,
                     isConstructing ? 0.5 : 1.0);
 
-                // Draw farm CONSTRUCTION progress bar
-                if (farm.construction) {
+                // Draw settlement CONSTRUCTION progress bar
+                if (settlement.construction) {
                     const barWidth = 50 * zoom;
                     const barHeight = 8 * zoom;
                     const barY = screenY - spriteSize.height / 2 - 20 * zoom;
-                    const progress = Math.min(farm.construction.progress / farm.construction.buildTime, 1);
+                    const progress = Math.min(settlement.construction.progress / settlement.construction.buildTime, 1);
 
                     // Background
                     k.drawRect({
@@ -564,6 +586,27 @@ export function createGameScene(k) {
                 });
             }
 
+            // Draw bird (world-space, circling home port) - rendered above all units
+            if (birdState) {
+                const centerPos = hexToPixel(birdState.q, birdState.r);
+                const orbitX = Math.cos(birdState.angle) * birdState.orbitRadius;
+                const orbitY = Math.sin(birdState.angle) * birdState.orbitRadius;
+                const birdScreenX = (centerPos.x + orbitX - cameraX) * zoom + halfWidth;
+                const birdScreenY = (centerPos.y + orbitY - 40 - cameraY) * zoom + halfHeight;
+
+                // Skip if off-screen
+                if (birdScreenX > -50 && birdScreenX < k.width() + 50 &&
+                    birdScreenY > -50 && birdScreenY < k.height() + 50) {
+                    k.drawSprite({
+                        sprite: "bird",
+                        pos: k.vec2(birdScreenX, birdScreenY),
+                        frame: birdState.frame,
+                        anchor: "center",
+                        scale: k.vec2(1 * zoom, 1 * zoom),
+                    });
+                }
+            }
+
             // Draw selection indicators for all selected units
             for (let i = 0; i < gameState.ships.length; i++) {
                 if (!isSelected(gameState, 'ship', i)) continue;
@@ -667,11 +710,11 @@ export function createGameScene(k) {
                 });
             }
 
-            // Draw selection indicators for selected farms
-            for (let i = 0; i < gameState.farms.length; i++) {
-                if (!isSelected(gameState, 'farm', i)) continue;
-                const farm = gameState.farms[i];
-                const pos = hexToPixel(farm.q, farm.r);
+            // Draw selection indicators for selected settlements
+            for (let i = 0; i < gameState.settlements.length; i++) {
+                if (!isSelected(gameState, 'settlement', i)) continue;
+                const settlement = gameState.settlements[i];
+                const pos = hexToPixel(settlement.q, settlement.r);
                 const screenX = (pos.x - cameraX) * zoom + halfWidth;
                 const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
@@ -764,10 +807,10 @@ export function createGameScene(k) {
                 });
             }
 
-            // Draw farm placement mode highlights (when placing a new farm)
-            if (gameState.farmBuildMode.active) {
-                const builderPort = gameState.ports[gameState.farmBuildMode.builderPortIndex];
-                const MAX_FARM_BUILD_DISTANCE = 10;  // Maximum distance from port to place farm
+            // Draw settlement placement mode highlights (when placing a new settlement)
+            if (gameState.settlementBuildMode.active) {
+                const builderPort = gameState.ports[gameState.settlementBuildMode.builderPortIndex];
+                const MAX_SETTLEMENT_BUILD_DISTANCE = 10;  // Maximum distance from port to place settlement
 
                 // Get current mouse position in world coords
                 const mouseX = k.mousePos().x;
@@ -776,25 +819,25 @@ export function createGameScene(k) {
                 const worldMY = (mouseY - halfHeight) / zoom + cameraY;
                 const hoverHex = pixelToHex(worldMX, worldMY);
 
-                // Check if hovered hex is a valid farm site AND within range
+                // Check if hovered hex is a valid settlement site AND within range
                 const hoverDistance = hexDistance(builderPort.q, builderPort.r, hoverHex.q, hoverHex.r);
-                const isValidHover = isValidFarmSite(map, hoverHex.q, hoverHex.r, gameState.farms, gameState.ports) &&
-                                     hoverDistance <= MAX_FARM_BUILD_DISTANCE;
-                gameState.farmBuildMode.hoveredHex = isValidHover ? hoverHex : null;
+                const isValidHover = isValidSettlementSite(map, hoverHex.q, hoverHex.r, gameState.settlements, gameState.ports) &&
+                                     hoverDistance <= MAX_SETTLEMENT_BUILD_DISTANCE;
+                gameState.settlementBuildMode.hoveredHex = isValidHover ? hoverHex : null;
 
-                // Draw highlights on all valid farm sites (land hexes) within range
+                // Draw highlights on all valid settlement sites (land hexes) within range
                 for (const tile of map.tiles.values()) {
                     if (tile.type !== 'land') continue;
                     if (!isHexRevealed(fogState, tile.q, tile.r)) continue;
 
                     // Check distance from builder port
                     const dist = hexDistance(builderPort.q, builderPort.r, tile.q, tile.r);
-                    if (dist > MAX_FARM_BUILD_DISTANCE) continue;
+                    if (dist > MAX_SETTLEMENT_BUILD_DISTANCE) continue;
 
-                    // Check if already has a farm or port
-                    const hasFarm = gameState.farms.some(f => f.q === tile.q && f.r === tile.r);
+                    // Check if already has a settlement or port
+                    const hasSettlement = gameState.settlements.some(f => f.q === tile.q && f.r === tile.r);
                     const hasPort = gameState.ports.some(p => p.q === tile.q && p.r === tile.r);
-                    if (hasFarm || hasPort) continue;
+                    if (hasSettlement || hasPort) continue;
 
                     const pos = tilePositions.get(tile);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -804,9 +847,9 @@ export function createGameScene(k) {
                     if (screenX < -margin || screenX > k.width() + margin ||
                         screenY < -margin || screenY > k.height() + margin) continue;
 
-                    const isHovered = gameState.farmBuildMode.hoveredHex &&
-                                      tile.q === gameState.farmBuildMode.hoveredHex.q &&
-                                      tile.r === gameState.farmBuildMode.hoveredHex.r;
+                    const isHovered = gameState.settlementBuildMode.hoveredHex &&
+                                      tile.q === gameState.settlementBuildMode.hoveredHex.q &&
+                                      tile.r === gameState.settlementBuildMode.hoveredHex.r;
 
                     const corners = hexCorners(screenX, screenY, scaledSize);
                     const pts = corners.map(c => k.vec2(c.x, c.y));
@@ -1032,10 +1075,10 @@ export function createGameScene(k) {
                     // Port is complete - show ship build panel with upgrade option
                     const buildableShips = getBuildableShips(port);
                     const nextPortType = getNextPortType(port.type);
-                    const isBuildingSettlement = isPortBuildingSettlement(portIndex, gameState.farms);
+                    const isBuildingSettlement = isPortBuildingSettlement(portIndex, gameState.settlements);
                     const portBusy = port.buildQueue || isBuildingSettlement;  // Port can only build one thing at a time
                     const canUpgrade = nextPortType && !portBusy;
-                    const canBuildFarm = !portBusy && !gameState.farmBuildMode.active;
+                    const canBuildSettlement = !portBusy && !gameState.settlementBuildMode.active;
 
                     // Check if port has stored resources (non-home ports)
                     const hasStorage = portIndex > 0 && port.storage && (port.storage.wood > 0 || port.storage.food > 0);
@@ -1046,8 +1089,8 @@ export function createGameScene(k) {
                     const bpPadding = 10;
                     const bpHeaderHeight = 24;
                     const upgradeHeight = canUpgrade ? (bpHeaderHeight + bpRowHeight) : 0;
-                    const farmHeight = canBuildFarm ? (bpHeaderHeight + bpRowHeight) : 0;
-                    const bpHeight = storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + farmHeight;
+                    const settlementHeight = canBuildSettlement ? (bpHeaderHeight + bpRowHeight) : 0;
+                    const bpHeight = storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + settlementHeight;
                     const bpX = 15;
                     const bpY = k.height() - 50 - bpHeight;
 
@@ -1059,7 +1102,7 @@ export function createGameScene(k) {
                         height: bpHeight,
                         buttons: [],
                         upgradeButton: null,
-                        farmButton: null,
+                        settlementButton: null,
                         portIndex: portIndex,
                     };
 
@@ -1284,68 +1327,68 @@ export function createGameScene(k) {
                             });
                         }
 
-                        // Show build farm option
-                        if (canBuildFarm) {
-                            const farmY = bpY + storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight;
+                        // Show build settlement option
+                        if (canBuildSettlement) {
+                            const settlementY = bpY + storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight;
 
                             // Separator line
                             k.drawLine({
-                                p1: k.vec2(bpX + 8, farmY - 4),
-                                p2: k.vec2(bpX + bpWidth - 8, farmY - 4),
+                                p1: k.vec2(bpX + 8, settlementY - 4),
+                                p2: k.vec2(bpX + bpWidth - 8, settlementY - 4),
                                 width: 1,
                                 color: k.rgb(60, 70, 80),
                             });
 
-                            // Build Farm header
+                            // Build Settlement header
                             k.drawText({
                                 text: "BUILD SETTLEMENT",
-                                pos: k.vec2(bpX + bpWidth / 2, farmY + 10),
+                                pos: k.vec2(bpX + bpWidth / 2, settlementY + 10),
                                 size: 11,
                                 anchor: "center",
                                 color: k.rgb(150, 150, 150),
                             });
 
-                            // Farm button
-                            const farmBtnY = farmY + bpHeaderHeight;
-                            const farmBtnHeight = bpRowHeight - 4;
-                            const farmData = FARMS.farm;
-                            const alreadyBuildingSettlement = isPortBuildingSettlement(portIndex, gameState.farms);
+                            // Settlement button
+                            const settlementBtnY = settlementY + bpHeaderHeight;
+                            const settlementBtnHeight = bpRowHeight - 4;
+                            const settlementData = SETTLEMENTS.settlement;
+                            const alreadyBuildingSettlement = isPortBuildingSettlement(portIndex, gameState.settlements);
 
-                            // Store farm button bounds
-                            buildPanelBounds.farmButton = {
-                                y: farmBtnY,
-                                height: farmBtnHeight,
+                            // Store settlement button bounds
+                            buildPanelBounds.settlementButton = {
+                                y: settlementBtnY,
+                                height: settlementBtnHeight,
                             };
 
                             // Check if mouse is hovering (only if not already building)
-                            const isFarmHovered = !alreadyBuildingSettlement &&
+                            const isSettlementHovered = !alreadyBuildingSettlement &&
                                                   mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
-                                                  mousePos.y >= farmBtnY && mousePos.y <= farmBtnY + farmBtnHeight;
+                                                  mousePos.y >= settlementBtnY && mousePos.y <= settlementBtnY + settlementBtnHeight;
 
                             // Button background
-                            if (isFarmHovered) {
+                            if (isSettlementHovered) {
                                 k.drawRect({
-                                    pos: k.vec2(bpX + 4, farmBtnY),
+                                    pos: k.vec2(bpX + 4, settlementBtnY),
                                     width: bpWidth - 8,
-                                    height: farmBtnHeight,
+                                    height: settlementBtnHeight,
                                     color: k.rgb(60, 80, 100),
                                     radius: 4,
                                 });
                             }
 
-                            // Farm name (greyed out if already building)
+                            // Settlement name (greyed out if already building)
                             k.drawText({
-                                text: alreadyBuildingSettlement ? `${farmData.name} (building...)` : farmData.name,
-                                pos: k.vec2(bpX + 12, farmBtnY + farmBtnHeight / 2),
+                                text: alreadyBuildingSettlement ? `${settlementData.name} (building...)` : settlementData.name,
+                                pos: k.vec2(bpX + 12, settlementBtnY + settlementBtnHeight / 2),
                                 size: 13,
                                 anchor: "left",
-                                color: alreadyBuildingSettlement ? k.rgb(80, 80, 80) : isFarmHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
+                                color: alreadyBuildingSettlement ? k.rgb(80, 80, 80) : isSettlementHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
                             });
 
                             // Build time
                             k.drawText({
-                                text: `${farmData.buildTime}s`,
-                                pos: k.vec2(bpX + bpWidth - 12, farmBtnY + farmBtnHeight / 2),
+                                text: `${settlementData.buildTime}s`,
+                                pos: k.vec2(bpX + bpWidth - 12, settlementBtnY + settlementBtnHeight / 2),
                                 size: 11,
                                 anchor: "right",
                                 color: k.rgb(120, 120, 120),
@@ -1620,9 +1663,9 @@ export function createGameScene(k) {
                 console.log("Port placement cancelled");
                 return;  // Don't start panning
             }
-            if (gameState.farmBuildMode.active) {
-                exitFarmBuildMode(gameState);
-                console.log("Farm placement cancelled");
+            if (gameState.settlementBuildMode.active) {
+                exitSettlementBuildMode(gameState);
+                console.log("Settlement placement cancelled");
                 return;  // Don't start panning
             }
 
@@ -1703,9 +1746,9 @@ export function createGameScene(k) {
                 exitPortBuildMode(gameState);
                 console.log("Port placement cancelled");
             }
-            if (gameState.farmBuildMode.active) {
-                exitFarmBuildMode(gameState);
-                console.log("Farm placement cancelled");
+            if (gameState.settlementBuildMode.active) {
+                exitSettlementBuildMode(gameState);
+                console.log("Settlement placement cancelled");
             }
         });
 
@@ -1716,7 +1759,7 @@ export function createGameScene(k) {
 
             // Handle placement mode clicks first
             if (handlePortPlacementClick(gameState)) return;
-            if (handleFarmPlacementClick(gameState)) return;
+            if (handleSettlementPlacementClick(gameState)) return;
 
             // Check UI panel clicks
             if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) return;
@@ -1746,7 +1789,7 @@ export function createGameScene(k) {
                 }
             }
 
-            // Check unit selection (ships, ports, farms)
+            // Check unit selection (ships, ports, settlements)
             if (!clickedOnUnit) {
                 clickedOnUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld);
             }
@@ -1803,16 +1846,16 @@ export function createGameScene(k) {
                 }
             }
 
-            // Check each farm
-            for (let i = 0; i < gameState.farms.length; i++) {
-                const farm = gameState.farms[i];
-                const pos = hexToPixel(farm.q, farm.r);
+            // Check each settlement
+            for (let i = 0; i < gameState.settlements.length; i++) {
+                const settlement = gameState.settlements[i];
+                const pos = hexToPixel(settlement.q, settlement.r);
                 const screenX = (pos.x - cameraX) * zoom + halfWidth;
                 const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
                 if (screenX >= boxLeft && screenX <= boxRight &&
                     screenY >= boxTop && screenY <= boxBottom) {
-                    addToSelection(gameState, 'farm', i);
+                    addToSelection(gameState, 'settlement', i);
                 }
             }
 

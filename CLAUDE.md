@@ -20,8 +20,8 @@ game/
     systems/
       shipMovement.js      # Ship navigation and pathfinding
       tradeRoutes.js       # Cargo loading/unloading logic
-      construction.js      # Port/farm building progress
-      resourceGeneration.js # Farm resource production
+      construction.js      # Port/settlement building progress
+      resourceGeneration.js # Settlement resource production
       inputHandler.js      # Click interaction handlers
     scenes/
       gameScene.js    # Main game loop and rendering
@@ -29,7 +29,7 @@ game/
     sprites/
       ships.js        # Ship definitions and pixel art
       ports.js        # Port definitions and pixel art
-      farms.js        # Settlement definitions and pixel art
+      settlements.js  # Settlement definitions and pixel art
 ```
 
 ## Feature Documentation

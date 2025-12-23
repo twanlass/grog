@@ -1,10 +1,10 @@
-// Construction system - handles port and farm building progress
+// Construction system - handles port and settlement building progress
 import { createShip, findFreeAdjacentWater } from "../gameState.js";
-import { SHIPS, FARMS } from "../sprites/index.js";
+import { SHIPS, SETTLEMENTS } from "../sprites/index.js";
 import { revealRadius } from "../fogOfWar.js";
 
 /**
- * Updates all construction progress for ports and farms
+ * Updates all construction progress for ports and settlements
  * @param {Object} gameState - The game state
  * @param {Object} map - The game map
  * @param {Object} fogState - Fog of war state
@@ -19,8 +19,8 @@ export function updateConstruction(gameState, map, fogState, dt) {
     // Update port construction/upgrade progress
     updatePortConstruction(gameState, fogState, dt);
 
-    // Update farm construction progress
-    updateFarmConstruction(gameState, fogState, dt);
+    // Update settlement construction progress
+    updateSettlementConstruction(gameState, fogState, dt);
 }
 
 /**
@@ -83,22 +83,22 @@ function updatePortConstruction(gameState, fogState, dt) {
 }
 
 /**
- * Update farm construction progress
+ * Update settlement construction progress
  */
-function updateFarmConstruction(gameState, fogState, dt) {
-    for (const farm of gameState.farms) {
-        if (!farm.construction) continue;
+function updateSettlementConstruction(gameState, fogState, dt) {
+    for (const settlement of gameState.settlements) {
+        if (!settlement.construction) continue;
 
-        farm.construction.progress += dt;
+        settlement.construction.progress += dt;
 
         // Check if construction is complete
-        if (farm.construction.progress >= farm.construction.buildTime) {
-            console.log(`Farm construction complete at (${farm.q}, ${farm.r})`);
-            farm.construction = null;  // Clear construction state
+        if (settlement.construction.progress >= settlement.construction.buildTime) {
+            console.log(`Settlement construction complete at (${settlement.q}, ${settlement.r})`);
+            settlement.construction = null;  // Clear construction state
 
             // Reveal fog around completed settlement
-            const sightDistance = FARMS.farm.sight_distance;
-            revealRadius(fogState, farm.q, farm.r, sightDistance);
+            const sightDistance = SETTLEMENTS.settlement.sight_distance;
+            revealRadius(fogState, settlement.q, settlement.r, sightDistance);
         }
     }
 }

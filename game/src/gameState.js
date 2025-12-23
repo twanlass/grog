@@ -1,7 +1,7 @@
 // Game state for Trade Winds
 import { PORTS } from "./sprites/ports.js";
 import { SHIPS } from "./sprites/ships.js";
-import { FARMS } from "./sprites/farms.js";
+import { SETTLEMENTS } from "./sprites/settlements.js";
 import { hexKey } from "./hex.js";
 
 export function createGameState() {
@@ -32,15 +32,15 @@ export function createGameState() {
             hoveredHex: null,
         },
 
-        // Farm building placement mode
-        farmBuildMode: {
+        // Settlement building placement mode
+        settlementBuildMode: {
             active: false,
             builderPortIndex: null,
             hoveredHex: null,
         },
 
-        // Player's farms: [{ q, r, construction }]
-        farms: [],
+        // Player's settlements: [{ q, r, construction }]
+        settlements: [],
     };
 }
 
@@ -126,7 +126,7 @@ export function getSelectedUnits(gameState) {
     return gameState.selectedUnits.map(({ type, index }) => {
         if (type === 'ship') return gameState.ships[index];
         if (type === 'port') return gameState.ports[index];
-        if (type === 'farm') return gameState.farms[index];
+        if (type === 'settlement') return gameState.settlements[index];
         return null;
     }).filter(u => u !== null);
 }
@@ -286,8 +286,8 @@ export function startPortUpgrade(port) {
     return true;
 }
 
-// Create a new farm (optionally under construction)
-export function createFarm(q, r, isConstructing = false, builderPortIndex = null) {
+// Create a new settlement (optionally under construction)
+export function createSettlement(q, r, isConstructing = false, builderPortIndex = null) {
     return {
         q,
         r,
@@ -295,37 +295,37 @@ export function createFarm(q, r, isConstructing = false, builderPortIndex = null
         generationTimer: 0,  // Timer for resource generation
         construction: isConstructing ? {
             progress: 0,
-            buildTime: FARMS.farm.buildTime,
+            buildTime: SETTLEMENTS.settlement.buildTime,
         } : null,
     };
 }
 
-// Enter farm building placement mode
-export function enterFarmBuildMode(gameState, portIndex) {
-    gameState.farmBuildMode = {
+// Enter settlement building placement mode
+export function enterSettlementBuildMode(gameState, portIndex) {
+    gameState.settlementBuildMode = {
         active: true,
         builderPortIndex: portIndex,
         hoveredHex: null,
     };
 }
 
-// Exit farm building placement mode
-export function exitFarmBuildMode(gameState) {
-    gameState.farmBuildMode = {
+// Exit settlement building placement mode
+export function exitSettlementBuildMode(gameState) {
+    gameState.settlementBuildMode = {
         active: false,
         builderPortIndex: null,
         hoveredHex: null,
     };
 }
 
-// Check if a hex is a valid farm site (land hex, not occupied)
-export function isValidFarmSite(map, q, r, existingFarms, existingPorts) {
+// Check if a hex is a valid settlement site (land hex, not occupied)
+export function isValidSettlementSite(map, q, r, existingSettlements, existingPorts) {
     const tile = map.tiles.get(hexKey(q, r));
     if (!tile || tile.type !== 'land') return false;
 
-    // Check if already occupied by a farm
-    for (const farm of existingFarms) {
-        if (farm.q === q && farm.r === r) return false;
+    // Check if already occupied by a settlement
+    for (const settlement of existingSettlements) {
+        if (settlement.q === q && settlement.r === r) return false;
     }
 
     // Check if already occupied by a port
@@ -352,8 +352,8 @@ export function deductCost(resources, cost) {
 }
 
 // Check if a port is already building a settlement
-export function isPortBuildingSettlement(portIndex, farms) {
-    return farms.some(farm => farm.construction && farm.parentPortIndex === portIndex);
+export function isPortBuildingSettlement(portIndex, settlements) {
+    return settlements.some(settlement => settlement.construction && settlement.parentPortIndex === portIndex);
 }
 
 // Check if ship is adjacent to a port (in a neighboring hex)

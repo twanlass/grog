@@ -2,5 +2,5 @@
 export * from "./colors.js";
 export * from "./ships.js";
 export * from "./ports.js";
-export * from "./farms.js";
+export * from "./settlements.js";
 export * from "./utils.js";

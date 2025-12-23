@@ -16,7 +16,7 @@ Open http://localhost:5173 in your browser.
 
 ## Controls
 
-- **Click** - Select ships/ports/farms
+- **Click** - Select ships/ports/settlements
 - **Shift+Click** - Add to selection
 - **Cmd+Click** (water) - Set waypoint for selected ships
 - **Cmd+Click** (foreign port) - Establish trade route
@@ -33,6 +33,7 @@ Open http://localhost:5173 in your browser.
 - [Port Building](docs/features/port-building.md)
 - [Settlement Building](docs/features/settlement-building.md)
 - [Trade Routes](docs/features/trade-routes.md)
+- [Sea Birds](docs/features/sea-birds.md)
 
 ## Project Structure
 
@@ -44,6 +45,6 @@ grog/
       main.js        # Entry point
       systems/       # Game logic modules
       scenes/        # Kaplay scenes
-      sprites/       # Ship, port, farm definitions
+      sprites/       # Ship, port, settlement definitions
   docs/              # Feature documentation
 ```

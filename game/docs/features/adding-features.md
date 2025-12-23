@@ -11,8 +11,8 @@ src/
 ├── systems/
 │   ├── shipMovement.js      - Ship navigation and pathfinding
 │   ├── tradeRoutes.js       - Cargo loading/unloading, trade logic
-│   ├── construction.js      - Building progress for ports and farms
-│   ├── resourceGeneration.js - Farm resource production
+│   ├── construction.js      - Building progress for ports and settlements
+│   ├── resourceGeneration.js - Settlement resource production
 │   └── inputHandler.js      - Click interaction handlers
 └── scenes/
     └── gameScene.js         - Rendering, UI panels, camera, scene setup
@@ -49,7 +49,7 @@ Examples: new building types, construction requirements, build queues
 The `updateConstruction()` function handles:
 - Port ship-building queue progress
 - Port construction and upgrade progress
-- Farm construction progress
+- Settlement construction progress
 
 ### Resource Production
 **File:** `src/systems/resourceGeneration.js`
@@ -57,7 +57,7 @@ The `updateConstruction()` function handles:
 Examples: new resource types, production rates, bonuses
 
 The `updateResourceGeneration()` function handles:
-- Farm resource generation timers
+- Settlement resource generation timers
 - Resource distribution (global vs port storage)
 - Floating number animations
 
@@ -68,12 +68,12 @@ Examples: new click actions, selection modes, command interactions
 
 Available handler functions:
 - `handlePortPlacementClick()` - Port placement mode
-- `handleFarmPlacementClick()` - Farm placement mode
+- `handleSettlementPlacementClick()` - Settlement placement mode
 - `handleShipBuildPanelClick()` - Ship's port-building panel
-- `handleBuildPanelClick()` - Port's build panel (ships, upgrades, farms)
+- `handleBuildPanelClick()` - Port's build panel (ships, upgrades, settlements)
 - `handleTradeRouteClick()` - Cmd+click on foreign port
 - `handleHomePortUnloadClick()` - Cmd+click on home port with cargo
-- `handleUnitSelection()` - Clicking on ships, ports, farms
+- `handleUnitSelection()` - Clicking on ships, ports, settlements
 - `handleWaypointClick()` - Cmd+click on water/land
 
 ### UI Panels & Rendering
@@ -84,7 +84,7 @@ Examples: new UI panels, visual effects, status indicators
 The `k.onDraw()` callback handles all rendering in layer order:
 1. Terrain tiles
 2. Fog of war overlay
-3. Ports and farms
+3. Ports and settlements
 4. Ships and trails
 5. Selection indicators
 6. Placement mode highlights

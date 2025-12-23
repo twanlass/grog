@@ -35,24 +35,24 @@ Ports can construct settlements on nearby land. Settlements generate wood and fo
 
 | File | Purpose |
 |------|---------|
-| `game/src/gameState.js` | Farm creation, placement mode, validation |
+| `game/src/gameState.js` | Settlement creation, placement mode, validation |
 | `game/src/scenes/gameScene.js` | UI, construction progress, resource generation |
-| `game/src/sprites/farms.js` | Settlement definition with `buildTime`, `sight_distance` |
+| `game/src/sprites/settlements.js` | Settlement definition with `buildTime`, `sight_distance` |
 
 ## Key Functions
 
 ### gameState.js
-- `createFarm(q, r, isConstructing, builderPortIndex)` - Creates settlement with `parentPortIndex` and `generationTimer`
-- `enterFarmBuildMode(gameState, portIndex)` - Activates placement mode
-- `exitFarmBuildMode(gameState)` - Cancels/exits placement mode
-- `isValidFarmSite(map, q, r, farms, ports)` - Checks if hex is valid
-- `isPortBuildingSettlement(portIndex, farms)` - Returns true if port is building a settlement
+- `createSettlement(q, r, isConstructing, builderPortIndex)` - Creates settlement with `parentPortIndex` and `generationTimer`
+- `enterSettlementBuildMode(gameState, portIndex)` - Activates placement mode
+- `exitSettlementBuildMode(gameState)` - Cancels/exits placement mode
+- `isValidSettlementSite(map, q, r, settlements, ports)` - Checks if hex is valid
+- `isPortBuildingSettlement(portIndex, settlements)` - Returns true if port is building a settlement
 
 ## Data Structures
 
-### Settlement (farm)
+### Settlement
 ```javascript
-farm = {
+settlement = {
     q, r,
     parentPortIndex: 0,      // Which port owns this settlement
     generationTimer: 0,      // Time since last resource generation
@@ -65,7 +65,7 @@ farm = {
 
 ### Placement mode state
 ```javascript
-gameState.farmBuildMode = {
+gameState.settlementBuildMode = {
     active: false,
     builderPortIndex: null,
     hoveredHex: null,
@@ -87,7 +87,7 @@ floatingNumbers = [{
 ## Constants
 - `GENERATION_INTERVAL`: 30 seconds
 - `GENERATION_AMOUNT`: 5 (wood and food)
-- `MAX_FARM_BUILD_DISTANCE`: 10 hexes from port
+- `MAX_SETTLEMENT_BUILD_DISTANCE`: 10 hexes from port
 - `sight_distance`: 3 hexes (fog reveal on completion)
 
 ## Edge Cases

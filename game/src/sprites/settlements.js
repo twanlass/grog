@@ -1,12 +1,12 @@
-// Farm sprites - Pixel art for farms
+// Settlement sprites - Pixel art for settlements
 import { W, D, M, Y, G, _ } from "./colors.js";
 
 // Wheat colors
 const WH = [220, 190, 90];   // Wheat yellow
 const WD = [180, 150, 60];   // Wheat dark
 
-// Farm - Wheat field with rows (16x16)
-export const FARM = [
+// Settlement - Wheat field with rows (16x16)
+export const SETTLEMENT = [
     [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
     [_, _, WH, _, WH, _, WH, _, WH, _, WH, _, WH, _, _, _],
     [_, _, WH, _, WH, _, WH, _, WH, _, WH, _, WH, _, _, _],
@@ -25,11 +25,11 @@ export const FARM = [
     [_, M, _, _, _, _, _, _, _, _, _, _, _, _, M, _],
 ];
 
-// Farm metadata
-export const FARMS = {
-    farm: {
+// Settlement metadata
+export const SETTLEMENTS = {
+    settlement: {
         name: "Settlement",
-        sprite: FARM,
+        sprite: SETTLEMENT,
         buildTime: 30,
         sight_distance: 3,
         description: "Produces food over time",

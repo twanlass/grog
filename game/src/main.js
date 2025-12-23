@@ -6,6 +6,15 @@ const k = kaplay({
     background: [0, 0, 0], // Pitch black - edge of the world
 });
 
+// Load animated sprites
+k.loadSprite("bird", "src/sprites/assets/bird.png", {
+    sliceX: 2,
+    sliceY: 1,
+    anims: {
+        flap: { from: 0, to: 1, loop: true, speed: 4 },
+    },
+});
+
 // Register scenes
 k.scene("title", () => {
     // Title text

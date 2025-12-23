@@ -26,7 +26,7 @@ Shrouds unexplored areas in darkness. Ships and settlements reveal the map.
 | `game/src/fogOfWar.js` | State management module |
 | `game/src/scenes/gameScene.js` | Integration and rendering |
 | `game/src/sprites/ships.js` | Ship `sight_distance` values |
-| `game/src/sprites/farms.js` | Settlement `sight_distance` value |
+| `game/src/sprites/settlements.js` | Settlement `sight_distance` value |
 
 ## Key Functions
 

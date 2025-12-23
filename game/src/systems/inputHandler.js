@@ -2,7 +2,7 @@
 import { PORTS, SHIPS } from "../sprites/index.js";
 import {
     canAfford, deductCost, createPort, exitPortBuildMode,
-    createFarm, exitFarmBuildMode, enterPortBuildMode, enterFarmBuildMode,
+    createSettlement, exitSettlementBuildMode, enterPortBuildMode, enterSettlementBuildMode,
     startBuilding, startPortUpgrade, isPortBuildingSettlement,
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort,
     clearSelection, cancelTradeRoute,
@@ -41,21 +41,21 @@ export function handlePortPlacementClick(gameState) {
 }
 
 /**
- * Handle click in farm placement mode
+ * Handle click in settlement placement mode
  * @returns {boolean} true if handled, false to continue processing
  */
-export function handleFarmPlacementClick(gameState) {
-    if (!gameState.farmBuildMode.active) return false;
+export function handleSettlementPlacementClick(gameState) {
+    if (!gameState.settlementBuildMode.active) return false;
 
-    if (gameState.farmBuildMode.hoveredHex) {
-        const hex = gameState.farmBuildMode.hoveredHex;
-        const builderPortIndex = gameState.farmBuildMode.builderPortIndex;
+    if (gameState.settlementBuildMode.hoveredHex) {
+        const hex = gameState.settlementBuildMode.hoveredHex;
+        const builderPortIndex = gameState.settlementBuildMode.builderPortIndex;
 
-        const newFarm = createFarm(hex.q, hex.r, true, builderPortIndex);
-        gameState.farms.push(newFarm);
+        const newSettlement = createSettlement(hex.q, hex.r, true, builderPortIndex);
+        gameState.settlements.push(newSettlement);
 
-        console.log(`Started building farm at (${hex.q}, ${hex.r}) by port ${builderPortIndex}`);
-        exitFarmBuildMode(gameState);
+        console.log(`Started building settlement at (${hex.q}, ${hex.r}) by port ${builderPortIndex}`);
+        exitSettlementBuildMode(gameState);
     }
     return true;
 }
@@ -87,7 +87,7 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
 }
 
 /**
- * Handle click on port build panel (ship building, upgrades, farm building)
+ * Handle click on port build panel (ship building, upgrades, settlement building)
  * @returns {boolean} true if handled
  */
 export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState) {
@@ -107,7 +107,7 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const portIdx = selectedPortIndices[0].index;
                 const port = gameState.ports[portIdx];
                 const shipData = SHIPS[btn.shipType];
-                const portBusy = port.buildQueue || isPortBuildingSettlement(portIdx, gameState.farms);
+                const portBusy = port.buildQueue || isPortBuildingSettlement(portIdx, gameState.settlements);
                 if (!portBusy && canAfford(gameState.resources, shipData.cost)) {
                     deductCost(gameState.resources, shipData.cost);
                     startBuilding(port, btn.shipType);
@@ -127,7 +127,7 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const portIdx = selectedPortIndices[0].index;
                 const port = gameState.ports[portIdx];
                 const nextPortData = PORTS[ubtn.portType];
-                const portBusy = port.buildQueue || isPortBuildingSettlement(portIdx, gameState.farms);
+                const portBusy = port.buildQueue || isPortBuildingSettlement(portIdx, gameState.settlements);
                 if (!portBusy && !port.construction && canAfford(gameState.resources, nextPortData.cost)) {
                     deductCost(gameState.resources, nextPortData.cost);
                     startPortUpgrade(port);
@@ -138,13 +138,13 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         }
     }
 
-    // Check farm button
-    if (bp.farmButton) {
-        const fbtn = bp.farmButton;
-        if (mouseY >= fbtn.y && mouseY <= fbtn.y + fbtn.height) {
-            if (!isPortBuildingSettlement(bp.portIndex, gameState.farms)) {
-                enterFarmBuildMode(gameState, bp.portIndex);
-                console.log(`Entering farm placement mode from port ${bp.portIndex}`);
+    // Check settlement button
+    if (bp.settlementButton) {
+        const sbtn = bp.settlementButton;
+        if (mouseY >= sbtn.y && mouseY <= sbtn.y + sbtn.height) {
+            if (!isPortBuildingSettlement(bp.portIndex, gameState.settlements)) {
+                enterSettlementBuildMode(gameState, bp.portIndex);
+                console.log(`Entering settlement placement mode from port ${bp.portIndex}`);
             }
             return true;
         }
@@ -259,7 +259,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
 }
 
 /**
- * Handle unit selection (ship, port, or farm)
+ * Handle unit selection (ship, port, or settlement)
  * @returns {boolean} true if a unit was clicked
  */
 export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld) {
@@ -301,21 +301,21 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
         }
     }
 
-    // Check farms
-    for (let i = 0; i < gameState.farms.length; i++) {
-        const farm = gameState.farms[i];
-        const farmPos = hexToPixel(farm.q, farm.r);
-        const dx = worldX - farmPos.x;
-        const dy = worldY - farmPos.y;
+    // Check settlements
+    for (let i = 0; i < gameState.settlements.length; i++) {
+        const settlement = gameState.settlements[i];
+        const settlementPos = hexToPixel(settlement.q, settlement.r);
+        const dx = worldX - settlementPos.x;
+        const dy = worldY - settlementPos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist < SELECTION_RADIUS) {
             if (isShiftHeld) {
-                toggleSelection(gameState, 'farm', i);
+                toggleSelection(gameState, 'settlement', i);
             } else {
-                selectUnit(gameState, 'farm', i);
+                selectUnit(gameState, 'settlement', i);
             }
-            console.log(`Selected farm at (${farm.q}, ${farm.r})`);
+            console.log(`Selected settlement at (${settlement.q}, ${settlement.r})`);
             return true;
         }
     }
