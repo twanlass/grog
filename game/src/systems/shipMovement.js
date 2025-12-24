@@ -279,6 +279,18 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
             }
         }
 
+        // Check towers (prioritize over ports if closer)
+        for (let i = 0; i < gameState.towers.length; i++) {
+            const tower = gameState.towers[i];
+            // Skip towers under construction
+            if (tower.construction) continue;
+            const dist = hexDistance(ship.q, ship.r, tower.q, tower.r);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestTarget = { type: 'tower', index: i, q: tower.q, r: tower.r };
+            }
+        }
+
         // State machine
         switch (ship.aiState) {
             case 'patrol':
@@ -287,8 +299,8 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                     ship.aiState = 'chase';
                     ship.aiTarget = nearestTarget;
                     ship.aiChaseDistance = 0; // Reset chase distance counter
-                    // For ports, find nearest water tile since ships can't path to land
-                    if (nearestTarget.type === 'port') {
+                    // For land-based targets (ports, towers), find nearest water tile since ships can't path to land
+                    if (nearestTarget.type === 'port' || nearestTarget.type === 'tower') {
                         const nearWater = findNearestWater(map, nearestTarget.q, nearestTarget.r);
                         ship.waypoint = nearWater ? { q: nearWater.q, r: nearWater.r } : null;
                     } else {
@@ -332,8 +344,10 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                     let target;
                     if (ship.aiTarget.type === 'ship') {
                         target = gameState.ships[ship.aiTarget.index];
-                    } else {
+                    } else if (ship.aiTarget.type === 'port') {
                         target = gameState.ports[ship.aiTarget.index];
+                    } else if (ship.aiTarget.type === 'tower') {
+                        target = gameState.towers[ship.aiTarget.index];
                     }
                     if (target) {
                         ship.aiTarget.q = target.q;
@@ -346,8 +360,8 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                             ship.waypoint = null;
                             ship.path = null;
                         } else {
-                            // Keep chasing - for ports, find nearest water tile
-                            if (ship.aiTarget.type === 'port') {
+                            // Keep chasing - for land-based targets (ports, towers), find nearest water tile
+                            if (ship.aiTarget.type === 'port' || ship.aiTarget.type === 'tower') {
                                 const nearWater = findNearestWater(map, target.q, target.r);
                                 ship.waypoint = nearWater ? { q: nearWater.q, r: nearWater.r } : null;
                             } else {
@@ -373,8 +387,10 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                     let target;
                     if (ship.aiTarget.type === 'ship') {
                         target = gameState.ships[ship.aiTarget.index];
-                    } else {
+                    } else if (ship.aiTarget.type === 'port') {
                         target = gameState.ports[ship.aiTarget.index];
+                    } else if (ship.aiTarget.type === 'tower') {
+                        target = gameState.towers[ship.aiTarget.index];
                     }
                     if (target) {
                         const dist = hexDistance(ship.q, ship.r, target.q, target.r);

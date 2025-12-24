@@ -1,8 +1,8 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findAdjacentWater, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
-import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS } from "../sprites/index.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findAdjacentWater, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
+import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { findPath, findNearestWater, findNearestAvailable } from "../pathfinding.js";
 import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../fogOfWar.js";
 
@@ -13,7 +13,7 @@ import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
 import { updateCombat, updatePirateRespawns } from "../systems/combat.js";
 import {
-    handlePortPlacementClick, handleSettlementPlacementClick,
+    handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
     handleUnitSelection, handleWaypointClick, handleAttackClick
@@ -165,6 +165,9 @@ export function createGameScene(k) {
             }
             for (const port of gameState.ports) {
                 if (port.hitFlash > 0) port.hitFlash -= rawDt;
+            }
+            for (const tower of gameState.towers) {
+                if (tower.hitFlash > 0) tower.hitFlash -= rawDt;
             }
 
             // Check for game over: all player ships and ports destroyed
@@ -477,6 +480,73 @@ export function createGameScene(k) {
                 }
             }
 
+            // Draw towers
+            for (const tower of gameState.towers) {
+                const pos = hexToPixel(tower.q, tower.r);
+                const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+                // Skip if off screen
+                if (screenX < -100 || screenX > k.width() + 100 ||
+                    screenY < -100 || screenY > k.height() + 100) continue;
+
+                const towerData = TOWERS[tower.type];
+                const spriteSize = getSpriteSize(towerData.sprite, unitScale);
+
+                // Draw tower sprite (semi-transparent if under construction)
+                const isConstructing = tower.construction !== null;
+                if (tower.hitFlash > 0) {
+                    drawSpriteFlash(k, towerData.sprite,
+                        screenX - spriteSize.width / 2,
+                        screenY - spriteSize.height / 2,
+                        unitScale,
+                        isConstructing ? 0.5 : 1.0);
+                } else {
+                    drawSprite(k, towerData.sprite,
+                        screenX - spriteSize.width / 2,
+                        screenY - spriteSize.height / 2,
+                        unitScale,
+                        isConstructing ? 0.5 : 1.0);
+                }
+
+                // Draw tower CONSTRUCTION progress bar
+                if (tower.construction) {
+                    const barWidth = 50 * zoom;
+                    const barHeight = 8 * zoom;
+                    const barY = screenY - spriteSize.height / 2 - 20 * zoom;
+                    const progress = Math.min(tower.construction.progress / tower.construction.buildTime, 1);
+
+                    // Background
+                    k.drawRect({
+                        pos: k.vec2(screenX - barWidth / 2, barY),
+                        width: barWidth,
+                        height: barHeight,
+                        color: k.rgb(40, 40, 40),
+                        radius: 2,
+                    });
+
+                    // Fill (teal/blue for construction)
+                    if (progress > 0) {
+                        k.drawRect({
+                            pos: k.vec2(screenX - barWidth / 2, barY),
+                            width: barWidth * progress,
+                            height: barHeight,
+                            color: k.rgb(80, 180, 220),
+                            radius: 2,
+                        });
+                    }
+
+                    // "BUILDING" label
+                    k.drawText({
+                        text: "BUILDING",
+                        pos: k.vec2(screenX, barY - 10 * zoom),
+                        size: 9 * zoom,
+                        anchor: "center",
+                        color: k.rgb(200, 200, 200),
+                    });
+                }
+            }
+
             // Draw floating resource numbers
             for (const fn of floatingNumbers) {
                 const pos = hexToPixel(fn.q, fn.r);
@@ -582,7 +652,7 @@ export function createGameScene(k) {
                 }
             }
 
-            // Draw projectiles (cannon balls)
+            // Draw projectiles (cannon balls) with fiery trails
             for (const proj of gameState.projectiles) {
                 // Interpolate position based on progress
                 const fromPos = hexToPixel(proj.fromQ, proj.fromR);
@@ -606,6 +676,41 @@ export function createGameScene(k) {
                 if (screenX < -50 || screenX > k.width() + 50 ||
                     screenY < -50 || screenY > k.height() + 50) continue;
 
+                // Draw fiery trail (multiple particles behind the ball)
+                const trailSegments = 5;
+                const trailLength = 0.15; // How far back the trail extends (in progress units)
+
+                for (let t = trailSegments; t >= 1; t--) {
+                    const trailProgress = proj.progress - (t / trailSegments) * trailLength;
+                    if (trailProgress < 0) continue; // Trail hasn't started yet
+
+                    // Calculate trail segment position
+                    const trailX = fromPos.x + (toPos.x - fromPos.x) * trailProgress;
+                    const trailY = fromPos.y + (toPos.y - fromPos.y) * trailProgress;
+                    const trailArcFactor = 4 * trailProgress * (1 - trailProgress);
+                    const trailArcOffset = arcHeight * trailArcFactor;
+
+                    const trailScreenX = (trailX - cameraX) * zoom + halfWidth;
+                    const trailScreenY = (trailY - cameraY) * zoom + halfHeight - (trailArcOffset * zoom);
+
+                    // Trail fades and shrinks toward the back
+                    const fadeRatio = 1 - (t / trailSegments);
+                    const trailOpacity = 0.7 * fadeRatio;
+                    const trailSize = (3 + 2 * fadeRatio) * zoom * sizeScale;
+
+                    // Fiery colors: orange to red gradient
+                    const r = 255;
+                    const g = Math.floor(100 + 80 * fadeRatio); // Orange to yellow
+                    const b = Math.floor(30 * fadeRatio);
+
+                    k.drawCircle({
+                        pos: k.vec2(trailScreenX, trailScreenY),
+                        radius: trailSize,
+                        color: k.rgb(r, g, b),
+                        opacity: trailOpacity,
+                    });
+                }
+
                 // Draw cannon ball (dark circle)
                 k.drawCircle({
                     pos: k.vec2(screenX, screenY),
@@ -619,7 +724,7 @@ export function createGameScene(k) {
 
             // Selected units
             for (const sel of gameState.selectedUnits) {
-                if (sel.type === 'ship' || sel.type === 'port') {
+                if (sel.type === 'ship' || sel.type === 'port' || sel.type === 'tower') {
                     healthBarUnits.add(`${sel.type}:${sel.index}`);
                 }
             }
@@ -661,11 +766,18 @@ export function createGameScene(k) {
                     if (!entity) continue;
                     maxHealth = SHIPS[entity.type].health;
                     pos = getShipVisualPosLocal(entity);
-                } else {
+                } else if (type === 'port') {
                     entity = gameState.ports[index];
                     if (!entity) continue;
                     maxHealth = PORTS[entity.type].health;
                     pos = hexToPixel(entity.q, entity.r);
+                } else if (type === 'tower') {
+                    entity = gameState.towers[index];
+                    if (!entity) continue;
+                    maxHealth = TOWERS[entity.type].health;
+                    pos = hexToPixel(entity.q, entity.r);
+                } else {
+                    continue;
                 }
 
                 const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -847,20 +959,25 @@ export function createGameScene(k) {
                     const wpScreenY = (wpPos.y - cameraY) * zoom + halfHeight;
 
                     // Draw waypoint marker (X marks the spot!)
-                    const wpSize = HEX_SIZE * zoom * 0.4;
+                    const wpSize = HEX_SIZE * zoom * 0.3;  // 75% of original 0.4
                     const xWidth = 4 * zoom;
                     const xColor = k.rgb(180, 40, 40);
 
-                    // Draw chunky X with two crossing lines
+                    // Rotate 6 degrees clockwise
+                    const angle = 6 * Math.PI / 180;
+                    const cos = Math.cos(angle);
+                    const sin = Math.sin(angle);
+
+                    // Draw chunky X with two crossing lines (rotated)
                     k.drawLine({
-                        p1: k.vec2(wpScreenX - wpSize, wpScreenY - wpSize),
-                        p2: k.vec2(wpScreenX + wpSize, wpScreenY + wpSize),
+                        p1: k.vec2(wpScreenX + (-wpSize * cos - -wpSize * sin), wpScreenY + (-wpSize * sin + -wpSize * cos)),
+                        p2: k.vec2(wpScreenX + (wpSize * cos - wpSize * sin), wpScreenY + (wpSize * sin + wpSize * cos)),
                         width: xWidth,
                         color: xColor,
                     });
                     k.drawLine({
-                        p1: k.vec2(wpScreenX + wpSize, wpScreenY - wpSize),
-                        p2: k.vec2(wpScreenX - wpSize, wpScreenY + wpSize),
+                        p1: k.vec2(wpScreenX + (wpSize * cos - -wpSize * sin), wpScreenY + (wpSize * sin + -wpSize * cos)),
+                        p2: k.vec2(wpScreenX + (-wpSize * cos - wpSize * sin), wpScreenY + (-wpSize * sin + wpSize * cos)),
                         width: xWidth,
                         color: xColor,
                     });
@@ -934,6 +1051,26 @@ export function createGameScene(k) {
                 if (!isSelected(gameState, 'settlement', i)) continue;
                 const settlement = gameState.settlements[i];
                 const pos = hexToPixel(settlement.q, settlement.r);
+                const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+                const corners = hexCorners(screenX, screenY, scaledSize);
+                const pts = corners.map(c => k.vec2(c.x, c.y));
+                const selectionColor = k.rgb(255, 220, 50);
+
+                // Draw hex outline
+                for (let j = 0; j < pts.length; j++) {
+                    const p1 = pts[j];
+                    const p2 = pts[(j + 1) % pts.length];
+                    k.drawLine({ p1, p2, width: 3, color: selectionColor });
+                }
+            }
+
+            // Draw tower selection hex outlines
+            for (let i = 0; i < gameState.towers.length; i++) {
+                if (!isSelected(gameState, 'tower', i)) continue;
+                const tower = gameState.towers[i];
+                const pos = hexToPixel(tower.q, tower.r);
                 const screenX = (pos.x - cameraX) * zoom + halfWidth;
                 const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
@@ -1103,6 +1240,88 @@ export function createGameScene(k) {
                 // Draw hint text at bottom
                 k.drawText({
                     text: "Click to place settlement | ESC to cancel",
+                    pos: k.vec2(k.width() / 2, k.height() - 60),
+                    size: 14,
+                    anchor: "center",
+                    color: k.rgb(255, 255, 200),
+                });
+            }
+
+            // Draw tower placement mode highlights (when placing a new tower from ship)
+            if (gameState.towerBuildMode.active) {
+                const builderShip = gameState.ships[gameState.towerBuildMode.builderShipIndex];
+                const MAX_TOWER_BUILD_DISTANCE = 5;  // Maximum distance from ship to place tower
+
+                // Get current mouse position in world coords
+                const mouseX = k.mousePos().x;
+                const mouseY = k.mousePos().y;
+                const worldMX = (mouseX - halfWidth) / zoom + cameraX;
+                const worldMY = (mouseY - halfHeight) / zoom + cameraY;
+                const hoverHex = pixelToHex(worldMX, worldMY);
+
+                // Check if hovered hex is a valid tower site AND within range
+                const hoverDistance = hexDistance(builderShip.q, builderShip.r, hoverHex.q, hoverHex.r);
+                const isValidHover = isValidTowerSite(map, hoverHex.q, hoverHex.r, gameState.towers, gameState.ports, gameState.settlements) &&
+                                     hoverDistance <= MAX_TOWER_BUILD_DISTANCE;
+                gameState.towerBuildMode.hoveredHex = isValidHover ? hoverHex : null;
+
+                // Draw highlights on all valid tower sites (land hexes) within range
+                for (const tile of map.tiles.values()) {
+                    if (tile.type !== 'land') continue;
+                    if (!isHexRevealed(fogState, tile.q, tile.r)) continue;
+
+                    // Check distance from builder ship
+                    const dist = hexDistance(builderShip.q, builderShip.r, tile.q, tile.r);
+                    if (dist > MAX_TOWER_BUILD_DISTANCE) continue;
+
+                    // Check if already has a tower, settlement or port
+                    const hasTower = gameState.towers.some(t => t.q === tile.q && t.r === tile.r);
+                    const hasSettlement = gameState.settlements.some(s => s.q === tile.q && s.r === tile.r);
+                    const hasPort = gameState.ports.some(p => p.q === tile.q && p.r === tile.r);
+                    if (hasTower || hasSettlement || hasPort) continue;
+
+                    const pos = tilePositions.get(tile);
+                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+                    // Culling
+                    if (screenX < -margin || screenX > k.width() + margin ||
+                        screenY < -margin || screenY > k.height() + margin) continue;
+
+                    const isHovered = gameState.towerBuildMode.hoveredHex &&
+                                      tile.q === gameState.towerBuildMode.hoveredHex.q &&
+                                      tile.r === gameState.towerBuildMode.hoveredHex.r;
+
+                    const corners = hexCorners(screenX, screenY, scaledSize);
+                    const pts = corners.map(c => k.vec2(c.x, c.y));
+
+                    // Highlight color (brighter if hovered)
+                    const highlightColor = isHovered
+                        ? k.rgb(100, 255, 100)  // Bright green for hovered
+                        : k.rgb(80, 180, 80);   // Dimmer green for valid
+
+                    // Draw highlight overlay
+                    k.drawPolygon({
+                        pts,
+                        color: highlightColor,
+                        opacity: isHovered ? 0.5 : 0.25,
+                    });
+
+                    // Draw outline
+                    for (let i = 0; i < pts.length; i++) {
+                        const p1 = pts[i];
+                        const p2 = pts[(i + 1) % pts.length];
+                        k.drawLine({
+                            p1, p2,
+                            width: isHovered ? 3 : 2,
+                            color: highlightColor,
+                        });
+                    }
+                }
+
+                // Draw hint text at bottom
+                k.drawText({
+                    text: "Click to place tower | ESC to cancel",
                     pos: k.vec2(k.width() / 2, k.height() - 60),
                     size: 14,
                     anchor: "center",
@@ -1306,10 +1525,10 @@ export function createGameScene(k) {
                     const hasStorage = portIndex > 0 && port.storage && (port.storage.wood > 0 || port.storage.food > 0);
                     const storageHeight = hasStorage ? 45 : 0;
 
-                    const bpWidth = 160;
-                    const bpRowHeight = 28;
-                    const bpPadding = 10;
-                    const bpHeaderHeight = 24;
+                    const bpWidth = 200;
+                    const bpRowHeight = 44;
+                    const bpPadding = 8;
+                    const bpHeaderHeight = 20;
                     const upgradeHeight = canUpgrade ? (bpHeaderHeight + bpRowHeight) : 0;
                     const settlementHeight = canBuildSettlement ? (bpHeaderHeight + bpRowHeight) : 0;
                     const bpHeight = storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + settlementHeight;
@@ -1458,25 +1677,41 @@ export function createGameScene(k) {
                                 });
                             }
 
+                            // Draw sprite thumbnail
+                            const thumbScale = 1.2;
+                            const spriteSize = getSpriteSize(shipData.sprite, thumbScale);
+                            const spriteX = bpX + 10;
+                            const spriteY = btnY + (btnHeight - spriteSize.height) / 2;
+                            drawSprite(k, shipData.sprite, spriteX, spriteY, thumbScale, canBuildShip ? 1.0 : 0.4);
+
                             // Ship name (greyed out if can't build)
                             k.drawText({
                                 text: shipData.name,
-                                pos: k.vec2(bpX + 12, btnY + btnHeight / 2),
+                                pos: k.vec2(bpX + 44, btnY + 10),
                                 size: 13,
                                 anchor: "left",
                                 color: !canBuildShip ? k.rgb(80, 80, 80) : isHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
                             });
 
-                            // Cost and build time
+                            // Cost (wood and food on separate line)
                             const woodCost = shipData.cost.wood || 0;
                             const foodCost = shipData.cost.food || 0;
-                            const costText = `${woodCost}w ${foodCost}f | ${shipData.build_time}s`;
+                            const costText = `${woodCost} wood, ${foodCost} food`;
                             k.drawText({
                                 text: costText,
+                                pos: k.vec2(bpX + 44, btnY + 26),
+                                size: 10,
+                                anchor: "left",
+                                color: !canBuildShip ? k.rgb(100, 60, 60) : k.rgb(120, 120, 120),
+                            });
+
+                            // Build time (right side)
+                            k.drawText({
+                                text: `${shipData.build_time}s`,
                                 pos: k.vec2(bpX + bpWidth - 12, btnY + btnHeight / 2),
                                 size: 11,
                                 anchor: "right",
-                                color: !canBuildShip ? k.rgb(120, 60, 60) : k.rgb(120, 120, 120),
+                                color: !canBuildShip ? k.rgb(80, 80, 80) : k.rgb(150, 150, 150),
                             });
                         }
 
@@ -1495,8 +1730,8 @@ export function createGameScene(k) {
                             // Upgrade header
                             k.drawText({
                                 text: "UPGRADE",
-                                pos: k.vec2(bpX + bpWidth / 2, upgradeY + 10),
-                                size: 11,
+                                pos: k.vec2(bpX + bpWidth / 2, upgradeY + 8),
+                                size: 10,
                                 anchor: "center",
                                 color: k.rgb(150, 150, 150),
                             });
@@ -1529,23 +1764,38 @@ export function createGameScene(k) {
                                 });
                             }
 
-                            // Port name with arrow (greyed out if can't afford)
+                            // Draw sprite thumbnail
+                            const upgradeThumbScale = 1.2;
+                            const upgradeSpriteSize = getSpriteSize(nextPortData.sprite, upgradeThumbScale);
+                            const upgradeSpriteX = bpX + 10;
+                            const upgradeSpriteY = upgradeBtnY + (upgradeBtnHeight - upgradeSpriteSize.height) / 2;
+                            drawSprite(k, nextPortData.sprite, upgradeSpriteX, upgradeSpriteY, upgradeThumbScale, upgradeAffordable ? 1.0 : 0.4);
+
+                            // Port name (greyed out if can't afford)
                             k.drawText({
-                                text: `→ ${nextPortData.name}`,
-                                pos: k.vec2(bpX + 12, upgradeBtnY + upgradeBtnHeight / 2),
+                                text: nextPortData.name,
+                                pos: k.vec2(bpX + 44, upgradeBtnY + 10),
                                 size: 13,
                                 anchor: "left",
                                 color: !upgradeAffordable ? k.rgb(80, 80, 80) : isUpgradeHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
                             });
 
-                            // Cost and build time
-                            const upgradeCostText = `${nextPortData.cost.wood}w | ${nextPortData.buildTime}s`;
+                            // Cost
                             k.drawText({
-                                text: upgradeCostText,
+                                text: `${nextPortData.cost.wood} wood`,
+                                pos: k.vec2(bpX + 44, upgradeBtnY + 26),
+                                size: 10,
+                                anchor: "left",
+                                color: !upgradeAffordable ? k.rgb(100, 60, 60) : k.rgb(120, 120, 120),
+                            });
+
+                            // Build time (right side)
+                            k.drawText({
+                                text: `${nextPortData.buildTime}s`,
                                 pos: k.vec2(bpX + bpWidth - 12, upgradeBtnY + upgradeBtnHeight / 2),
                                 size: 11,
                                 anchor: "right",
-                                color: !upgradeAffordable ? k.rgb(120, 60, 60) : k.rgb(120, 120, 120),
+                                color: !upgradeAffordable ? k.rgb(80, 80, 80) : k.rgb(150, 150, 150),
                             });
                         }
 
@@ -1598,22 +1848,38 @@ export function createGameScene(k) {
                                 });
                             }
 
+                            // Draw sprite thumbnail
+                            const settlementThumbScale = 1.2;
+                            const settlementSpriteSize = getSpriteSize(settlementData.sprite, settlementThumbScale);
+                            const settlementSpriteX = bpX + 10;
+                            const settlementSpriteY = settlementBtnY + (settlementBtnHeight - settlementSpriteSize.height) / 2;
+                            drawSprite(k, settlementData.sprite, settlementSpriteX, settlementSpriteY, settlementThumbScale, alreadyBuildingSettlement ? 0.4 : 1.0);
+
                             // Settlement name (greyed out if already building)
                             k.drawText({
-                                text: alreadyBuildingSettlement ? `${settlementData.name} (building...)` : settlementData.name,
-                                pos: k.vec2(bpX + 12, settlementBtnY + settlementBtnHeight / 2),
+                                text: alreadyBuildingSettlement ? `${settlementData.name} (building...)` : `${settlementData.name} (S)`,
+                                pos: k.vec2(bpX + 44, settlementBtnY + 10),
                                 size: 13,
                                 anchor: "left",
                                 color: alreadyBuildingSettlement ? k.rgb(80, 80, 80) : isSettlementHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
                             });
 
-                            // Build time
+                            // Description (no cost for settlements)
+                            k.drawText({
+                                text: "Free",
+                                pos: k.vec2(bpX + 44, settlementBtnY + 26),
+                                size: 10,
+                                anchor: "left",
+                                color: alreadyBuildingSettlement ? k.rgb(80, 80, 80) : k.rgb(120, 120, 120),
+                            });
+
+                            // Build time (right side)
                             k.drawText({
                                 text: `${settlementData.buildTime}s`,
                                 pos: k.vec2(bpX + bpWidth - 12, settlementBtnY + settlementBtnHeight / 2),
                                 size: 11,
                                 anchor: "right",
-                                color: k.rgb(120, 120, 120),
+                                color: alreadyBuildingSettlement ? k.rgb(80, 80, 80) : k.rgb(150, 150, 150),
                             });
                         }
                     }
@@ -1624,20 +1890,23 @@ export function createGameScene(k) {
             const selectedShipIndices = gameState.selectedUnits.filter(u => u.type === 'ship');
             shipBuildPanelBounds = null;  // Reset each frame
 
-            if (selectedShipIndices.length === 1 && !gameState.portBuildMode.active) {
+            if (selectedShipIndices.length === 1 && !gameState.portBuildMode.active && !gameState.towerBuildMode.active) {
                 const shipIndex = selectedShipIndices[0].index;
                 const ship = gameState.ships[shipIndex];
 
-                // Don't show build panel if ship is already building a port
-                if (isShipDocked(ship) && !isShipBuildingPort(shipIndex, gameState.ports)) {
+                // Don't show build panel if ship is already building a port or tower
+                if (isShipDocked(ship) && !isShipBuildingPort(shipIndex, gameState.ports) && !isShipBuildingTower(shipIndex, gameState.towers)) {
                     // Only show Dock for now (first port type in tech tree)
                     const buildablePortTypes = ['dock'];
+                    const towerData = TOWERS.tower;
 
-                    const sbpWidth = 160;
-                    const sbpRowHeight = 28;
-                    const sbpPadding = 10;
-                    const sbpHeaderHeight = 24;
-                    const sbpHeight = sbpHeaderHeight + sbpPadding + buildablePortTypes.length * sbpRowHeight + sbpPadding;
+                    const sbpWidth = 200;
+                    const sbpRowHeight = 44;
+                    const sbpPadding = 8;
+                    const sbpHeaderHeight = 20;
+                    // Add height for tower button with section divider
+                    const towerSectionHeight = sbpHeaderHeight + sbpRowHeight;
+                    const sbpHeight = sbpHeaderHeight + sbpPadding + buildablePortTypes.length * sbpRowHeight + sbpPadding + towerSectionHeight;
                     const sbpX = 15;
                     const sbpY = k.height() - 50 - sbpHeight;
 
@@ -1701,25 +1970,120 @@ export function createGameScene(k) {
                             });
                         }
 
+                        // Draw sprite thumbnail
+                        const portThumbScale = 1.2;
+                        const portSpriteSize = getSpriteSize(portData.sprite, portThumbScale);
+                        const portSpriteX = sbpX + 10;
+                        const portSpriteY = btnY + (btnHeight - portSpriteSize.height) / 2;
+                        drawSprite(k, portData.sprite, portSpriteX, portSpriteY, portThumbScale, portAffordable ? 1.0 : 0.4);
+
                         // Port name (greyed out if can't afford)
                         k.drawText({
                             text: portData.name,
-                            pos: k.vec2(sbpX + 12, btnY + btnHeight / 2),
+                            pos: k.vec2(sbpX + 44, btnY + 10),
                             size: 13,
                             anchor: "left",
                             color: !portAffordable ? k.rgb(80, 80, 80) : isHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
                         });
 
-                        // Cost and build time
-                        const portCostText = `${portData.cost.wood}w | ${portData.buildTime}s`;
+                        // Cost
                         k.drawText({
-                            text: portCostText,
+                            text: `${portData.cost.wood} wood`,
+                            pos: k.vec2(sbpX + 44, btnY + 26),
+                            size: 10,
+                            anchor: "left",
+                            color: !portAffordable ? k.rgb(100, 60, 60) : k.rgb(120, 120, 120),
+                        });
+
+                        // Build time (right side)
+                        k.drawText({
+                            text: `${portData.buildTime}s`,
                             pos: k.vec2(sbpX + sbpWidth - 12, btnY + btnHeight / 2),
                             size: 11,
                             anchor: "right",
-                            color: !portAffordable ? k.rgb(120, 60, 60) : k.rgb(120, 120, 120),
+                            color: !portAffordable ? k.rgb(80, 80, 80) : k.rgb(150, 150, 150),
                         });
                     }
+
+                    // Tower section divider and header
+                    const towerSectionY = sbpY + sbpHeaderHeight + sbpPadding + buildablePortTypes.length * sbpRowHeight + sbpPadding;
+
+                    // Divider line
+                    k.drawLine({
+                        p1: k.vec2(sbpX + 8, towerSectionY - 4),
+                        p2: k.vec2(sbpX + sbpWidth - 8, towerSectionY - 4),
+                        width: 1,
+                        color: k.rgb(60, 70, 80),
+                    });
+
+                    // Tower header
+                    k.drawText({
+                        text: "BUILD DEFENSE",
+                        pos: k.vec2(sbpX + sbpWidth / 2, towerSectionY + 10),
+                        size: 11,
+                        anchor: "center",
+                        color: k.rgb(150, 150, 150),
+                    });
+
+                    // Tower button
+                    const towerBtnY = towerSectionY + sbpHeaderHeight;
+                    const towerBtnHeight = sbpRowHeight - 4;
+                    const towerAffordable = canAfford(gameState.resources, towerData.cost);
+
+                    // Store tower button bounds
+                    shipBuildPanelBounds.towerButton = {
+                        y: towerBtnY,
+                        height: towerBtnHeight,
+                    };
+
+                    // Check if mouse is hovering (only if affordable)
+                    const towerHovered = towerAffordable && mousePos.x >= sbpX && mousePos.x <= sbpX + sbpWidth &&
+                                         mousePos.y >= towerBtnY && mousePos.y <= towerBtnY + towerBtnHeight;
+
+                    // Button background (highlight on hover)
+                    if (towerHovered) {
+                        k.drawRect({
+                            pos: k.vec2(sbpX + 4, towerBtnY),
+                            width: sbpWidth - 8,
+                            height: towerBtnHeight,
+                            color: k.rgb(60, 80, 100),
+                            radius: 4,
+                        });
+                    }
+
+                    // Draw sprite thumbnail
+                    const towerThumbScale = 1.2;
+                    const towerSpriteSize = getSpriteSize(towerData.sprite, towerThumbScale);
+                    const towerSpriteX = sbpX + 10;
+                    const towerSpriteY = towerBtnY + (towerBtnHeight - towerSpriteSize.height) / 2;
+                    drawSprite(k, towerData.sprite, towerSpriteX, towerSpriteY, towerThumbScale, towerAffordable ? 1.0 : 0.4);
+
+                    // Tower name (greyed out if can't afford)
+                    k.drawText({
+                        text: `${towerData.name} (T)`,
+                        pos: k.vec2(sbpX + 44, towerBtnY + 10),
+                        size: 13,
+                        anchor: "left",
+                        color: !towerAffordable ? k.rgb(80, 80, 80) : towerHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
+                    });
+
+                    // Tower cost
+                    k.drawText({
+                        text: `${towerData.cost.wood} wood`,
+                        pos: k.vec2(sbpX + 44, towerBtnY + 26),
+                        size: 10,
+                        anchor: "left",
+                        color: !towerAffordable ? k.rgb(100, 60, 60) : k.rgb(120, 120, 120),
+                    });
+
+                    // Build time (right side)
+                    k.drawText({
+                        text: `${towerData.buildTime}s`,
+                        pos: k.vec2(sbpX + sbpWidth - 12, towerBtnY + towerBtnHeight / 2),
+                        size: 11,
+                        anchor: "right",
+                        color: !towerAffordable ? k.rgb(80, 80, 80) : k.rgb(150, 150, 150),
+                    });
                 }
             }
 
@@ -1910,6 +2274,11 @@ export function createGameScene(k) {
                 console.log("Settlement placement cancelled");
                 return;  // Don't start panning
             }
+            if (gameState.towerBuildMode.active) {
+                exitTowerBuildMode(gameState);
+                console.log("Tower placement cancelled");
+                return;  // Don't start panning
+            }
 
             isPanning = true;
             panStartX = k.mousePos().x;
@@ -1992,6 +2361,28 @@ export function createGameScene(k) {
                 exitSettlementBuildMode(gameState);
                 console.log("Settlement placement cancelled");
             }
+            if (gameState.towerBuildMode.active) {
+                exitTowerBuildMode(gameState);
+                console.log("Tower placement cancelled");
+            }
+        });
+
+        // Hotkey 'S' to enter settlement build mode when port panel is open
+        k.onKeyPress("s", () => {
+            // Only works if settlement button is visible in the build panel
+            if (buildPanelBounds?.settlementButton && !isPortBuildingSettlement(buildPanelBounds.portIndex, gameState.settlements)) {
+                enterSettlementBuildMode(gameState, buildPanelBounds.portIndex);
+                console.log("Settlement placement mode (hotkey S)");
+            }
+        });
+
+        // Hotkey 'T' to enter tower build mode when ship panel is open
+        k.onKeyPress("t", () => {
+            // Only works if tower button is visible in the ship build panel
+            if (shipBuildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.tower.cost)) {
+                enterTowerBuildMode(gameState, shipBuildPanelBounds.shipIndex);
+                console.log("Tower placement mode (hotkey T)");
+            }
         });
 
         // Click handler for selection and waypoints - delegates to input handler helpers
@@ -2002,6 +2393,7 @@ export function createGameScene(k) {
             // Handle placement mode clicks first
             if (handlePortPlacementClick(gameState)) return;
             if (handleSettlementPlacementClick(gameState)) return;
+            if (handleTowerPlacementClick(gameState)) return;
 
             // Check UI panel clicks
             if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) return;

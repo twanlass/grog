@@ -2,6 +2,7 @@
 import { PORTS } from "./sprites/ports.js";
 import { SHIPS } from "./sprites/ships.js";
 import { SETTLEMENTS } from "./sprites/settlements.js";
+import { TOWERS } from "./sprites/towers.js";
 import { hexKey } from "./hex.js";
 
 export function createGameState() {
@@ -44,6 +45,16 @@ export function createGameState() {
 
         // Player's settlements: [{ q, r, construction }]
         settlements: [],
+
+        // Player's towers: [{ type, q, r, health, construction, attackCooldown }]
+        towers: [],
+
+        // Tower building placement mode
+        towerBuildMode: {
+            active: false,
+            builderShipIndex: null,
+            hoveredHex: null,
+        },
 
         // Pirate respawn queue: [{ timer }]
         pirateRespawnQueue: [],
@@ -144,6 +155,7 @@ export function getSelectedUnits(gameState) {
         if (type === 'ship') return gameState.ships[index];
         if (type === 'port') return gameState.ports[index];
         if (type === 'settlement') return gameState.settlements[index];
+        if (type === 'tower') return gameState.towers[index];
         return null;
     }).filter(u => u !== null);
 }
@@ -351,6 +363,71 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
     }
 
     return true;
+}
+
+// Create a new tower (optionally under construction)
+export function createTower(type, q, r, isConstructing = false, builderShipIndex = null) {
+    return {
+        type,
+        q,
+        r,
+        health: TOWERS[type].health,
+        attackCooldown: 0,
+        construction: isConstructing ? {
+            progress: 0,
+            buildTime: TOWERS[type].buildTime,
+            builderShipIndex: builderShipIndex,
+        } : null,
+    };
+}
+
+// Enter tower building placement mode
+export function enterTowerBuildMode(gameState, shipIndex) {
+    gameState.towerBuildMode = {
+        active: true,
+        builderShipIndex: shipIndex,
+        hoveredHex: null,
+    };
+}
+
+// Exit tower building placement mode
+export function exitTowerBuildMode(gameState) {
+    gameState.towerBuildMode = {
+        active: false,
+        builderShipIndex: null,
+        hoveredHex: null,
+    };
+}
+
+// Check if a hex is a valid tower site (land hex, not occupied)
+export function isValidTowerSite(map, q, r, existingTowers, existingPorts, existingSettlements) {
+    const tile = map.tiles.get(hexKey(q, r));
+    if (!tile || tile.type !== 'land') return false;
+
+    // Check if already occupied by a tower
+    for (const tower of existingTowers) {
+        if (tower.q === q && tower.r === r) return false;
+    }
+
+    // Check if already occupied by a port
+    for (const port of existingPorts) {
+        if (port.q === q && port.r === r) return false;
+    }
+
+    // Check if already occupied by a settlement
+    for (const settlement of existingSettlements) {
+        if (settlement.q === q && settlement.r === r) return false;
+    }
+
+    return true;
+}
+
+// Check if a ship is currently building a tower
+export function isShipBuildingTower(shipIndex, towers) {
+    return towers.some(tower =>
+        tower.construction &&
+        tower.construction.builderShipIndex === shipIndex
+    );
 }
 
 // Check if player can afford a cost

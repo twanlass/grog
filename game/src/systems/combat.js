@@ -1,6 +1,8 @@
 // Combat system - handles projectile attacks and damage
 import { hexDistance } from "../hex.js";
 import { SHIPS } from "../sprites/ships.js";
+import { TOWERS } from "../sprites/towers.js";
+import { isShipBuildingPort, isShipBuildingTower } from "../gameState.js";
 
 // Combat constants
 export const CANNON_DAMAGE = 5;
@@ -19,6 +21,7 @@ export function updateCombat(hexToPixel, gameState, dt) {
     handlePirateAttacks(gameState, dt);
     handleAutoReturnFire(gameState);  // Player ships automatically defend themselves
     handlePlayerAttacks(gameState, dt);
+    handleTowerAttacks(gameState, dt);  // Towers auto-attack pirates
     updateProjectiles(gameState, dt);
 }
 
@@ -35,9 +38,14 @@ function handlePirateAttacks(gameState, dt) {
 
         // Ready to fire?
         if (ship.attackCooldown <= 0 && ship.aiTarget) {
-            const target = ship.aiTarget.type === 'ship'
-                ? gameState.ships[ship.aiTarget.index]
-                : gameState.ports[ship.aiTarget.index];
+            let target;
+            if (ship.aiTarget.type === 'ship') {
+                target = gameState.ships[ship.aiTarget.index];
+            } else if (ship.aiTarget.type === 'port') {
+                target = gameState.ports[ship.aiTarget.index];
+            } else if (ship.aiTarget.type === 'tower') {
+                target = gameState.towers[ship.aiTarget.index];
+            }
 
             if (target) {
                 // Create projectile
@@ -62,6 +70,13 @@ function handlePirateAttacks(gameState, dt) {
 }
 
 /**
+ * Check if a ship is currently building something (port or tower)
+ */
+function isShipBuilding(shipIndex, gameState) {
+    return isShipBuildingPort(shipIndex, gameState.ports) || isShipBuildingTower(shipIndex, gameState.towers);
+}
+
+/**
  * Player ships automatically return fire when attacked by pirates
  */
 function handleAutoReturnFire(gameState) {
@@ -73,8 +88,12 @@ function handleAutoReturnFire(gameState) {
         if (pirate.type !== 'pirate' || pirate.aiState !== 'attack') continue;
         if (!pirate.aiTarget || pirate.aiTarget.type !== 'ship') continue;
 
-        const targetShip = gameState.ships[pirate.aiTarget.index];
+        const targetShipIndex = pirate.aiTarget.index;
+        const targetShip = gameState.ships[targetShipIndex];
         if (!targetShip || targetShip.type === 'pirate') continue;
+
+        // Skip ships that are building - they can't return fire
+        if (isShipBuilding(targetShipIndex, gameState)) continue;
 
         // If target ship has no attack target and is idle, auto-target the attacker
         if (!targetShip.attackTarget && !targetShip.waypoint && !targetShip.tradeRoute) {
@@ -97,6 +116,7 @@ function handlePlayerAttacks(gameState, dt) {
         const ship = gameState.ships[i];
         if (ship.type === 'pirate') continue;  // Skip pirates (handled by handlePirateAttacks)
         if (!ship.attackTarget) continue;       // Not attacking
+        if (isShipBuilding(i, gameState)) continue;  // Can't attack while building
 
         const target = gameState.ships[ship.attackTarget.index];
         if (!target) {
@@ -130,6 +150,56 @@ function handlePlayerAttacks(gameState, dt) {
 }
 
 /**
+ * Towers automatically fire at nearby pirates
+ */
+function handleTowerAttacks(gameState, dt) {
+    for (let i = 0; i < gameState.towers.length; i++) {
+        const tower = gameState.towers[i];
+
+        // Skip towers under construction
+        if (tower.construction) continue;
+
+        const towerData = TOWERS[tower.type];
+        const attackRange = towerData.attackRange;
+
+        // Decrement cooldown
+        tower.attackCooldown = Math.max(0, (tower.attackCooldown || 0) - dt);
+
+        // Find nearest pirate in range
+        let nearestPirate = null;
+        let nearestDist = Infinity;
+
+        for (let j = 0; j < gameState.ships.length; j++) {
+            const ship = gameState.ships[j];
+            if (ship.type !== 'pirate') continue;
+
+            const dist = hexDistance(tower.q, tower.r, ship.q, ship.r);
+            if (dist <= attackRange && dist < nearestDist) {
+                nearestPirate = { index: j, ship, dist };
+                nearestDist = dist;
+            }
+        }
+
+        // Fire at nearest pirate if ready
+        if (nearestPirate && tower.attackCooldown <= 0) {
+            gameState.projectiles.push({
+                sourceTowerIndex: i,
+                targetType: 'ship',
+                targetIndex: nearestPirate.index,
+                fromQ: tower.q,
+                fromR: tower.r,
+                toQ: nearestPirate.ship.q,
+                toR: nearestPirate.ship.r,
+                progress: 0,
+                damage: towerData.damage,
+                speed: PROJECTILE_SPEED,
+            });
+            tower.attackCooldown = towerData.fireCooldown;
+        }
+    }
+}
+
+/**
  * Move projectiles and apply damage when they hit
  */
 function updateProjectiles(gameState, dt) {
@@ -152,9 +222,14 @@ const HIT_FLASH_DURATION = 0.15;
  * Apply damage to a target, destroying it if health reaches 0
  */
 function applyDamage(gameState, targetType, targetIndex, damage) {
-    const target = targetType === 'ship'
-        ? gameState.ships[targetIndex]
-        : gameState.ports[targetIndex];
+    let target;
+    if (targetType === 'ship') {
+        target = gameState.ships[targetIndex];
+    } else if (targetType === 'port') {
+        target = gameState.ports[targetIndex];
+    } else if (targetType === 'tower') {
+        target = gameState.towers[targetIndex];
+    }
 
     if (!target) return; // Target already destroyed
 
@@ -164,8 +239,10 @@ function applyDamage(gameState, targetType, targetIndex, damage) {
     if (target.health <= 0) {
         if (targetType === 'ship') {
             destroyShip(gameState, targetIndex);
-        } else {
+        } else if (targetType === 'port') {
             destroyPort(gameState, targetIndex);
+        } else if (targetType === 'tower') {
+            destroyTower(gameState, targetIndex);
         }
     }
 }
@@ -197,6 +274,17 @@ function destroyPort(gameState, portIndex) {
 
     // Clean up references
     cleanupStaleReferences(gameState, 'port', portIndex);
+}
+
+/**
+ * Remove a tower and clean up all references to it
+ */
+function destroyTower(gameState, towerIndex) {
+    // Remove from array
+    gameState.towers.splice(towerIndex, 1);
+
+    // Clean up references
+    cleanupStaleReferences(gameState, 'tower', towerIndex);
 }
 
 /**
@@ -309,6 +397,32 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
                     port.construction = null;
                 } else if (port.construction.builderShipIndex > removedIndex) {
                     port.construction.builderShipIndex--;
+                }
+            }
+        }
+
+        // Fix tower construction builderShipIndex (for ship removal)
+        for (const tower of gameState.towers) {
+            if (tower.construction && tower.construction.builderShipIndex !== undefined) {
+                if (tower.construction.builderShipIndex === removedIndex) {
+                    // Builder destroyed! Cancel construction
+                    tower.construction = null;
+                } else if (tower.construction.builderShipIndex > removedIndex) {
+                    tower.construction.builderShipIndex--;
+                }
+            }
+        }
+    }
+
+    // Fix projectile sourceTowerIndex (for tower removal)
+    if (removedType === 'tower') {
+        for (const proj of gameState.projectiles) {
+            if (proj.sourceTowerIndex !== undefined) {
+                if (proj.sourceTowerIndex === removedIndex) {
+                    // Source tower destroyed - projectile continues
+                    proj.sourceTowerIndex = -1;
+                } else if (proj.sourceTowerIndex > removedIndex) {
+                    proj.sourceTowerIndex--;
                 }
             }
         }

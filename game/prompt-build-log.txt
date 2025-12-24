@@ -278,3 +278,52 @@ xn    @    kaplay.js?v=8270b6e8:5276
 
 ## 77. User prompt
 > let's have player ships return fire (attack) automatically when being attacked. In case a ship is left idle at least it will defend itself 
+
+## 78. User prompt
+> let's show the towers health bar when selected 
+
+## 79. User prompt
+> let's add a little fun flourish to cannonballs: add a firery trail to them 
+
+## 80. User prompt
+> document towers in docs/features
+
+## 81. User prompt
+> can you update CLAUDE.md to note that it should read relevant feature docs before updating a sepcific feature? 
+
+## 82. User prompt
+> can you update the unit gallery scene to include our tower? 
+
+## 83. User prompt
+> can you polish up the build menus to make them easier to read etc? full write out wood and food isntead of using abbreviations etc? Could be really cool to show a little thumbnanil fo the sprite/asset too (i.e. render a little tower next to the menu item to make it visual that's what you're going to build) 
+
+## 84. User prompt
+> let's add some hotkeys for building stuff! 
+1. When a port build menu is open, pressing 's' should trigger the settlement build selection mode
+2. When the ship build menu is open, pressing 't' should trigger the tower build selection mode
+
+## 85. User prompt
+> one small refactor – instead of duplicating all the logic to see if the hotkey can be used etc, just gate that behind the existing menu logic (which already checks is the thing can built)
+
+## 86. User prompt
+> error when selecting a unit: Selected port: shipyard
+kaplay.js?v=8270b6e8:5276 Error: Styled text error: unclosed tags S
+    at $n (kaplay.js?v=8270b6e8:3031:27)
+    at Ue (kaplay.js?v=8270b6e8:3039:38)
+    at Object.Zr [as drawText] (kaplay.js?v=8270b6e8:3232:6)
+    at Object.<anonymous> (gameScene.js:1854:31)
+    at n (kaplay.js?v=8270b6e8:1281:29)
+    at kaplay.js?v=8270b6e8:1297:15
+    at rn.forEach (<anonymous>)
+    at re.trigger (kaplay.js?v=8270b6e8:1296:19)
+    at ze.trigger (kaplay.js?v=8270b6e8:1328:42)
+    at Object.trigger (kaplay.js?v=8270b6e8:3863:7)
+xn @ kaplay.js?v=8270b6e8:5276
+
+## 87. User prompt
+> lets polish the red waypoint 'x': 
+- reduce size to 75%
+- rotate clockwise 6 degrees (give it a little tilt!)
+
+## 88. User prompt
+> update combat logic to prevent player ships from attacking while building (only allow them to do one thing at a time!) 

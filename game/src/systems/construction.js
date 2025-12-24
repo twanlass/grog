@@ -1,10 +1,10 @@
-// Construction system - handles port and settlement building progress
+// Construction system - handles port, settlement, and tower building progress
 import { createShip, findFreeAdjacentWater } from "../gameState.js";
-import { SHIPS, SETTLEMENTS } from "../sprites/index.js";
+import { SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { revealRadius } from "../fogOfWar.js";
 
 /**
- * Updates all construction progress for ports and settlements
+ * Updates all construction progress for ports, settlements, and towers
  * @param {Object} gameState - The game state
  * @param {Object} map - The game map
  * @param {Object} fogState - Fog of war state
@@ -21,6 +21,9 @@ export function updateConstruction(gameState, map, fogState, dt) {
 
     // Update settlement construction progress
     updateSettlementConstruction(gameState, fogState, dt);
+
+    // Update tower construction progress
+    updateTowerConstruction(gameState, fogState, dt);
 }
 
 /**
@@ -99,6 +102,27 @@ function updateSettlementConstruction(gameState, fogState, dt) {
             // Reveal fog around completed settlement
             const sightDistance = SETTLEMENTS.settlement.sightDistance;
             revealRadius(fogState, settlement.q, settlement.r, sightDistance);
+        }
+    }
+}
+
+/**
+ * Update tower construction progress
+ */
+function updateTowerConstruction(gameState, fogState, dt) {
+    for (const tower of gameState.towers) {
+        if (!tower.construction) continue;
+
+        tower.construction.progress += dt;
+
+        // Check if construction is complete
+        if (tower.construction.progress >= tower.construction.buildTime) {
+            console.log(`Tower construction complete at (${tower.q}, ${tower.r})`);
+            tower.construction = null;  // Clear construction state
+
+            // Reveal fog around completed tower
+            const sightDistance = TOWERS[tower.type].sightDistance;
+            revealRadius(fogState, tower.q, tower.r, sightDistance);
         }
     }
 }

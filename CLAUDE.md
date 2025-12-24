@@ -30,15 +30,18 @@ game/
       ships.js        # Ship definitions and pixel art
       ports.js        # Port definitions and pixel art
       settlements.js  # Settlement definitions and pixel art
+      towers.js       # Tower definitions and pixel art
 ```
 
 ## Feature Documentation
-See `docs/features/` for detailed feature docs:
+See `docs/features/` for detailed feature docs. **Read the relevant feature doc before modifying a feature** to understand the data structures, key functions, and edge cases.
+
 - [Adding Features](docs/features/adding-features.md) - Where to add new game features
 - [Fog of War](docs/features/fog-of-war.md)
 - [Ship Building](docs/features/ship-building.md)
 - [Port Building](docs/features/port-building.md)
 - [Settlement Building](docs/features/settlement-building.md)
+- [Tower Building](docs/features/tower-building.md)
 - [Trade Routes](docs/features/trade-routes.md)
 
 ## Key Patterns

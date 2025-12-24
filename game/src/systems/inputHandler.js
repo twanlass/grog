@@ -1,10 +1,11 @@
 // Input handling helpers for click interactions
-import { PORTS, SHIPS } from "../sprites/index.js";
+import { PORTS, SHIPS, TOWERS } from "../sprites/index.js";
 import {
     canAfford, deductCost, createPort, exitPortBuildMode,
     createSettlement, exitSettlementBuildMode, enterPortBuildMode, enterSettlementBuildMode,
+    createTower, exitTowerBuildMode, enterTowerBuildMode,
     startBuilding, startPortUpgrade, isPortBuildingSettlement,
-    selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort,
+    selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute,
     findFreeAdjacentWater, findNearbyWaitingHex
 } from "../gameState.js";
@@ -61,6 +62,34 @@ export function handleSettlementPlacementClick(gameState) {
 }
 
 /**
+ * Handle click in tower placement mode
+ * @returns {boolean} true if handled, false to continue processing
+ */
+export function handleTowerPlacementClick(gameState) {
+    if (!gameState.towerBuildMode.active) return false;
+
+    if (gameState.towerBuildMode.hoveredHex) {
+        const hex = gameState.towerBuildMode.hoveredHex;
+        const builderShipIndex = gameState.towerBuildMode.builderShipIndex;
+        const towerData = TOWERS.tower;
+
+        if (!canAfford(gameState.resources, towerData.cost)) {
+            console.log(`Can't afford tower`);
+            exitTowerBuildMode(gameState);
+            return true;
+        }
+        deductCost(gameState.resources, towerData.cost);
+
+        const newTower = createTower('tower', hex.q, hex.r, true, builderShipIndex);
+        gameState.towers.push(newTower);
+
+        console.log(`Started building tower at (${hex.q}, ${hex.r}) by ship ${builderShipIndex}`);
+        exitTowerBuildMode(gameState);
+    }
+    return true;
+}
+
+/**
  * Handle click on ship build panel (for port building from ships)
  * @returns {boolean} true if handled
  */
@@ -83,6 +112,20 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
             return true;
         }
     }
+
+    // Check tower button
+    if (sbp.towerButton) {
+        const tbtn = sbp.towerButton;
+        if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
+            const towerData = TOWERS.tower;
+            if (canAfford(gameState.resources, towerData.cost)) {
+                enterTowerBuildMode(gameState, sbp.shipIndex);
+                console.log(`Entering tower placement mode`);
+            }
+            return true;
+        }
+    }
+
     return true; // Clicked panel but not button
 }
 
@@ -177,6 +220,7 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
             for (const sel of gameState.selectedUnits) {
                 if (sel.type !== 'ship') continue;
                 if (isShipBuildingPort(sel.index, gameState.ports)) continue;
+                if (isShipBuildingTower(sel.index, gameState.towers)) continue;
 
                 const ship = gameState.ships[sel.index];
                 if (ship.type === 'pirate') continue; // Can't control enemy ships
@@ -231,6 +275,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
     for (const sel of gameState.selectedUnits) {
         if (sel.type !== 'ship') continue;
         if (isShipBuildingPort(sel.index, gameState.ports)) continue;
+        if (isShipBuildingTower(sel.index, gameState.towers)) continue;
 
         const ship = gameState.ships[sel.index];
         if (ship.type === 'pirate') continue; // Can't control enemy ships
@@ -322,6 +367,25 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
         }
     }
 
+    // Check towers
+    for (let i = 0; i < gameState.towers.length; i++) {
+        const tower = gameState.towers[i];
+        const towerPos = hexToPixel(tower.q, tower.r);
+        const dx = worldX - towerPos.x;
+        const dy = worldY - towerPos.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < SELECTION_RADIUS) {
+            if (isShiftHeld) {
+                toggleSelection(gameState, 'tower', i);
+            } else {
+                selectUnit(gameState, 'tower', i);
+            }
+            console.log(`Selected tower at (${tower.q}, ${tower.r})`);
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -353,6 +417,7 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
     for (const sel of gameState.selectedUnits) {
         if (sel.type !== 'ship') continue;
         if (isShipBuildingPort(sel.index, gameState.ports)) continue;
+        if (isShipBuildingTower(sel.index, gameState.towers)) continue;
 
         const ship = gameState.ships[sel.index];
         if (ship.type === 'pirate') continue; // Can't control enemy ships
@@ -394,6 +459,8 @@ export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTI
             let attackCount = 0;
             for (const sel of gameState.selectedUnits) {
                 if (sel.type !== 'ship') continue;
+                if (isShipBuildingPort(sel.index, gameState.ports)) continue;
+                if (isShipBuildingTower(sel.index, gameState.towers)) continue;
                 const ship = gameState.ships[sel.index];
                 if (ship.type === 'pirate') continue;  // Can't control enemy ships
 

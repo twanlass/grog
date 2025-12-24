@@ -1,25 +1,32 @@
-// Gallery scene - Display ships and ports
-import { SHIPS, PORTS, drawSprite, getSpriteSize } from "../sprites/index.js";
+// Gallery scene - Display ships, ports, and towers
+import { SHIPS, PORTS, TOWERS, drawSprite, getSpriteSize } from "../sprites/index.js";
 
 export function createGalleryScene(k) {
     return function galleryScene() {
         const ships = Object.values(SHIPS);
         const ports = Object.values(PORTS);
+        const towers = Object.values(TOWERS);
         const scale = 3; // Scale for gallery view
         const cardWidth = 180;
         const shipCardHeight = 180;
         const portCardHeight = 160;
+        const towerCardHeight = 160;
         const gap = 12;
 
         // Ships row
         const shipsTotalWidth = ships.length * cardWidth + (ships.length - 1) * gap;
         const shipsStartX = (k.width() - shipsTotalWidth) / 2;
-        const shipsStartY = 70;
+        const shipsStartY = 60;
 
         // Ports row
         const portsTotalWidth = ports.length * cardWidth + (ports.length - 1) * gap;
         const portsStartX = (k.width() - portsTotalWidth) / 2;
-        const portsStartY = shipsStartY + shipCardHeight + 50;
+        const portsStartY = shipsStartY + shipCardHeight + 40;
+
+        // Towers row
+        const towersTotalWidth = towers.length * cardWidth + (towers.length - 1) * gap;
+        const towersStartX = (k.width() - towersTotalWidth) / 2;
+        const towersStartY = portsStartY + portCardHeight + 40;
 
         // Title
         k.add([
@@ -139,6 +146,62 @@ export function createGalleryScene(k) {
                 k.drawText({
                     text: port.description,
                     pos: k.vec2(cardX + cardWidth / 2, cardY + portCardHeight - 14),
+                    size: 10,
+                    anchor: "center",
+                    color: k.rgb(120, 120, 120),
+                });
+            });
+
+            // Section label: Towers
+            k.drawText({
+                text: "DEFENSES",
+                pos: k.vec2(towersStartX, towersStartY - 20),
+                size: 16,
+                color: k.rgb(200, 100, 100),
+            });
+
+            // Draw tower cards
+            towers.forEach((tower, index) => {
+                const cardX = towersStartX + index * (cardWidth + gap);
+                const cardY = towersStartY;
+
+                // Card background
+                k.drawRect({
+                    pos: k.vec2(cardX, cardY),
+                    width: cardWidth,
+                    height: towerCardHeight,
+                    color: k.rgb(50, 35, 35),
+                    radius: 6,
+                });
+
+                // Tower name
+                k.drawText({
+                    text: tower.name,
+                    pos: k.vec2(cardX + cardWidth / 2, cardY + 14),
+                    size: 18,
+                    anchor: "center",
+                    color: k.rgb(255, 255, 255),
+                });
+
+                // Draw sprite
+                const spriteSize = getSpriteSize(tower.sprite, scale);
+                const spriteX = cardX + (cardWidth - spriteSize.width) / 2;
+                const spriteY = cardY + 32;
+                drawSprite(k, tower.sprite, spriteX, spriteY, scale);
+
+                // Stats
+                k.drawText({
+                    text: `HP:${tower.health} Rng:${tower.attackRange} Dmg:${tower.damage}`,
+                    pos: k.vec2(cardX + cardWidth / 2, cardY + 105),
+                    size: 11,
+                    anchor: "center",
+                    color: k.rgb(150, 150, 150),
+                });
+
+                // Description
+                k.drawText({
+                    text: tower.description,
+                    pos: k.vec2(cardX + cardWidth / 2, cardY + towerCardHeight - 14),
                     size: 10,
                     anchor: "center",
                     color: k.rgb(120, 120, 120),
