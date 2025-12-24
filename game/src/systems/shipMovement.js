@@ -1,5 +1,5 @@
 // Ship movement system - handles pathfinding, hex-to-hex navigation, and fog revelation
-import { hexKey } from "../hex.js";
+import { hexKey, hexDistance } from "../hex.js";
 import { SHIPS } from "../sprites/index.js";
 import { findPath, findNearestAvailable } from "../pathfinding.js";
 import { revealRadius } from "../fogOfWar.js";
@@ -116,8 +116,13 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
                 ship.r = nextHex.r;
                 occupiedHexes.add(nextHexKey);
 
+                // Track chase distance for pirates
+                if (ship.aiState === 'chase') {
+                    ship.aiChaseDistance++;
+                }
+
                 // Reveal fog around new position based on ship's sight distance
-                const sightDistance = SHIPS[ship.type].sight_distance;
+                const sightDistance = SHIPS[ship.type].sightDistance;
                 revealRadius(fogState, nextHex.q, nextHex.r, sightDistance);
             }
 
@@ -176,4 +181,171 @@ export function getShipVisualPos(hexToPixel, ship) {
     }
 
     return currentPos;
+}
+
+/**
+ * Update AI behavior for pirate ships - state machine with patrol, chase, attack, retreat
+ * @param {Object} gameState - The game state
+ * @param {Object} map - The game map
+ * @param {Object} patrolCenter - { q, r } hex to patrol around (e.g., home port)
+ * @param {number} dt - Delta time for timers
+ */
+export function updatePirateAI(gameState, map, patrolCenter, dt) {
+    if (!patrolCenter) return;
+
+    for (const ship of gameState.ships) {
+        if (ship.type !== 'pirate') continue;
+
+        const pirateData = SHIPS.pirate;
+        const { enemySightDistance, attackDistance, maxChaseDistance, retreatCooldown } = pirateData;
+
+        // Find nearest player target (ship or port) within sight
+        let nearestTarget = null;
+        let nearestDist = Infinity;
+
+        // Check player ships (non-pirates)
+        for (let i = 0; i < gameState.ships.length; i++) {
+            const target = gameState.ships[i];
+            if (target.type === 'pirate') continue;
+            const dist = hexDistance(ship.q, ship.r, target.q, target.r);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestTarget = { type: 'ship', index: i, q: target.q, r: target.r };
+            }
+        }
+
+        // Check ports
+        for (let i = 0; i < gameState.ports.length; i++) {
+            const port = gameState.ports[i];
+            const dist = hexDistance(ship.q, ship.r, port.q, port.r);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearestTarget = { type: 'port', index: i, q: port.q, r: port.r };
+            }
+        }
+
+        // State machine
+        switch (ship.aiState) {
+            case 'patrol':
+                // Check for targets in range
+                if (nearestTarget && nearestDist <= enemySightDistance) {
+                    ship.aiState = 'chase';
+                    ship.aiTarget = nearestTarget;
+                    ship.aiChaseDistance = 0; // Reset chase distance counter
+                    ship.waypoint = { q: nearestTarget.q, r: nearestTarget.r };
+                    ship.path = null;
+                } else if (!ship.waypoint) {
+                    // Generate random patrol point
+                    const patrolRadius = 9 + Math.floor(Math.random() * 9);
+                    const angle = Math.random() * Math.PI * 2;
+                    const dq = Math.round(Math.cos(angle) * patrolRadius);
+                    const dr = Math.round(Math.sin(angle) * patrolRadius);
+                    const targetQ = patrolCenter.q + dq;
+                    const targetR = patrolCenter.r + dr;
+                    const tile = map.tiles.get(hexKey(targetQ, targetR));
+                    if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+                        ship.waypoint = { q: targetQ, r: targetR };
+                        ship.path = null;
+                    }
+                }
+                break;
+
+            case 'chase':
+                // Check if chased too far
+                if (ship.aiChaseDistance >= maxChaseDistance) {
+                    // Chased for too long, give up and cooldown before re-engaging
+                    ship.aiState = 'retreat';
+                    ship.aiRetreatTimer = retreatCooldown;
+                    ship.waypoint = null;
+                    ship.path = null;
+                    break;
+                }
+
+                // Update target position (it may have moved)
+                if (ship.aiTarget) {
+                    let target;
+                    if (ship.aiTarget.type === 'ship') {
+                        target = gameState.ships[ship.aiTarget.index];
+                    } else {
+                        target = gameState.ports[ship.aiTarget.index];
+                    }
+                    if (target) {
+                        ship.aiTarget.q = target.q;
+                        ship.aiTarget.r = target.r;
+                        const dist = hexDistance(ship.q, ship.r, target.q, target.r);
+
+                        if (dist <= attackDistance) {
+                            // Close enough to attack
+                            ship.aiState = 'attack';
+                            ship.waypoint = null;
+                            ship.path = null;
+                        } else {
+                            // Keep chasing
+                            ship.waypoint = { q: target.q, r: target.r };
+                        }
+                    } else {
+                        // Target lost, return to patrol
+                        ship.aiState = 'patrol';
+                        ship.aiTarget = null;
+                    }
+                }
+                break;
+
+            case 'attack':
+                // Stay in place - attack logic will be added later
+                // For now, just keep targeting
+                ship.waypoint = null;
+                ship.path = null;
+
+                // Re-check distance in case target moved away
+                if (ship.aiTarget) {
+                    let target;
+                    if (ship.aiTarget.type === 'ship') {
+                        target = gameState.ships[ship.aiTarget.index];
+                    } else {
+                        target = gameState.ports[ship.aiTarget.index];
+                    }
+                    if (target) {
+                        const dist = hexDistance(ship.q, ship.r, target.q, target.r);
+                        if (dist > attackDistance) {
+                            // Target moved away, chase again
+                            ship.aiState = 'chase';
+                        }
+                    } else {
+                        ship.aiState = 'patrol';
+                        ship.aiTarget = null;
+                    }
+                }
+                break;
+
+            case 'retreat':
+                // Count down retreat timer
+                ship.aiRetreatTimer -= dt;
+                if (ship.aiRetreatTimer <= 0) {
+                    ship.aiState = 'patrol';
+                    ship.aiTarget = null;
+                    ship.aiRetreatTimer = 0;
+                } else if (!ship.waypoint) {
+                    // Navigate away from target
+                    if (ship.aiTarget) {
+                        const awayAngle = Math.atan2(
+                            ship.r - ship.aiTarget.r,
+                            ship.q - ship.aiTarget.q
+                        );
+                        const retreatDist = 8;
+                        const targetQ = ship.q + Math.round(Math.cos(awayAngle) * retreatDist);
+                        const targetR = ship.r + Math.round(Math.sin(awayAngle) * retreatDist);
+                        const tile = map.tiles.get(hexKey(targetQ, targetR));
+                        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+                            ship.waypoint = { q: targetQ, r: targetR };
+                            ship.path = null;
+                        }
+                    }
+                }
+                break;
+
+            default:
+                ship.aiState = 'patrol';
+        }
+    }
 }

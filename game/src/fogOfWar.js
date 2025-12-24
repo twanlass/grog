@@ -51,9 +51,9 @@ export function initializeFog(fogState, gameState) {
     for (const port of gameState.ports) {
         revealRadius(fogState, port.q, port.r, 2);
     }
-    // Ships reveal based on their sight_distance
+    // Ships reveal based on their sightDistance
     for (const ship of gameState.ships) {
-        const sightDistance = SHIPS[ship.type].sight_distance;
+        const sightDistance = SHIPS[ship.type].sightDistance;
         revealRadius(fogState, ship.q, ship.r, sightDistance);
     }
 }

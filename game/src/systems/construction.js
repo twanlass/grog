@@ -39,7 +39,7 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
             if (waterTile) {
                 const ship = createShip(port.buildQueue.shipType, waterTile.q, waterTile.r);
                 gameState.ships.push(ship);
-                const newShipSight = SHIPS[ship.type].sight_distance;
+                const newShipSight = SHIPS[ship.type].sightDistance;
                 revealRadius(fogState, waterTile.q, waterTile.r, newShipSight);
                 port.buildQueue = null;
                 console.log(`Ship built: ${ship.type} at (${waterTile.q}, ${waterTile.r})`);
@@ -97,7 +97,7 @@ function updateSettlementConstruction(gameState, fogState, dt) {
             settlement.construction = null;  // Clear construction state
 
             // Reveal fog around completed settlement
-            const sightDistance = SETTLEMENTS.settlement.sight_distance;
+            const sightDistance = SETTLEMENTS.settlement.sightDistance;
             revealRadius(fogState, settlement.q, settlement.r, sightDistance);
         }
     }

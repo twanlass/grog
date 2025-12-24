@@ -11,4 +11,5 @@ export const G = [120, 120, 120];  // Stone gray
 export const K = [80, 80, 80];     // Dark stone
 export const T = [160, 80, 60];    // Roof terracotta
 export const Y = [200, 180, 100];  // Sand/beach
+export const BK = [20, 20, 20];    // Black (pirate sails)
 export const _ = null;             // Transparent

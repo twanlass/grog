@@ -1,5 +1,5 @@
 // Ship sprites - Side view pixel art ships
-import { W, D, H, S, M, R, _ } from "./colors.js";
+import { W, D, H, S, M, R, BK, _ } from "./colors.js";
 
 // Cutter - Small single-mast ship (16x14)
 export const CUTTER = [
@@ -29,6 +29,26 @@ export const SCHOONER = [
     [_, _, _, S, S, S, M, S, S, S, S, S, M, S, S, S, _, _, _, _],
     [_, _, _, S, S, S, M, S, S, S, S, S, M, S, S, S, _, _, _, _],
     [_, _, _, _, S, S, M, S, S, _, S, S, M, S, S, _, _, _, _, _],
+    [_, _, _, _, _, _, M, _, _, _, _, _, M, _, _, _, _, _, _, _],
+    [_, _, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, _, _],
+    [_, D, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, D, _],
+    [D, W, W, W, R, W, W, W, W, W, W, W, W, W, W, R, W, W, W, D],
+    [H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H],
+    [_, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, _],
+    [_, _, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, H, _, _],
+    [_, _, _, _, _, H, H, H, H, H, H, H, H, H, H, _, _, _, _, _],
+];
+
+// Pirate - Enemy ship with black sails (20x16, based on Schooner)
+export const PIRATE = [
+    [_, _, _, _, _, _, M, _, _, _, _, _, M, _, _, _, _, _, _, _],
+    [_, _, _, _, _, _, M, _, _, _, _, _, M, _, _, _, _, _, _, _],
+    [_, _, _, _, _,BK, M,BK, _, _, _,BK, M,BK, _, _, _, _, _, _],
+    [_, _, _, _,BK,BK, M,BK,BK, _,BK,BK, M,BK,BK, _, _, _, _, _],
+    [_, _, _,BK,BK,BK, M,BK,BK,BK,BK,BK, M,BK,BK,BK, _, _, _, _],
+    [_, _, _,BK,BK,BK, M,BK,BK,BK,BK,BK, M,BK,BK,BK, _, _, _, _],
+    [_, _, _,BK,BK,BK, M,BK,BK,BK,BK,BK, M,BK,BK,BK, _, _, _, _],
+    [_, _, _, _,BK,BK, M,BK,BK, _,BK,BK, M,BK,BK, _, _, _, _, _],
     [_, _, _, _, _, _, M, _, _, _, _, _, M, _, _, _, _, _, _, _],
     [_, _, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, D, _, _],
     [_, D, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, W, D, _],
@@ -96,7 +116,8 @@ export const SHIPS = {
         speed: 2,
         cargo: 2,
         combat: 1,
-        sight_distance: 1,
+        health: 50,
+        sightDistance: 1,
         cost: { wood: 10, food: 5 },
         description: "Small, scrappy starter",
     },
@@ -107,7 +128,8 @@ export const SHIPS = {
         speed: 1.5,
         cargo: 4,
         combat: 2,
-        sight_distance: 1,
+        health: 75,
+        sightDistance: 1,
         cost: { wood: 25, food: 10 },
         description: "Balanced workhorse",
     },
@@ -118,7 +140,8 @@ export const SHIPS = {
         speed: 2.5,
         cargo: 6,
         combat: 3,
-        sight_distance: 2,
+        health: 100,
+        sightDistance: 2,
         cost: { wood: 50, food: 20 },
         description: "Fast, medium cargo",
     },
@@ -129,8 +152,24 @@ export const SHIPS = {
         speed: 1,
         cargo: 12,
         combat: 4,
-        sight_distance: 3,
+        health: 150,
+        sightDistance: 3,
         cost: { wood: 100, food: 75 },
         description: "Massive cargo hauler",
+    },
+    pirate: {
+        name: "Pirate Ship",
+        sprite: PIRATE,
+        speed: 1,
+        cargo: 4,
+        combat: 3,
+        health: 75,
+        sightDistance: 2,
+        description: "Enemy pirate vessel",
+        // AI behavior constants
+        enemySightDistance: 8,  // Detection range for player ships/ports
+        attackDistance: 2,      // Range to stop and attack
+        maxChaseDistance: 20,   // Give up chase if target gets this far
+        retreatCooldown: 5,     // Seconds before returning to patrol
     },
 };

@@ -37,7 +37,7 @@ Ports can construct settlements on nearby land. Settlements generate wood and fo
 |------|---------|
 | `game/src/gameState.js` | Settlement creation, placement mode, validation |
 | `game/src/scenes/gameScene.js` | UI, construction progress, resource generation |
-| `game/src/sprites/settlements.js` | Settlement definition with `buildTime`, `sight_distance` |
+| `game/src/sprites/settlements.js` | Settlement definition with `buildTime`, `sightDistance` |
 
 ## Key Functions
 
@@ -88,7 +88,7 @@ floatingNumbers = [{
 - `GENERATION_INTERVAL`: 30 seconds
 - `GENERATION_AMOUNT`: 5 (wood and food)
 - `MAX_SETTLEMENT_BUILD_DISTANCE`: 10 hexes from port
-- `sight_distance`: 3 hexes (fog reveal on completion)
+- `sightDistance`: 3 hexes (fog reveal on completion)
 
 ## Edge Cases
 - **Port busy building ship**: Settlement button greyed out

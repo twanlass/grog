@@ -7,7 +7,7 @@ import { findPath, findNearestWater, findNearestAvailable } from "../pathfinding
 import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../fogOfWar.js";
 
 // Game systems
-import { updateShipMovement, getShipVisualPos } from "../systems/shipMovement.js";
+import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems/shipMovement.js";
 import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
@@ -39,6 +39,16 @@ export function createGameScene(k) {
             const waterTile = findAdjacentWater(map, startTile.q, startTile.r);
             if (waterTile) {
                 gameState.ships.push(createShip('cutter', waterTile.q, waterTile.r));
+
+                // Spawn pirate ship far out in the ocean (12-15 hexes from port)
+                const spawnDistance = 12 + Math.floor(Math.random() * 4);
+                const spawnAngle = Math.random() * Math.PI * 2;
+                const pirateQ = startTile.q + Math.round(Math.cos(spawnAngle) * spawnDistance);
+                const pirateR = startTile.r + Math.round(Math.sin(spawnAngle) * spawnDistance);
+                const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
+                if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
+                    gameState.ships.push(createShip('pirate', pirateQ, pirateR));
+                }
             }
         }
 
@@ -83,16 +93,12 @@ export function createGameScene(k) {
         // Stipple animation timer for water twinkling effect
         let stippleAnimTime = 0;
 
-        // Bird state (world coordinates with circular orbit)
-        const birdState = startTile ? {
-            q: startTile.q,
-            r: startTile.r,
-            frame: 0,
-            frameTimer: 0,
-            angle: 0,           // Current angle in radians
-            orbitRadius: 50,    // Pixels from center
-            orbitSpeed: 0.3,    // Radians per second (~20s per revolution)
-        } : null;
+        // Bird states (3 birds orbiting home port with varying sizes)
+        const birdStates = startTile ? [
+            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0, angle: 0, orbitRadius: 150, orbitSpeed: 0.3, scale: 1.0 },
+            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0, angle: 2 * Math.PI / 3, orbitRadius: 150, orbitSpeed: 0.28, scale: 0.85 },
+            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0, angle: 4 * Math.PI / 3, orbitRadius: 150, orbitSpeed: 0.32, scale: 0.70 },
+        ] : [];
 
         // Pre-calculate world positions for all tiles (once at load)
         const tilePositions = new Map();
@@ -146,19 +152,20 @@ export function createGameScene(k) {
 
             // Delegate to game systems
             updateShipMovement(hexToPixel, gameState, map, fogState, dt);
+            updatePirateAI(gameState, map, gameState.ports[0], dt); // Pirates patrol near home port
             updateTradeRoutes(gameState, map, dt);
             updateConstruction(gameState, map, fogState, dt);
             updateResourceGeneration(gameState, floatingNumbers, dt);
 
-            // Animate bird
-            if (birdState) {
-                birdState.frameTimer += rawDt;  // Use rawDt so it animates even when paused
-                if (birdState.frameTimer > 0.25) {  // ~4 FPS flapping
-                    birdState.frameTimer = 0;
-                    birdState.frame = (birdState.frame + 1) % 2;
+            // Animate birds
+            for (const bird of birdStates) {
+                bird.frameTimer += rawDt;  // Use rawDt so it animates even when paused
+                if (bird.frameTimer > 0.25) {  // ~4 FPS flapping
+                    bird.frameTimer = 0;
+                    bird.frame = (bird.frame + 1) % 2;
                 }
                 // Update orbit position
-                birdState.angle += birdState.orbitSpeed * rawDt;
+                bird.angle += bird.orbitSpeed * rawDt;
             }
         });
 
@@ -586,23 +593,29 @@ export function createGameScene(k) {
                 });
             }
 
-            // Draw bird (world-space, circling home port) - rendered above all units
-            if (birdState) {
-                const centerPos = hexToPixel(birdState.q, birdState.r);
-                const orbitX = Math.cos(birdState.angle) * birdState.orbitRadius;
-                const orbitY = Math.sin(birdState.angle) * birdState.orbitRadius;
+            // Draw birds (world-space, circling home port) - rendered above all units
+            for (const bird of birdStates) {
+                const centerPos = hexToPixel(bird.q, bird.r);
+                const orbitX = Math.cos(bird.angle) * bird.orbitRadius;
+                const orbitY = Math.sin(bird.angle) * bird.orbitRadius;
                 const birdScreenX = (centerPos.x + orbitX - cameraX) * zoom + halfWidth;
                 const birdScreenY = (centerPos.y + orbitY - 40 - cameraY) * zoom + halfHeight;
 
                 // Skip if off-screen
                 if (birdScreenX > -50 && birdScreenX < k.width() + 50 &&
                     birdScreenY > -50 && birdScreenY < k.height() + 50) {
+                    // Rotation: 150 degree offset to align sprite with orbit tangent
+                    // Convert to degrees for Kaplay
+                    const rotationRad = bird.angle + 5 * Math.PI / 6;
+                    const rotationDeg = rotationRad * (180 / Math.PI);
+
                     k.drawSprite({
                         sprite: "bird",
                         pos: k.vec2(birdScreenX, birdScreenY),
-                        frame: birdState.frame,
+                        frame: bird.frame,
                         anchor: "center",
-                        scale: k.vec2(1 * zoom, 1 * zoom),
+                        scale: k.vec2(bird.scale * zoom, bird.scale * zoom),
+                        angle: rotationDeg,
                     });
                 }
             }
@@ -1535,7 +1548,27 @@ export function createGameScene(k) {
                 let statusText = "";
                 let statusColor = k.rgb(100, 100, 100);
 
-                if (ship.tradeRoute) {
+                // Pirate AI state
+                if (ship.aiState) {
+                    switch (ship.aiState) {
+                        case 'patrol':
+                            statusText = "PATROL";
+                            statusColor = k.rgb(120, 120, 120);  // Gray
+                            break;
+                        case 'chase':
+                            statusText = "CHASE";
+                            statusColor = k.rgb(255, 160, 60);   // Orange
+                            break;
+                        case 'attack':
+                            statusText = "ATTACK";
+                            statusColor = k.rgb(220, 60, 60);    // Red
+                            break;
+                        case 'retreat':
+                            statusText = "RETREAT";
+                            statusColor = k.rgb(80, 140, 220);   // Blue
+                            break;
+                    }
+                } else if (ship.tradeRoute) {
                     if (ship.waitingForDock) {
                         statusText = "WAITING";
                         statusColor = k.rgb(220, 180, 80);  // Yellow/gold

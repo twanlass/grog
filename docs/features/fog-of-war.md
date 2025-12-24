@@ -5,7 +5,7 @@ Shrouds unexplored areas in darkness. Ships and settlements reveal the map.
 ## Behavior
 - Game starts with entire map covered in fog
 - Ports reveal a 2-hex radius at game start
-- Ships reveal based on their `sight_distance` stat:
+- Ships reveal based on their `sightDistance` stat:
   - Cutter: 1 hex
   - Schooner: 1 hex
   - Brigantine: 2 hexes
@@ -25,8 +25,8 @@ Shrouds unexplored areas in darkness. Ships and settlements reveal the map.
 |------|---------|
 | `game/src/fogOfWar.js` | State management module |
 | `game/src/scenes/gameScene.js` | Integration and rendering |
-| `game/src/sprites/ships.js` | Ship `sight_distance` values |
-| `game/src/sprites/settlements.js` | Settlement `sight_distance` value |
+| `game/src/sprites/ships.js` | Ship `sightDistance` values |
+| `game/src/sprites/settlements.js` | Settlement `sightDistance` value |
 
 ## Key Functions
 
@@ -39,7 +39,7 @@ Shrouds unexplored areas in darkness. Ships and settlements reveal the map.
 ### gameScene.js Integration Points
 - **Initialization**: Fog state initialized after game state
 - **Ship movement**: `revealRadius()` called when ship moves to new hex
-- **Settlement completion**: `revealRadius()` called with settlement's `sight_distance`
+- **Settlement completion**: `revealRadius()` called with settlement's `sightDistance`
 - **Rendering**: Fog drawn after terrain, before units
 
 ## Rendering Order

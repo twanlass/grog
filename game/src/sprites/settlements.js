@@ -31,7 +31,7 @@ export const SETTLEMENTS = {
         name: "Settlement",
         sprite: SETTLEMENT,
         buildTime: 30,
-        sight_distance: 3,
+        sightDistance: 3,
         description: "Produces food over time",
     },
 };

@@ -60,6 +60,11 @@ export function createShip(type, q, r) {
         dockingState: null, // { action: 'loading'|'unloading', progress, totalUnits, unitsTransferred } | null
         pendingUnload: false, // Flag for one-time unload at home port
         waitingForDock: null, // { portIndex, retryTimer } | null - waiting for dock to be free
+        // AI state (for enemy ships like pirates)
+        aiState: type === 'pirate' ? 'patrol' : null,  // 'patrol' | 'chase' | 'attack' | 'retreat'
+        aiTarget: null,        // { type: 'ship'|'port', index } | null
+        aiRetreatTimer: 0,     // Countdown for retreat cooldown
+        aiChaseDistance: 0,    // Hexes traveled while chasing
     };
 }
 
