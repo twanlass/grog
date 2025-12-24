@@ -1,5 +1,5 @@
 // Ship movement system - handles pathfinding, hex-to-hex navigation, and fog revelation
-import { hexKey, hexDistance } from "../hex.js";
+import { hexKey, hexDistance, hexToPixel } from "../hex.js";
 import { SHIPS } from "../sprites/index.js";
 import { findPath, findNearestAvailable, findNearestWater } from "../pathfinding.js";
 import { revealRadius } from "../fogOfWar.js";
@@ -7,6 +7,36 @@ import { revealRadius } from "../fogOfWar.js";
 // Trail configuration
 const TRAIL_MAX_SEGMENTS = 8;
 const TRAIL_FADE_DURATION = 0.5;
+
+// 8 directions at 45° intervals
+const HEX_DIRECTIONS = [
+    0,                      // East (0°)
+    Math.PI / 4,            // Northeast (45°)
+    Math.PI / 2,            // North (90°)
+    3 * Math.PI / 4,        // Northwest (135°)
+    Math.PI,                // West (180°)
+    -3 * Math.PI / 4,       // Southwest (-135° / 225°)
+    -Math.PI / 2,           // South (-90° / 270°)
+    -Math.PI / 4,           // Southeast (-45° / 315°)
+];
+
+/**
+ * Snap an angle to the nearest hex direction
+ */
+function snapToHexDirection(angle) {
+    let minDiff = Infinity;
+    let snapped = angle;
+    for (const dir of HEX_DIRECTIONS) {
+        // Calculate angular difference (handling wrap-around)
+        let diff = Math.abs(angle - dir);
+        if (diff > Math.PI) diff = 2 * Math.PI - diff;
+        if (diff < minDiff) {
+            minDiff = diff;
+            snapped = dir;
+        }
+    }
+    return snapped;
+}
 
 /**
  * Updates all ship movement, pathfinding, and water trails
@@ -90,6 +120,12 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
             // Check ahead: is next hex going to be blocked?
             const next = ship.path[0];
             const nextKey = hexKey(next.q, next.r);
+
+            // Update ship heading to face the next hex (snapped to 6 directions)
+            const fromPos = hexToPixel(ship.q, ship.r);
+            const toPos = hexToPixel(next.q, next.r);
+            const rawAngle = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x);
+            ship.heading = snapToHexDirection(rawAngle);
 
             if (occupiedHexes.has(nextKey) && nextKey !== currentKey) {
                 // Next hex is blocked - find alternative destination near waypoint

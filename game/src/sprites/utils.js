@@ -58,3 +58,24 @@ export function getSpriteSize(sprite, scale = 4) {
         height: sprite.length * scale,
     };
 }
+
+// Draw a white flash overlay on a sprite (for hit feedback)
+export function drawSpriteFlash(k, sprite, x, y, scale = 4, flashIntensity = 1.0) {
+    const height = sprite.length;
+    const width = sprite[0].length;
+
+    for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+            const pixel = sprite[row][col];
+            if (pixel) {
+                k.drawRect({
+                    pos: k.vec2(x + col * scale, y + row * scale),
+                    width: scale,
+                    height: scale,
+                    color: k.rgb(255, 255, 255),
+                    opacity: flashIntensity * 0.8,
+                });
+            }
+        }
+    }
+}

@@ -2,7 +2,7 @@
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
 import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findAdjacentWater, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
-import { drawSprite, getSpriteSize, PORTS, SHIPS, SETTLEMENTS } from "../sprites/index.js";
+import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS } from "../sprites/index.js";
 import { findPath, findNearestWater, findNearestAvailable } from "../pathfinding.js";
 import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../fogOfWar.js";
 
@@ -11,13 +11,17 @@ import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems
 import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
-import { updateCombat } from "../systems/combat.js";
+import { updateCombat, updatePirateRespawns } from "../systems/combat.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
     handleUnitSelection, handleWaypointClick, handleAttackClick
 } from "../systems/inputHandler.js";
+
+// Game start configuration
+export const STARTING_PIRATES = 2;
+export const PIRATE_INITIAL_DELAY = 60;  // seconds before first pirates spawn
 
 export function createGameScene(k) {
     return function gameScene() {
@@ -34,29 +38,16 @@ export function createGameScene(k) {
         const startTile = findStartingPosition(map);
         if (startTile) {
             // Place port
-            gameState.ports.push(createPort('port', startTile.q, startTile.r));
+            gameState.ports.push(createPort('shipyard', startTile.q, startTile.r));
 
             // Find adjacent water for ship
             const waterTile = findAdjacentWater(map, startTile.q, startTile.r);
             if (waterTile) {
                 gameState.ships.push(createShip('cutter', waterTile.q, waterTile.r));
 
-                // Spawn pirate ship far out in the ocean (12-15 hexes from port)
-                // Try multiple angles to find a valid water tile
-                const spawnDistance = 12 + Math.floor(Math.random() * 4);
-                const startAngle = Math.random() * Math.PI * 2;
-                let pirateSpawned = false;
-
-                for (let attempt = 0; attempt < 12 && !pirateSpawned; attempt++) {
-                    const angle = startAngle + (attempt * Math.PI / 6); // Try 12 angles (30° apart)
-                    const pirateQ = startTile.q + Math.round(Math.cos(angle) * spawnDistance);
-                    const pirateR = startTile.r + Math.round(Math.sin(angle) * spawnDistance);
-                    const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
-
-                    if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
-                        gameState.ships.push(createShip('pirate', pirateQ, pirateR));
-                        pirateSpawned = true;
-                    }
+                // Queue initial pirates to spawn after delay
+                for (let p = 0; p < STARTING_PIRATES; p++) {
+                    gameState.pirateRespawnQueue.push({ timer: PIRATE_INITIAL_DELAY });
                 }
             }
         }
@@ -166,6 +157,22 @@ export function createGameScene(k) {
             updateConstruction(gameState, map, fogState, dt);
             updateResourceGeneration(gameState, floatingNumbers, dt);
             updateCombat(hexToPixel, gameState, dt);
+            updatePirateRespawns(gameState, map, createShip, hexKey, dt);
+
+            // Decay hit flash timers
+            for (const ship of gameState.ships) {
+                if (ship.hitFlash > 0) ship.hitFlash -= rawDt;
+            }
+            for (const port of gameState.ports) {
+                if (port.hitFlash > 0) port.hitFlash -= rawDt;
+            }
+
+            // Check for game over: all player ships and ports destroyed
+            const playerShips = gameState.ships.filter(s => s.type !== 'pirate');
+            if (playerShips.length === 0 && gameState.ports.length === 0) {
+                k.go("game"); // Restart
+                return;
+            }
 
             // Animate birds
             for (const bird of birdStates) {
@@ -327,6 +334,14 @@ export function createGameScene(k) {
                     screenY - spriteSize.height / 2,
                     unitScale,
                     isConstructing ? 0.5 : 1.0);  // Reduced opacity if under construction
+
+                // Draw hit flash overlay
+                if (port.hitFlash > 0) {
+                    drawSpriteFlash(k, portData.sprite,
+                        screenX - spriteSize.width / 2,
+                        screenY - spriteSize.height / 2,
+                        unitScale, port.hitFlash / 0.15);
+                }
 
                 // Draw port CONSTRUCTION progress bar (port being built by ship)
                 if (port.construction) {
@@ -533,11 +548,38 @@ export function createGameScene(k) {
                     screenY < -100 || screenY > k.height() + 100) continue;
 
                 const shipData = SHIPS[ship.type];
-                const spriteSize = getSpriteSize(shipData.sprite, unitScale);
-                drawSprite(k, shipData.sprite,
-                    screenX - spriteSize.width / 2,
-                    screenY - spriteSize.height / 2,
-                    unitScale);
+
+                // Use image sprite if available, otherwise fall back to pixel art
+                if (shipData.imageSprite) {
+                    // Sprite faces north (up), heading 0 = east, so rotate by heading + 90°
+                    const rotationDeg = (ship.heading || 0) * (180 / Math.PI) + 90;
+                    const spriteScale = zoom * (shipData.spriteScale || 1);
+                    // Frame 0 = normal, Frame 1 = flash (white silhouette)
+                    const frame = ship.hitFlash > 0 ? 1 : 0;
+                    k.drawSprite({
+                        sprite: shipData.imageSprite,
+                        frame: frame,
+                        pos: k.vec2(screenX, screenY),
+                        anchor: "center",
+                        scale: spriteScale,
+                        angle: rotationDeg,
+                    });
+                } else {
+                    // Fall back to pixel art rendering
+                    const spriteSize = getSpriteSize(shipData.sprite, unitScale);
+                    drawSprite(k, shipData.sprite,
+                        screenX - spriteSize.width / 2,
+                        screenY - spriteSize.height / 2,
+                        unitScale);
+
+                    // Draw hit flash overlay
+                    if (ship.hitFlash > 0) {
+                        drawSpriteFlash(k, shipData.sprite,
+                            screenX - spriteSize.width / 2,
+                            screenY - spriteSize.height / 2,
+                            unitScale, ship.hitFlash / 0.15);
+                    }
+                }
             }
 
             // Draw projectiles (cannon balls)
@@ -551,7 +593,11 @@ export function createGameScene(k) {
                 // Add arc: parabola that peaks at midpoint (progress = 0.5)
                 // Formula: 4 * p * (1 - p) gives 0 at start, 1 at middle, 0 at end
                 const arcHeight = 40; // pixels at peak
-                const arcOffset = arcHeight * 4 * proj.progress * (1 - proj.progress);
+                const arcFactor = 4 * proj.progress * (1 - proj.progress);
+                const arcOffset = arcHeight * arcFactor;
+
+                // Scale up at peak to simulate coming closer to camera
+                const sizeScale = 0.8 + 0.4 * arcFactor;  // 0.8 at edges, 1.2 at peak
 
                 const screenX = (x - cameraX) * zoom + halfWidth;
                 const screenY = (y - cameraY) * zoom + halfHeight - (arcOffset * zoom);
@@ -563,7 +609,7 @@ export function createGameScene(k) {
                 // Draw cannon ball (dark circle)
                 k.drawCircle({
                     pos: k.vec2(screenX, screenY),
-                    radius: 4 * zoom,
+                    radius: 4 * zoom * sizeScale,
                     color: k.rgb(30, 30, 30),
                 });
             }
@@ -746,25 +792,56 @@ export function createGameScene(k) {
                 }
             }
 
-            // Draw selection indicators for all selected units
+            // Draw selection indicators for all selected units (hex outline)
             for (let i = 0; i < gameState.ships.length; i++) {
                 if (!isSelected(gameState, 'ship', i)) continue;
                 const ship = gameState.ships[i];
-                const pos = getShipVisualPosLocal(ship);
+                const isMoving = ship.path && ship.path.length > 0;
+
+                // Calculate screen position (needed for path drawing)
+                const pos = hexToPixel(ship.q, ship.r);
                 const screenX = (pos.x - cameraX) * zoom + halfWidth;
                 const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
-                // Draw selection circle
-                k.drawCircle({
-                    pos: k.vec2(screenX, screenY),
-                    radius: HEX_SIZE * zoom * 1.3,
-                    color: k.rgb(255, 220, 50),
-                    fill: false,
-                    outline: { width: 3, color: k.rgb(255, 220, 50) },
-                });
+                // Only show hex outline when stationary
+                if (!isMoving) {
+                    const corners = hexCorners(screenX, screenY, scaledSize);
+                    const pts = corners.map(c => k.vec2(c.x, c.y));
+                    const selectionColor = k.rgb(255, 220, 50);
 
-                // Draw path and waypoint if ship has one
-                if (ship.waypoint) {
+                    // Draw hex outline
+                    for (let j = 0; j < pts.length; j++) {
+                        const p1 = pts[j];
+                        const p2 = pts[(j + 1) % pts.length];
+                        k.drawLine({ p1, p2, width: 3, color: selectionColor });
+                    }
+                }
+
+                // Draw attack target indicator (red hex outline) or waypoint marker
+                if (ship.attackTarget && ship.attackTarget.type === 'ship') {
+                    const target = gameState.ships[ship.attackTarget.index];
+                    if (target) {
+                        const targetIsMoving = target.path && target.path.length > 0;
+
+                        // Only show hex outline when target is stationary
+                        if (!targetIsMoving) {
+                            const targetPos = hexToPixel(target.q, target.r);
+                            const targetScreenX = (targetPos.x - cameraX) * zoom + halfWidth;
+                            const targetScreenY = (targetPos.y - cameraY) * zoom + halfHeight;
+
+                            // Draw red hex outline around attack target
+                            const corners = hexCorners(targetScreenX, targetScreenY, scaledSize);
+                            const pts = corners.map(c => k.vec2(c.x, c.y));
+                            const attackColor = k.rgb(220, 50, 50);
+
+                            for (let j = 0; j < pts.length; j++) {
+                                const p1 = pts[j];
+                                const p2 = pts[(j + 1) % pts.length];
+                                k.drawLine({ p1, p2, width: 3, color: attackColor });
+                            }
+                        }
+                    }
+                } else if (ship.waypoint) {
                     const wpPos = hexToPixel(ship.waypoint.q, ship.waypoint.r);
                     const wpScreenX = (wpPos.x - cameraX) * zoom + halfWidth;
                     const wpScreenY = (wpPos.y - cameraY) * zoom + halfHeight;
@@ -832,7 +909,7 @@ export function createGameScene(k) {
                 }
             }
 
-            // Draw selection indicators for selected ports
+            // Draw selection indicators for selected ports (hex outline)
             for (let i = 0; i < gameState.ports.length; i++) {
                 if (!isSelected(gameState, 'port', i)) continue;
                 const port = gameState.ports[i];
@@ -840,16 +917,19 @@ export function createGameScene(k) {
                 const screenX = (pos.x - cameraX) * zoom + halfWidth;
                 const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
-                k.drawCircle({
-                    pos: k.vec2(screenX, screenY),
-                    radius: HEX_SIZE * zoom * 1.3,
-                    color: k.rgb(255, 220, 50),
-                    fill: false,
-                    outline: { width: 3, color: k.rgb(255, 220, 50) },
-                });
+                const corners = hexCorners(screenX, screenY, scaledSize);
+                const pts = corners.map(c => k.vec2(c.x, c.y));
+                const selectionColor = k.rgb(255, 220, 50);
+
+                // Draw hex outline
+                for (let j = 0; j < pts.length; j++) {
+                    const p1 = pts[j];
+                    const p2 = pts[(j + 1) % pts.length];
+                    k.drawLine({ p1, p2, width: 3, color: selectionColor });
+                }
             }
 
-            // Draw selection indicators for selected settlements
+            // Draw selection indicators for selected settlements (hex outline)
             for (let i = 0; i < gameState.settlements.length; i++) {
                 if (!isSelected(gameState, 'settlement', i)) continue;
                 const settlement = gameState.settlements[i];
@@ -857,13 +937,16 @@ export function createGameScene(k) {
                 const screenX = (pos.x - cameraX) * zoom + halfWidth;
                 const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
-                k.drawCircle({
-                    pos: k.vec2(screenX, screenY),
-                    radius: HEX_SIZE * zoom * 1.3,
-                    color: k.rgb(255, 220, 50),
-                    fill: false,
-                    outline: { width: 3, color: k.rgb(255, 220, 50) },
-                });
+                const corners = hexCorners(screenX, screenY, scaledSize);
+                const pts = corners.map(c => k.vec2(c.x, c.y));
+                const selectionColor = k.rgb(255, 220, 50);
+
+                // Draw hex outline
+                for (let j = 0; j < pts.length; j++) {
+                    const p1 = pts[j];
+                    const p2 = pts[(j + 1) % pts.length];
+                    k.drawLine({ p1, p2, width: 3, color: selectionColor });
+                }
             }
 
             // Draw placement mode highlights (when placing a new port)

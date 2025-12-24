@@ -15,6 +15,12 @@ k.loadSprite("bird", "src/sprites/assets/bird.png", {
     },
 });
 
+// Load ship sprites (2 frames: normal, flash)
+k.loadSprite("cutter", "src/sprites/assets/cutter.png", {
+    sliceX: 2,
+    sliceY: 1,
+});
+
 // Register scenes
 k.scene("title", () => {
     // Title text

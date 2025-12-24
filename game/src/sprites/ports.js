@@ -19,8 +19,8 @@ export const DOCK = [
     [_, _, _, M, _, _, M, _, _, M, _, _, M, _, _, _],
 ];
 
-// Port - Dock with warehouse (20x16)
-export const PORT = [
+// Shipyard - Dock with warehouse (20x16)
+export const SHIPYARD = [
     [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _],
     [_, _, _, _, _, _, T, T, T, T, T, T, _, _, _, _, _, _, _, _],
     [_, _, _, _, _, T, T, T, T, T, T, T, T, _, _, _, _, _, _, _],
@@ -73,9 +73,9 @@ export const PORTS = {
         cost: { wood: 20 },
         description: "Basic dock, small capacity",
     },
-    port: {
-        name: "Port",
-        sprite: PORT,
+    shipyard: {
+        name: "Shipyard",
+        sprite: SHIPYARD,
         capacity: 5,
         health: 50,
         canBuild: ["Cutter", "Schooner"],

@@ -275,3 +275,76 @@ after a way point has been set, the next left click should clear the selection i
 5. all ships and ports will need a destroyed state (when health <= 0)
 5a. destroyed state should destroy the instance of the item. 
 5b. todo: we'll need to solve for the edge case where a port is destroyed - what should happen to it's settlements? 
+
+## 67. User prompt
+> in ports.js, let's rename "port" to "shipyard". update any refs in code if needed. 
+
+## 68. User prompt
+> lets spawn a few more pirates at game start (3 total)
+
+## 69. User prompt
+> lets spawn just 2 pirates. make this configurable. 
+
+## 70. User prompt
+> after a pirate is destroyed, respwan one after a 30 second cooldown 
+
+## 71. User prompt
+> let's make a simple end state: 
+if all player ships and all ports have been destroyed restart the game
+
+## 72. User prompt
+> let's add a 60 second wait before we first spawn pirates 
+
+## 73. User prompt
+> let's make combat a little more interesting. When a unit is hit with a cannon ball, have it quickly flash to indicate it's been hit
+
+## 74. User prompt
+> let's add a const to ships to control their fire speed. Larger ships should fire more frequently. 
+
+## 75. User prompt
+> let's replace our cutter with an actual sprite. I've added a sprite asset (one frame): game/src/sprites/assets/cutter.png. The sprite ship is facing up / north. 
+
+## 76. User prompt
+> next, let's have the ship rotate and face the direction it's headed. Since this is a hex based game, we'll have 6 possible directions. 
+
+## 77. User prompt
+> it's close. let's use 45 degree angles for the hex directions
+
+## 78. User prompt
+> the ship is quite large. Can we adjust it's size? where is that constant so I can edit it? 
+
+## 79. User prompt
+> can we refactor things and consolidate a single scale in the ship const metadata? have flash use that etc? 
+
+## 80. User prompt
+> the cutter isn't flashing when hit by a cannonball. Can we add that back?
+
+## 81. User prompt
+> hmmm. can I add a flash state to the sprite instead? that way it matches the ship outline etc?
+
+## 82. User prompt
+> okay, I added a second frame for the flashing state
+
+## 83. User prompt
+> last bit of flourish: cannonballs have a nice arc. When they reach their peak of the arc, let's increase the cannonball size by 1.2x (so it appears to come closer to the camera)
+
+## 84. User prompt
+> have them scale/start from 0.8
+
+## 85. User prompt
+> for land units (ports, settlements) let's update the selection state: instead of a yellow circle around the unit, let's outline the hex it's placed on (yellow outline around the hex). Similar to the selection mode for placing a settlement or port (hex outline in green)
+
+## 86. User prompt
+> lets update the other units to use the same selection style (hex outline)
+
+## 87. User prompt
+> for ships (units that move), only show the hex outline when stationary. 
+
+## 88. User prompt
+> something happened w/ the waypoint line; when selecting a destination for a ship, it now draws a line waaaaay off the map as as well as to the desination 
+
+## 89. User prompt
+> when targeting a pirate ship, instead of showing the x waypoint, let's highlight the pirate ship by using the same hex outline, but in red (to indicate we're attacking)
+
+## 90. User prompt
+> apply the same logic to the pirate ship hex outline – only show it when the pirate ship comes to rest

@@ -1,9 +1,10 @@
 // Combat system - handles projectile attacks and damage
 import { hexDistance } from "../hex.js";
+import { SHIPS } from "../sprites/ships.js";
 
 // Combat constants
 export const CANNON_DAMAGE = 5;
-export const CANNON_COOLDOWN = 5;  // seconds between shots
+export const PIRATE_RESPAWN_COOLDOWN = 30;  // seconds before a destroyed pirate respawns
 const PROJECTILE_SPEED = 1.0;      // progress per second (~1s travel time)
 
 /**
@@ -53,8 +54,8 @@ function handlePirateAttacks(gameState, dt) {
                     speed: PROJECTILE_SPEED,
                 });
 
-                // Reset cooldown
-                ship.attackCooldown = CANNON_COOLDOWN;
+                // Reset cooldown using ship's fire rate
+                ship.attackCooldown = SHIPS[ship.type].fireCooldown;
             }
         }
     }
@@ -123,7 +124,7 @@ function handlePlayerAttacks(gameState, dt) {
                 damage: CANNON_DAMAGE,
                 speed: PROJECTILE_SPEED,
             });
-            ship.attackCooldown = CANNON_COOLDOWN;
+            ship.attackCooldown = SHIPS[ship.type].fireCooldown;
         }
     }
 }
@@ -144,6 +145,9 @@ function updateProjectiles(gameState, dt) {
     }
 }
 
+// Duration of hit flash effect in seconds
+const HIT_FLASH_DURATION = 0.15;
+
 /**
  * Apply damage to a target, destroying it if health reaches 0
  */
@@ -155,6 +159,7 @@ function applyDamage(gameState, targetType, targetIndex, damage) {
     if (!target) return; // Target already destroyed
 
     target.health -= damage;
+    target.hitFlash = HIT_FLASH_DURATION; // Trigger flash effect
 
     if (target.health <= 0) {
         if (targetType === 'ship') {
@@ -169,6 +174,13 @@ function applyDamage(gameState, targetType, targetIndex, damage) {
  * Remove a ship and clean up all references to it
  */
 function destroyShip(gameState, shipIndex) {
+    const ship = gameState.ships[shipIndex];
+
+    // Queue pirate respawn
+    if (ship && ship.type === 'pirate') {
+        gameState.pirateRespawnQueue.push({ timer: PIRATE_RESPAWN_COOLDOWN });
+    }
+
     // Remove from array
     gameState.ships.splice(shipIndex, 1);
 
@@ -299,6 +311,47 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
                     port.construction.builderShipIndex--;
                 }
             }
+        }
+    }
+}
+
+/**
+ * Update pirate respawn timers and spawn new pirates when ready
+ * @param {Object} gameState - The game state
+ * @param {Object} map - The map object with tiles
+ * @param {Function} createShip - Function to create a new ship
+ * @param {Function} hexKey - Function to create hex key
+ * @param {number} dt - Delta time (already scaled by timeScale)
+ */
+export function updatePirateRespawns(gameState, map, createShip, hexKey, dt) {
+    if (dt === 0) return; // Paused
+
+    for (let i = gameState.pirateRespawnQueue.length - 1; i >= 0; i--) {
+        const respawn = gameState.pirateRespawnQueue[i];
+        respawn.timer -= dt;
+
+        if (respawn.timer <= 0) {
+            // Spawn a new pirate near the home port
+            const homePort = gameState.ports[0];
+            if (homePort) {
+                const spawnDistance = 12 + Math.floor(Math.random() * 4);
+                const startAngle = Math.random() * Math.PI * 2;
+
+                for (let attempt = 0; attempt < 12; attempt++) {
+                    const angle = startAngle + (attempt * Math.PI / 6);
+                    const pirateQ = homePort.q + Math.round(Math.cos(angle) * spawnDistance);
+                    const pirateR = homePort.r + Math.round(Math.sin(angle) * spawnDistance);
+                    const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
+
+                    if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
+                        gameState.ships.push(createShip('pirate', pirateQ, pirateR));
+                        break;
+                    }
+                }
+            }
+
+            // Remove from queue
+            gameState.pirateRespawnQueue.splice(i, 1);
         }
     }
 }

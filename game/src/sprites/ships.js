@@ -112,11 +112,14 @@ export const SHIPS = {
     cutter: {
         name: "Cutter",
         sprite: CUTTER,
+        imageSprite: "cutter",  // Kaplay sprite name (loaded in main.js)
+        spriteScale: .5,       // scale multiplier for image sprite
         build_time: 5,
         speed: 2,
         cargo: 2,
         combat: 1,
         health: 20,
+        fireCooldown: 6,        // seconds between shots
         sightDistance: 1,
         cost: { wood: 10, food: 5 },
         description: "Small, scrappy starter",
@@ -127,8 +130,9 @@ export const SHIPS = {
         build_time: 10,
         speed: 1.5,
         cargo: 4,
-        combat: 2,
-        health: 25,
+        combat: 3,
+        health: 30,
+        fireCooldown: 3,        // seconds between shots
         sightDistance: 1,
         cost: { wood: 25, food: 10 },
         description: "Balanced workhorse",
@@ -141,6 +145,7 @@ export const SHIPS = {
         cargo: 6,
         combat: 3,
         health: 30,
+        fireCooldown: 4,        // seconds between shots
         sightDistance: 2,
         cost: { wood: 50, food: 20 },
         description: "Fast, medium cargo",
@@ -153,6 +158,7 @@ export const SHIPS = {
         cargo: 12,
         combat: 4,
         health: 50,
+        fireCooldown: 3,        // seconds between shots
         sightDistance: 3,
         cost: { wood: 100, food: 75 },
         description: "Massive cargo hauler",
@@ -164,12 +170,13 @@ export const SHIPS = {
         cargo: 4,
         combat: 3,
         health: 25,
+        fireCooldown: 5,        // seconds between shots
         sightDistance: 2,
         description: "Enemy pirate vessel",
         // AI behavior constants
-        enemySightDistance: 8,  // Detection range for player ships/ports
+        enemySightDistance: 5,  // Detection range for player ships/ports
         attackDistance: 2,      // Range to stop and attack
-        maxChaseDistance: 20,   // Give up chase if target gets this far
+        maxChaseDistance: 15,   // Give up chase if target gets this far
         retreatCooldown: 5,     // Seconds before returning to patrol
     },
 };

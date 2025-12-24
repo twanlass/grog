@@ -30,7 +30,7 @@ export const SETTLEMENTS = {
     settlement: {
         name: "Settlement",
         sprite: SETTLEMENT,
-        buildTime: 30,
+        buildTime: 5,
         sightDistance: 3,
         description: "Produces food over time",
     },

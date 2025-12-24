@@ -6,7 +6,7 @@ import { hexKey } from "./hex.js";
 
 export function createGameState() {
     return {
-        // Player's ports: [{ type: 'dock'|'port'|'stronghold', q, r }]
+        // Player's ports: [{ type: 'dock'|'shipyard'|'stronghold', q, r }]
         ports: [],
 
         // Player's ships: [{ type, q, r, waypoint, path, moveProgress }]
@@ -44,6 +44,9 @@ export function createGameState() {
 
         // Player's settlements: [{ q, r, construction }]
         settlements: [],
+
+        // Pirate respawn queue: [{ timer }]
+        pirateRespawnQueue: [],
     };
 }
 
@@ -279,7 +282,7 @@ export function isValidPortSite(map, q, r, existingPorts) {
 
 // Get the next port type in tech tree (null if already max)
 export function getNextPortType(currentType) {
-    const techTree = ['dock', 'port', 'stronghold'];
+    const techTree = ['dock', 'shipyard', 'stronghold'];
     const currentIndex = techTree.indexOf(currentType);
     if (currentIndex === -1 || currentIndex >= techTree.length - 1) {
         return null;  // Already at max or invalid
