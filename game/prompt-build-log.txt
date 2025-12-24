@@ -208,3 +208,73 @@ xn    @    kaplay.js?v=8270b6e8:5276
 
 ## 60. User prompt
 > option 1 
+
+## 61. User prompt
+> let's add our first animated sprite to the game – sea birds!
+1. i've added a new sprite sheet to grog/game/src/sprites/assets/bird.png
+1a. it's 64x32; two frames
+1b. it should animate from frame 1 to 2
+1c. use Kaplay loadSprite() and play()
+2. once the created, add a bird above the home port at game start. 
+3. it can be stationary for now, just flapping in place. We'll animate a path later
+
+## 62. User prompt
+> Should we be using Kaplay's camera system for everything? Or how might we have the bird occupy game space instead of world space so that the bird can exist independent of camera movement? 
+
+## 63. User prompt
+> let's improve our bird: 
+1. reduce scale by half (it's huge)
+2. can we put it on a basic path to slowly circle our home port 
+
+## 64. User prompt
+> make sure the bird is drawn above all other units (its rendering below our port right now lol)
+
+## 65. User prompt
+> document the bird in docs/features
+
+## 66. User prompt
+> commit our bird changes
+
+## 67. User prompt
+> can we update the cannon balls a bit? 
+1. slow them down by half 
+2. add a little arc to their travel 
+
+## 68. User prompt
+> next, let's add some health bars above the pirate ship and it's attack target. Health bars should only be visible during attack. 
+
+## 69. User prompt
+> sometimes a pirate ship fails to spawn at start 
+
+## 70. User prompt
+> bug fix: continue to allow the pirate ship to be selected (easier to debug it's current state) but _dont_ allow the user to control it 
+
+## 71. User prompt
+> next bug: pirate ships don't seem to attack ports 
+
+## 72. User prompt
+> last bug: after destroying it's target, the pirate boat moves back to patrol state but isn't moving. 
+
+## 73. User prompt
+> hmm still seeing the bug. Repro steps: 
+1. pirate destroys a port
+2. transitions to patrol state
+3. remains in same hex was in during attack
+4. there is a nearby player boat, but it doesnt' seem to notice
+
+## 74. User prompt
+> let's now add the ability for player ships to attack. With a ship selected, control + left click on a pirate ship should: 
+1. navigate the player ship to within attack range of target 
+2. begin firing their canon
+3. continuing firing their cannon (with cooldown) until either: 
+3a. a new waypoint is set (player moves their ship)
+3b. target is destroyed
+
+## 75. User prompt
+> update the controls to use command + left click for attack (keep it consistent with trade routes, etc)
+
+## 76. User prompt
+> when selecting a port or ship, show it's health bar 
+
+## 77. User prompt
+> let's have player ships return fire (attack) automatically when being attacked. In case a ship is left idle at least it will defend itself 

@@ -1,7 +1,7 @@
 // Ship movement system - handles pathfinding, hex-to-hex navigation, and fog revelation
 import { hexKey, hexDistance } from "../hex.js";
 import { SHIPS } from "../sprites/index.js";
-import { findPath, findNearestAvailable } from "../pathfinding.js";
+import { findPath, findNearestAvailable, findNearestWater } from "../pathfinding.js";
 import { revealRadius } from "../fogOfWar.js";
 
 // Trail configuration
@@ -26,6 +26,27 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
     }
 
     for (const ship of gameState.ships) {
+        // Check if player ship is in attack range of its target
+        if (ship.attackTarget && ship.attackTarget.type === 'ship') {
+            const target = gameState.ships[ship.attackTarget.index];
+            if (target) {
+                const dist = hexDistance(ship.q, ship.r, target.q, target.r);
+                const attackDistance = 2;  // Same as pirate attack range
+                if (dist <= attackDistance) {
+                    // In range - stop moving, combat system will handle firing
+                    ship.waypoint = null;
+                    ship.path = null;
+                } else if (!ship.waypoint || (ship.waypoint.q !== target.q || ship.waypoint.r !== target.r)) {
+                    // Update waypoint to track moving target
+                    ship.waypoint = { q: target.q, r: target.r };
+                    ship.path = null;
+                }
+            } else {
+                // Target destroyed
+                ship.attackTarget = null;
+            }
+        }
+
         if (!ship.waypoint) continue;
 
         // Build blocked hexes (other ships, not this one)
@@ -191,8 +212,6 @@ export function getShipVisualPos(hexToPixel, ship) {
  * @param {number} dt - Delta time for timers
  */
 export function updatePirateAI(gameState, map, patrolCenter, dt) {
-    if (!patrolCenter) return;
-
     for (const ship of gameState.ships) {
         if (ship.type !== 'pirate') continue;
 
@@ -232,20 +251,31 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                     ship.aiState = 'chase';
                     ship.aiTarget = nearestTarget;
                     ship.aiChaseDistance = 0; // Reset chase distance counter
-                    ship.waypoint = { q: nearestTarget.q, r: nearestTarget.r };
+                    // For ports, find nearest water tile since ships can't path to land
+                    if (nearestTarget.type === 'port') {
+                        const nearWater = findNearestWater(map, nearestTarget.q, nearestTarget.r);
+                        ship.waypoint = nearWater ? { q: nearWater.q, r: nearWater.r } : null;
+                    } else {
+                        ship.waypoint = { q: nearestTarget.q, r: nearestTarget.r };
+                    }
                     ship.path = null;
-                } else if (!ship.waypoint) {
-                    // Generate random patrol point
+                } else if (!ship.waypoint && patrolCenter) {
+                    // Generate random patrol point - try multiple angles to find water
                     const patrolRadius = 9 + Math.floor(Math.random() * 9);
-                    const angle = Math.random() * Math.PI * 2;
-                    const dq = Math.round(Math.cos(angle) * patrolRadius);
-                    const dr = Math.round(Math.sin(angle) * patrolRadius);
-                    const targetQ = patrolCenter.q + dq;
-                    const targetR = patrolCenter.r + dr;
-                    const tile = map.tiles.get(hexKey(targetQ, targetR));
-                    if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
-                        ship.waypoint = { q: targetQ, r: targetR };
-                        ship.path = null;
+                    const startAngle = Math.random() * Math.PI * 2;
+
+                    for (let attempt = 0; attempt < 8; attempt++) {
+                        const angle = startAngle + (attempt * Math.PI / 4);
+                        const dq = Math.round(Math.cos(angle) * patrolRadius);
+                        const dr = Math.round(Math.sin(angle) * patrolRadius);
+                        const targetQ = patrolCenter.q + dq;
+                        const targetR = patrolCenter.r + dr;
+                        const tile = map.tiles.get(hexKey(targetQ, targetR));
+                        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+                            ship.waypoint = { q: targetQ, r: targetR };
+                            ship.path = null;
+                            break;
+                        }
                     }
                 }
                 break;
@@ -280,8 +310,13 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                             ship.waypoint = null;
                             ship.path = null;
                         } else {
-                            // Keep chasing
-                            ship.waypoint = { q: target.q, r: target.r };
+                            // Keep chasing - for ports, find nearest water tile
+                            if (ship.aiTarget.type === 'port') {
+                                const nearWater = findNearestWater(map, target.q, target.r);
+                                ship.waypoint = nearWater ? { q: nearWater.q, r: nearWater.r } : null;
+                            } else {
+                                ship.waypoint = { q: target.q, r: target.r };
+                            }
                         }
                     } else {
                         // Target lost, return to patrol

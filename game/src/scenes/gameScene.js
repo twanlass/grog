@@ -11,11 +11,12 @@ import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems
 import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
+import { updateCombat } from "../systems/combat.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
-    handleUnitSelection, handleWaypointClick
+    handleUnitSelection, handleWaypointClick, handleAttackClick
 } from "../systems/inputHandler.js";
 
 export function createGameScene(k) {
@@ -41,13 +42,21 @@ export function createGameScene(k) {
                 gameState.ships.push(createShip('cutter', waterTile.q, waterTile.r));
 
                 // Spawn pirate ship far out in the ocean (12-15 hexes from port)
+                // Try multiple angles to find a valid water tile
                 const spawnDistance = 12 + Math.floor(Math.random() * 4);
-                const spawnAngle = Math.random() * Math.PI * 2;
-                const pirateQ = startTile.q + Math.round(Math.cos(spawnAngle) * spawnDistance);
-                const pirateR = startTile.r + Math.round(Math.sin(spawnAngle) * spawnDistance);
-                const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
-                if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
-                    gameState.ships.push(createShip('pirate', pirateQ, pirateR));
+                const startAngle = Math.random() * Math.PI * 2;
+                let pirateSpawned = false;
+
+                for (let attempt = 0; attempt < 12 && !pirateSpawned; attempt++) {
+                    const angle = startAngle + (attempt * Math.PI / 6); // Try 12 angles (30° apart)
+                    const pirateQ = startTile.q + Math.round(Math.cos(angle) * spawnDistance);
+                    const pirateR = startTile.r + Math.round(Math.sin(angle) * spawnDistance);
+                    const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
+
+                    if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
+                        gameState.ships.push(createShip('pirate', pirateQ, pirateR));
+                        pirateSpawned = true;
+                    }
                 }
             }
         }
@@ -156,6 +165,7 @@ export function createGameScene(k) {
             updateTradeRoutes(gameState, map, dt);
             updateConstruction(gameState, map, fogState, dt);
             updateResourceGeneration(gameState, floatingNumbers, dt);
+            updateCombat(hexToPixel, gameState, dt);
 
             // Animate birds
             for (const bird of birdStates) {
@@ -528,6 +538,122 @@ export function createGameScene(k) {
                     screenX - spriteSize.width / 2,
                     screenY - spriteSize.height / 2,
                     unitScale);
+            }
+
+            // Draw projectiles (cannon balls)
+            for (const proj of gameState.projectiles) {
+                // Interpolate position based on progress
+                const fromPos = hexToPixel(proj.fromQ, proj.fromR);
+                const toPos = hexToPixel(proj.toQ, proj.toR);
+                const x = fromPos.x + (toPos.x - fromPos.x) * proj.progress;
+                const y = fromPos.y + (toPos.y - fromPos.y) * proj.progress;
+
+                // Add arc: parabola that peaks at midpoint (progress = 0.5)
+                // Formula: 4 * p * (1 - p) gives 0 at start, 1 at middle, 0 at end
+                const arcHeight = 40; // pixels at peak
+                const arcOffset = arcHeight * 4 * proj.progress * (1 - proj.progress);
+
+                const screenX = (x - cameraX) * zoom + halfWidth;
+                const screenY = (y - cameraY) * zoom + halfHeight - (arcOffset * zoom);
+
+                // Skip if off screen
+                if (screenX < -50 || screenX > k.width() + 50 ||
+                    screenY < -50 || screenY > k.height() + 50) continue;
+
+                // Draw cannon ball (dark circle)
+                k.drawCircle({
+                    pos: k.vec2(screenX, screenY),
+                    radius: 4 * zoom,
+                    color: k.rgb(30, 30, 30),
+                });
+            }
+
+            // Draw health bars for selected units and ships in combat
+            const healthBarUnits = new Set(); // Track entities to avoid duplicate health bars
+
+            // Selected units
+            for (const sel of gameState.selectedUnits) {
+                if (sel.type === 'ship' || sel.type === 'port') {
+                    healthBarUnits.add(`${sel.type}:${sel.index}`);
+                }
+            }
+
+            // Pirates in attack mode
+            for (const ship of gameState.ships) {
+                if (ship.type !== 'pirate' || ship.aiState !== 'attack') continue;
+
+                // Add pirate to set
+                const pirateIndex = gameState.ships.indexOf(ship);
+                healthBarUnits.add(`ship:${pirateIndex}`);
+
+                // Add target to set
+                if (ship.aiTarget && ship.aiTarget.index >= 0) {
+                    healthBarUnits.add(`${ship.aiTarget.type}:${ship.aiTarget.index}`);
+                }
+            }
+
+            // Player ships with attack targets
+            for (let i = 0; i < gameState.ships.length; i++) {
+                const ship = gameState.ships[i];
+                if (ship.type === 'pirate') continue;
+                if (!ship.attackTarget) continue;
+
+                healthBarUnits.add(`ship:${i}`);
+                if (ship.attackTarget.index >= 0) {
+                    healthBarUnits.add(`ship:${ship.attackTarget.index}`);
+                }
+            }
+
+            // Draw health bars for all units
+            for (const key of healthBarUnits) {
+                const [type, indexStr] = key.split(':');
+                const index = parseInt(indexStr);
+
+                let entity, maxHealth, pos;
+                if (type === 'ship') {
+                    entity = gameState.ships[index];
+                    if (!entity) continue;
+                    maxHealth = SHIPS[entity.type].health;
+                    pos = getShipVisualPosLocal(entity);
+                } else {
+                    entity = gameState.ports[index];
+                    if (!entity) continue;
+                    maxHealth = PORTS[entity.type].health;
+                    pos = hexToPixel(entity.q, entity.r);
+                }
+
+                const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+                // Skip if off screen
+                if (screenX < -100 || screenX > k.width() + 100 ||
+                    screenY < -100 || screenY > k.height() + 100) continue;
+
+                const barWidth = 40 * zoom;
+                const barHeight = 5 * zoom;
+                const barY = screenY - 35 * zoom; // Above the entity
+
+                const healthPercent = Math.max(0, entity.health / maxHealth);
+
+                // Background bar (dark)
+                k.drawRect({
+                    pos: k.vec2(screenX - barWidth / 2, barY),
+                    width: barWidth,
+                    height: barHeight,
+                    color: k.rgb(40, 40, 40),
+                    radius: 2,
+                });
+
+                // Health fill (red to green gradient based on health)
+                const r = Math.floor(255 * (1 - healthPercent));
+                const g = Math.floor(180 * healthPercent);
+                k.drawRect({
+                    pos: k.vec2(screenX - barWidth / 2, barY),
+                    width: barWidth * healthPercent,
+                    height: barHeight,
+                    color: k.rgb(r, g, 40),
+                    radius: 2,
+                });
             }
 
             // Draw loading/unloading progress bars for ships
@@ -1809,9 +1935,12 @@ export function createGameScene(k) {
 
             let clickedOnUnit = false;
 
-            // When Command is held, check special port interactions BEFORE unit selection
-            // (so clicking on a port sets trade route instead of selecting the port)
+            // When Command is held, check special interactions BEFORE unit selection
             if (isCommandHeld) {
+                // Attack pirate ship
+                if (handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
+                    return;  // Attack command handled
+                }
                 // Trade route to foreign port
                 if (handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
                     clickedOnUnit = true;

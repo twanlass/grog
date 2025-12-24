@@ -12,7 +12,8 @@
       "Bash(npx vite build)",
       "Bash(cat:*)",
       "Bash(node:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(npm run build:*)"
     ]
   },
   "disabledMcpjsonServers": [

@@ -179,6 +179,7 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
                 if (isShipBuildingPort(sel.index, gameState.ports)) continue;
 
                 const ship = gameState.ships[sel.index];
+                if (ship.type === 'pirate') continue; // Can't control enemy ships
                 ship.tradeRoute = { foreignPortIndex: i, homePortIndex: 0 };
                 ship.dockingState = null;
                 ship.waitingForDock = null;
@@ -232,6 +233,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
         if (isShipBuildingPort(sel.index, gameState.ports)) continue;
 
         const ship = gameState.ships[sel.index];
+        if (ship.type === 'pirate') continue; // Can't control enemy ships
         const hasCargo = (ship.cargo?.wood || 0) + (ship.cargo?.food || 0) > 0;
         if (!hasCargo) continue;
 
@@ -353,9 +355,11 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         if (isShipBuildingPort(sel.index, gameState.ports)) continue;
 
         const ship = gameState.ships[sel.index];
+        if (ship.type === 'pirate') continue; // Can't control enemy ships
         if (ship.tradeRoute) {
             cancelTradeRoute(ship);
         }
+        ship.attackTarget = null;  // Clear attack target when manually moving
         ship.waypoint = { q: targetQ, r: targetR };
         ship.path = null;
         ship.moveProgress = 0;
@@ -365,6 +369,47 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
     if (movedCount > 0) {
         console.log(`Set waypoint at (${targetQ}, ${targetR}) for ${movedCount} ship(s)`);
         return true;
+    }
+    return false;
+}
+
+/**
+ * Handle Ctrl+click to attack a pirate ship
+ * @returns {boolean} true if attack target was set
+ */
+export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS) {
+    const selectedShips = getSelectedShips(gameState);
+    if (selectedShips.length === 0) return false;
+
+    // Find clicked pirate ship
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const target = gameState.ships[i];
+        if (target.type !== 'pirate') continue;
+
+        const pos = hexToPixel(target.q, target.r);
+        const dx = worldX - pos.x;
+        const dy = worldY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+            // Set attack target for all selected player ships
+            let attackCount = 0;
+            for (const sel of gameState.selectedUnits) {
+                if (sel.type !== 'ship') continue;
+                const ship = gameState.ships[sel.index];
+                if (ship.type === 'pirate') continue;  // Can't control enemy ships
+
+                ship.attackTarget = { type: 'ship', index: i };
+                if (ship.tradeRoute) {
+                    cancelTradeRoute(ship);
+                }
+                ship.waypoint = { q: target.q, r: target.r };
+                ship.path = null;
+                attackCount++;
+            }
+            if (attackCount > 0) {
+                console.log(`${attackCount} ship(s) attacking pirate at (${target.q}, ${target.r})`);
+                return true;
+            }
+        }
     }
     return false;
 }

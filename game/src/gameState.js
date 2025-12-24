@@ -12,6 +12,9 @@ export function createGameState() {
         // Player's ships: [{ type, q, r, waypoint, path, moveProgress }]
         ships: [],
 
+        // Projectiles in flight: [{ sourceShipIndex, targetType, targetIndex, fromQ, fromR, toQ, toR, progress, damage, speed }]
+        projectiles: [],
+
         // Currently selected units (multi-select)
         selectedUnits: [], // [{ type: 'ship'|'port', index: number }, ...]
 
@@ -65,6 +68,10 @@ export function createShip(type, q, r) {
         aiTarget: null,        // { type: 'ship'|'port', index } | null
         aiRetreatTimer: 0,     // Countdown for retreat cooldown
         aiChaseDistance: 0,    // Hexes traveled while chasing
+        // Combat state
+        health: SHIPS[type].health,  // Current health (from ship metadata)
+        attackCooldown: 0,           // Timer for shot cooldown
+        attackTarget: null,          // { type: 'ship', index } for player ships attacking pirates
     };
 }
 
@@ -82,6 +89,8 @@ export function createPort(type, q, r, isConstructing = false, builderShipIndex 
             buildTime: PORTS[type].buildTime,
             builderShipIndex: builderShipIndex,  // Ship that's building this port
         } : null,
+        // Combat state
+        health: PORTS[type].health,  // Current health (from port metadata)
     };
 }
 

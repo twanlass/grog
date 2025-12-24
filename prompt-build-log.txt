@@ -172,3 +172,106 @@ after a way point has been set, the next left click should clear the selection i
 
 ## 40. User prompt
 > I think we need to fix our git repo; it looks like just the game directory is included/tracked but we need /Users/tylerwanlass/code/grog to be tracked included. What should we do? 
+
+## 41. User prompt
+> git push 
+
+## 42. User prompt
+> ls
+
+## 43. User prompt
+> can you create a simple readme.md in the root? Quick summary of the project, list out docs/features, and a quick how to run 
+
+## 44. User prompt
+> yes
+
+## 45. User prompt
+> update all copy, comments, code, to replace references to "farms" with " settlements"
+
+## 46. User prompt
+> let's update our sea bird: 
+1. Increase it's path radious around the home port
+2. Have it point / rotate to follow the path direction. By default, the sprite is draw at a 45 degree angle with the nose of the bird pointed top right
+3. spawn 3 birds with thier size variying up to 305% smaller than default size. Have them spread out 
+
+## 47. User prompt
+> almost there; the individual bird though isn't rotating locally to face forward and follow it's path
+
+## 48. User prompt
+> the angle may be off; the sprite for the bird is drawn at a 45 degreen angle 
+
+## 49. User prompt
+> here's a visual: 
+1. Red circle is the current path (orbit)
+2. blue arrow is the direction the bird is currently facing (wrong)
+3. yellow arrow is the direction the bird _should_ be facing
+
+## 50. User prompt
+> still not right: heres the bird for reference (yellow arrow is current facing direction) 
+
+## 51. User prompt
+> try 150 degree offset
+
+## 52. User prompt
+> that's perfect 
+
+## 53. User prompt
+> we're going to implement a new feature + mechanic: pirate ships! We'll start simple: 
+1. Create a new ship type, "pirate"; use the Schooner as a template to start. 
+2. Modify the ships sails to be black w/ a white dot in the middel (simple pirate skull flag)
+3. spawn the ship in the ocean near the home port
+
+## 54. User prompt
+> Now let's start turning the pirate ship into an AI player: 
+1. Don't allow the user to select it (user can't control it)
+2. Have the pirate ship generate a simple path around the home port and auto-navigate
+
+## 55. User prompt
+> lets expand it's patrol distance by 3x 
+
+## 56. User prompt
+> document our pirate in docs/features
+
+## 57. User prompt
+> let's improve our pirate ship AI a bit: 
+1. 4 possible states: patrol, chase, attack, retreat
+1a. patrol - what it does today (wanders around)
+1b. chase - when a player ship or port comes within a distance of 8 hex, it should pick it as a waypoint target. Make `enemySightDistance` a ship const for tweaking later. 
+1c. attack - once the pirate ship is within `attackDistance`, it should stop and begin firing. For now do nothing; we'll implement attack feature next. 
+1d. retreat - the pirate ship should navigate away from the waypoint target, and then after a cooldown, start patrol again. Make `retreatCooldown` a const for tweaking later. 
+2. let's make pirate ships selectable again so that the player can see their current state (patrol, chase, etc). Use the same bottom right UI we show for when selecting any other ship. 
+
+## 58. User prompt
+> because the pirate ship spawns so close to the home port its in attack mode right away. can we spawn it farther away? 
+
+## 59. User prompt
+> a few improvements: 
+1. Let's add a `maxChaseDistance`; something like 20 hexs to avoid a pirate following a ship across the world lol 
+
+## 60. User prompt
+> let's change how maxChaseDistance works – treat this as a chanse distance value, as in, if the pirate ship has chased the player for 20 hex and still not entered attack mode, revert to patrol mode
+
+## 61. User prompt
+> it looks like once the pirate ship reaches a max chase distance it stops moving but remains in chase mode, and does not return to patrol mode
+
+## 62. User prompt
+> to prep for attack battles, let's add a health const to all ships and ports.
+
+## 63. User prompt
+> update docs
+
+## 64. User prompt
+> update ship `sight_distance` const to be `sightDistance` (fix case) 
+
+## 65. User prompt
+> let's prep a commit 
+
+## 66. User prompt
+> we're going to add our attack mechanic for pirate ships. While in the attack state: 
+1. ships should shoot a cannon ball towards their waypoint target
+2. there should be a simple ~5 second cooldown between shots
+3. no ammo constraints for now
+4. each cannon ball, when hitting it's target, should deduct 5 health
+5. all ships and ports will need a destroyed state (when health <= 0)
+5a. destroyed state should destroy the instance of the item. 
+5b. todo: we'll need to solve for the edge case where a port is destroyed - what should happen to it's settlements? 
