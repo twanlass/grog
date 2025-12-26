@@ -119,8 +119,8 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
         if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
             const towerData = TOWERS.tower;
             if (canAfford(gameState.resources, towerData.cost)) {
-                enterTowerBuildMode(gameState, sbp.shipIndex);
-                console.log(`Entering tower placement mode`);
+                enterTowerBuildMode(gameState, sbp.shipIndex, 'ship');
+                console.log(`Entering tower placement mode from ship ${sbp.shipIndex}`);
             }
             return true;
         }
@@ -130,7 +130,7 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
 }
 
 /**
- * Handle click on port build panel (ship building, upgrades, settlement building)
+ * Handle click on port build panel (ship building, upgrades, settlement building, tower building)
  * @returns {boolean} true if handled
  */
 export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState) {
@@ -188,6 +188,19 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
             if (!isPortBuildingSettlement(bp.portIndex, gameState.settlements)) {
                 enterSettlementBuildMode(gameState, bp.portIndex);
                 console.log(`Entering settlement placement mode from port ${bp.portIndex}`);
+            }
+            return true;
+        }
+    }
+
+    // Check tower button
+    if (bp.towerButton) {
+        const tbtn = bp.towerButton;
+        if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
+            const towerData = TOWERS.tower;
+            if (canAfford(gameState.resources, towerData.cost)) {
+                enterTowerBuildMode(gameState, bp.portIndex, 'port');
+                console.log(`Entering tower placement mode from port ${bp.portIndex}`);
             }
             return true;
         }
@@ -465,6 +478,10 @@ export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTI
                 if (ship.type === 'pirate') continue;  // Can't control enemy ships
 
                 ship.attackTarget = { type: 'ship', index: i };
+                // Only allow immediate fire if not on active cooldown (prevents rapid fire exploit)
+                if (!ship.attackCooldown || ship.attackCooldown <= 0) {
+                    ship.attackCooldown = 0;
+                }
                 if (ship.tradeRoute) {
                     cancelTradeRoute(ship);
                 }

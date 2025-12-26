@@ -327,3 +327,106 @@ xn @ kaplay.js?v=8270b6e8:5276
 
 ## 88. User prompt
 > update combat logic to prevent player ships from attacking while building (only allow them to do one thing at a time!) 
+
+## 89. User prompt
+> let's update the combat logic so that ships fire a cannonball right away once in position (no initial cooldown)
+
+## 90. User prompt
+> let's make some improvements to our towers: when placing a new tower or when selecting one after built, let's visual its `attackRange` by rendering a hex outline around the outer boundaries. 
+1. when placing a location for a new tower, render the range as you hover hexs
+2. when selecting a built tower, render the range 
+
+## 91. User prompt
+> we're almost there. the outer boundary isn't quite rendering correctly (see screenshot). Maybe an easier alternative is to just fill the hexes with a transparent blue (match the mouse  drag select box) 
+
+## 92. User prompt
+> how might we outline the hexes, using the same blue outline as our selection box? We'd only want to outline the outer edges of the combined larger hex shape
+
+## 93. User prompt
+> update settlements.js w/ consts for how much wood + food is farmed and how often 
+
+## 94. User prompt
+> error: 
+kaplay.js?v=8270b6e8:5276 TypeError: Cannot read properties of undefined (reading 'generationInterval')
+    at updateResourceGeneration (resourceGeneration.js:18:41)
+    at Object.<anonymous> (gameScene.js:220:13)
+xn    @    kaplay.js?v=8270b6e8:5276
+
+## 95. User prompt
+> interesting bug: 
+pirate is stuck navigating because waypoint is a lake lol: 
+
+## 96. User prompt
+> update the player start to begin with just a dock port
+
+## 97. User prompt
+> let's allow towers to be built from ports as well as as ships
+
+## 98. User prompt
+> let's add some visual flare to ships as they are destoyed: 
+1. add a little fire / wood explosion to a ship when it's killed
+2. leave some wood on the water (floating debirs, planks,etc) for a few seconds after a ship is destroyed, then fade it out 
+
+## 99. User prompt
+> Looks great. Can we / should we use Kaplay particles() for performance? Docs are here: https://kaplayjs.com/docs/guides/particles/
+
+## 100. User prompt
+> let's leave as is for. Let's make the current ship explosion more dramatic though. Make the explosion bigger and a little slower. Let's also add a tiny bit of camera shake. 
+
+## 101. User prompt
+> error: 
+Selected port: dock
+gameScene.js:2674 Tower placement mode from port (hotkey T)
+kaplay.js?v=8270b6e8:5276 ReferenceError: effectiveCameraX is not defined
+    at drawHexRangeFilled (gameScene.js:38:38)
+    at Object.<anonymous> (gameScene.js:1517:21)
+    at n (kaplay.js?v=8270b6e8:1281:29)
+    at kaplay.js?v=8270b6e8:1297:15
+    at rn.forEach (<anonymous>)
+    at re.trigger (kaplay.js?v=8270b6e8:1296:19)
+    at ze.trigger (kaplay.js?v=8270b6e8:1328:42)
+    at Object.trigger (kaplay.js?v=8270b6e8:3863:7)
+    at Object.draw (kaplay.js?v=8270b6e8:3763:17)
+    at kaplay.js?v=8270b6e8:3763:53
+
+## 102. User prompt
+> small improvement: only add camera shake if the explosiion is visible on screen (ignore if happening off screen)
+
+## 103. User prompt
+> double the size of debris when ships explode (so resulting wood planks / debris on the ocean are more visible). Let's also add some water rings around the ship explosion site (to simulate the idea that the ship has sunk)
+
+## 104. User prompt
+> the rings look great but are too uniform (evenly spaced) add some randomness to the spacing and size 
+
+## 105. User prompt
+> let's think about an update to our combat system: 
+right now, a ship is hit if it's within distance when the cannon ball is fired. How might we instead make it more accurate by only registering a hit if the ship is present in the targeted hex at time of impact? 
+
+## 106. User prompt
+> let's update the ship explosion / debris / water rings to be contained within the hex where the ship was destoroyed (to prevent debris etc on shore)
+
+## 107. User prompt
+> interesting bug: a cutter can fire two cannonballs back to back if a shot is fired and the player then quickly moves hexes and fires again
+
+## 108. User prompt
+> let's refactor the ship explosions, screenshakes, etc to apply it to other unit types. Namely, we'll want a similar effect for buildilngs like ports and towers 
+
+## 109. User prompt
+> inspect combat and the logc for when a ship fires. What I see right now: a ship comes to a stop, then waits some amount of time before firing it's first cannonball. Instead, assuming the cooldown is not active, it should fire right waway
+
+## 110. User prompt
+> clear
+
+## 111. User prompt
+> we're going to make some quick improvments to pirates and our fog of war. First, read these feature docs: 
+1. docs/features/fog-of-war.md
+2. docs/features/pirates.md
+
+Next, let's make this change: 
+Pirates should not affect fog of war; they should not reveal it as they navigate around. This will make it harder to players to spot pirates coming and will instead require them to send out scout ships. 
+
+## 112. User prompt
+> one bug: pirates (i presume all ships) are rendered above the fog, not below it
+
+## 113. User prompt
+> almost working – the pirate ships water trail is still being rendered lol

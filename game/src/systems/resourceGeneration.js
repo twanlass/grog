@@ -1,8 +1,5 @@
 // Resource generation system - handles settlement resource production and floating numbers
-
-// Generation constants
-const GENERATION_INTERVAL = 30;  // seconds between resource generation
-const GENERATION_AMOUNT = 5;     // amount of each resource generated
+import { SETTLEMENTS } from "../sprites/settlements.js";
 
 /**
  * Updates resource generation from settlements and floating number animations
@@ -17,30 +14,35 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt) {
     for (const settlement of gameState.settlements) {
         if (settlement.construction) continue;  // Skip settlements under construction
 
+        const settlementData = SETTLEMENTS.settlement;  // Currently only one settlement type
+        const interval = settlementData.generationInterval;
+        const woodAmount = settlementData.woodPerHarvest;
+        const foodAmount = settlementData.foodPerHarvest;
+
         settlement.generationTimer = (settlement.generationTimer || 0) + dt;
 
-        if (settlement.generationTimer >= GENERATION_INTERVAL) {
+        if (settlement.generationTimer >= interval) {
             settlement.generationTimer = 0;
 
             const isHomePort = settlement.parentPortIndex === 0;
 
             if (isHomePort) {
                 // Add to global resources
-                gameState.resources.wood += GENERATION_AMOUNT;
-                gameState.resources.food += GENERATION_AMOUNT;
+                gameState.resources.wood += woodAmount;
+                gameState.resources.food += foodAmount;
             } else {
                 // Add to port's local storage
                 const port = gameState.ports[settlement.parentPortIndex];
                 if (port && port.storage) {
-                    port.storage.wood += GENERATION_AMOUNT;
-                    port.storage.food += GENERATION_AMOUNT;
+                    port.storage.wood += woodAmount;
+                    port.storage.food += foodAmount;
                 }
             }
 
             // Spawn floating numbers
             floatingNumbers.push({
                 q: settlement.q, r: settlement.r,
-                text: `+${GENERATION_AMOUNT}`,
+                text: `+${woodAmount}`,
                 type: 'wood',
                 age: 0,
                 duration: 0.75,
@@ -48,7 +50,7 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt) {
             });
             floatingNumbers.push({
                 q: settlement.q, r: settlement.r,
-                text: `+${GENERATION_AMOUNT}`,
+                text: `+${foodAmount}`,
                 type: 'food',
                 age: 0,
                 duration: 0.75,
@@ -65,6 +67,3 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt) {
         }
     }
 }
-
-// Export constants for use in other modules if needed
-export { GENERATION_INTERVAL, GENERATION_AMOUNT };

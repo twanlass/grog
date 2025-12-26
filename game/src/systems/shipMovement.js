@@ -178,9 +178,11 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
                     ship.aiChaseDistance++;
                 }
 
-                // Reveal fog around new position based on ship's sight distance
-                const sightDistance = SHIPS[ship.type].sightDistance;
-                revealRadius(fogState, nextHex.q, nextHex.r, sightDistance);
+                // Reveal fog around new position (player ships only - pirates stay hidden)
+                if (ship.type !== 'pirate') {
+                    const sightDistance = SHIPS[ship.type].sightDistance;
+                    revealRadius(fogState, nextHex.q, nextHex.r, sightDistance);
+                }
             }
 
             // Arrived at destination
@@ -301,8 +303,15 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                     ship.aiChaseDistance = 0; // Reset chase distance counter
                     // For land-based targets (ports, towers), find nearest water tile since ships can't path to land
                     if (nearestTarget.type === 'port' || nearestTarget.type === 'tower') {
-                        const nearWater = findNearestWater(map, nearestTarget.q, nearestTarget.r);
-                        ship.waypoint = nearWater ? { q: nearWater.q, r: nearWater.r } : null;
+                        const nearWater = findNearestWater(map, nearestTarget.q, nearestTarget.r, ship.q, ship.r);
+                        if (nearWater) {
+                            ship.waypoint = { q: nearWater.q, r: nearWater.r };
+                        } else {
+                            // Can't reach target (e.g., target near unreachable lake) - ignore it
+                            ship.aiState = 'patrol';
+                            ship.aiTarget = null;
+                            break;
+                        }
                     } else {
                         ship.waypoint = { q: nearestTarget.q, r: nearestTarget.r };
                     }
@@ -357,13 +366,20 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                         if (dist <= attackDistance) {
                             // Close enough to attack
                             ship.aiState = 'attack';
+                            ship.attackCooldown = 0;  // Fire immediately
                             ship.waypoint = null;
                             ship.path = null;
                         } else {
                             // Keep chasing - for land-based targets (ports, towers), find nearest water tile
                             if (ship.aiTarget.type === 'port' || ship.aiTarget.type === 'tower') {
-                                const nearWater = findNearestWater(map, target.q, target.r);
-                                ship.waypoint = nearWater ? { q: nearWater.q, r: nearWater.r } : null;
+                                const nearWater = findNearestWater(map, target.q, target.r, ship.q, ship.r);
+                                if (nearWater) {
+                                    ship.waypoint = { q: nearWater.q, r: nearWater.r };
+                                } else {
+                                    // Can't reach target - give up
+                                    ship.aiState = 'patrol';
+                                    ship.aiTarget = null;
+                                }
                             } else {
                                 ship.waypoint = { q: target.q, r: target.r };
                             }

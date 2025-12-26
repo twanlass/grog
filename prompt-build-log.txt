@@ -358,3 +358,6 @@ if all player ships and all ports have been destroyed restart the game
 2. Towers can be placed like settlements (selection mode, etc)
 3. Towers can be attacked by pirates (this should already be generalized in that pirates attack any player units
 4. Towers once built, should attack pirate ships automatically.
+
+## 93. User prompt
+> clear

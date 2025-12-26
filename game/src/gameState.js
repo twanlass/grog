@@ -53,11 +53,21 @@ export function createGameState() {
         towerBuildMode: {
             active: false,
             builderShipIndex: null,
+            builderPortIndex: null,
             hoveredHex: null,
         },
 
         // Pirate respawn queue: [{ timer }]
         pirateRespawnQueue: [],
+
+        // Ship explosion effects: [{ q, r, age, duration }]
+        shipExplosions: [],
+
+        // Floating debris from destroyed ships: [{ q, r, pieces: [...], age, duration }]
+        floatingDebris: [],
+
+        // Water splash effects from missed projectiles: [{ q, r, age, duration }]
+        waterSplashes: [],
     };
 }
 
@@ -382,10 +392,12 @@ export function createTower(type, q, r, isConstructing = false, builderShipIndex
 }
 
 // Enter tower building placement mode
-export function enterTowerBuildMode(gameState, shipIndex) {
+// builderType: 'ship' or 'port'
+export function enterTowerBuildMode(gameState, builderIndex, builderType = 'ship') {
     gameState.towerBuildMode = {
         active: true,
-        builderShipIndex: shipIndex,
+        builderShipIndex: builderType === 'ship' ? builderIndex : null,
+        builderPortIndex: builderType === 'port' ? builderIndex : null,
         hoveredHex: null,
     };
 }
@@ -395,6 +407,7 @@ export function exitTowerBuildMode(gameState) {
     gameState.towerBuildMode = {
         active: false,
         builderShipIndex: null,
+        builderPortIndex: null,
         hoveredHex: null,
     };
 }

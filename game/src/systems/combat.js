@@ -101,6 +101,10 @@ function handleAutoReturnFire(gameState) {
             if (dist <= attackDistance) {
                 // Close enough to return fire immediately
                 targetShip.attackTarget = { type: 'ship', index: pirateIndex };
+                // Only allow immediate fire if not on active cooldown
+                if (!targetShip.attackCooldown || targetShip.attackCooldown <= 0) {
+                    targetShip.attackCooldown = 0;
+                }
             }
         }
     }
@@ -127,8 +131,13 @@ function handlePlayerAttacks(gameState, dt) {
         const dist = hexDistance(ship.q, ship.r, target.q, target.r);
         if (dist > attackDistance) continue;  // Not in range yet
 
+        // Ensure cooldown is ready if no active cooldown (fire immediately when entering range)
+        if (!ship.attackCooldown || ship.attackCooldown <= 0) {
+            ship.attackCooldown = 0;
+        }
+
         // Decrement cooldown
-        ship.attackCooldown = Math.max(0, (ship.attackCooldown || 0) - dt);
+        ship.attackCooldown = Math.max(0, ship.attackCooldown - dt);
 
         if (ship.attackCooldown <= 0) {
             // Fire!
@@ -201,6 +210,7 @@ function handleTowerAttacks(gameState, dt) {
 
 /**
  * Move projectiles and apply damage when they hit
+ * Uses position-based hit detection: only hits if a valid target is at destination hex
  */
 function updateProjectiles(gameState, dt) {
     for (let i = gameState.projectiles.length - 1; i >= 0; i--) {
@@ -208,8 +218,66 @@ function updateProjectiles(gameState, dt) {
         proj.progress += proj.speed * dt;
 
         if (proj.progress >= 1) {
-            // Hit! Apply damage
-            applyDamage(gameState, proj.targetType, proj.targetIndex, proj.damage);
+            // Determine what faction fired this projectile
+            const sourceShip = proj.sourceShipIndex !== undefined ? gameState.ships[proj.sourceShipIndex] : null;
+            const isPirateShot = sourceShip?.type === 'pirate';
+
+            // Find any valid target at the destination hex
+            let hitType = null;
+            let hitIndex = -1;
+
+            // Check ships at destination
+            for (let j = 0; j < gameState.ships.length; j++) {
+                const ship = gameState.ships[j];
+                if (ship.q === proj.toQ && ship.r === proj.toR) {
+                    // Pirates hit player ships, players/towers hit pirates
+                    if (isPirateShot && ship.type !== 'pirate') {
+                        hitType = 'ship';
+                        hitIndex = j;
+                        break;
+                    } else if (!isPirateShot && ship.type === 'pirate') {
+                        hitType = 'ship';
+                        hitIndex = j;
+                        break;
+                    }
+                }
+            }
+
+            // Pirates can also hit ports/towers at destination
+            if (hitIndex === -1 && isPirateShot) {
+                for (let j = 0; j < gameState.ports.length; j++) {
+                    const port = gameState.ports[j];
+                    if (port.q === proj.toQ && port.r === proj.toR) {
+                        hitType = 'port';
+                        hitIndex = j;
+                        break;
+                    }
+                }
+                if (hitIndex === -1) {
+                    for (let j = 0; j < gameState.towers.length; j++) {
+                        const tower = gameState.towers[j];
+                        if (tower.q === proj.toQ && tower.r === proj.toR) {
+                            hitType = 'tower';
+                            hitIndex = j;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (hitIndex !== -1) {
+                // Hit! Apply damage to whatever is at the destination
+                applyDamage(gameState, hitType, hitIndex, proj.damage);
+            } else {
+                // Miss - create water splash effect
+                gameState.waterSplashes.push({
+                    q: proj.toQ,
+                    r: proj.toR,
+                    age: 0,
+                    duration: 0.5,
+                });
+            }
+
             gameState.projectiles.splice(i, 1);
         }
     }
@@ -248,13 +316,75 @@ function applyDamage(gameState, targetType, targetIndex, damage) {
 }
 
 /**
+ * Spawn destruction effects (explosion, debris, dust/water rings)
+ * @param {Object} gameState
+ * @param {number} q - Hex q coordinate
+ * @param {number} r - Hex r coordinate
+ * @param {string} unitType - 'ship', 'port', or 'tower'
+ * @param {string} [buildingType] - For ports: 'dock', 'shipyard', 'stronghold'
+ */
+function spawnDestructionEffects(gameState, q, r, unitType, buildingType = null) {
+    // Spawn explosion (same for all unit types)
+    gameState.shipExplosions.push({
+        q,
+        r,
+        age: 0,
+        duration: 0.6,
+    });
+
+    // Determine debris type and location type
+    const isWoodDebris = unitType === 'ship' || buildingType === 'dock';
+    const isOnWater = unitType === 'ship';
+
+    // Spawn debris pieces (constrained to hex bounds)
+    const debrisPieces = [];
+    for (let i = 0; i < 8; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * 18;
+        debrisPieces.push({
+            offsetX: Math.cos(angle) * dist,
+            offsetY: Math.sin(angle) * dist,
+            rotation: Math.random() * Math.PI * 2,
+            size: 5 + Math.random() * 6,
+            driftX: (Math.random() - 0.5) * 8,
+            driftY: (Math.random() - 0.5) * 8,
+        });
+    }
+
+    // Generate randomized ring/cloud data (constrained to hex)
+    const rings = [];
+    for (let i = 0; i < 3; i++) {
+        rings.push({
+            delay: i * 0.2 + Math.random() * 0.15,
+            baseRadius: 8 + Math.random() * 6,
+            growthRadius: 12 + Math.random() * 6,
+        });
+    }
+
+    gameState.floatingDebris.push({
+        q,
+        r,
+        pieces: debrisPieces,
+        age: 0,
+        duration: 4.0,
+        debrisType: isWoodDebris ? 'wood' : 'stone',
+        hasWaterRings: isOnWater,
+        hasDustClouds: !isOnWater,
+        rings,
+    });
+}
+
+/**
  * Remove a ship and clean up all references to it
  */
 function destroyShip(gameState, shipIndex) {
     const ship = gameState.ships[shipIndex];
+    if (!ship) return;
+
+    spawnDestructionEffects(gameState, ship.q, ship.r, 'ship');
 
     // Queue pirate respawn
-    if (ship && ship.type === 'pirate') {
+    if (ship.type === 'pirate') {
         gameState.pirateRespawnQueue.push({ timer: PIRATE_RESPAWN_COOLDOWN });
     }
 
@@ -269,6 +399,11 @@ function destroyShip(gameState, shipIndex) {
  * Remove a port and clean up all references to it
  */
 function destroyPort(gameState, portIndex) {
+    const port = gameState.ports[portIndex];
+    if (!port) return;
+
+    spawnDestructionEffects(gameState, port.q, port.r, 'port', port.type);
+
     // Remove from array
     gameState.ports.splice(portIndex, 1);
 
@@ -280,6 +415,11 @@ function destroyPort(gameState, portIndex) {
  * Remove a tower and clean up all references to it
  */
 function destroyTower(gameState, towerIndex) {
+    const tower = gameState.towers[towerIndex];
+    if (!tower) return;
+
+    spawnDestructionEffects(gameState, tower.q, tower.r, 'tower');
+
     // Remove from array
     gameState.towers.splice(towerIndex, 1);
 

@@ -27,8 +27,8 @@ export const TOWERS = {
         name: "Tower",
         sprite: TOWER,
         buildTime: 15,
-        health: 30,
-        cost: { wood: 15 },
+        health: 75,
+        cost: { wood: 25 },
         attackRange: 3,      // hexes
         fireCooldown: 4,     // seconds between shots
         damage: 5,           // same as ships

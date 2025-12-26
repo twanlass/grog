@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findAdjacentWater, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { findPath, findNearestWater, findNearestAvailable } from "../pathfinding.js";
 import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../fogOfWar.js";
@@ -23,6 +23,68 @@ import {
 export const STARTING_PIRATES = 2;
 export const PIRATE_INITIAL_DELAY = 60;  // seconds before first pirates spawn
 
+/**
+ * Draw filled hexes within a range (transparent overlay)
+ */
+function drawHexRangeFilled(k, centerQ, centerR, range, cameraX, cameraY, zoom, halfWidth, halfHeight, color, opacity) {
+    for (let dq = -range; dq <= range; dq++) {
+        for (let dr = Math.max(-range, -dq - range); dr <= Math.min(range, -dq + range); dr++) {
+            const q = centerQ + dq;
+            const r = centerR + dr;
+            const dist = hexDistance(centerQ, centerR, q, r);
+            if (dist > range) continue;
+
+            const pos = hexToPixel(q, r);
+            const screenX = (pos.x - cameraX) * zoom + halfWidth;
+            const screenY = (pos.y - cameraY) * zoom + halfHeight;
+            const corners = hexCorners(screenX, screenY, HEX_SIZE * zoom);
+            const pts = corners.map(c => k.vec2(c.x, c.y));
+
+            k.drawPolygon({
+                pts,
+                color: color,
+                opacity: opacity,
+            });
+        }
+    }
+}
+
+/**
+ * Draw outline around outer boundary of a hex range
+ */
+function drawHexRangeOutline(k, centerQ, centerR, range, cameraX, cameraY, zoom, halfWidth, halfHeight, color, lineWidth) {
+    for (let dq = -range; dq <= range; dq++) {
+        for (let dr = Math.max(-range, -dq - range); dr <= Math.min(range, -dq + range); dr++) {
+            const q = centerQ + dq;
+            const r = centerR + dr;
+            const dist = hexDistance(centerQ, centerR, q, r);
+            if (dist > range) continue;
+
+            const neighbors = hexNeighbors(q, r);
+            const pos = hexToPixel(q, r);
+            const screenX = (pos.x - cameraX) * zoom + halfWidth;
+            const screenY = (pos.y - cameraY) * zoom + halfHeight;
+            const corners = hexCorners(screenX, screenY, HEX_SIZE * zoom);
+
+            for (let i = 0; i < 6; i++) {
+                const neighbor = neighbors[i];
+                const neighborDist = hexDistance(centerQ, centerR, neighbor.q, neighbor.r);
+                if (neighborDist > range) {
+                    // Corrected mapping: neighbor i shares edge between corners (6-i)%6 and ((6-i)+1)%6
+                    const c1 = (6 - i) % 6;
+                    const c2 = (c1 + 1) % 6;
+                    k.drawLine({
+                        p1: k.vec2(corners[c1].x, corners[c1].y),
+                        p2: k.vec2(corners[c2].x, corners[c2].y),
+                        width: lineWidth,
+                        color: color,
+                    });
+                }
+            }
+        }
+    }
+}
+
 export function createGameScene(k) {
     return function gameScene() {
         // Generate the map (random each time)
@@ -37,18 +99,12 @@ export function createGameScene(k) {
         // Find starting position and place initial units
         const startTile = findStartingPosition(map);
         if (startTile) {
-            // Place port
-            gameState.ports.push(createPort('shipyard', startTile.q, startTile.r));
+            // Place starting dock port (player must build ships)
+            gameState.ports.push(createPort('dock', startTile.q, startTile.r));
 
-            // Find adjacent water for ship
-            const waterTile = findAdjacentWater(map, startTile.q, startTile.r);
-            if (waterTile) {
-                gameState.ships.push(createShip('cutter', waterTile.q, waterTile.r));
-
-                // Queue initial pirates to spawn after delay
-                for (let p = 0; p < STARTING_PIRATES; p++) {
-                    gameState.pirateRespawnQueue.push({ timer: PIRATE_INITIAL_DELAY });
-                }
+            // Queue initial pirates to spawn after delay
+            for (let p = 0; p < STARTING_PIRATES; p++) {
+                gameState.pirateRespawnQueue.push({ timer: PIRATE_INITIAL_DELAY });
             }
         }
 
@@ -63,6 +119,11 @@ export function createGameScene(k) {
         let cameraX = 0;
         let cameraY = 0;
         let zoom = 1;
+
+        // Camera shake state
+        let cameraShake = 0;  // Intensity (decays over time)
+        let cameraShakeX = 0;
+        let cameraShakeY = 0;
 
         // Selection box state (left-drag)
         let isLeftMouseDown = false;
@@ -170,6 +231,55 @@ export function createGameScene(k) {
                 if (tower.hitFlash > 0) tower.hitFlash -= rawDt;
             }
 
+            // Update ship explosions and trigger camera shake for new ones (if visible)
+            const halfW = k.width() / 2;
+            const halfH = k.height() / 2;
+            for (let i = gameState.shipExplosions.length - 1; i >= 0; i--) {
+                const explosion = gameState.shipExplosions[i];
+                // Trigger camera shake for new explosions only if on screen
+                if (explosion.age < rawDt * 2) {
+                    const pos = hexToPixel(explosion.q, explosion.r);
+                    const screenX = (pos.x - cameraX) * zoom + halfW;
+                    const screenY = (pos.y - cameraY) * zoom + halfH;
+                    const margin = 100;
+                    if (screenX >= -margin && screenX <= k.width() + margin &&
+                        screenY >= -margin && screenY <= k.height() + margin) {
+                        cameraShake = Math.max(cameraShake, 4);  // Shake intensity
+                    }
+                }
+                explosion.age += dt;
+                if (explosion.age >= explosion.duration) {
+                    gameState.shipExplosions.splice(i, 1);
+                }
+            }
+
+            // Update camera shake
+            if (cameraShake > 0) {
+                cameraShakeX = (Math.random() - 0.5) * cameraShake * 2;
+                cameraShakeY = (Math.random() - 0.5) * cameraShake * 2;
+                cameraShake *= 0.9;  // Decay
+                if (cameraShake < 0.1) cameraShake = 0;
+            } else {
+                cameraShakeX = 0;
+                cameraShakeY = 0;
+            }
+
+            // Update floating debris
+            for (let i = gameState.floatingDebris.length - 1; i >= 0; i--) {
+                gameState.floatingDebris[i].age += dt;
+                if (gameState.floatingDebris[i].age >= gameState.floatingDebris[i].duration) {
+                    gameState.floatingDebris.splice(i, 1);
+                }
+            }
+
+            // Update water splashes (from missed projectiles)
+            for (let i = gameState.waterSplashes.length - 1; i >= 0; i--) {
+                gameState.waterSplashes[i].age += dt;
+                if (gameState.waterSplashes[i].age >= gameState.waterSplashes[i].duration) {
+                    gameState.waterSplashes.splice(i, 1);
+                }
+            }
+
             // Check for game over: all player ships and ports destroyed
             const playerShips = gameState.ships.filter(s => s.type !== 'pirate');
             if (playerShips.length === 0 && gameState.ports.length === 0) {
@@ -218,11 +328,15 @@ export function createGameScene(k) {
             const margin = HEX_SIZE * zoom * 2;
             const scaledSize = HEX_SIZE * zoom;
 
+            // Apply camera shake offset
+            const effectiveCameraX = cameraX + cameraShakeX;
+            const effectiveCameraY = cameraY + cameraShakeY;
+
             // Draw all visible tiles
             for (const tile of map.tiles.values()) {
                 const pos = tilePositions.get(tile);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 // Culling - skip off-screen hexes
                 if (
@@ -279,8 +393,8 @@ export function createGameScene(k) {
                 if (isHexRevealed(fogState, tile.q, tile.r)) continue;
 
                 const pos = tilePositions.get(tile);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 // Culling - skip off-screen hexes
                 if (
@@ -320,8 +434,8 @@ export function createGameScene(k) {
             const unitScale = zoom * 1.5;
             for (const port of gameState.ports) {
                 const pos = hexToPixel(port.q, port.r);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 // Skip if off screen
                 if (screenX < -100 || screenX > k.width() + 100 ||
@@ -424,8 +538,8 @@ export function createGameScene(k) {
             // Draw settlements
             for (const settlement of gameState.settlements) {
                 const pos = hexToPixel(settlement.q, settlement.r);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 // Skip if off screen
                 if (screenX < -100 || screenX > k.width() + 100 ||
@@ -483,8 +597,8 @@ export function createGameScene(k) {
             // Draw towers
             for (const tower of gameState.towers) {
                 const pos = hexToPixel(tower.q, tower.r);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 // Skip if off screen
                 if (screenX < -100 || screenX > k.width() + 100 ||
@@ -554,8 +668,8 @@ export function createGameScene(k) {
                 const offsetY = -30 - (progress * 40);  // Float upward
                 const opacity = 1 - progress;  // Fade out
 
-                const screenX = (pos.x - cameraX) * zoom + halfWidth + (fn.offsetX || 0) * zoom;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight + offsetY * zoom;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth + (fn.offsetX || 0) * zoom;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight + offsetY * zoom;
 
                 const color = fn.type === 'wood'
                     ? k.rgb(180, 120, 60)   // Brown for wood
@@ -578,6 +692,9 @@ export function createGameScene(k) {
             for (const ship of gameState.ships) {
                 if (!ship.trail || ship.trail.length < 2) continue;
 
+                // Hide pirate trails in fog of war
+                if (ship.type === 'pirate' && !isHexRevealed(fogState, ship.q, ship.r)) continue;
+
                 // Scale wake size based on ship size (using cargo as proxy)
                 const shipData = SHIPS[ship.type];
                 const sizeMultiplier = Math.sqrt(shipData.cargo);
@@ -590,8 +707,8 @@ export function createGameScene(k) {
                     const opacity = TRAIL_BASE_OPACITY * Math.min(sizeMultiplier * 0.8, 1.2) * (1 - progress);
                     const size = (baseSize - i * sizeDecay) * zoom;
 
-                    const screenX = (segment.x - cameraX) * zoom + halfWidth;
-                    const screenY = (segment.y - cameraY) * zoom + halfHeight;
+                    const screenX = (segment.x - effectiveCameraX) * zoom + halfWidth;
+                    const screenY = (segment.y - effectiveCameraY) * zoom + halfHeight;
 
                     // Skip if off screen
                     if (screenX < -50 || screenX > k.width() + 50 ||
@@ -607,11 +724,87 @@ export function createGameScene(k) {
                 }
             }
 
+            // Draw floating debris from destroyed units (ships, ports, towers)
+            for (const debris of gameState.floatingDebris) {
+                const pos = hexToPixel(debris.q, debris.r);
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
+
+                // Skip if off screen
+                if (screenX < -100 || screenX > k.width() + 100 ||
+                    screenY < -100 || screenY > k.height() + 100) continue;
+
+                const progress = debris.age / debris.duration;
+                // Fade out in the last 30% of duration
+                const opacity = progress < 0.7 ? 1 : 1 - ((progress - 0.7) / 0.3);
+
+                // Draw dust clouds (for buildings on land)
+                if (debris.hasDustClouds && debris.rings) {
+                    for (const ring of debris.rings) {
+                        const ringProgress = Math.max(0, (debris.age - ring.delay) / 2.0);
+                        if (ringProgress > 0 && ringProgress < 1) {
+                            const ringRadius = (ring.baseRadius + ringProgress * ring.growthRadius) * zoom;
+                            const ringOpacity = (1 - ringProgress) * 0.5;
+
+                            // Dust cloud (filled tan circle)
+                            k.drawCircle({
+                                pos: k.vec2(screenX, screenY),
+                                radius: ringRadius,
+                                color: k.rgb(180, 160, 130),  // Dusty tan
+                                opacity: ringOpacity * 0.4,
+                            });
+                        }
+                    }
+                }
+
+                // Draw water rings (sinking effect for ships)
+                if (debris.hasWaterRings && debris.rings) {
+                    for (const ring of debris.rings) {
+                        const ringProgress = Math.max(0, (debris.age - ring.delay) / 2.0);
+                        if (ringProgress > 0 && ringProgress < 1) {
+                            const ringRadius = (ring.baseRadius + ringProgress * ring.growthRadius) * zoom;
+                            const ringOpacity = (1 - ringProgress) * 0.4;
+                            k.drawCircle({
+                                pos: k.vec2(screenX, screenY),
+                                radius: ringRadius,
+                                outline: { color: k.rgb(180, 210, 240), width: 2 * zoom },
+                                fill: false,
+                                opacity: ringOpacity,
+                            });
+                        }
+                    }
+                }
+
+                // Determine debris color based on type
+                const debrisColor = debris.debrisType === 'stone'
+                    ? k.rgb(120, 115, 110)  // Gray stone
+                    : k.rgb(139, 90, 43);   // Brown wood
+
+                // Draw debris pieces
+                for (const piece of debris.pieces) {
+                    const px = screenX + (piece.offsetX + piece.driftX * progress) * zoom;
+                    const py = screenY + (piece.offsetY + piece.driftY * progress) * zoom;
+                    const size = piece.size * zoom;
+
+                    k.drawRect({
+                        pos: k.vec2(px - size / 2, py - size / 4),
+                        width: size,
+                        height: size * 0.4,
+                        color: debrisColor,
+                        opacity: opacity,
+                        angle: piece.rotation + progress * 0.3,  // Slow rotation
+                    });
+                }
+            }
+
             // Draw ships (with smooth interpolated movement)
             for (const ship of gameState.ships) {
+                // Hide pirates in fog of war (player ships always visible)
+                if (ship.type === 'pirate' && !isHexRevealed(fogState, ship.q, ship.r)) continue;
+
                 const pos = getShipVisualPosLocal(ship);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 // Skip if off screen
                 if (screenX < -100 || screenX > k.width() + 100 ||
@@ -669,8 +862,8 @@ export function createGameScene(k) {
                 // Scale up at peak to simulate coming closer to camera
                 const sizeScale = 0.8 + 0.4 * arcFactor;  // 0.8 at edges, 1.2 at peak
 
-                const screenX = (x - cameraX) * zoom + halfWidth;
-                const screenY = (y - cameraY) * zoom + halfHeight - (arcOffset * zoom);
+                const screenX = (x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (y - effectiveCameraY) * zoom + halfHeight - (arcOffset * zoom);
 
                 // Skip if off screen
                 if (screenX < -50 || screenX > k.width() + 50 ||
@@ -690,8 +883,8 @@ export function createGameScene(k) {
                     const trailArcFactor = 4 * trailProgress * (1 - trailProgress);
                     const trailArcOffset = arcHeight * trailArcFactor;
 
-                    const trailScreenX = (trailX - cameraX) * zoom + halfWidth;
-                    const trailScreenY = (trailY - cameraY) * zoom + halfHeight - (trailArcOffset * zoom);
+                    const trailScreenX = (trailX - effectiveCameraX) * zoom + halfWidth;
+                    const trailScreenY = (trailY - effectiveCameraY) * zoom + halfHeight - (trailArcOffset * zoom);
 
                     // Trail fades and shrinks toward the back
                     const fadeRatio = 1 - (t / trailSegments);
@@ -716,6 +909,83 @@ export function createGameScene(k) {
                     pos: k.vec2(screenX, screenY),
                     radius: 4 * zoom * sizeScale,
                     color: k.rgb(30, 30, 30),
+                });
+            }
+
+            // Draw water splashes (from missed projectiles)
+            for (const splash of gameState.waterSplashes) {
+                const pos = hexToPixel(splash.q, splash.r);
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
+
+                // Skip if off screen
+                if (screenX < -50 || screenX > k.width() + 50 ||
+                    screenY < -50 || screenY > k.height() + 50) continue;
+
+                const progress = splash.age / splash.duration;
+                const radius = (8 + progress * 15) * zoom;
+                const opacity = (1 - progress) * 0.6;
+
+                // Expanding ring
+                k.drawCircle({
+                    pos: k.vec2(screenX, screenY),
+                    radius: radius,
+                    outline: { color: k.rgb(200, 220, 255), width: 2 * zoom },
+                    fill: false,
+                    opacity: opacity,
+                });
+
+                // Center splash (only in first 30% of animation)
+                if (progress < 0.3) {
+                    k.drawCircle({
+                        pos: k.vec2(screenX, screenY),
+                        radius: (5 - progress * 10) * zoom,
+                        color: k.rgb(220, 235, 255),
+                        opacity: (0.3 - progress) * 2,
+                    });
+                }
+            }
+
+            // Draw ship explosions (constrained to hex bounds)
+            for (const explosion of gameState.shipExplosions) {
+                const pos = hexToPixel(explosion.q, explosion.r);
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
+
+                // Skip if off screen
+                if (screenX < -100 || screenX > k.width() + 100 ||
+                    screenY < -100 || screenY > k.height() + 100) continue;
+
+                const progress = explosion.age / explosion.duration;
+                const maxRadius = 22 * zoom;  // Constrained to hex (~HEX_SIZE * 0.7)
+
+                // Multiple expanding fiery particles
+                for (let i = 0; i < 10; i++) {
+                    const angle = (i / 10) * Math.PI * 2 + progress * 0.5;
+                    const dist = progress * maxRadius * (0.6 + (i % 3) * 0.15);
+                    const px = screenX + Math.cos(angle) * dist;
+                    const py = screenY + Math.sin(angle) * dist;
+                    const size = (7 - progress * 4) * zoom;
+
+                    // Fiery colors: orange -> red -> dark
+                    const r = 255;
+                    const g = Math.floor(200 * (1 - progress));
+                    const b = Math.floor(50 * (1 - progress));
+
+                    k.drawCircle({
+                        pos: k.vec2(px, py),
+                        radius: Math.max(size, 1),
+                        color: k.rgb(r, g, b),
+                        opacity: 1 - progress,
+                    });
+                }
+
+                // Center flash
+                k.drawCircle({
+                    pos: k.vec2(screenX, screenY),
+                    radius: (15 - progress * 10) * zoom,
+                    color: k.rgb(255, 255, 200),
+                    opacity: (1 - progress) * 0.8,
                 });
             }
 
@@ -780,8 +1050,8 @@ export function createGameScene(k) {
                     continue;
                 }
 
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 // Skip if off screen
                 if (screenX < -100 || screenX > k.width() + 100 ||
@@ -819,8 +1089,8 @@ export function createGameScene(k) {
                 if (!ship.dockingState) continue;
 
                 const pos = getShipVisualPosLocal(ship);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 // Skip if off screen
                 if (screenX < -100 || screenX > k.width() + 100 ||
@@ -882,8 +1152,8 @@ export function createGameScene(k) {
                 const centerPos = hexToPixel(bird.q, bird.r);
                 const orbitX = Math.cos(bird.angle) * bird.orbitRadius;
                 const orbitY = Math.sin(bird.angle) * bird.orbitRadius;
-                const birdScreenX = (centerPos.x + orbitX - cameraX) * zoom + halfWidth;
-                const birdScreenY = (centerPos.y + orbitY - 40 - cameraY) * zoom + halfHeight;
+                const birdScreenX = (centerPos.x + orbitX - effectiveCameraX) * zoom + halfWidth;
+                const birdScreenY = (centerPos.y + orbitY - 40 - effectiveCameraY) * zoom + halfHeight;
 
                 // Skip if off-screen
                 if (birdScreenX > -50 && birdScreenX < k.width() + 50 &&
@@ -912,8 +1182,8 @@ export function createGameScene(k) {
 
                 // Calculate screen position (needed for path drawing)
                 const pos = hexToPixel(ship.q, ship.r);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 // Only show hex outline when stationary
                 if (!isMoving) {
@@ -938,8 +1208,8 @@ export function createGameScene(k) {
                         // Only show hex outline when target is stationary
                         if (!targetIsMoving) {
                             const targetPos = hexToPixel(target.q, target.r);
-                            const targetScreenX = (targetPos.x - cameraX) * zoom + halfWidth;
-                            const targetScreenY = (targetPos.y - cameraY) * zoom + halfHeight;
+                            const targetScreenX = (targetPos.x - effectiveCameraX) * zoom + halfWidth;
+                            const targetScreenY = (targetPos.y - effectiveCameraY) * zoom + halfHeight;
 
                             // Draw red hex outline around attack target
                             const corners = hexCorners(targetScreenX, targetScreenY, scaledSize);
@@ -955,8 +1225,8 @@ export function createGameScene(k) {
                     }
                 } else if (ship.waypoint) {
                     const wpPos = hexToPixel(ship.waypoint.q, ship.waypoint.r);
-                    const wpScreenX = (wpPos.x - cameraX) * zoom + halfWidth;
-                    const wpScreenY = (wpPos.y - cameraY) * zoom + halfHeight;
+                    const wpScreenX = (wpPos.x - effectiveCameraX) * zoom + halfWidth;
+                    const wpScreenY = (wpPos.y - effectiveCameraY) * zoom + halfHeight;
 
                     // Draw waypoint marker (X marks the spot!)
                     const wpSize = HEX_SIZE * zoom * 0.3;  // 75% of original 0.4
@@ -992,8 +1262,8 @@ export function createGameScene(k) {
 
                         for (const node of ship.path) {
                             const nodePos = hexToPixel(node.q, node.r);
-                            const nodeScreenX = (nodePos.x - cameraX) * zoom + halfWidth;
-                            const nodeScreenY = (nodePos.y - cameraY) * zoom + halfHeight;
+                            const nodeScreenX = (nodePos.x - effectiveCameraX) * zoom + halfWidth;
+                            const nodeScreenY = (nodePos.y - effectiveCameraY) * zoom + halfHeight;
 
                             // Calculate segment properties
                             const dx = nodeScreenX - prevX;
@@ -1031,8 +1301,8 @@ export function createGameScene(k) {
                 if (!isSelected(gameState, 'port', i)) continue;
                 const port = gameState.ports[i];
                 const pos = hexToPixel(port.q, port.r);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 const corners = hexCorners(screenX, screenY, scaledSize);
                 const pts = corners.map(c => k.vec2(c.x, c.y));
@@ -1051,8 +1321,8 @@ export function createGameScene(k) {
                 if (!isSelected(gameState, 'settlement', i)) continue;
                 const settlement = gameState.settlements[i];
                 const pos = hexToPixel(settlement.q, settlement.r);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 const corners = hexCorners(screenX, screenY, scaledSize);
                 const pts = corners.map(c => k.vec2(c.x, c.y));
@@ -1066,13 +1336,13 @@ export function createGameScene(k) {
                 }
             }
 
-            // Draw tower selection hex outlines
+            // Draw tower selection hex outlines and attack range
             for (let i = 0; i < gameState.towers.length; i++) {
                 if (!isSelected(gameState, 'tower', i)) continue;
                 const tower = gameState.towers[i];
                 const pos = hexToPixel(tower.q, tower.r);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 const corners = hexCorners(screenX, screenY, scaledSize);
                 const pts = corners.map(c => k.vec2(c.x, c.y));
@@ -1083,6 +1353,14 @@ export function createGameScene(k) {
                     const p1 = pts[j];
                     const p2 = pts[(j + 1) % pts.length];
                     k.drawLine({ p1, p2, width: 3, color: selectionColor });
+                }
+
+                // Draw attack range for completed towers
+                if (!tower.construction) {
+                    const attackRange = TOWERS[tower.type].attackRange;
+                    const rangeColor = k.rgb(100, 200, 255);  // Match selection box blue
+                    drawHexRangeFilled(k, tower.q, tower.r, attackRange, cameraX, cameraY, zoom, halfWidth, halfHeight, rangeColor, 0.2);
+                    drawHexRangeOutline(k, tower.q, tower.r, attackRange, cameraX, cameraY, zoom, halfWidth, halfHeight, rangeColor, 2);
                 }
             }
 
@@ -1118,8 +1396,8 @@ export function createGameScene(k) {
                     if (hasPort) continue;
 
                     const pos = tilePositions.get(tile);
-                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                    const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                    const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                     // Culling
                     if (screenX < -margin || screenX > k.width() + margin ||
@@ -1199,8 +1477,8 @@ export function createGameScene(k) {
                     if (hasSettlement || hasPort) continue;
 
                     const pos = tilePositions.get(tile);
-                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                    const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                    const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                     // Culling
                     if (screenX < -margin || screenX > k.width() + margin ||
@@ -1247,10 +1525,20 @@ export function createGameScene(k) {
                 });
             }
 
-            // Draw tower placement mode highlights (when placing a new tower from ship)
+            // Draw tower placement mode highlights (when placing a new tower from ship or port)
             if (gameState.towerBuildMode.active) {
-                const builderShip = gameState.ships[gameState.towerBuildMode.builderShipIndex];
-                const MAX_TOWER_BUILD_DISTANCE = 5;  // Maximum distance from ship to place tower
+                // Get builder position (ship or port)
+                let builderQ, builderR;
+                if (gameState.towerBuildMode.builderShipIndex !== null) {
+                    const builderShip = gameState.ships[gameState.towerBuildMode.builderShipIndex];
+                    builderQ = builderShip.q;
+                    builderR = builderShip.r;
+                } else if (gameState.towerBuildMode.builderPortIndex !== null) {
+                    const builderPort = gameState.ports[gameState.towerBuildMode.builderPortIndex];
+                    builderQ = builderPort.q;
+                    builderR = builderPort.r;
+                }
+                const MAX_TOWER_BUILD_DISTANCE = 5;  // Maximum distance from builder to place tower
 
                 // Get current mouse position in world coords
                 const mouseX = k.mousePos().x;
@@ -1260,7 +1548,7 @@ export function createGameScene(k) {
                 const hoverHex = pixelToHex(worldMX, worldMY);
 
                 // Check if hovered hex is a valid tower site AND within range
-                const hoverDistance = hexDistance(builderShip.q, builderShip.r, hoverHex.q, hoverHex.r);
+                const hoverDistance = hexDistance(builderQ, builderR, hoverHex.q, hoverHex.r);
                 const isValidHover = isValidTowerSite(map, hoverHex.q, hoverHex.r, gameState.towers, gameState.ports, gameState.settlements) &&
                                      hoverDistance <= MAX_TOWER_BUILD_DISTANCE;
                 gameState.towerBuildMode.hoveredHex = isValidHover ? hoverHex : null;
@@ -1270,8 +1558,8 @@ export function createGameScene(k) {
                     if (tile.type !== 'land') continue;
                     if (!isHexRevealed(fogState, tile.q, tile.r)) continue;
 
-                    // Check distance from builder ship
-                    const dist = hexDistance(builderShip.q, builderShip.r, tile.q, tile.r);
+                    // Check distance from builder
+                    const dist = hexDistance(builderQ, builderR, tile.q, tile.r);
                     if (dist > MAX_TOWER_BUILD_DISTANCE) continue;
 
                     // Check if already has a tower, settlement or port
@@ -1281,8 +1569,8 @@ export function createGameScene(k) {
                     if (hasTower || hasSettlement || hasPort) continue;
 
                     const pos = tilePositions.get(tile);
-                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                    const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                    const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                     // Culling
                     if (screenX < -margin || screenX > k.width() + margin ||
@@ -1317,6 +1605,16 @@ export function createGameScene(k) {
                             color: highlightColor,
                         });
                     }
+                }
+
+                // Draw attack range preview when hovering a valid placement hex
+                if (gameState.towerBuildMode.hoveredHex) {
+                    const hoverQ = gameState.towerBuildMode.hoveredHex.q;
+                    const hoverR = gameState.towerBuildMode.hoveredHex.r;
+                    const attackRange = TOWERS.tower.attackRange;
+                    const rangeColor = k.rgb(100, 200, 255);  // Match selection box blue
+                    drawHexRangeFilled(k, hoverQ, hoverR, attackRange, cameraX, cameraY, zoom, halfWidth, halfHeight, rangeColor, 0.2);
+                    drawHexRangeOutline(k, hoverQ, hoverR, attackRange, cameraX, cameraY, zoom, halfWidth, halfHeight, rangeColor, 2);
                 }
 
                 // Draw hint text at bottom
@@ -1520,6 +1818,7 @@ export function createGameScene(k) {
                     const portBusy = port.buildQueue || isBuildingSettlement;  // Port can only build one thing at a time
                     const canUpgrade = nextPortType && !portBusy;
                     const canBuildSettlement = !portBusy && !gameState.settlementBuildMode.active;
+                    const canBuildTower = !gameState.towerBuildMode.active;
 
                     // Check if port has stored resources (non-home ports)
                     const hasStorage = portIndex > 0 && port.storage && (port.storage.wood > 0 || port.storage.food > 0);
@@ -1531,7 +1830,8 @@ export function createGameScene(k) {
                     const bpHeaderHeight = 20;
                     const upgradeHeight = canUpgrade ? (bpHeaderHeight + bpRowHeight) : 0;
                     const settlementHeight = canBuildSettlement ? (bpHeaderHeight + bpRowHeight) : 0;
-                    const bpHeight = storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + settlementHeight;
+                    const towerHeight = canBuildTower ? (bpHeaderHeight + bpRowHeight) : 0;
+                    const bpHeight = storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + settlementHeight + towerHeight;
                     const bpX = 15;
                     const bpY = k.height() - 50 - bpHeight;
 
@@ -1544,6 +1844,7 @@ export function createGameScene(k) {
                         buttons: [],
                         upgradeButton: null,
                         settlementButton: null,
+                        towerButton: null,
                         portIndex: portIndex,
                     };
 
@@ -1880,6 +2181,91 @@ export function createGameScene(k) {
                                 size: 11,
                                 anchor: "right",
                                 color: alreadyBuildingSettlement ? k.rgb(80, 80, 80) : k.rgb(150, 150, 150),
+                            });
+                        }
+
+                        // Show build tower option
+                        if (canBuildTower) {
+                            const towerY = bpY + storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + settlementHeight;
+
+                            // Separator line
+                            k.drawLine({
+                                p1: k.vec2(bpX + 8, towerY - 4),
+                                p2: k.vec2(bpX + bpWidth - 8, towerY - 4),
+                                width: 1,
+                                color: k.rgb(60, 70, 80),
+                            });
+
+                            // Build Defense header
+                            k.drawText({
+                                text: "BUILD DEFENSE",
+                                pos: k.vec2(bpX + bpWidth / 2, towerY + 10),
+                                size: 11,
+                                anchor: "center",
+                                color: k.rgb(150, 150, 150),
+                            });
+
+                            // Tower button
+                            const towerBtnY = towerY + bpHeaderHeight;
+                            const towerBtnHeight = bpRowHeight - 4;
+                            const towerData = TOWERS.tower;
+                            const towerAffordable = canAfford(gameState.resources, towerData.cost);
+
+                            // Store tower button bounds
+                            buildPanelBounds.towerButton = {
+                                y: towerBtnY,
+                                height: towerBtnHeight,
+                            };
+
+                            // Check if mouse is hovering
+                            const isTowerHovered = towerAffordable &&
+                                mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                                mousePos.y >= towerBtnY && mousePos.y <= towerBtnY + towerBtnHeight;
+
+                            // Button background
+                            if (isTowerHovered) {
+                                k.drawRect({
+                                    pos: k.vec2(bpX + 4, towerBtnY),
+                                    width: bpWidth - 8,
+                                    height: towerBtnHeight,
+                                    color: k.rgb(60, 80, 100),
+                                    radius: 4,
+                                });
+                            }
+
+                            // Draw sprite thumbnail
+                            const towerThumbScale = 1.2;
+                            const towerSpriteSize = getSpriteSize(towerData.sprite, towerThumbScale);
+                            const towerSpriteX = bpX + 10;
+                            const towerSpriteY = towerBtnY + (towerBtnHeight - towerSpriteSize.height) / 2;
+                            drawSprite(k, towerData.sprite, towerSpriteX, towerSpriteY, towerThumbScale, towerAffordable ? 1.0 : 0.4);
+
+                            // Tower name with hotkey
+                            k.drawText({
+                                text: `${towerData.name} (T)`,
+                                pos: k.vec2(bpX + 44, towerBtnY + 10),
+                                size: 13,
+                                anchor: "left",
+                                color: !towerAffordable ? k.rgb(80, 80, 80) : isTowerHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
+                            });
+
+                            // Cost
+                            const towerCostText = Object.entries(towerData.cost).map(([r, a]) => `${a} ${r}`).join(', ');
+                            k.drawText({
+                                text: towerCostText,
+                                pos: k.vec2(bpX + 44, towerBtnY + 26),
+                                size: 10,
+                                anchor: "left",
+                                color: !towerAffordable ? k.rgb(150, 80, 80) : k.rgb(120, 120, 120),
+                            });
+
+                            // Build time (right side)
+                            k.drawText({
+                                text: `${towerData.buildTime}s`,
+                                pos: k.vec2(bpX + bpWidth - 12, towerBtnY + towerBtnHeight / 2),
+                                size: 11,
+                                anchor: "right",
+                                color: !towerAffordable ? k.rgb(80, 80, 80) : k.rgb(150, 150, 150),
                             });
                         }
                     }
@@ -2376,12 +2762,15 @@ export function createGameScene(k) {
             }
         });
 
-        // Hotkey 'T' to enter tower build mode when ship panel is open
+        // Hotkey 'T' to enter tower build mode when ship or port panel is open
         k.onKeyPress("t", () => {
-            // Only works if tower button is visible in the ship build panel
+            // Ship panel takes priority if both are somehow open
             if (shipBuildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.tower.cost)) {
-                enterTowerBuildMode(gameState, shipBuildPanelBounds.shipIndex);
-                console.log("Tower placement mode (hotkey T)");
+                enterTowerBuildMode(gameState, shipBuildPanelBounds.shipIndex, 'ship');
+                console.log("Tower placement mode from ship (hotkey T)");
+            } else if (buildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.tower.cost)) {
+                enterTowerBuildMode(gameState, buildPanelBounds.portIndex, 'port');
+                console.log("Tower placement mode from port (hotkey T)");
             }
         });
 
@@ -2448,6 +2837,10 @@ export function createGameScene(k) {
             const halfWidth = k.width() / 2;
             const halfHeight = k.height() / 2;
 
+            // Apply camera shake for consistent screen positioning
+            const effectiveCameraX = cameraX + cameraShakeX;
+            const effectiveCameraY = cameraY + cameraShakeY;
+
             // Box bounds in screen coordinates
             const boxLeft = Math.min(selectStartX, selectEndX);
             const boxRight = Math.max(selectStartX, selectEndX);
@@ -2461,8 +2854,8 @@ export function createGameScene(k) {
             for (let i = 0; i < gameState.ships.length; i++) {
                 const ship = gameState.ships[i];
                 const pos = getShipVisualPosLocal(ship);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 if (screenX >= boxLeft && screenX <= boxRight &&
                     screenY >= boxTop && screenY <= boxBottom) {
@@ -2474,8 +2867,8 @@ export function createGameScene(k) {
             for (let i = 0; i < gameState.ports.length; i++) {
                 const port = gameState.ports[i];
                 const pos = hexToPixel(port.q, port.r);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 if (screenX >= boxLeft && screenX <= boxRight &&
                     screenY >= boxTop && screenY <= boxBottom) {
@@ -2487,8 +2880,8 @@ export function createGameScene(k) {
             for (let i = 0; i < gameState.settlements.length; i++) {
                 const settlement = gameState.settlements[i];
                 const pos = hexToPixel(settlement.q, settlement.r);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
 
                 if (screenX >= boxLeft && screenX <= boxRight &&
                     screenY >= boxTop && screenY <= boxBottom) {

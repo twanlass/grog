@@ -12,11 +12,16 @@ function isPassable(map, q, r) {
 }
 
 // Find nearest water tile to a land position (BFS)
+// If fromQ/fromR provided, only returns water that's reachable from that position
 // Returns {q, r} of nearest water, or null if none found
-export function findNearestWater(map, q, r) {
+export function findNearestWater(map, q, r, fromQ = null, fromR = null) {
     const startKey = hexKey(q, r);
     const visited = new Set([startKey]);
-    const queue = [{ q, r }];
+    const queue = [{ q, r, dist: 0 }];
+
+    // Collect candidates sorted by distance if we need to verify reachability
+    const candidates = [];
+    const maxCandidates = fromQ !== null ? 5 : 1;  // Only need 1 if not verifying
 
     while (queue.length > 0) {
         const current = queue.shift();
@@ -31,13 +36,29 @@ export function findNearestWater(map, q, r) {
             const tile = map.tiles.get(key);
             if (!tile) continue;
 
-            // Found water - return it
+            // Found water - add as candidate
             if (WATER_TILES.has(tile.type)) {
-                return { q: neighbor.q, r: neighbor.r };
+                candidates.push({ q: neighbor.q, r: neighbor.r });
+                if (candidates.length >= maxCandidates) break;
+            } else {
+                // Still land - add to queue to keep searching
+                queue.push({ q: neighbor.q, r: neighbor.r, dist: current.dist + 1 });
             }
+        }
 
-            // Still land - add to queue to keep searching
-            queue.push(neighbor);
+        if (candidates.length >= maxCandidates) break;
+    }
+
+    // If no reachability check needed, return first candidate
+    if (fromQ === null || candidates.length === 0) {
+        return candidates[0] || null;
+    }
+
+    // Verify candidates are reachable from ship position
+    for (const candidate of candidates) {
+        const path = findPath(map, fromQ, fromR, candidate.q, candidate.r);
+        if (path) {
+            return candidate;
         }
     }
 
