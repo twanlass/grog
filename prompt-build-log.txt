@@ -361,3 +361,6 @@ if all player ships and all ports have been destroyed restart the game
 
 ## 93. User prompt
 > clear
+
+## 94. User prompt
+> let's find some refactoring opportunities for gameScene.js, it's getting quite large 

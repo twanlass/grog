@@ -13,7 +13,8 @@
       "Bash(cat:*)",
       "Bash(node:*)",
       "Bash(lsof:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git checkout:*)"
     ]
   },
   "disabledMcpjsonServers": [

@@ -430,3 +430,81 @@ Pirates should not affect fog of war; they should not reveal it as they navigate
 
 ## 113. User prompt
 > almost working – the pirate ships water trail is still being rendered lol
+
+## 114. User prompt
+> yes. let's go one by one. 
+
+## 115. User prompt
+> on game start, I see this console error: 
+kaplay.js?v=8270b6e8:5276 ReferenceError: drawAllSelectionUI is not defined
+    at Object.<anonymous> (gameScene.js:395:13)
+xn    @    kaplay.js?v=8270b6e8:5276
+(anonymous)    @    kaplay.js?v=8270b6e8:5310
+te    @    kaplay.js?v=8270b6e8:1665
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+
+## 116. User prompt
+> amazing refactor. Let's update docs/features/_adding-features.md 
