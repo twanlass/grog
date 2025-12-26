@@ -112,6 +112,7 @@ function handleAutoReturnFire(gameState) {
 
 /**
  * Player ships with attack targets fire at pirates when in range
+ * Also decrements cooldowns for ALL player ships (even when not attacking)
  */
 function handlePlayerAttacks(gameState, dt) {
     const attackDistance = 2;
@@ -119,8 +120,15 @@ function handlePlayerAttacks(gameState, dt) {
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
         if (ship.type === 'pirate') continue;  // Skip pirates (handled by handlePirateAttacks)
-        if (!ship.attackTarget) continue;       // Not attacking
         if (isShipBuilding(i, gameState)) continue;  // Can't attack while building
+
+        // Always decrement cooldown for player ships (even when not in combat)
+        if (ship.attackCooldown > 0) {
+            ship.attackCooldown = Math.max(0, ship.attackCooldown - dt);
+        }
+
+        // Skip firing logic if not attacking
+        if (!ship.attackTarget) continue;
 
         const target = gameState.ships[ship.attackTarget.index];
         if (!target) {
@@ -130,14 +138,6 @@ function handlePlayerAttacks(gameState, dt) {
 
         const dist = hexDistance(ship.q, ship.r, target.q, target.r);
         if (dist > attackDistance) continue;  // Not in range yet
-
-        // Ensure cooldown is ready if no active cooldown (fire immediately when entering range)
-        if (!ship.attackCooldown || ship.attackCooldown <= 0) {
-            ship.attackCooldown = 0;
-        }
-
-        // Decrement cooldown
-        ship.attackCooldown = Math.max(0, ship.attackCooldown - dt);
 
         if (ship.attackCooldown <= 0) {
             // Fire!

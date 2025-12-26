@@ -364,3 +364,31 @@ if all player ships and all ports have been destroyed restart the game
 
 ## 94. User prompt
 > let's find some refactoring opportunities for gameScene.js, it's getting quite large 
+
+## 95. User prompt
+> when selecting a tower, render a bottom right panel that shows it's current cooldown. Update ship selection panel to also show cooldown. 
+
+## 96. User prompt
+> should we refactor panels to be more generic? 
+
+## 97. User prompt
+> lets finish the refactor 
+
+## 98. User prompt
+> crash on unit selection: 
+Selected port: dock
+kaplay.js?v=8270b6e8:5276 ReferenceError: renderCtx is not defined
+    at Object.<anonymous> (gameScene.js:414:55)
+    at n (kaplay.js?v=8270b6e8:1281:29)
+    at kaplay.js?v=8270b6e8:1297:15
+    at rn.forEach (<anonymous>)
+    at re.trigger (kaplay.js?v=8270b6e8:1296:19)
+    at ze.trigger (kaplay.js?v=8270b6e8:1328:42)
+    at Object.trigger (kaplay.js?v=8270b6e8:3863:7)
+    at Object.draw (kaplay.js?v=8270b6e8:3763:17)
+    at kaplay.js?v=8270b6e8:3763:53
+    at Array.forEach (<anonymous>)
+xn @ kaplay.js?v=8270b6e8:5276
+
+## 99. User prompt
+> let's fix a ship cooldown bug: it appears that a player ship cooldown only only counts down while attacking another ship. If you leave a battle early, the cooldown pauses.

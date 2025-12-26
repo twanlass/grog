@@ -1,6 +1,15 @@
 // UI panel rendering: resource panel, build panels, ship info panel
 import { drawSprite, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { getBuildableShips, getNextPortType, isPortBuildingSettlement, canAfford } from "../gameState.js";
+import {
+    drawPanelContainer,
+    drawStatusBadge,
+    drawProgressBar,
+    drawCooldownBar,
+    drawHealthDisplay,
+    drawSectionHeader,
+    PANEL_COLORS,
+} from "./uiPrimitives.js";
 
 /**
  * Draw the resource panel (top right)
@@ -116,7 +125,7 @@ export function drawShipInfoPanel(ctx, ship) {
     const shipData = SHIPS[ship.type];
 
     const infoPanelWidth = 140;
-    const infoPanelHeight = 100;
+    const infoPanelHeight = 130;
     const infoPanelX = screenWidth - infoPanelWidth - 15;
     const infoPanelY = screenHeight - infoPanelHeight - 50;
 
@@ -251,6 +260,83 @@ export function drawShipInfoPanel(ctx, ship) {
         anchor: "right",
         color: totalCargo > 0 ? k.rgb(180, 180, 180) : k.rgb(100, 100, 100),
     });
+
+    // Cooldown section
+    const cooldown = ship.attackCooldown || 0;
+    const maxCooldown = shipData.fireCooldown;
+
+    drawCooldownBar(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 96, 100, cooldown, maxCooldown);
+}
+
+/**
+ * Draw tower info panel (bottom right, when tower is selected)
+ */
+export function drawTowerInfoPanel(ctx, tower) {
+    if (!tower) return;
+
+    const { k, screenWidth, screenHeight } = ctx;
+    const towerData = TOWERS[tower.type];
+
+    const infoPanelWidth = 140;
+    const infoPanelHeight = 100;
+    const infoPanelX = screenWidth - infoPanelWidth - 15;
+    const infoPanelY = screenHeight - infoPanelHeight - 50;
+
+    // Panel background
+    drawPanelContainer(ctx, infoPanelX, infoPanelY, infoPanelWidth, infoPanelHeight);
+
+    // Tower name
+    k.drawText({
+        text: towerData.name,
+        pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 14),
+        size: 13,
+        anchor: "center",
+        color: k.rgb(200, 200, 200),
+    });
+
+    // Construction status or stats
+    if (tower.construction) {
+        const progress = tower.construction.progress || 0;
+        const buildTime = towerData.buildTime;
+        const progressPercent = Math.floor((progress / buildTime) * 100);
+
+        k.drawText({
+            text: "BUILDING",
+            pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 36),
+            size: 9,
+            anchor: "center",
+            color: k.rgb(220, 180, 80),
+        });
+
+        // Progress bar
+        const barWidth = 100;
+        const barX = infoPanelX + (infoPanelWidth - barWidth) / 2;
+        const barY = infoPanelY + 50;
+
+        drawProgressBar(ctx, barX, barY, barWidth, progress / buildTime, {
+            fillColor: { r: 220, g: 180, b: 80 }
+        });
+
+        k.drawText({
+            text: `${progressPercent}%`,
+            pos: k.vec2(infoPanelX + infoPanelWidth / 2, barY + 18),
+            size: 9,
+            anchor: "center",
+            color: k.rgb(180, 150, 80),
+        });
+    } else {
+        // Health display
+        const health = tower.health || towerData.health;
+        const maxHealth = towerData.health;
+
+        drawHealthDisplay(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 36, health, maxHealth);
+
+        // Cooldown section
+        const cooldown = tower.attackCooldown || 0;
+        const maxCooldown = towerData.fireCooldown;
+
+        drawCooldownBar(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 56, 100, cooldown, maxCooldown);
+    }
 }
 
 /**
@@ -490,6 +576,280 @@ export function drawShipBuildingStatus(ctx, port, panelX, panelWidth, y) {
         anchor: "center",
         color: k.rgb(255, 255, 255),
     });
+}
+
+/**
+ * Draw ship build panel (bottom left, when docked ship is selected)
+ * Returns bounds for click detection
+ */
+export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked) {
+    if (!ship || !isShipDocked) return null;
+
+    const { k, screenHeight } = ctx;
+    const buildablePortTypes = ['dock'];
+    const towerData = TOWERS.tower;
+
+    const sbpWidth = 200;
+    const sbpRowHeight = 44;
+    const sbpPadding = 8;
+    const sbpHeaderHeight = 20;
+    const towerSectionHeight = sbpHeaderHeight + sbpRowHeight;
+    const sbpHeight = sbpHeaderHeight + sbpPadding + buildablePortTypes.length * sbpRowHeight + sbpPadding + towerSectionHeight;
+    const sbpX = 15;
+    const sbpY = screenHeight - 50 - sbpHeight;
+
+    // Store bounds for click detection
+    const bounds = {
+        x: sbpX,
+        y: sbpY,
+        width: sbpWidth,
+        height: sbpHeight,
+        buttons: [],
+        towerButton: null,
+        shipIndex: shipIndex,
+    };
+
+    // Panel background
+    drawPanelContainer(ctx, sbpX, sbpY, sbpWidth, sbpHeight);
+
+    // Panel title
+    k.drawText({
+        text: "BUILD PORT",
+        pos: k.vec2(sbpX + sbpWidth / 2, sbpY + 14),
+        size: 11,
+        anchor: "center",
+        color: k.rgb(150, 150, 150),
+    });
+
+    const mousePos = k.mousePos();
+
+    // Port buttons
+    for (let i = 0; i < buildablePortTypes.length; i++) {
+        const portType = buildablePortTypes[i];
+        const portData = PORTS[portType];
+        const btnY = sbpY + sbpHeaderHeight + sbpPadding + i * sbpRowHeight;
+        const btnHeight = sbpRowHeight - 4;
+        const portAffordable = canAfford(gameState.resources, portData.cost);
+
+        bounds.buttons.push({ y: btnY, height: btnHeight, portType: portType });
+
+        const isHovered = portAffordable && mousePos.x >= sbpX && mousePos.x <= sbpX + sbpWidth &&
+                          mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+        drawPanelButton(ctx, sbpX, sbpWidth, btnY, btnHeight, portData, portData.name,
+            portData.cost, portData.buildTime, isHovered, portAffordable);
+    }
+
+    // Tower section
+    const towerSectionY = sbpY + sbpHeaderHeight + sbpPadding + buildablePortTypes.length * sbpRowHeight + sbpPadding;
+
+    drawPanelSeparator(ctx, sbpX, sbpWidth, towerSectionY);
+
+    k.drawText({
+        text: "BUILD DEFENSE",
+        pos: k.vec2(sbpX + sbpWidth / 2, towerSectionY + 10),
+        size: 11,
+        anchor: "center",
+        color: k.rgb(150, 150, 150),
+    });
+
+    // Tower button
+    const towerBtnY = towerSectionY + sbpHeaderHeight;
+    const towerBtnHeight = sbpRowHeight - 4;
+    const towerAffordable = canAfford(gameState.resources, towerData.cost);
+
+    bounds.towerButton = { y: towerBtnY, height: towerBtnHeight };
+
+    const towerHovered = towerAffordable && mousePos.x >= sbpX && mousePos.x <= sbpX + sbpWidth &&
+                         mousePos.y >= towerBtnY && mousePos.y <= towerBtnY + towerBtnHeight;
+
+    drawPanelButton(ctx, sbpX, sbpWidth, towerBtnY, towerBtnHeight, towerData, `${towerData.name} (T)`,
+        towerData.cost, towerData.buildTime, towerHovered, towerAffordable);
+
+    return bounds;
+}
+
+/**
+ * Draw port build panel (bottom left, when port is selected)
+ * Returns bounds for click detection
+ */
+export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
+    if (!port) return null;
+
+    const { k, screenHeight } = ctx;
+    const { isPortBuildingSettlement: checkBuildingSettlement } = helpers;
+
+    // Handle construction/upgrading status
+    if (port.construction) {
+        drawConstructionStatusPanel(ctx, port);
+        return null;
+    }
+
+    // Port is complete - show full build panel
+    const buildableShips = getBuildableShips(port);
+    const nextPortType = getNextPortType(port.type);
+    const isBuildingSettlement = checkBuildingSettlement(portIndex, gameState.settlements);
+    const portBusy = port.buildQueue || isBuildingSettlement;
+    const canUpgrade = nextPortType && !portBusy;
+    const canBuildSettlement = !portBusy && !gameState.settlementBuildMode.active;
+    const canBuildTower = !gameState.towerBuildMode.active;
+
+    const hasStorage = portIndex > 0 && port.storage && (port.storage.wood > 0 || port.storage.food > 0);
+    const storageHeight = hasStorage ? 45 : 0;
+
+    const bpWidth = 200;
+    const bpRowHeight = 44;
+    const bpPadding = 8;
+    const bpHeaderHeight = 20;
+    const upgradeHeight = canUpgrade ? (bpHeaderHeight + bpRowHeight) : 0;
+    const settlementHeight = canBuildSettlement ? (bpHeaderHeight + bpRowHeight) : 0;
+    const towerHeight = canBuildTower ? (bpHeaderHeight + bpRowHeight) : 0;
+    const bpHeight = storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + settlementHeight + towerHeight;
+    const bpX = 15;
+    const bpY = screenHeight - 50 - bpHeight;
+
+    const bounds = {
+        x: bpX,
+        y: bpY,
+        width: bpWidth,
+        height: bpHeight,
+        buttons: [],
+        upgradeButton: null,
+        settlementButton: null,
+        towerButton: null,
+        portIndex: portIndex,
+    };
+
+    // Panel background
+    drawPanelContainer(ctx, bpX, bpY, bpWidth, bpHeight);
+
+    // Storage section for non-home ports
+    if (hasStorage) {
+        drawPortStorage(ctx, port, bpX, bpWidth, bpY);
+        k.drawLine({
+            p1: k.vec2(bpX + 8, bpY + storageHeight - 4),
+            p2: k.vec2(bpX + bpWidth - 8, bpY + storageHeight - 4),
+            width: 1,
+            color: k.rgb(60, 70, 80),
+        });
+    }
+
+    const mousePos = k.mousePos();
+
+    // Ship building in progress
+    if (port.buildQueue) {
+        drawShipBuildingStatus(ctx, port, bpX, bpWidth, bpY + storageHeight);
+        return bounds;
+    }
+
+    // Build ship section
+    k.drawText({
+        text: "BUILD SHIP",
+        pos: k.vec2(bpX + bpWidth / 2, bpY + storageHeight + 14),
+        size: 11,
+        anchor: "center",
+        color: k.rgb(150, 150, 150),
+    });
+
+    // Ship buttons
+    for (let i = 0; i < buildableShips.length; i++) {
+        const shipType = buildableShips[i];
+        const shipData = SHIPS[shipType];
+        const btnY = bpY + storageHeight + bpHeaderHeight + bpPadding + i * bpRowHeight;
+        const btnHeight = bpRowHeight - 4;
+        const affordable = canAfford(gameState.resources, shipData.cost);
+        const canBuildShip = affordable && !portBusy;
+
+        bounds.buttons.push({ y: btnY, height: btnHeight, shipType: shipType });
+
+        const isHovered = canBuildShip && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                          mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+        drawPanelButton(ctx, bpX, bpWidth, btnY, btnHeight, shipData, shipData.name,
+            shipData.cost, shipData.build_time, isHovered, canBuildShip);
+    }
+
+    // Upgrade section
+    if (canUpgrade) {
+        const upgradeY = bpY + storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding;
+        const nextPortData = PORTS[nextPortType];
+        const upgradeAffordable = canAfford(gameState.resources, nextPortData.cost);
+
+        drawPanelSeparator(ctx, bpX, bpWidth, upgradeY);
+        k.drawText({
+            text: "UPGRADE",
+            pos: k.vec2(bpX + bpWidth / 2, upgradeY + 8),
+            size: 10,
+            anchor: "center",
+            color: k.rgb(150, 150, 150),
+        });
+
+        const upgradeBtnY = upgradeY + bpHeaderHeight;
+        const upgradeBtnHeight = bpRowHeight - 4;
+        bounds.upgradeButton = { y: upgradeBtnY, height: upgradeBtnHeight, portType: nextPortType };
+
+        const isUpgradeHovered = upgradeAffordable && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                                 mousePos.y >= upgradeBtnY && mousePos.y <= upgradeBtnY + upgradeBtnHeight;
+
+        drawPanelButton(ctx, bpX, bpWidth, upgradeBtnY, upgradeBtnHeight, nextPortData, nextPortData.name,
+            nextPortData.cost, nextPortData.buildTime, isUpgradeHovered, upgradeAffordable);
+    }
+
+    // Settlement section
+    if (canBuildSettlement) {
+        const settlementY = bpY + storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight;
+        const settlementData = SETTLEMENTS.settlement;
+        const alreadyBuildingSettlement = isBuildingSettlement;
+
+        drawPanelSeparator(ctx, bpX, bpWidth, settlementY);
+        k.drawText({
+            text: "BUILD SETTLEMENT",
+            pos: k.vec2(bpX + bpWidth / 2, settlementY + 10),
+            size: 11,
+            anchor: "center",
+            color: k.rgb(150, 150, 150),
+        });
+
+        const settlementBtnY = settlementY + bpHeaderHeight;
+        const settlementBtnHeight = bpRowHeight - 4;
+        bounds.settlementButton = { y: settlementBtnY, height: settlementBtnHeight };
+
+        const isSettlementHovered = !alreadyBuildingSettlement &&
+                                    mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                                    mousePos.y >= settlementBtnY && mousePos.y <= settlementBtnY + settlementBtnHeight;
+
+        const settlementName = alreadyBuildingSettlement ? `${settlementData.name} (building...)` : `${settlementData.name} (S)`;
+        drawPanelButton(ctx, bpX, bpWidth, settlementBtnY, settlementBtnHeight, settlementData, settlementName,
+            { wood: 0 }, settlementData.buildTime, isSettlementHovered, !alreadyBuildingSettlement);
+    }
+
+    // Tower section
+    if (canBuildTower) {
+        const towerY = bpY + storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + settlementHeight;
+        const towerData = TOWERS.tower;
+        const towerAffordable = canAfford(gameState.resources, towerData.cost);
+
+        drawPanelSeparator(ctx, bpX, bpWidth, towerY);
+        k.drawText({
+            text: "BUILD DEFENSE",
+            pos: k.vec2(bpX + bpWidth / 2, towerY + 10),
+            size: 11,
+            anchor: "center",
+            color: k.rgb(150, 150, 150),
+        });
+
+        const towerBtnY = towerY + bpHeaderHeight;
+        const towerBtnHeight = bpRowHeight - 4;
+        bounds.towerButton = { y: towerBtnY, height: towerBtnHeight };
+
+        const isTowerHovered = towerAffordable && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                               mousePos.y >= towerBtnY && mousePos.y <= towerBtnY + towerBtnHeight;
+
+        drawPanelButton(ctx, bpX, bpWidth, towerBtnY, towerBtnHeight, towerData, `${towerData.name} (T)`,
+            towerData.cost, towerData.buildTime, isTowerHovered, towerAffordable);
+    }
+
+    return bounds;
 }
 
 /**
