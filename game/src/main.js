@@ -23,6 +23,14 @@ k.loadSprite("cutter", "src/sprites/assets/cutter.png", {
     sliceX: 2,
     sliceY: 1,
 });
+k.loadSprite("schooner", "src/sprites/assets/schooner.png", {
+    sliceX: 2,
+    sliceY: 1,
+});
+k.loadSprite("pirate", "src/sprites/assets/pirate.png", {
+    sliceX: 2,
+    sliceY: 1,
+});
 
 // Register scenes
 k.scene("title", () => {

@@ -537,3 +537,45 @@ te    @    kaplay.js?v=8270b6e8:1667
 
 ## 125. User prompt
 > update feature docs 
+
+## 126. User prompt
+> update the lighthouse panel when selected to not show a cooldown or cannon (it can't attack)
+
+## 127. User prompt
+> let's refactor towers to turn it into a single unit w/ an upgrade path. Replace the lighthouse with tier 1 (watch tower):
+| Tier | Name | Attack | Targets | Range | Notes |
+|------|------|--------|---------|-------|-------|
+| 1 | Watchtower | None | — | Vision only | Reveals fog of war |
+| 2 | Mortar Tower | Single cannon | 1 | Medium | Upgrade from Watchtower |
+| 3 | Cannon Battery | Two cannons | 1–2 | Medium | Smart focus: hits two ships if available, otherwise doubles up on one | 
+
+## 128. User prompt
+> error building a watchtower: Selected port: dock
+gameScene.js:601 Watchtower placement mode from port (hotkey T)
+kaplay.js?v=8270b6e8:5276 TypeError: Cannot read properties of undefined (reading 'attackRange')
+    at drawTowerPlacementMode (placementUI.js:229:42)
+    at drawAllPlacementUI (placementUI.js:246:5)
+    at Object.<anonymous> (gameScene.js:407:13)
+    at n (kaplay.js?v=8270b6e8:1281:29)
+    at kaplay.js?v=8270b6e8:1297:15
+    at rn.forEach (<anonymous>)
+    at re.trigger (kaplay.js?v=8270b6e8:1296:19)
+    at ze.trigger (kaplay.js?v=8270b6e8:1328:42)
+    at Object.trigger (kaplay.js?v=8270b6e8:3863:7)
+    at Object.draw (kaplay.js?v=8270b6e8:3763:17)
+xn @ kaplay.js?v=8270b6e8:5276
+
+## 129. User prompt
+> lets update panning camera control: instead of right click pan, lets do spacebar + left click drag 
+
+## 130. User prompt
+> update pause to use "p" as hotkey instead of spacebar 
+
+## 131. User prompt
+> lets update the schooner. Take a look at how the cutter is rendered (uses a sprite, animates its direction). Apply the same to the schooner. 
+
+## 132. User prompt
+> update the pirate ship as well 
+
+## 133. User prompt
+> update the cannonBattery to stagger its shots. projectileCount is 2, but because they fire at the same time it looks like one cannon ball 

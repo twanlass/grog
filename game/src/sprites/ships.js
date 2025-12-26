@@ -113,7 +113,7 @@ export const SHIPS = {
         name: "Cutter",
         sprite: CUTTER,
         imageSprite: "cutter",  // Kaplay sprite name (loaded in main.js)
-        spriteScale: .5,       // scale multiplier for image sprite
+        spriteScale: 1,       // scale multiplier for image sprite
         build_time: 5,
         speed: 2,
         cargo: 2,
@@ -127,6 +127,8 @@ export const SHIPS = {
     schooner: {
         name: "Schooner",
         sprite: SCHOONER,
+        imageSprite: "schooner",
+        spriteScale: 1.5,
         build_time: 10,
         speed: 1.5,
         cargo: 4,
@@ -166,6 +168,8 @@ export const SHIPS = {
     pirate: {
         name: "Pirate Ship",
         sprite: PIRATE,
+        imageSprite: "pirate",
+        spriteScale: 1.5,
         speed: 1,
         cargo: 4,
         combat: 3,

@@ -107,7 +107,7 @@ function updateSettlementConstruction(gameState, fogState, dt) {
 }
 
 /**
- * Update tower construction progress
+ * Update tower construction/upgrade progress
  */
 function updateTowerConstruction(gameState, fogState, dt) {
     for (const tower of gameState.towers) {
@@ -115,12 +115,21 @@ function updateTowerConstruction(gameState, fogState, dt) {
 
         tower.construction.progress += dt;
 
-        // Check if construction is complete
+        // Check if construction/upgrade is complete
         if (tower.construction.progress >= tower.construction.buildTime) {
-            console.log(`Tower construction complete at (${tower.q}, ${tower.r})`);
+            // Check if this is an upgrade
+            if (tower.construction.upgradeTo) {
+                const oldType = tower.type;
+                tower.type = tower.construction.upgradeTo;
+                tower.health = TOWERS[tower.type].health;
+                console.log(`Tower upgraded: ${oldType} → ${tower.type} at (${tower.q}, ${tower.r})`);
+            } else {
+                console.log(`Tower construction complete at (${tower.q}, ${tower.r})`);
+            }
+
             tower.construction = null;  // Clear construction state
 
-            // Reveal fog around completed tower
+            // Reveal fog around completed tower (upgrades may have better sight)
             const sightDistance = TOWERS[tower.type].sightDistance;
             revealRadius(fogState, tower.q, tower.r, sightDistance);
         }

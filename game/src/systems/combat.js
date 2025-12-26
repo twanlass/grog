@@ -10,6 +10,7 @@ import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex } from "../ga
 export const CANNON_DAMAGE = 5;
 export const PIRATE_RESPAWN_COOLDOWN = 30;  // seconds before a destroyed pirate respawns
 const PROJECTILE_SPEED = 1.0;      // progress per second (~1s travel time)
+const SHOT_STAGGER_DELAY = 0.3;   // seconds between multi-shot tower shots
 
 /**
  * Updates combat: pirate attacks and projectile movement
@@ -171,40 +172,87 @@ function handleTowerAttacks(gameState, dt) {
         if (tower.construction) continue;
 
         const towerData = TOWERS[tower.type];
+
+        // Skip non-combat towers (watchtowers)
+        if (!towerData.attackRange) continue;
+
         const attackRange = towerData.attackRange;
+        const projectileCount = towerData.projectileCount || 1;
 
         // Decrement cooldown
         tower.attackCooldown = Math.max(0, (tower.attackCooldown || 0) - dt);
 
-        // Find nearest pirate in range
-        let nearestPirate = null;
-        let nearestDist = Infinity;
+        // Process pending shots (staggered fire for multi-shot towers)
+        if (tower.pendingShots && tower.pendingShots.length > 0) {
+            for (let s = tower.pendingShots.length - 1; s >= 0; s--) {
+                tower.pendingShots[s].delay -= dt;
+                if (tower.pendingShots[s].delay <= 0) {
+                    const shot = tower.pendingShots[s];
+                    // Re-find target position (it may have moved)
+                    const target = gameState.ships[shot.targetIndex];
+                    if (target && target.health > 0) {
+                        gameState.projectiles.push({
+                            sourceTowerIndex: i,
+                            targetType: 'ship',
+                            targetIndex: shot.targetIndex,
+                            fromQ: tower.q,
+                            fromR: tower.r,
+                            toQ: target.q,
+                            toR: target.r,
+                            progress: 0,
+                            damage: shot.damage,
+                            speed: PROJECTILE_SPEED,
+                        });
+                    }
+                    tower.pendingShots.splice(s, 1);
+                }
+            }
+        }
 
+        // Find all pirates in range, sorted by distance
+        const piratesInRange = [];
         for (let j = 0; j < gameState.ships.length; j++) {
             const ship = gameState.ships[j];
             if (ship.type !== 'pirate') continue;
 
             const dist = hexDistance(tower.q, tower.r, ship.q, ship.r);
-            if (dist <= attackRange && dist < nearestDist) {
-                nearestPirate = { index: j, ship, dist };
-                nearestDist = dist;
+            if (dist <= attackRange) {
+                piratesInRange.push({ index: j, ship, dist });
             }
         }
+        piratesInRange.sort((a, b) => a.dist - b.dist);
 
-        // Fire at nearest pirate if ready
-        if (nearestPirate && tower.attackCooldown <= 0) {
-            gameState.projectiles.push({
-                sourceTowerIndex: i,
-                targetType: 'ship',
-                targetIndex: nearestPirate.index,
-                fromQ: tower.q,
-                fromR: tower.r,
-                toQ: nearestPirate.ship.q,
-                toR: nearestPirate.ship.r,
-                progress: 0,
-                damage: towerData.damage,
-                speed: PROJECTILE_SPEED,
-            });
+        // Fire projectiles if ready (smart targeting for multi-shot towers)
+        if (piratesInRange.length > 0 && tower.attackCooldown <= 0) {
+            for (let p = 0; p < projectileCount; p++) {
+                // Target different pirates if available, otherwise double up on nearest
+                const targetIdx = Math.min(p, piratesInRange.length - 1);
+                const target = piratesInRange[targetIdx];
+
+                if (p === 0) {
+                    // First shot fires immediately
+                    gameState.projectiles.push({
+                        sourceTowerIndex: i,
+                        targetType: 'ship',
+                        targetIndex: target.index,
+                        fromQ: tower.q,
+                        fromR: tower.r,
+                        toQ: target.ship.q,
+                        toR: target.ship.r,
+                        progress: 0,
+                        damage: towerData.damage,
+                        speed: PROJECTILE_SPEED,
+                    });
+                } else {
+                    // Queue subsequent shots with stagger delay
+                    if (!tower.pendingShots) tower.pendingShots = [];
+                    tower.pendingShots.push({
+                        targetIndex: target.index,
+                        damage: towerData.damage,
+                        delay: p * SHOT_STAGGER_DELAY,
+                    });
+                }
+            }
             tower.attackCooldown = towerData.fireCooldown;
         }
     }

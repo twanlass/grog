@@ -4,7 +4,7 @@ import {
     canAfford, deductCost, createPort, exitPortBuildMode,
     createSettlement, exitSettlementBuildMode, enterPortBuildMode, enterSettlementBuildMode,
     createTower, exitTowerBuildMode, enterTowerBuildMode,
-    startBuilding, startPortUpgrade, isPortBuildingSettlement,
+    startBuilding, startPortUpgrade, startTowerUpgrade, isPortBuildingSettlement,
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute,
     findFreeAdjacentWater, findNearbyWaitingHex, getHomePortIndex
@@ -70,7 +70,7 @@ export function handleSettlementPlacementClick(gameState) {
 }
 
 /**
- * Handle click in tower placement mode
+ * Handle click in tower placement mode (always builds watchtower)
  * @returns {boolean} true if handled, false to continue processing
  */
 export function handleTowerPlacementClick(gameState) {
@@ -79,19 +79,19 @@ export function handleTowerPlacementClick(gameState) {
     if (gameState.towerBuildMode.hoveredHex) {
         const hex = gameState.towerBuildMode.hoveredHex;
         const builderShipIndex = gameState.towerBuildMode.builderShipIndex;
-        const towerData = TOWERS.tower;
+        const watchtowerData = TOWERS.watchtower;
 
-        if (!canAfford(gameState.resources, towerData.cost)) {
-            console.log(`Can't afford tower`);
+        if (!canAfford(gameState.resources, watchtowerData.cost)) {
+            console.log(`Can't afford ${watchtowerData.name}`);
             exitTowerBuildMode(gameState);
             return true;
         }
-        deductCost(gameState.resources, towerData.cost);
+        deductCost(gameState.resources, watchtowerData.cost);
 
-        const newTower = createTower('tower', hex.q, hex.r, true, builderShipIndex);
+        const newTower = createTower('watchtower', hex.q, hex.r, true, builderShipIndex);
         gameState.towers.push(newTower);
 
-        console.log(`Started building tower at (${hex.q}, ${hex.r}) by ship ${builderShipIndex}`);
+        console.log(`Started building ${watchtowerData.name} at (${hex.q}, ${hex.r}) by ship ${builderShipIndex}`);
         exitTowerBuildMode(gameState);
     }
     return true;
@@ -121,14 +121,14 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
         }
     }
 
-    // Check tower button
+    // Check watchtower button
     if (sbp.towerButton) {
         const tbtn = sbp.towerButton;
         if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
-            const towerData = TOWERS.tower;
-            if (canAfford(gameState.resources, towerData.cost)) {
+            const watchtowerData = TOWERS.watchtower;
+            if (canAfford(gameState.resources, watchtowerData.cost)) {
                 enterTowerBuildMode(gameState, sbp.shipIndex, 'ship');
-                console.log(`Entering tower placement mode from ship ${sbp.shipIndex}`);
+                console.log(`Entering watchtower placement mode from ship ${sbp.shipIndex}`);
             }
             return true;
         }
@@ -201,14 +201,49 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         }
     }
 
-    // Check tower button
+    // Check watchtower button
     if (bp.towerButton) {
         const tbtn = bp.towerButton;
         if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
-            const towerData = TOWERS.tower;
-            if (canAfford(gameState.resources, towerData.cost)) {
+            const watchtowerData = TOWERS.watchtower;
+            if (canAfford(gameState.resources, watchtowerData.cost)) {
                 enterTowerBuildMode(gameState, bp.portIndex, 'port');
-                console.log(`Entering tower placement mode from port ${bp.portIndex}`);
+                console.log(`Entering watchtower placement mode from port ${bp.portIndex}`);
+            }
+            return true;
+        }
+    }
+
+    return true; // Clicked panel but not on a button
+}
+
+/**
+ * Handle click on tower info panel (for tower upgrades)
+ * @returns {boolean} true if handled
+ */
+export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState) {
+    if (!towerInfoPanelBounds) return false;
+
+    const tip = towerInfoPanelBounds;
+    if (mouseX < tip.x || mouseX > tip.x + tip.width ||
+        mouseY < tip.y || mouseY > tip.y + tip.height) {
+        return false;
+    }
+
+    // Check upgrade button
+    if (tip.upgradeButton) {
+        const ubtn = tip.upgradeButton;
+        if (mouseY >= ubtn.y && mouseY <= ubtn.y + ubtn.height) {
+            const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
+            if (selectedTowerIndices.length === 1) {
+                const towerIdx = selectedTowerIndices[0].index;
+                const tower = gameState.towers[towerIdx];
+                const nextTowerData = TOWERS[ubtn.towerType];
+                if (!tower.construction && canAfford(gameState.resources, nextTowerData.cost)) {
+                    deductCost(gameState.resources, nextTowerData.cost);
+                    startTowerUpgrade(tower);
+                    console.log(`Started upgrading tower to: ${ubtn.towerType}`);
+                }
             }
             return true;
         }

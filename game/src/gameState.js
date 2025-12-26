@@ -2,7 +2,7 @@
 import { PORTS } from "./sprites/ports.js";
 import { SHIPS } from "./sprites/ships.js";
 import { SETTLEMENTS } from "./sprites/settlements.js";
-import { TOWERS } from "./sprites/towers.js";
+import { TOWERS, TOWER_TECH_TREE } from "./sprites/towers.js";
 import { hexKey, hexNeighbors, hexDistance } from "./hex.js";
 
 export function createGameState() {
@@ -49,7 +49,7 @@ export function createGameState() {
         // Player's towers: [{ type, q, r, health, construction, attackCooldown }]
         towers: [],
 
-        // Tower building placement mode
+        // Tower building placement mode (always builds watchtower)
         towerBuildMode: {
             active: false,
             builderShipIndex: null,
@@ -532,7 +532,7 @@ export function createTower(type, q, r, isConstructing = false, builderShipIndex
     };
 }
 
-// Enter tower building placement mode
+// Enter tower building placement mode (always builds watchtower)
 // builderType: 'ship' or 'port'
 export function enterTowerBuildMode(gameState, builderIndex, builderType = 'ship') {
     gameState.towerBuildMode = {
@@ -551,6 +551,28 @@ export function exitTowerBuildMode(gameState) {
         builderPortIndex: null,
         hoveredHex: null,
     };
+}
+
+// Get the next tower type in the upgrade tree
+export function getNextTowerType(currentType) {
+    const currentIndex = TOWER_TECH_TREE.indexOf(currentType);
+    if (currentIndex === -1 || currentIndex >= TOWER_TECH_TREE.length - 1) {
+        return null;  // Already at max tier or invalid type
+    }
+    return TOWER_TECH_TREE[currentIndex + 1];
+}
+
+// Start tower upgrade process
+export function startTowerUpgrade(tower) {
+    const nextType = getNextTowerType(tower.type);
+    if (!nextType) return false;
+
+    tower.construction = {
+        progress: 0,
+        buildTime: TOWERS[nextType].buildTime,
+        upgradeTo: nextType,
+    };
+    return true;
 }
 
 // Check if a hex is a valid tower site (land hex, not occupied)

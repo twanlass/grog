@@ -23,7 +23,7 @@ import { updateResourceGeneration } from "../systems/resourceGeneration.js";
 import { updateCombat, updatePirateRespawns } from "../systems/combat.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
-    handleShipBuildPanelClick, handleBuildPanelClick,
+    handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
     handleUnitSelection, handleWaypointClick, handleAttackClick
 } from "../systems/inputHandler.js";
@@ -157,6 +157,7 @@ export function createGameScene(k) {
         let buildPanelBounds = null;  // { x, y, width, height, buttons: [{y, height, shipType}] }
         let shipBuildPanelBounds = null;  // For ship's port build panel
         let settlementBuildPanelBounds = null;  // For settlement build button in port panel
+        let towerInfoPanelBounds = null;  // For tower upgrade button
 
         // Floating numbers for resource generation animation
         const floatingNumbers = [];
@@ -434,9 +435,10 @@ export function createGameScene(k) {
 
             // Tower info panel (bottom right, when tower is selected)
             const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
+            towerInfoPanelBounds = null;
             if (selectedTowerIndices.length === 1) {
                 const tower = gameState.towers[selectedTowerIndices[0].index];
-                drawTowerInfoPanel(ctx, tower);
+                towerInfoPanelBounds = drawTowerInfoPanel(ctx, tower, gameState);
             }
 
             // Ship info panel (bottom right, when ship is selected)
@@ -446,64 +448,73 @@ export function createGameScene(k) {
             }
         });
 
-        // Left-click/drag for selection
+        // Left-click/drag for selection or panning (spacebar + left-click)
         k.onMousePress("left", () => {
             isLeftMouseDown = true;
-            selectStartX = k.mousePos().x;
-            selectStartY = k.mousePos().y;
-            selectEndX = selectStartX;
-            selectEndY = selectStartY;
+
+            // Spacebar + left-click = pan mode
+            if (k.isKeyDown("space")) {
+                isPanning = true;
+                panStartX = k.mousePos().x;
+                panStartY = k.mousePos().y;
+                cameraStartX = cameraX;
+                cameraStartY = cameraY;
+            } else {
+                // Normal selection mode
+                selectStartX = k.mousePos().x;
+                selectStartY = k.mousePos().y;
+                selectEndX = selectStartX;
+                selectEndY = selectStartY;
+            }
         });
 
         k.onMouseRelease("left", () => {
-            const dx = k.mousePos().x - selectStartX;
-            const dy = k.mousePos().y - selectStartY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist > DRAG_THRESHOLD && isSelecting) {
-                // Selection box drag - select units in box
-                handleSelectionBox();
+            if (isPanning) {
+                // End panning
+                isPanning = false;
             } else {
-                // Click - handle unit selection or waypoint
-                handleClick();
+                const dx = k.mousePos().x - selectStartX;
+                const dy = k.mousePos().y - selectStartY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist > DRAG_THRESHOLD && isSelecting) {
+                    // Selection box drag - select units in box
+                    handleSelectionBox();
+                } else {
+                    // Click - handle unit selection or waypoint
+                    handleClick();
+                }
             }
             isLeftMouseDown = false;
             isSelecting = false;
         });
 
-        // Right-click/drag for panning
+        // Right-click to cancel placement modes
         k.onMousePress("right", () => {
-            // Cancel placement mode on right-click
             if (gameState.portBuildMode.active) {
                 exitPortBuildMode(gameState);
                 console.log("Port placement cancelled");
-                return;  // Don't start panning
             }
             if (gameState.settlementBuildMode.active) {
                 exitSettlementBuildMode(gameState);
                 console.log("Settlement placement cancelled");
-                return;  // Don't start panning
             }
             if (gameState.towerBuildMode.active) {
                 exitTowerBuildMode(gameState);
                 console.log("Tower placement cancelled");
-                return;  // Don't start panning
             }
-
-            isPanning = true;
-            panStartX = k.mousePos().x;
-            panStartY = k.mousePos().y;
-            cameraStartX = cameraX;
-            cameraStartY = cameraY;
-        });
-
-        k.onMouseRelease("right", () => {
-            isPanning = false;
         });
 
         k.onMouseMove(() => {
-            // Selection box dragging (only when left mouse is held)
-            if (isLeftMouseDown) {
+            // Camera panning with spacebar + left-drag
+            if (isPanning) {
+                const pdx = k.mousePos().x - panStartX;
+                const pdy = k.mousePos().y - panStartY;
+                cameraX = cameraStartX - pdx / zoom;
+                cameraY = cameraStartY - pdy / zoom;
+            }
+            // Selection box dragging (only when left mouse is held and not panning)
+            else if (isLeftMouseDown) {
                 const dx = k.mousePos().x - selectStartX;
                 const dy = k.mousePos().y - selectStartY;
                 if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
@@ -511,14 +522,6 @@ export function createGameScene(k) {
                 }
                 selectEndX = k.mousePos().x;
                 selectEndY = k.mousePos().y;
-            }
-
-            // Camera panning with right-drag
-            if (isPanning) {
-                const pdx = k.mousePos().x - panStartX;
-                const pdy = k.mousePos().y - panStartY;
-                cameraX = cameraStartX - pdx / zoom;
-                cameraY = cameraStartY - pdy / zoom;
             }
         });
 
@@ -557,7 +560,7 @@ export function createGameScene(k) {
         k.onKeyPress("1", () => { gameState.timeScale = 1; });
         k.onKeyPress("2", () => { gameState.timeScale = 2; });
         k.onKeyPress("3", () => { gameState.timeScale = 3; });
-        k.onKeyPress("space", () => {
+        k.onKeyPress("p", () => {
             gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
         });
 
@@ -588,15 +591,38 @@ export function createGameScene(k) {
             }
         });
 
-        // Hotkey 'T' to enter tower build mode when ship or port panel is open
+        // Hotkey 'T' to enter watchtower build mode when ship or port panel is open
         k.onKeyPress("t", () => {
             // Ship panel takes priority if both are somehow open
-            if (shipBuildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.tower.cost)) {
+            if (shipBuildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.watchtower.cost)) {
                 enterTowerBuildMode(gameState, shipBuildPanelBounds.shipIndex, 'ship');
-                console.log("Tower placement mode from ship (hotkey T)");
-            } else if (buildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.tower.cost)) {
+                console.log("Watchtower placement mode from ship (hotkey T)");
+            } else if (buildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.watchtower.cost)) {
                 enterTowerBuildMode(gameState, buildPanelBounds.portIndex, 'port');
-                console.log("Tower placement mode from port (hotkey T)");
+                console.log("Watchtower placement mode from port (hotkey T)");
+            }
+        });
+
+        // Hotkey 'U' to upgrade selected tower
+        k.onKeyPress("u", () => {
+            if (towerInfoPanelBounds?.upgradeButton) {
+                const nextTowerData = TOWERS[towerInfoPanelBounds.upgradeButton.towerType];
+                if (canAfford(gameState.resources, nextTowerData.cost)) {
+                    const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
+                    if (selectedTowerIndices.length === 1) {
+                        const tower = gameState.towers[selectedTowerIndices[0].index];
+                        if (!tower.construction) {
+                            deductCost(gameState.resources, nextTowerData.cost);
+                            // Import startTowerUpgrade if needed, or inline the upgrade
+                            tower.construction = {
+                                progress: 0,
+                                buildTime: nextTowerData.buildTime,
+                                upgradeTo: towerInfoPanelBounds.upgradeButton.towerType,
+                            };
+                            console.log(`Started upgrading tower to: ${towerInfoPanelBounds.upgradeButton.towerType} (hotkey U)`);
+                        }
+                    }
+                }
             }
         });
 
@@ -613,6 +639,7 @@ export function createGameScene(k) {
             // Check UI panel clicks
             if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) return;
             if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) return;
+            if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) return;
 
             // Convert to world coordinates
             const worldX = (mouseX - k.width() / 2) / zoom + cameraX;

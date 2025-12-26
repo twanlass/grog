@@ -434,3 +434,9 @@ xn @ kaplay.js?v=8270b6e8:5276
 
 ## 113. User prompt
 > lets update the home port logic. Disignate the _island_ where the first port spawns as the home island. The most recent port built on that island should be the home port. This should ensure that if the home port is destroyed and rebuilt later, trade routes continue to work etc
+
+## 114. User prompt
+> let's implement a new unit type: lighthouse
+1. can be built by ships and ports
+2. primary value is clearing fog of war; should clear twice as much as towers
+3. cost, build time, and health should be same as towers

@@ -222,17 +222,17 @@ export function drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogSt
         drawPlacementHighlight(ctx, screenX, screenY, isHovered);
     }
 
-    // Draw attack range preview when hovering a valid placement hex
+    // Draw sight range preview when hovering a valid placement hex
     if (gameState.towerBuildMode.hoveredHex) {
         const hoverQ = gameState.towerBuildMode.hoveredHex.q;
         const hoverR = gameState.towerBuildMode.hoveredHex.r;
-        const attackRange = TOWERS.tower.attackRange;
+        const sightRange = TOWERS.watchtower.sightDistance;
         const rangeColor = k.rgb(100, 200, 255);
-        drawHexRangeFilled(ctx, hoverQ, hoverR, attackRange, rangeColor, 0.2);
-        drawHexRangeOutline(ctx, hoverQ, hoverR, attackRange, rangeColor, 2);
+        drawHexRangeFilled(ctx, hoverQ, hoverR, sightRange, rangeColor, 0.2);
+        drawHexRangeOutline(ctx, hoverQ, hoverR, sightRange, rangeColor, 2);
     }
 
-    drawPlacementHint(ctx, "Click to place tower | ESC to cancel");
+    drawPlacementHint(ctx, "Click to place watchtower | ESC to cancel");
 }
 
 /**

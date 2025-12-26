@@ -1,6 +1,6 @@
 // UI panel rendering: resource panel, build panels, ship info panel
 import { drawSprite, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { getBuildableShips, getNextPortType, isPortBuildingSettlement, canAfford } from "../gameState.js";
+import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford } from "../gameState.js";
 import {
     drawPanelContainer,
     drawStatusBadge,
@@ -320,17 +320,29 @@ export function drawShipInfoPanel(ctx, ship) {
 
 /**
  * Draw tower info panel (bottom right, when tower is selected)
+ * Returns bounds for upgrade button click detection
  */
-export function drawTowerInfoPanel(ctx, tower) {
-    if (!tower) return;
+export function drawTowerInfoPanel(ctx, tower, gameState) {
+    if (!tower) return null;
 
     const { k, screenWidth, screenHeight } = ctx;
     const towerData = TOWERS[tower.type];
+    const nextTowerType = getNextTowerType(tower.type);
+    const canUpgrade = nextTowerType && !tower.construction;
 
-    const infoPanelWidth = 140;
-    const infoPanelHeight = 100;
+    const infoPanelWidth = 160;
+    const upgradeHeight = canUpgrade ? 50 : 0;
+    const infoPanelHeight = 100 + upgradeHeight;
     const infoPanelX = screenWidth - infoPanelWidth - 15;
     const infoPanelY = screenHeight - infoPanelHeight - 50;
+
+    const bounds = {
+        x: infoPanelX,
+        y: infoPanelY,
+        width: infoPanelWidth,
+        height: infoPanelHeight,
+        upgradeButton: null,
+    };
 
     // Panel background
     drawPanelContainer(ctx, infoPanelX, infoPanelY, infoPanelWidth, infoPanelHeight);
@@ -344,24 +356,39 @@ export function drawTowerInfoPanel(ctx, tower) {
         color: k.rgb(200, 200, 200),
     });
 
-    // Construction status or stats
+    // Construction/upgrade status or stats
     if (tower.construction) {
         const progress = tower.construction.progress || 0;
-        const buildTime = towerData.buildTime;
+        const buildTime = tower.construction.buildTime;
         const progressPercent = Math.floor((progress / buildTime) * 100);
 
+        // Check if upgrading
+        const isUpgrading = !!tower.construction.upgradeTo;
+        const statusText = isUpgrading ? "UPGRADING" : "BUILDING";
+        const targetText = isUpgrading ? `→ ${TOWERS[tower.construction.upgradeTo].name}` : null;
+
         k.drawText({
-            text: "BUILDING",
+            text: statusText,
             pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 36),
             size: 9,
             anchor: "center",
             color: k.rgb(220, 180, 80),
         });
 
+        if (targetText) {
+            k.drawText({
+                text: targetText,
+                pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 48),
+                size: 10,
+                anchor: "center",
+                color: k.rgb(180, 200, 220),
+            });
+        }
+
         // Progress bar
-        const barWidth = 100;
+        const barWidth = 120;
         const barX = infoPanelX + (infoPanelWidth - barWidth) / 2;
-        const barY = infoPanelY + 50;
+        const barY = infoPanelY + (isUpgrading ? 62 : 50);
 
         drawProgressBar(ctx, barX, barY, barWidth, progress / buildTime, {
             fillColor: { r: 220, g: 180, b: 80 }
@@ -381,12 +408,79 @@ export function drawTowerInfoPanel(ctx, tower) {
 
         drawHealthDisplay(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 36, health, maxHealth);
 
-        // Cooldown section
-        const cooldown = tower.attackCooldown || 0;
-        const maxCooldown = towerData.fireCooldown;
+        // Cooldown section (only for combat towers)
+        if (towerData.attackRange) {
+            const cooldown = tower.attackCooldown || 0;
+            const maxCooldown = towerData.fireCooldown;
 
-        drawCooldownBar(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 56, 100, cooldown, maxCooldown);
+            drawCooldownBar(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 56, 120, cooldown, maxCooldown);
+        } else {
+            // Non-combat towers show their sight range instead
+            k.drawText({
+                text: `Sight: ${towerData.sightDistance} hexes`,
+                pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 60),
+                size: 10,
+                anchor: "center",
+                color: k.rgb(150, 180, 200),
+            });
+        }
+
+        // Upgrade section
+        if (canUpgrade) {
+            const nextTowerData = TOWERS[nextTowerType];
+            const upgradeAffordable = canAfford(gameState.resources, nextTowerData.cost);
+
+            // Separator
+            const sepY = infoPanelY + 85;
+            k.drawLine({
+                p1: k.vec2(infoPanelX + 10, sepY),
+                p2: k.vec2(infoPanelX + infoPanelWidth - 10, sepY),
+                width: 1,
+                color: k.rgb(60, 70, 80),
+            });
+
+            // Upgrade button
+            const btnY = sepY + 5;
+            const btnHeight = 36;
+            const mousePos = k.mousePos();
+
+            bounds.upgradeButton = { y: btnY, height: btnHeight, towerType: nextTowerType };
+
+            const isHovered = upgradeAffordable &&
+                mousePos.x >= infoPanelX && mousePos.x <= infoPanelX + infoPanelWidth &&
+                mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+            // Button background
+            k.drawRect({
+                pos: k.vec2(infoPanelX + 5, btnY),
+                width: infoPanelWidth - 10,
+                height: btnHeight,
+                color: isHovered ? k.rgb(60, 80, 60) : k.rgb(40, 50, 60),
+                radius: 4,
+            });
+
+            // Upgrade arrow and name
+            const costColor = upgradeAffordable ? k.rgb(180, 200, 180) : k.rgb(200, 100, 100);
+            k.drawText({
+                text: `↑ ${nextTowerData.name} (U)`,
+                pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 12),
+                size: 10,
+                anchor: "center",
+                color: upgradeAffordable ? k.rgb(200, 220, 200) : k.rgb(150, 150, 150),
+            });
+
+            // Cost
+            k.drawText({
+                text: `${nextTowerData.cost.wood} wood`,
+                pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 26),
+                size: 9,
+                anchor: "center",
+                color: costColor,
+            });
+        }
     }
+
+    return bounds;
 }
 
 /**
@@ -637,14 +731,14 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
 
     const { k, screenHeight } = ctx;
     const buildablePortTypes = ['dock'];
-    const towerData = TOWERS.tower;
+    const watchtowerData = TOWERS.watchtower;
 
     const sbpWidth = 200;
     const sbpRowHeight = 44;
     const sbpPadding = 8;
     const sbpHeaderHeight = 20;
-    const towerSectionHeight = sbpHeaderHeight + sbpRowHeight;
-    const sbpHeight = sbpHeaderHeight + sbpPadding + buildablePortTypes.length * sbpRowHeight + sbpPadding + towerSectionHeight;
+    const defenseSectionHeight = sbpHeaderHeight + sbpRowHeight; // Just Watchtower
+    const sbpHeight = sbpHeaderHeight + sbpPadding + buildablePortTypes.length * sbpRowHeight + sbpPadding + defenseSectionHeight;
     const sbpX = 15;
     const sbpY = screenHeight - 50 - sbpHeight;
 
@@ -703,18 +797,18 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
         color: k.rgb(150, 150, 150),
     });
 
-    // Tower button
+    // Watchtower button
     const towerBtnY = towerSectionY + sbpHeaderHeight;
     const towerBtnHeight = sbpRowHeight - 4;
-    const towerAffordable = canAfford(gameState.resources, towerData.cost);
+    const towerAffordable = canAfford(gameState.resources, watchtowerData.cost);
 
     bounds.towerButton = { y: towerBtnY, height: towerBtnHeight };
 
     const towerHovered = towerAffordable && mousePos.x >= sbpX && mousePos.x <= sbpX + sbpWidth &&
                          mousePos.y >= towerBtnY && mousePos.y <= towerBtnY + towerBtnHeight;
 
-    drawPanelButton(ctx, sbpX, sbpWidth, towerBtnY, towerBtnHeight, towerData, `${towerData.name} (T)`,
-        towerData.cost, towerData.buildTime, towerHovered, towerAffordable);
+    drawPanelButton(ctx, sbpX, sbpWidth, towerBtnY, towerBtnHeight, watchtowerData, `${watchtowerData.name} (T)`,
+        watchtowerData.cost, watchtowerData.buildTime, towerHovered, towerAffordable);
 
     return bounds;
 }
@@ -742,7 +836,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const portBusy = port.buildQueue || isBuildingSettlement;
     const canUpgrade = nextPortType && !portBusy;
     const canBuildSettlement = !isBuildingSettlement && !gameState.settlementBuildMode.active;
-    const canBuildTower = !gameState.towerBuildMode.active;
+    const canBuildDefense = !gameState.towerBuildMode.active;
 
     const hasStorage = portIndex > 0 && port.storage && (port.storage.wood > 0 || port.storage.food > 0);
     const storageHeight = hasStorage ? 45 : 0;
@@ -756,8 +850,8 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const shipSectionHeight = port.buildQueue ? shipBuildStatusHeight : shipButtonsHeight;
     const upgradeHeight = canUpgrade ? (bpHeaderHeight + bpRowHeight) : 0;
     const settlementHeight = canBuildSettlement ? (bpHeaderHeight + bpRowHeight) : 0;
-    const towerHeight = canBuildTower ? (bpHeaderHeight + bpRowHeight) : 0;
-    const bpHeight = storageHeight + shipSectionHeight + bpPadding + upgradeHeight + settlementHeight + towerHeight;
+    const defenseHeight = canBuildDefense ? (bpHeaderHeight + bpRowHeight) : 0; // Just Watchtower
+    const bpHeight = storageHeight + shipSectionHeight + bpPadding + upgradeHeight + settlementHeight + defenseHeight;
     const bpX = 15;
     const bpY = screenHeight - 50 - bpHeight;
 
@@ -877,30 +971,31 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
             settlementData.cost, settlementData.buildTime, isSettlementHovered, canBuildSettlementNow);
     }
 
-    // Tower section
-    if (canBuildTower) {
-        const towerY = bpY + storageHeight + shipSectionHeight + bpPadding + upgradeHeight + settlementHeight;
-        const towerData = TOWERS.tower;
-        const towerAffordable = canAfford(gameState.resources, towerData.cost);
+    // Defense section (Watchtower only - upgrades via tower panel)
+    if (canBuildDefense) {
+        const defenseY = bpY + storageHeight + shipSectionHeight + bpPadding + upgradeHeight + settlementHeight;
+        const watchtowerData = TOWERS.watchtower;
+        const towerAffordable = canAfford(gameState.resources, watchtowerData.cost);
 
-        drawPanelSeparator(ctx, bpX, bpWidth, towerY);
+        drawPanelSeparator(ctx, bpX, bpWidth, defenseY);
         k.drawText({
             text: "BUILD DEFENSE",
-            pos: k.vec2(bpX + bpWidth / 2, towerY + 10),
+            pos: k.vec2(bpX + bpWidth / 2, defenseY + 10),
             size: 11,
             anchor: "center",
             color: k.rgb(150, 150, 150),
         });
 
-        const towerBtnY = towerY + bpHeaderHeight;
+        // Watchtower button
+        const towerBtnY = defenseY + bpHeaderHeight;
         const towerBtnHeight = bpRowHeight - 4;
         bounds.towerButton = { y: towerBtnY, height: towerBtnHeight };
 
         const isTowerHovered = towerAffordable && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
                                mousePos.y >= towerBtnY && mousePos.y <= towerBtnY + towerBtnHeight;
 
-        drawPanelButton(ctx, bpX, bpWidth, towerBtnY, towerBtnHeight, towerData, `${towerData.name} (T)`,
-            towerData.cost, towerData.buildTime, isTowerHovered, towerAffordable);
+        drawPanelButton(ctx, bpX, bpWidth, towerBtnY, towerBtnHeight, watchtowerData, `${watchtowerData.name} (T)`,
+            watchtowerData.cost, watchtowerData.buildTime, isTowerHovered, towerAffordable);
     }
 
     return bounds;
