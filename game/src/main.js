@@ -6,6 +6,9 @@ const k = kaplay({
     background: [0, 0, 0], // Pitch black - edge of the world
 });
 
+// Custom cursor (CSS-based for smooth performance)
+k.setCursor("url('src/sprites/assets/cursor.png'), auto");
+
 // Load animated sprites
 k.loadSprite("bird", "src/sprites/assets/bird.png", {
     sliceX: 2,

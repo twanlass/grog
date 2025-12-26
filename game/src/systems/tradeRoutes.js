@@ -1,5 +1,5 @@
 // Trade route system - handles loading, unloading, and docking at ports
-import { findFreeAdjacentWater, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
+import { findFreeAdjacentWater, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex } from "../gameState.js";
 import { SHIPS } from "../sprites/index.js";
 
 // Loading/unloading speed
@@ -108,7 +108,7 @@ export function updateTradeRoutes(gameState, map, dt) {
                         ship.path = null;
                     }
                     // Always set waiting state
-                    ship.waitingForDock = { portIndex: 0, retryTimer: 0 };
+                    ship.waitingForDock = { portIndex: ship.tradeRoute.homePortIndex, retryTimer: 0 };
                 }
             }
             continue;
@@ -204,7 +204,7 @@ export function updateTradeRoutes(gameState, map, dt) {
                     progress: 0,
                     totalUnits: cargoTotal,
                     unitsTransferred: 0,
-                    targetPortIndex: 0,
+                    targetPortIndex: ship.tradeRoute.homePortIndex,
                 };
             } else {
                 // No cargo - go back to foreign port
@@ -233,7 +233,7 @@ export function updateTradeRoutes(gameState, map, dt) {
             const cargoTotal = ship.cargo.wood + ship.cargo.food;
             // Decide where to go based on cargo
             const targetPort = cargoTotal > 0 ? homePort : foreignPort;
-            const targetPortIndex = cargoTotal > 0 ? 0 : ship.tradeRoute.foreignPortIndex;
+            const targetPortIndex = cargoTotal > 0 ? ship.tradeRoute.homePortIndex : ship.tradeRoute.foreignPortIndex;
 
             const adjacentWater = findFreeAdjacentWater(map, targetPort.q, targetPort.r, gameState.ships);
             if (adjacentWater) {
@@ -263,9 +263,10 @@ export function updateTradeRoutes(gameState, map, dt) {
  * Handle ships with pendingUnload flag (one-time unload at home port)
  */
 function updatePendingUnloads(gameState, map, dt) {
-    if (gameState.ports.length === 0) return;
+    const homePortIndex = getHomePortIndex(gameState, map);
+    if (homePortIndex === null) return;
 
-    const homePort = gameState.ports[0];
+    const homePort = gameState.ports[homePortIndex];
 
     for (const ship of gameState.ships) {
         if (!ship.pendingUnload) continue;
@@ -317,7 +318,7 @@ function updatePendingUnloads(gameState, map, dt) {
                     progress: 0,
                     totalUnits: cargoTotal,
                     unitsTransferred: 0,
-                    targetPortIndex: 0,
+                    targetPortIndex: homePortIndex,
                 };
             } else {
                 // No cargo - clear the flag

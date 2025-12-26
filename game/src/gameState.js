@@ -3,7 +3,7 @@ import { PORTS } from "./sprites/ports.js";
 import { SHIPS } from "./sprites/ships.js";
 import { SETTLEMENTS } from "./sprites/settlements.js";
 import { TOWERS } from "./sprites/towers.js";
-import { hexKey } from "./hex.js";
+import { hexKey, hexNeighbors, hexDistance } from "./hex.js";
 
 export function createGameState() {
     return {
@@ -68,6 +68,10 @@ export function createGameState() {
 
         // Water splash effects from missed projectiles: [{ q, r, age, duration }]
         waterSplashes: [],
+
+        // Home island - the landmass where the first port was placed
+        // Used to determine which port is the "home port" (most recent port on this island)
+        homeIslandHex: null,  // { q, r } - a reference hex on the home island
     };
 }
 
@@ -177,32 +181,93 @@ export function getSelectedShips(gameState) {
         .map(u => gameState.ships[u.index]);
 }
 
-// Find a good starting position on the map
-export function findStartingPosition(map) {
-    const { tiles, width, height } = map;
+// Get all land tiles connected to a starting hex (island analysis)
+function getIslandTiles(map, startQ, startR) {
+    const visited = new Set();
+    const queue = [{ q: startQ, r: startR }];
+    const tiles = [];
 
-    // Find port sites near the center
-    const centerQ = Math.floor(width / 2);
-    const centerR = Math.floor(height / 2);
+    while (queue.length > 0) {
+        const current = queue.shift();
+        const key = hexKey(current.q, current.r);
+        if (visited.has(key)) continue;
+        visited.add(key);
 
-    let bestTile = null;
-    let bestDistance = Infinity;
+        const tile = map.tiles.get(key);
+        if (!tile || tile.type !== 'land') continue;
 
-    for (const tile of tiles.values()) {
-        if (tile.isPortSite) {
-            // Calculate distance from center
-            const dq = tile.q - centerQ;
-            const dr = tile.r - centerR;
-            const distance = Math.abs(dq) + Math.abs(dr);
-
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestTile = tile;
+        tiles.push(tile);
+        const neighbors = hexNeighbors(current.q, current.r);
+        for (const n of neighbors) {
+            if (!visited.has(hexKey(n.q, n.r))) {
+                queue.push(n);
             }
         }
     }
+    return tiles;
+}
 
-    return bestTile;
+// Find a good starting position on the map
+// Prefers islands with both coastal (sand) and inland (grass) tiles
+export function findStartingPosition(map) {
+    const { tiles, width, height } = map;
+    const centerQ = Math.floor(width / 2);
+    const centerR = Math.floor(height / 2);
+
+    // Collect all port sites with their island info
+    const candidates = [];
+    const analyzedIslands = new Set();
+
+    for (const tile of tiles.values()) {
+        if (!tile.isPortSite) continue;
+
+        // Skip if we already analyzed this island from another port site
+        const tileKey = hexKey(tile.q, tile.r);
+        if (analyzedIslands.has(tileKey)) continue;
+
+        const islandTiles = getIslandTiles(map, tile.q, tile.r);
+
+        // Mark all tiles on this island as analyzed
+        for (const t of islandTiles) {
+            analyzedIslands.add(hexKey(t.q, t.r));
+        }
+
+        const portSites = islandTiles.filter(t => t.isPortSite);
+        const inlandTiles = islandTiles.filter(t => !t.isPortSite);
+        const hasBothTerrains = portSites.length > 0 && inlandTiles.length > 0;
+
+        // Find the port site on this island closest to center
+        let bestPortSite = null;
+        let bestDist = Infinity;
+        for (const ps of portSites) {
+            const dq = ps.q - centerQ;
+            const dr = ps.r - centerR;
+            const dist = Math.abs(dq) + Math.abs(dr);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestPortSite = ps;
+            }
+        }
+
+        if (bestPortSite) {
+            candidates.push({
+                tile: bestPortSite,
+                distance: bestDist,
+                hasBothTerrains,
+                totalSize: islandTiles.length
+            });
+        }
+    }
+
+    // Sort: prefer islands with both terrains, then by distance to center
+    candidates.sort((a, b) => {
+        if (a.hasBothTerrains !== b.hasBothTerrains) {
+            return b.hasBothTerrains - a.hasBothTerrains; // true (1) before false (0)
+        }
+        return a.distance - b.distance; // closer to center
+    });
+
+    return candidates[0]?.tile || null;
 }
 
 // Find an adjacent water tile for ship placement
@@ -357,10 +422,81 @@ export function exitSettlementBuildMode(gameState) {
     };
 }
 
-// Check if a hex is a valid settlement site (land hex, not occupied)
-export function isValidSettlementSite(map, q, r, existingSettlements, existingPorts) {
+// Check if two hexes are connected by land (BFS through land tiles)
+export function isLandConnected(map, startQ, startR, targetQ, targetR) {
+    const startKey = hexKey(startQ, startR);
+    const targetKey = hexKey(targetQ, targetR);
+
+    if (startKey === targetKey) return true;
+
+    const visited = new Set([startKey]);
+    const queue = [{ q: startQ, r: startR }];
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+        const neighbors = hexNeighbors(current.q, current.r);
+
+        for (const n of neighbors) {
+            const key = hexKey(n.q, n.r);
+            if (visited.has(key)) continue;
+            visited.add(key);
+
+            const tile = map.tiles.get(key);
+            if (!tile || tile.type !== 'land') continue;
+
+            if (key === targetKey) return true;
+            queue.push(n);
+        }
+    }
+    return false;
+}
+
+// Find the nearest port that is land-connected to a settlement
+// Returns port index or null if no connected port exists
+export function findNearestLandConnectedPort(map, settlementQ, settlementR, ports) {
+    let nearestPort = null;
+    let nearestDistance = Infinity;
+
+    for (let i = 0; i < ports.length; i++) {
+        const port = ports[i];
+        if (port.construction) continue; // Skip ports under construction
+
+        if (isLandConnected(map, port.q, port.r, settlementQ, settlementR)) {
+            const dist = hexDistance(port.q, port.r, settlementQ, settlementR);
+            if (dist < nearestDistance) {
+                nearestDistance = dist;
+                nearestPort = i;
+            }
+        }
+    }
+    return nearestPort;
+}
+
+// Get the home port index (most recent completed port on the home island)
+// Returns null if no home port exists
+export function getHomePortIndex(gameState, map) {
+    if (!gameState.homeIslandHex) return null;
+
+    // Find the most recent (highest index) completed port on the home island
+    for (let i = gameState.ports.length - 1; i >= 0; i--) {
+        const port = gameState.ports[i];
+        if (port.construction) continue; // Skip ports under construction
+
+        // Check if this port is on the home island (land-connected to home island hex)
+        if (isLandConnected(map, gameState.homeIslandHex.q, gameState.homeIslandHex.r, port.q, port.r)) {
+            return i;
+        }
+    }
+    return null;
+}
+
+// Check if a hex is a valid settlement site (land hex, not occupied, connected to builder port)
+export function isValidSettlementSite(map, q, r, existingSettlements, existingPorts, builderPort = null) {
     const tile = map.tiles.get(hexKey(q, r));
     if (!tile || tile.type !== 'land') return false;
+
+    // Only allow settlements on inland (grass) tiles, not coastal (sand) tiles
+    if (tile.isPortSite) return false;
 
     // Check if already occupied by a settlement
     for (const settlement of existingSettlements) {
@@ -370,6 +506,11 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
     // Check if already occupied by a port
     for (const port of existingPorts) {
         if (port.q === q && port.r === r) return false;
+    }
+
+    // Check if connected by land to the builder port
+    if (builderPort && !isLandConnected(map, builderPort.q, builderPort.r, q, r)) {
+        return false;
     }
 
     return true;

@@ -19,16 +19,25 @@ Ports can construct settlements on nearby land. Settlements generate wood and fo
 
 ### Resource Generation
 - Completed settlements generate +5 wood and +5 food every 30 seconds
-- **Home port settlements** (port index 0): Resources added to global storage
-- **Built port settlements**: Resources added to port's local `storage`
+- **Requires land-connected port**: Settlements only produce if connected to a completed port via land tiles
+- **Home port settlements**: Resources added to global storage
+- **Foreign port settlements**: Resources added to port's local `storage`
 - Floating "+5" numbers animate upward when resources generate:
   - Brown for wood
   - Green for food
 
+### Port Connectivity
+- Settlements dynamically check for nearest land-connected port each production tick
+- If a port is destroyed, settlements become **inactive** (stop producing)
+- If a new port is built nearby, settlements automatically resume production
+- The "home port" is the most recent completed port on the home island
+
 ## Restrictions
 - Port can only build one thing at a time (ship, settlement, or upgrade)
 - Port can only have one settlement under construction at a time
+- **Must be placed on grass (inland) tiles** - cannot build on sand (coastal/port site) tiles
 - Must be placed on land hex within 10 hexes of port
+- Must be land-connected to the builder port
 - Cannot place on hex already occupied by port or settlement
 
 ## Files
@@ -94,4 +103,6 @@ floatingNumbers = [{
 - **Port busy building ship**: Settlement button greyed out
 - **Already building settlement**: Button shows "(building...)"
 - **Game paused**: Construction and generation pause (uses timeScale)
-- **Port destroyed**: Settlements continue generating (orphaned)
+- **Port destroyed while building**: Settlement construction cancelled, resources refunded
+- **Port destroyed after completion**: Settlement becomes inactive until another port is land-connected
+- **No land-connected port**: Settlement stops producing resources (can resume when port rebuilt)

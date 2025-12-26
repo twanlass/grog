@@ -45,31 +45,81 @@ export function drawResourcePanel(ctx, gameState) {
     const res = gameState.resources;
     const resY = panelY + 38;
     const resSpacing = 68;
+    const iconSize = 12;
+    const iconOffset = iconSize + 6;
+
+    // Wood icon (log with rings)
+    const woodIconX = panelX + 15;
+    const woodIconY = resY - 4;
+    // Log body (brown rectangle)
+    k.drawRect({
+        pos: k.vec2(woodIconX, woodIconY - 4),
+        width: iconSize,
+        height: 8,
+        color: k.rgb(139, 90, 43),
+        radius: 1,
+    });
+    // Wood rings (lighter circles on end)
+    k.drawCircle({
+        pos: k.vec2(woodIconX + iconSize - 1, woodIconY),
+        radius: 4,
+        color: k.rgb(180, 130, 80),
+    });
+    k.drawCircle({
+        pos: k.vec2(woodIconX + iconSize - 1, woodIconY),
+        radius: 2,
+        color: k.rgb(139, 90, 43),
+    });
 
     // Wood (brown)
     k.drawText({
         text: `Wood`,
-        pos: k.vec2(panelX + 15, resY - 10),
+        pos: k.vec2(woodIconX + iconOffset, resY - 10),
         size: 10,
         color: k.rgb(139, 90, 43),
     });
     k.drawText({
         text: `${res.wood}`,
-        pos: k.vec2(panelX + 15, resY + 6),
+        pos: k.vec2(woodIconX + iconOffset, resY + 6),
         size: 18,
         color: k.rgb(200, 150, 100),
+    });
+
+    // Food icon (t-bone steak)
+    const foodIconX = panelX + 15 + resSpacing * 2;
+    const foodIconY = resY - 4;
+    // Meat (pink/red oval)
+    k.drawEllipse({
+        pos: k.vec2(foodIconX + 6, foodIconY),
+        radiusX: 6,
+        radiusY: 4,
+        color: k.rgb(180, 80, 80),
+    });
+    // Bone (white/cream line)
+    k.drawRect({
+        pos: k.vec2(foodIconX + 8, foodIconY - 1),
+        width: 6,
+        height: 2,
+        color: k.rgb(240, 230, 210),
+        radius: 1,
+    });
+    // Bone knob
+    k.drawCircle({
+        pos: k.vec2(foodIconX + 13, foodIconY),
+        radius: 2,
+        color: k.rgb(240, 230, 210),
     });
 
     // Food (green)
     k.drawText({
         text: `Food`,
-        pos: k.vec2(panelX + 15 + resSpacing * 2, resY - 10),
+        pos: k.vec2(foodIconX + iconOffset, resY - 10),
         size: 10,
         color: k.rgb(80, 140, 80),
     });
     k.drawText({
         text: `${res.food}`,
-        pos: k.vec2(panelX + 15 + resSpacing * 2, resY + 6),
+        pos: k.vec2(foodIconX + iconOffset, resY + 6),
         size: 18,
         color: k.rgb(120, 200, 120),
     });
@@ -691,7 +741,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const isBuildingSettlement = checkBuildingSettlement(portIndex, gameState.settlements);
     const portBusy = port.buildQueue || isBuildingSettlement;
     const canUpgrade = nextPortType && !portBusy;
-    const canBuildSettlement = !portBusy && !gameState.settlementBuildMode.active;
+    const canBuildSettlement = !isBuildingSettlement && !gameState.settlementBuildMode.active;
     const canBuildTower = !gameState.towerBuildMode.active;
 
     const hasStorage = portIndex > 0 && port.storage && (port.storage.wood > 0 || port.storage.food > 0);
@@ -701,10 +751,13 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const bpRowHeight = 44;
     const bpPadding = 8;
     const bpHeaderHeight = 20;
+    const shipBuildStatusHeight = 70; // Height of the ship build status display
+    const shipButtonsHeight = bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight;
+    const shipSectionHeight = port.buildQueue ? shipBuildStatusHeight : shipButtonsHeight;
     const upgradeHeight = canUpgrade ? (bpHeaderHeight + bpRowHeight) : 0;
     const settlementHeight = canBuildSettlement ? (bpHeaderHeight + bpRowHeight) : 0;
     const towerHeight = canBuildTower ? (bpHeaderHeight + bpRowHeight) : 0;
-    const bpHeight = storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + settlementHeight + towerHeight;
+    const bpHeight = storageHeight + shipSectionHeight + bpPadding + upgradeHeight + settlementHeight + towerHeight;
     const bpX = 15;
     const bpY = screenHeight - 50 - bpHeight;
 
@@ -736,42 +789,41 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
     const mousePos = k.mousePos();
 
-    // Ship building in progress
+    // Ship building in progress - show status instead of buttons
     if (port.buildQueue) {
         drawShipBuildingStatus(ctx, port, bpX, bpWidth, bpY + storageHeight);
-        return bounds;
-    }
+    } else {
+        // Build ship section
+        k.drawText({
+            text: "BUILD SHIP",
+            pos: k.vec2(bpX + bpWidth / 2, bpY + storageHeight + 14),
+            size: 11,
+            anchor: "center",
+            color: k.rgb(150, 150, 150),
+        });
 
-    // Build ship section
-    k.drawText({
-        text: "BUILD SHIP",
-        pos: k.vec2(bpX + bpWidth / 2, bpY + storageHeight + 14),
-        size: 11,
-        anchor: "center",
-        color: k.rgb(150, 150, 150),
-    });
+        // Ship buttons
+        for (let i = 0; i < buildableShips.length; i++) {
+            const shipType = buildableShips[i];
+            const shipData = SHIPS[shipType];
+            const btnY = bpY + storageHeight + bpHeaderHeight + bpPadding + i * bpRowHeight;
+            const btnHeight = bpRowHeight - 4;
+            const affordable = canAfford(gameState.resources, shipData.cost);
+            const canBuildShip = affordable && !port.buildQueue;
 
-    // Ship buttons
-    for (let i = 0; i < buildableShips.length; i++) {
-        const shipType = buildableShips[i];
-        const shipData = SHIPS[shipType];
-        const btnY = bpY + storageHeight + bpHeaderHeight + bpPadding + i * bpRowHeight;
-        const btnHeight = bpRowHeight - 4;
-        const affordable = canAfford(gameState.resources, shipData.cost);
-        const canBuildShip = affordable && !portBusy;
+            bounds.buttons.push({ y: btnY, height: btnHeight, shipType: shipType });
 
-        bounds.buttons.push({ y: btnY, height: btnHeight, shipType: shipType });
+            const isHovered = canBuildShip && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                              mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
 
-        const isHovered = canBuildShip && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
-                          mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
-
-        drawPanelButton(ctx, bpX, bpWidth, btnY, btnHeight, shipData, shipData.name,
-            shipData.cost, shipData.build_time, isHovered, canBuildShip);
+            drawPanelButton(ctx, bpX, bpWidth, btnY, btnHeight, shipData, shipData.name,
+                shipData.cost, shipData.build_time, isHovered, canBuildShip);
+        }
     }
 
     // Upgrade section
     if (canUpgrade) {
-        const upgradeY = bpY + storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding;
+        const upgradeY = bpY + storageHeight + shipSectionHeight + bpPadding;
         const nextPortData = PORTS[nextPortType];
         const upgradeAffordable = canAfford(gameState.resources, nextPortData.cost);
 
@@ -797,9 +849,11 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
     // Settlement section
     if (canBuildSettlement) {
-        const settlementY = bpY + storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight;
+        const settlementY = bpY + storageHeight + shipSectionHeight + bpPadding + upgradeHeight;
         const settlementData = SETTLEMENTS.settlement;
         const alreadyBuildingSettlement = isBuildingSettlement;
+        const settlementAffordable = canAfford(gameState.resources, settlementData.cost);
+        const canBuildSettlementNow = settlementAffordable && !alreadyBuildingSettlement;
 
         drawPanelSeparator(ctx, bpX, bpWidth, settlementY);
         k.drawText({
@@ -814,18 +868,18 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         const settlementBtnHeight = bpRowHeight - 4;
         bounds.settlementButton = { y: settlementBtnY, height: settlementBtnHeight };
 
-        const isSettlementHovered = !alreadyBuildingSettlement &&
+        const isSettlementHovered = canBuildSettlementNow &&
                                     mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
                                     mousePos.y >= settlementBtnY && mousePos.y <= settlementBtnY + settlementBtnHeight;
 
         const settlementName = alreadyBuildingSettlement ? `${settlementData.name} (building...)` : `${settlementData.name} (S)`;
         drawPanelButton(ctx, bpX, bpWidth, settlementBtnY, settlementBtnHeight, settlementData, settlementName,
-            { wood: 0 }, settlementData.buildTime, isSettlementHovered, !alreadyBuildingSettlement);
+            settlementData.cost, settlementData.buildTime, isSettlementHovered, canBuildSettlementNow);
     }
 
     // Tower section
     if (canBuildTower) {
-        const towerY = bpY + storageHeight + bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight + bpPadding + upgradeHeight + settlementHeight;
+        const towerY = bpY + storageHeight + shipSectionHeight + bpPadding + upgradeHeight + settlementHeight;
         const towerData = TOWERS.tower;
         const towerAffordable = canAfford(gameState.resources, towerData.cost);
 

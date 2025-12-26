@@ -316,8 +316,10 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                         ship.waypoint = { q: nearestTarget.q, r: nearestTarget.r };
                     }
                     ship.path = null;
-                } else if (!ship.waypoint && patrolCenter) {
+                } else if (!ship.waypoint) {
                     // Generate random patrol point - try multiple angles to find water
+                    // Use home port as patrol center, or roam around current position if none
+                    const center = patrolCenter || { q: ship.q, r: ship.r };
                     const patrolRadius = 9 + Math.floor(Math.random() * 9);
                     const startAngle = Math.random() * Math.PI * 2;
 
@@ -325,8 +327,8 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                         const angle = startAngle + (attempt * Math.PI / 4);
                         const dq = Math.round(Math.cos(angle) * patrolRadius);
                         const dr = Math.round(Math.sin(angle) * patrolRadius);
-                        const targetQ = patrolCenter.q + dq;
-                        const targetR = patrolCenter.r + dr;
+                        const targetQ = center.q + dq;
+                        const targetR = center.r + dr;
                         const tile = map.tiles.get(hexKey(targetQ, targetR));
                         if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
                             ship.waypoint = { q: targetQ, r: targetR };

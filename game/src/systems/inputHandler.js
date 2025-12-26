@@ -1,5 +1,5 @@
 // Input handling helpers for click interactions
-import { PORTS, SHIPS, TOWERS } from "../sprites/index.js";
+import { PORTS, SHIPS, TOWERS, SETTLEMENTS } from "../sprites/index.js";
 import {
     canAfford, deductCost, createPort, exitPortBuildMode,
     createSettlement, exitSettlementBuildMode, enterPortBuildMode, enterSettlementBuildMode,
@@ -7,7 +7,7 @@ import {
     startBuilding, startPortUpgrade, isPortBuildingSettlement,
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute,
-    findFreeAdjacentWater, findNearbyWaitingHex
+    findFreeAdjacentWater, findNearbyWaitingHex, getHomePortIndex
 } from "../gameState.js";
 import { hexKey } from "../hex.js";
 import { findNearestWater } from "../pathfinding.js";
@@ -51,6 +51,14 @@ export function handleSettlementPlacementClick(gameState) {
     if (gameState.settlementBuildMode.hoveredHex) {
         const hex = gameState.settlementBuildMode.hoveredHex;
         const builderPortIndex = gameState.settlementBuildMode.builderPortIndex;
+        const settlementData = SETTLEMENTS.settlement;
+
+        if (!canAfford(gameState.resources, settlementData.cost)) {
+            console.log(`Can't afford settlement`);
+            exitSettlementBuildMode(gameState);
+            return true;
+        }
+        deductCost(gameState.resources, settlementData.cost);
 
         const newSettlement = createSettlement(hex.q, hex.r, true, builderPortIndex);
         gameState.settlements.push(newSettlement);
@@ -150,8 +158,7 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const portIdx = selectedPortIndices[0].index;
                 const port = gameState.ports[portIdx];
                 const shipData = SHIPS[btn.shipType];
-                const portBusy = port.buildQueue || isPortBuildingSettlement(portIdx, gameState.settlements);
-                if (!portBusy && canAfford(gameState.resources, shipData.cost)) {
+                if (!port.buildQueue && canAfford(gameState.resources, shipData.cost)) {
                     deductCost(gameState.resources, shipData.cost);
                     startBuilding(port, btn.shipType);
                     console.log(`Started building: ${btn.shipType}`);
@@ -185,7 +192,8 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
     if (bp.settlementButton) {
         const sbtn = bp.settlementButton;
         if (mouseY >= sbtn.y && mouseY <= sbtn.y + sbtn.height) {
-            if (!isPortBuildingSettlement(bp.portIndex, gameState.settlements)) {
+            const settlementData = SETTLEMENTS.settlement;
+            if (!isPortBuildingSettlement(bp.portIndex, gameState.settlements) && canAfford(gameState.resources, settlementData.cost)) {
                 enterSettlementBuildMode(gameState, bp.portIndex);
                 console.log(`Entering settlement placement mode from port ${bp.portIndex}`);
             }
@@ -217,8 +225,12 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
     const selectedShips = getSelectedShips(gameState);
     if (selectedShips.length === 0) return false;
 
-    // Check foreign ports only (index > 0)
-    for (let i = 1; i < gameState.ports.length; i++) {
+    const homePortIndex = getHomePortIndex(gameState, map);
+    if (homePortIndex === null) return false; // No home port, can't set up trade routes
+
+    // Check foreign ports only (not the home port)
+    for (let i = 0; i < gameState.ports.length; i++) {
+        if (i === homePortIndex) continue; // Skip home port
         const port = gameState.ports[i];
         if (port.construction) continue;
 
@@ -237,7 +249,7 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
 
                 const ship = gameState.ships[sel.index];
                 if (ship.type === 'pirate') continue; // Can't control enemy ships
-                ship.tradeRoute = { foreignPortIndex: i, homePortIndex: 0 };
+                ship.tradeRoute = { foreignPortIndex: i, homePortIndex: homePortIndex };
                 ship.dockingState = null;
                 ship.waitingForDock = null;
 
@@ -267,7 +279,8 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
  * @returns {boolean} true if handled
  */
 export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS) {
-    if (gameState.ports.length === 0) return false;
+    const homePortIndex = getHomePortIndex(gameState, map);
+    if (homePortIndex === null) return false;
 
     const selectedShips = getSelectedShips(gameState);
     const shipsWithCargo = selectedShips.filter(ship =>
@@ -275,7 +288,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
     );
     if (shipsWithCargo.length === 0) return false;
 
-    const homePort = gameState.ports[0];
+    const homePort = gameState.ports[homePortIndex];
     const portPos = hexToPixel(homePort.q, homePort.r);
     const dx = worldX - portPos.x;
     const dy = worldY - portPos.y;
@@ -310,7 +323,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
                 ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
                 ship.path = null;
                 ship.moveProgress = 0;
-                ship.waitingForDock = { portIndex: 0, retryTimer: 0 };
+                ship.waitingForDock = { portIndex: homePortIndex, retryTimer: 0 };
             }
         }
     }

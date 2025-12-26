@@ -2,7 +2,9 @@
 import { hexDistance } from "../hex.js";
 import { SHIPS } from "../sprites/ships.js";
 import { TOWERS } from "../sprites/towers.js";
-import { isShipBuildingPort, isShipBuildingTower } from "../gameState.js";
+import { PORTS } from "../sprites/ports.js";
+import { SETTLEMENTS } from "../sprites/settlements.js";
+import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex } from "../gameState.js";
 
 // Combat constants
 export const CANNON_DAMAGE = 5;
@@ -516,12 +518,23 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
         }
 
         // Fix settlement parentPortIndex
-        for (const settlement of gameState.settlements) {
+        for (let i = gameState.settlements.length - 1; i >= 0; i--) {
+            const settlement = gameState.settlements[i];
             if (settlement.parentPortIndex === removedIndex) {
-                // Orphan the settlement - assign to home port (index 0)
-                // Note: if home port was destroyed, this could be problematic
-                // but we're skipping settlement destruction for now
-                settlement.parentPortIndex = 0;
+                if (settlement.construction) {
+                    // Port destroyed while building settlement - cancel and refund
+                    const settlementData = SETTLEMENTS.settlement;
+                    if (settlementData && settlementData.cost) {
+                        for (const [resource, amount] of Object.entries(settlementData.cost)) {
+                            gameState.resources[resource] = (gameState.resources[resource] || 0) + amount;
+                        }
+                        console.log(`Refunded ${JSON.stringify(settlementData.cost)} for cancelled settlement construction`);
+                    }
+                    gameState.settlements.splice(i, 1);
+                } else {
+                    // Completed settlement - mark as disconnected (will auto-reconnect if another port is nearby)
+                    settlement.parentPortIndex = null;
+                }
             } else if (settlement.parentPortIndex > removedIndex) {
                 settlement.parentPortIndex--;
             }
@@ -530,11 +543,20 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
 
     // Fix port construction builderShipIndex (for ship removal)
     if (removedType === 'ship') {
-        for (const port of gameState.ports) {
+        for (let i = gameState.ports.length - 1; i >= 0; i--) {
+            const port = gameState.ports[i];
             if (port.construction && port.construction.builderShipIndex !== undefined) {
                 if (port.construction.builderShipIndex === removedIndex) {
-                    // Builder destroyed! Cancel construction
-                    port.construction = null;
+                    // Builder destroyed! Cancel construction and refund resources
+                    const portData = PORTS[port.type];
+                    if (portData && portData.cost) {
+                        for (const [resource, amount] of Object.entries(portData.cost)) {
+                            gameState.resources[resource] = (gameState.resources[resource] || 0) + amount;
+                        }
+                        console.log(`Refunded ${JSON.stringify(portData.cost)} for cancelled ${port.type} construction`);
+                    }
+                    // Remove the incomplete port
+                    gameState.ports.splice(i, 1);
                 } else if (port.construction.builderShipIndex > removedIndex) {
                     port.construction.builderShipIndex--;
                 }
@@ -542,11 +564,20 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
         }
 
         // Fix tower construction builderShipIndex (for ship removal)
-        for (const tower of gameState.towers) {
+        for (let i = gameState.towers.length - 1; i >= 0; i--) {
+            const tower = gameState.towers[i];
             if (tower.construction && tower.construction.builderShipIndex !== undefined) {
                 if (tower.construction.builderShipIndex === removedIndex) {
-                    // Builder destroyed! Cancel construction
-                    tower.construction = null;
+                    // Builder destroyed! Cancel construction and refund resources
+                    const towerData = TOWERS[tower.type];
+                    if (towerData && towerData.cost) {
+                        for (const [resource, amount] of Object.entries(towerData.cost)) {
+                            gameState.resources[resource] = (gameState.resources[resource] || 0) + amount;
+                        }
+                        console.log(`Refunded ${JSON.stringify(towerData.cost)} for cancelled tower construction`);
+                    }
+                    // Remove the incomplete tower
+                    gameState.towers.splice(i, 1);
                 } else if (tower.construction.builderShipIndex > removedIndex) {
                     tower.construction.builderShipIndex--;
                 }
@@ -586,26 +617,37 @@ export function updatePirateRespawns(gameState, map, createShip, hexKey, dt) {
 
         if (respawn.timer <= 0) {
             // Spawn a new pirate near the home port
-            const homePort = gameState.ports[0];
+            const homePortIndex = getHomePortIndex(gameState, map);
+            const homePort = homePortIndex !== null ? gameState.ports[homePortIndex] : null;
+            let spawned = false;
+
             if (homePort) {
-                const spawnDistance = 12 + Math.floor(Math.random() * 4);
                 const startAngle = Math.random() * Math.PI * 2;
 
-                for (let attempt = 0; attempt < 12; attempt++) {
-                    const angle = startAngle + (attempt * Math.PI / 6);
-                    const pirateQ = homePort.q + Math.round(Math.cos(angle) * spawnDistance);
-                    const pirateR = homePort.r + Math.round(Math.sin(angle) * spawnDistance);
-                    const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
+                // Try multiple distances if needed (8-20 hexes from home port)
+                for (let dist = 12; dist >= 6 && !spawned; dist -= 2) {
+                    for (let attempt = 0; attempt < 12; attempt++) {
+                        const angle = startAngle + (attempt * Math.PI / 6);
+                        const pirateQ = homePort.q + Math.round(Math.cos(angle) * dist);
+                        const pirateR = homePort.r + Math.round(Math.sin(angle) * dist);
+                        const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
 
-                    if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
-                        gameState.ships.push(createShip('pirate', pirateQ, pirateR));
-                        break;
+                        if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
+                            gameState.ships.push(createShip('pirate', pirateQ, pirateR));
+                            spawned = true;
+                            break;
+                        }
                     }
                 }
             }
 
-            // Remove from queue
-            gameState.pirateRespawnQueue.splice(i, 1);
+            // Only remove from queue if successfully spawned (or no home port)
+            if (spawned || !homePort) {
+                gameState.pirateRespawnQueue.splice(i, 1);
+            } else {
+                // Retry next frame if spawn failed
+                respawn.timer = 1;
+            }
         }
     }
 }

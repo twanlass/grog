@@ -392,3 +392,45 @@ xn @ kaplay.js?v=8270b6e8:5276
 
 ## 99. User prompt
 > let's fix a ship cooldown bug: it appears that a player ship cooldown only only counts down while attacking another ship. If you leave a battle early, the cooldown pauses.
+
+## 100. User prompt
+> let's update our port unit. When building ships, don't block the building of other units (like settlements, towers, etc). This should work like building a tower or settelement does – it does not occupy the port. 
+
+## 101. User prompt
+> next, let's remove the WASD hotkeys for moving the camera. 
+
+## 102. User prompt
+> small bug: when building a settlement from a port, I can now see the option to build a ship but its disabled and shows I don't have enough resrouces but I actually do. See screenshot for context: 
+
+## 103. User prompt
+> in gameScene.js I see an unused import on line 6: import { findPath, findNearestWater, findNearestAvailable } from "../pathfinding.js";
+
+## 104. User prompt
+> instead of removing it, shoudl we use it? That might allow us to remove / refactor code in gameScene.js
+
+## 105. User prompt
+> check pirate spawning – it appears after the first 2 pirate ships are destroyed more don't respawn (maybe)?
+
+## 106. User prompt
+> let's update build logic: if a ship or port is destroyed while building something (settlement, tower) cancel the build and return the resources used
+
+## 107. User prompt
+> I just added a cost to settlemenets. update code. 
+
+## 108. User prompt
+> let's update the settlement selection mode to ensure only hexes on the current island can be selected (don't allow player to place settlements on adjacent islands or hexes not connected by land to the current port
+
+## 109. User prompt
+> can we add a little hover effect to ships? Specfically, highlight the hex they are under while hovering? this should make selection feel better 
+
+## 110. User prompt
+> sweet! add the same hover highlight to all units!
+
+## 111. User prompt
+> clear
+
+## 112. User prompt
+> let's fix a few edge cases with our ports. Right now, settlements are associated with ports. But when a port is destroyed, what happens to the settlements? Maybe a simple change is to have settlements check for a land-connected near by port. If none, exists, they should stop producing wood/food. If a port is re-built, the nearby settlements should start producing again. 
+
+## 113. User prompt
+> lets update the home port logic. Disignate the _island_ where the first port spawns as the home island. The most recent port built on that island should be the home port. This should ensure that if the home port is destroyed and rebuilt later, trade routes continue to work etc

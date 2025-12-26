@@ -508,3 +508,32 @@ te    @    kaplay.js?v=8270b6e8:1667
 
 ## 116. User prompt
 > amazing refactor. Let's update docs/features/_adding-features.md 
+
+## 117. User prompt
+> what happens to pirates patrol when there is no home port? 
+
+## 118. User prompt
+> 1 roam randomly 
+
+## 119. User prompt
+> lets add a simple hotkey: when escape is pressed, deselect all units
+
+## 120. User prompt
+> Can we implement a custom cursor? I've included a new sprite to use: 
+
+## 121. User prompt
+> the cursor is now kind of laggy / slow 
+
+## 122. User prompt
+> let's avoid initially spawning the player on a single hex island. Try to spawn them on an island with both sand and grass 
+
+## 123. User prompt
+> let's only allow settlements to be built on grass (green) hex tiles 
+
+## 124. User prompt
+> let's add a little visual flourish lol: for the stockpile UI in the top right: 
+1. Add a wood icon left of "Wood" (log with wood rings)
+2. Add a food icon left of "Food" (a tbone steak) 
+
+## 125. User prompt
+> update feature docs 

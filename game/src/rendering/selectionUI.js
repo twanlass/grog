@@ -232,6 +232,88 @@ export function drawSelectionBox(ctx, isSelecting, selectStartX, selectStartY, s
 }
 
 /**
+ * Draw hover highlight for any unit under the mouse cursor
+ */
+export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selectionRadius) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
+
+    const mouseX = k.mousePos().x;
+    const mouseY = k.mousePos().y;
+    const worldMX = (mouseX - halfWidth) / zoom + cameraX;
+    const worldMY = (mouseY - halfHeight) / zoom + cameraY;
+
+    // Helper to draw the highlight at a position
+    const drawHighlight = (worldX, worldY) => {
+        const screenX = (worldX - cameraX) * zoom + halfWidth;
+        const screenY = (worldY - cameraY) * zoom + halfHeight;
+        const corners = hexCorners(screenX, screenY, HEX_SIZE * zoom);
+
+        // Draw filled hex with transparency
+        k.drawPolygon({
+            pts: corners.map(c => k.vec2(c.x, c.y)),
+            color: k.rgb(255, 255, 255),
+            opacity: 0.15,
+        });
+
+        // Draw subtle outline
+        const pts = corners.map(c => k.vec2(c.x, c.y));
+        for (let j = 0; j < pts.length; j++) {
+            k.drawLine({
+                p1: pts[j],
+                p2: pts[(j + 1) % pts.length],
+                width: 2,
+                color: k.rgb(255, 255, 255),
+                opacity: 0.3,
+            });
+        }
+    };
+
+    // Check ships (use visual position for smooth movement)
+    for (const ship of gameState.ships) {
+        const { x: shipX, y: shipY } = getShipVisualPos(ship);
+        const dx = worldMX - shipX;
+        const dy = worldMY - shipY;
+        if (Math.sqrt(dx * dx + dy * dy) < selectionRadius) {
+            drawHighlight(shipX, shipY);
+            return;
+        }
+    }
+
+    // Check ports
+    for (const port of gameState.ports) {
+        const pos = hexToPixel(port.q, port.r);
+        const dx = worldMX - pos.x;
+        const dy = worldMY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < selectionRadius) {
+            drawHighlight(pos.x, pos.y);
+            return;
+        }
+    }
+
+    // Check settlements
+    for (const settlement of gameState.settlements) {
+        const pos = hexToPixel(settlement.q, settlement.r);
+        const dx = worldMX - pos.x;
+        const dy = worldMY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < selectionRadius) {
+            drawHighlight(pos.x, pos.y);
+            return;
+        }
+    }
+
+    // Check towers
+    for (const tower of gameState.towers) {
+        const pos = hexToPixel(tower.q, tower.r);
+        const dx = worldMX - pos.x;
+        const dy = worldMY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < selectionRadius) {
+            drawHighlight(pos.x, pos.y);
+            return;
+        }
+    }
+}
+
+/**
  * Draw all selection UI elements
  */
 export function drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, selectionState) {

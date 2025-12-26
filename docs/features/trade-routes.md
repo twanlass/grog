@@ -2,6 +2,13 @@
 
 Ships can collect resources from foreign ports and automatically transport them to the home port.
 
+## Home Port
+The "home port" is determined dynamically:
+- The **home island** is the landmass where your first port was placed
+- The **home port** is the most recent completed port on that island
+- If the home port is destroyed and rebuilt, it automatically becomes the home port again
+- Trade routes store the home port index when created
+
 ## Behavior
 - Select a ship, then Command+click on a foreign port (not home port) to set up a trade route
 - Ship navigates to the foreign port and loads available wood/food
@@ -142,6 +149,8 @@ TRAVELING_TO_FOREIGN (auto-loop continues)
 - **Foreign port empty**: Ship waits at dock until resources generated
 - **Trade route cancelled**: Command+click any other destination, route cleared
 - **Foreign port destroyed**: Trade route cancelled
+- **Home port destroyed**: Trade route continues if another port is built on home island
+- **No home port exists**: Cannot create new trade routes
 - **Ship stuck**: Catch-all logic re-navigates ship to appropriate port
 - **Multiple ships same route**: Each operates independently
 - **Pathfinding fails**: Ship enters waiting mode, retries navigation

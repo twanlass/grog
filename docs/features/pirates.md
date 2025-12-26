@@ -8,7 +8,7 @@ Pirates have 4 states:
 
 | State | Behavior |
 |-------|----------|
-| **PATROL** | Wander randomly 9-17 hexes around the home port |
+| **PATROL** | Wander randomly 9-17 hexes around the home port (or current position if no home port) |
 | **CHASE** | Pursue a detected player ship or port |
 | **ATTACK** | Stop and engage target (combat TBD) |
 | **RETREAT** | Flee and cooldown before re-engaging |

@@ -1,9 +1,8 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { findPath, findNearestWater, findNearestAvailable } from "../pathfinding.js";
 import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../fogOfWar.js";
 
 // Rendering modules (new - extracted from this file for better organization)
@@ -12,7 +11,7 @@ import { createRenderContext } from "../rendering/renderContext.js";
 import { drawTiles, drawFogOfWar } from "../rendering/tileRenderer.js";
 import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars } from "../rendering/effectsRenderer.js";
-import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI } from "../rendering/selectionUI.js";
+import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
 import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel } from "../rendering/uiPanels.js";
 
@@ -111,6 +110,9 @@ export function createGameScene(k) {
         if (startTile) {
             // Place starting dock port (player must build ships)
             gameState.ports.push(createPort('dock', startTile.q, startTile.r));
+
+            // Set home island - the landmass where the first port was placed
+            gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
 
             // Queue initial pirates to spawn after delay
             for (let p = 0; p < STARTING_PIRATES; p++) {
@@ -223,10 +225,12 @@ export function createGameScene(k) {
 
             // Delegate to game systems
             updateShipMovement(hexToPixel, gameState, map, fogState, dt);
-            updatePirateAI(gameState, map, gameState.ports[0], dt); // Pirates patrol near home port
+            const homePortIdx = getHomePortIndex(gameState, map);
+            const homePort = homePortIdx !== null ? gameState.ports[homePortIdx] : null;
+            updatePirateAI(gameState, map, homePort, dt); // Pirates patrol near home port
             updateTradeRoutes(gameState, map, dt);
             updateConstruction(gameState, map, fogState, dt);
-            updateResourceGeneration(gameState, floatingNumbers, dt);
+            updateResourceGeneration(gameState, floatingNumbers, dt, map);
             updateCombat(hexToPixel, gameState, dt);
             updatePirateRespawns(gameState, map, createShip, hexKey, dt);
 
@@ -369,6 +373,9 @@ export function createGameScene(k) {
 
             // Draw floating debris (migrated to rendering module)
             drawFloatingDebris(ctx, gameState.floatingDebris);
+
+            // Draw unit hover highlight (before units so it appears underneath)
+            drawUnitHoverHighlight(ctx, gameState, getShipVisualPosLocal, SELECTION_RADIUS);
 
             // Draw ships (migrated to rendering module)
             drawShips(ctx, gameState, fogState, getShipVisualPosLocal);
@@ -521,11 +528,11 @@ export function createGameScene(k) {
             const panSpeed = 300 / zoom;
             const mouse = k.mousePos();
 
-            // WASD panning
-            if (k.isKeyDown("w") || k.isKeyDown("up")) cameraY -= panSpeed * k.dt();
-            if (k.isKeyDown("s") || k.isKeyDown("down")) cameraY += panSpeed * k.dt();
-            if (k.isKeyDown("a") || k.isKeyDown("left")) cameraX -= panSpeed * k.dt();
-            if (k.isKeyDown("d") || k.isKeyDown("right")) cameraX += panSpeed * k.dt();
+            // Arrow key panning
+            if (k.isKeyDown("up")) cameraY -= panSpeed * k.dt();
+            if (k.isKeyDown("down")) cameraY += panSpeed * k.dt();
+            if (k.isKeyDown("left")) cameraX -= panSpeed * k.dt();
+            if (k.isKeyDown("right")) cameraX += panSpeed * k.dt();
 
             // Edge scrolling (only when not dragging selection box)
             if (!isSelecting) {
@@ -554,26 +561,28 @@ export function createGameScene(k) {
             gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
         });
 
-        // ESC to cancel placement modes
+        // ESC to cancel placement modes or deselect all units
         k.onKeyPress("escape", () => {
             if (gameState.portBuildMode.active) {
                 exitPortBuildMode(gameState);
                 console.log("Port placement cancelled");
-            }
-            if (gameState.settlementBuildMode.active) {
+            } else if (gameState.settlementBuildMode.active) {
                 exitSettlementBuildMode(gameState);
                 console.log("Settlement placement cancelled");
-            }
-            if (gameState.towerBuildMode.active) {
+            } else if (gameState.towerBuildMode.active) {
                 exitTowerBuildMode(gameState);
                 console.log("Tower placement cancelled");
+            } else if (gameState.selectedUnits.length > 0) {
+                clearSelection(gameState);
             }
         });
 
         // Hotkey 'S' to enter settlement build mode when port panel is open
         k.onKeyPress("s", () => {
-            // Only works if settlement button is visible in the build panel
-            if (buildPanelBounds?.settlementButton && !isPortBuildingSettlement(buildPanelBounds.portIndex, gameState.settlements)) {
+            // Only works if settlement button is visible in the build panel and can afford
+            if (buildPanelBounds?.settlementButton &&
+                !isPortBuildingSettlement(buildPanelBounds.portIndex, gameState.settlements) &&
+                canAfford(gameState.resources, SETTLEMENTS.settlement.cost)) {
                 enterSettlementBuildMode(gameState, buildPanelBounds.portIndex);
                 console.log("Settlement placement mode (hotkey S)");
             }
