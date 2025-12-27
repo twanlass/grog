@@ -670,3 +670,126 @@ This feature allows a player to choose where newly spawned ships should collect
 
 ## 157. User prompt
 > let's add a little UX improvment: when double clicking a ship, select all of that ship kind within view. For example, double click on a cutter, and we'd auto select all cutters in view. 
+
+## 158. User prompt
+> i _think_ there's a bug w/ tower upgrades. Note how I have less wood than required for the upgrade but that the upgrade is not disabled: 
+
+## 159. User prompt
+> document scenarios 
+
+## 160. User prompt
+> clear
+
+## 161. User prompt
+> <bash-notification>
+<shell-id>b83676d</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b83676d.output</output-file>
+<status>killed</status>
+<summary>Background command "Start dev server with Vite 5" was killed.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bf8d250</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bf8d250.output</output-file>
+<status>failed</status>
+<summary>Background command "Verify refactor works" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b06d4b7</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b06d4b7.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to test fog of war" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b39c677</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b39c677.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to test game" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b07d6b8</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b07d6b8.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server in background" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b1301cb</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b1301cb.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to verify changes" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bd8407b</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bd8407b.output</output-file>
+<status>failed</status>
+<summary>Background command "cd /Users/tylerwanlass/code/grog/game && npm run dev 2>&1 | head -20" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b70e23d</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b70e23d.output</output-file>
+<status>failed</status>
+<summary>Background command "cd /Users/tylerwanlass/code/grog/game && npm run dev" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b832c3b</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b832c3b.output</output-file>
+<status>failed</status>
+<summary>Background command "Test game dev server" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bcd82a0</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bcd82a0.output</output-file>
+<status>failed</status>
+<summary>Background command "Restart dev server and test" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b1d43a4</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b1d43a4.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to test pirate ship" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>ba9fac5</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/ba9fac5.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server for testing" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b4df450</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b4df450.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to verify game runs" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bb6cefb</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bb6cefb.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server for testing" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>be12c40</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/be12c40.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server and check if running" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>be20c9f</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/be20c9f.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server and check" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>

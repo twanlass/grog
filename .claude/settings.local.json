@@ -23,5 +23,9 @@
   },
   "disabledMcpjsonServers": [
     "bear-notes"
-  ]
+  ],
+  "enabledMcpjsonServers": [
+    "bear-notes"
+  ],
+  "enableAllProjectMcpServers": true
 }

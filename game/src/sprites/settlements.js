@@ -36,7 +36,7 @@ export const SETTLEMENTS = {
         description: "Produces food over time",
         // Resource generation
         generationInterval: 20,  // seconds between harvests
-        woodPerHarvest: 10,
+        woodPerHarvest: 5,
         foodPerHarvest: 5,
     },
 };
