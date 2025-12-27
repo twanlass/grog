@@ -579,3 +579,48 @@ xn @ kaplay.js?v=8270b6e8:5276
 
 ## 133. User prompt
 > update the cannonBattery to stagger its shots. projectileCount is 2, but because they fire at the same time it looks like one cannon ball 
+
+## 134. User prompt
+> let's add a little visual flare to the land hexs. For green hexes, let's randomly render grass and trees. When a settlement is built on one, remove the grass or trees. 
+
+## 135. User prompt
+> double the size of trees. increase the numbers of grass
+
+## 136. User prompt
+> let's add a state to our cursor. When holding control over a pirate show cursor-attack.png to indicate visually that you can attack 
+
+## 137. User prompt
+> whoops! that should command key, not control key
+
+## 138. User prompt
+> let's increase the tree size further to 150%; also increase chances that 2-5 will spawn on a hex so forrests feel more dense
+
+## 139. User prompt
+> can you expose this in a const somewhere so I can tweak the sizes? 
+
+## 140. User prompt
+> add palm trees to tropical hexes
+
+## 141. User prompt
+> how do I configure tree size? 
+
+## 142. User prompt
+> bug w/ the palm trees: the palm frond isn't connected to the trunk (floats above it)
+
+## 143. User prompt
+> can we scale up the cursor to 1.25x
+
+## 144. User prompt
+> yes, check out canvas based so we can scale it
+
+## 145. User prompt
+> hmmm I can't see the cursor now 
+
+## 146. User prompt
+> I cant see the cursor on the title screen 
+
+## 147. User prompt
+> add  .DS_Store files to gitignore
+
+## 148. User prompt
+> yes

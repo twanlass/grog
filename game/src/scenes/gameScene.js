@@ -8,7 +8,13 @@ import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../f
 // Rendering modules (new - extracted from this file for better organization)
 // These can be used to gradually replace inline rendering code below
 import { createRenderContext } from "../rendering/renderContext.js";
-import { drawTiles, drawFogOfWar } from "../rendering/tileRenderer.js";
+import { drawTiles, drawFogOfWar, drawDecorations } from "../rendering/tileRenderer.js";
+
+// Seeded random for deterministic decoration placement
+function seededRandom(seed) {
+    const x = Math.sin(seed * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+}
 import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight } from "../rendering/selectionUI.js";
@@ -31,6 +37,14 @@ import {
 // Game start configuration
 export const STARTING_PIRATES = 2;
 export const PIRATE_INITIAL_DELAY = 60;  // seconds before first pirates spawn
+
+// Decoration generation config
+const GRASS_MIN = 3;           // Minimum grass patches per hex
+const GRASS_MAX = 10;          // Maximum grass patches per hex
+const TREE_MIN = 2;            // Minimum trees per hex
+const TREE_MAX = 5;            // Maximum trees per hex
+const PALM_MIN = 1;            // Minimum palm trees per tropical hex
+const PALM_MAX = 3;            // Maximum palm trees per tropical hex
 
 /**
  * Draw filled hexes within a range (transparent overlay)
@@ -216,6 +230,52 @@ export function createGameScene(k) {
             tileStipples.set(tile, { colors: stippleColors, dots });
         }
 
+        // Generate tile decorations (grass, trees, palms) for land tiles
+        const tileDecorations = new Map();
+        for (const tile of map.tiles.values()) {
+            if (tile.type !== 'land') continue;
+            if (tile.isPortSite) continue; // No decorations on port sites
+
+            const key = `${tile.q},${tile.r}`;
+            const seed = tile.q * 1000 + tile.r;
+            const decorations = [];
+
+            if (tile.climate === 'temperate') {
+                // Temperate: grass and trees
+                const grassCount = Math.floor(seededRandom(seed) * (GRASS_MAX - GRASS_MIN + 1)) + GRASS_MIN;
+                for (let i = 0; i < grassCount; i++) {
+                    decorations.push({
+                        type: 'grass',
+                        rx: seededRandom(seed + i * 10) * 1.4 - 0.7,
+                        ry: seededRandom(seed + i * 10 + 1) * 1.4 - 0.7,
+                    });
+                }
+
+                const treeCount = Math.floor(seededRandom(seed + 100) * (TREE_MAX - TREE_MIN + 1)) + TREE_MIN;
+                for (let i = 0; i < treeCount; i++) {
+                    decorations.push({
+                        type: 'tree',
+                        rx: seededRandom(seed + 100 + i * 10) * 1.2 - 0.6,
+                        ry: seededRandom(seed + 101 + i * 10) * 1.2 - 0.6,
+                    });
+                }
+            } else if (tile.climate === 'tropical') {
+                // Tropical: palm trees
+                const palmCount = Math.floor(seededRandom(seed) * (PALM_MAX - PALM_MIN + 1)) + PALM_MIN;
+                for (let i = 0; i < palmCount; i++) {
+                    decorations.push({
+                        type: 'palm',
+                        rx: seededRandom(seed + i * 10) * 1.2 - 0.6,
+                        ry: seededRandom(seed + i * 10 + 1) * 1.2 - 0.6,
+                    });
+                }
+            }
+
+            if (decorations.length > 0) {
+                tileDecorations.set(key, decorations);
+            }
+        }
+
         // Main game update loop - delegates to system modules
         k.onUpdate(() => {
             const rawDt = k.dt();
@@ -352,6 +412,7 @@ export function createGameScene(k) {
 
             // Draw tiles and fog of war (migrated to rendering modules)
             drawTiles(ctx, map, tilePositions, tileColors, tileStipples, stippleAnimTime);
+            drawDecorations(ctx, map, tilePositions, tileDecorations, gameState);
             drawFogOfWar(ctx, map, tilePositions, fogState);
 
             // Draw ports (migrated to rendering module)
@@ -527,6 +588,10 @@ export function createGameScene(k) {
 
         // WASD and edge scrolling for camera panning
         const EDGE_SCROLL_MARGIN = 20; // pixels from edge to trigger scroll
+        const CURSOR_DEFAULT = "url('src/sprites/assets/cursor.png'), auto";
+        const CURSOR_ATTACK = "url('src/sprites/assets/cursor-attack.png'), auto";
+        let currentCursor = CURSOR_DEFAULT;
+
         k.onUpdate(() => {
             const panSpeed = 300 / zoom;
             const mouse = k.mousePos();
@@ -543,6 +608,32 @@ export function createGameScene(k) {
                 if (mouse.x > k.width() - EDGE_SCROLL_MARGIN) cameraX += panSpeed * k.dt();
                 if (mouse.y < EDGE_SCROLL_MARGIN) cameraY -= panSpeed * k.dt();
                 if (mouse.y > k.height() - EDGE_SCROLL_MARGIN) cameraY += panSpeed * k.dt();
+            }
+
+            // Cursor state: show attack cursor when Cmd held over a pirate
+            let newCursor = CURSOR_DEFAULT;
+            if (k.isKeyDown("meta")) {
+                const halfW = k.width() / 2;
+                const halfH = k.height() / 2;
+                const worldX = (mouse.x - halfW) / zoom + cameraX;
+                const worldY = (mouse.y - halfH) / zoom + cameraY;
+
+                // Check if hovering over a pirate
+                for (const ship of gameState.ships) {
+                    if (ship.type !== 'pirate') continue;
+                    const pos = hexToPixel(ship.q, ship.r);
+                    const dx = worldX - pos.x;
+                    const dy = worldY - pos.y;
+                    if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+                        newCursor = CURSOR_ATTACK;
+                        break;
+                    }
+                }
+            }
+
+            if (newCursor !== currentCursor) {
+                currentCursor = newCursor;
+                k.setCursor(currentCursor);
             }
         });
 
