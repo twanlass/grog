@@ -9,6 +9,7 @@ import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../f
 // These can be used to gradually replace inline rendering code below
 import { createRenderContext } from "../rendering/renderContext.js";
 import { drawTiles, drawFogOfWar, drawDecorations } from "../rendering/tileRenderer.js";
+import { computeIslands, drawIslandWaves } from "../rendering/waveRenderer.js";
 
 // Seeded random for deterministic decoration placement
 function seededRandom(seed) {
@@ -276,6 +277,9 @@ export function createGameScene(k) {
             }
         }
 
+        // Pre-compute islands for wave rendering
+        const islands = computeIslands(map);
+
         // Main game update loop - delegates to system modules
         k.onUpdate(() => {
             const rawDt = k.dt();
@@ -410,8 +414,9 @@ export function createGameScene(k) {
             // Create render context for modular rendering functions
             const ctx = createRenderContext(k, zoom, effectiveCameraX, effectiveCameraY);
 
-            // Draw tiles and fog of war (migrated to rendering modules)
+            // Draw tiles, waves, decorations, and fog (migrated to rendering modules)
             drawTiles(ctx, map, tilePositions, tileColors, tileStipples, stippleAnimTime);
+            drawIslandWaves(ctx, islands, stippleAnimTime);
             drawDecorations(ctx, map, tilePositions, tileDecorations, gameState);
             drawFogOfWar(ctx, map, tilePositions, fogState);
 
@@ -746,7 +751,7 @@ export function createGameScene(k) {
             // When Command is held, check special interactions BEFORE unit selection
             if (isCommandHeld) {
                 // Attack pirate ship
-                if (handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
+                if (handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
                     return;  // Attack command handled
                 }
                 // Trade route to foreign port
@@ -761,7 +766,7 @@ export function createGameScene(k) {
 
             // Check unit selection (ships, ports, settlements)
             if (!clickedOnUnit) {
-                clickedOnUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld);
+                clickedOnUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPosLocal);
             }
 
             // If clicked on empty space...

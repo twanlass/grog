@@ -440,3 +440,54 @@ xn @ kaplay.js?v=8270b6e8:5276
 1. can be built by ships and ports
 2. primary value is clearing fog of war; should clear twice as much as towers
 3. cost, build time, and health should be same as towers
+
+## 115. User prompt
+> i want to add a nice little wave effect. A simple line that animates towards the shore of an island. we could maybe render this on each shore tile (find the edge that faces the ocean then render a light blue line animating in toward the hex edge). Or we could render an outline of the island, oversized, and shrink it / scale it down to the size of the island. Maybe have a look at game/src/rendering/tileRenderer.js to start 
+
+## 116. User prompt
+> let's try phase 2 
+
+## 117. User prompt
+> I'm not seeing a unified wave for phase 2; you can see a lot of gaps and overlaps rather than a nice unified ring: 
+
+## 118. User prompt
+> so close! it looks great but the waves are on the shore, not in the ocean (blue tiles): 
+
+## 119. User prompt
+> can we have the waves pulse inward and opacity fade to 0; then start again out from the shore in a loop? like waves comeing in, going flat, then starting again? 
+
+## 120. User prompt
+> when first starting, the wave ring should be opacity 0, then animate / fade in (so that it doesn't visually pop in). Let's also have the wave start out a little farther from shore 
+
+## 121. User prompt
+> can we slow down the waves? what about trying solid waves, not just lines?
+
+## 122. User prompt
+> the solid wave bands look buggy: 
+
+## 123. User prompt
+> let's increase the thickness so there's no space between the waves. let's also reduce the opacity a bit 
+
+## 124. User prompt
+> how might we fix this overlap? 
+
+## 125. User prompt
+> sweet. okay, cleanup / remove phase 1 code 
+
+## 126. User prompt
+> a litte rule update: when upgrading a unit (port, tower), once complete, restore it's healt to 100% (as if it's being repaired when upgraded)
+
+## 127. User prompt
+> let's render unit health bars 8px above the hex so that it doesn't overlap w/ the selection highlight 
+
+## 128. User prompt
+> how might we render a single outline for selected units when multiple units are adjacent to each other in hexes (removing these lines marked in red for example): 
+
+## 129. User prompt
+> one more improvement (new task type): with a unit selected, if the the waypoint is changed mid route, the ship will snap positions. Maybe it should comlete it current hex to hex movement before changing? 
+
+## 130. User prompt
+> I'm still seeing ships jump location when changing their waypoint mid navigation. Here's a short video showing it: /Users/tylerwanlass/Library/Application\ Support/CleanShot/media/media_jcmsdyKvnX/CleanShot\ 2025-12-26\ at\ 23.44.27.mp4
+
+## 131. User prompt
+> hmmm now I'm unable to change the ships waypoint during navigation. attempting to set a new waypoint deselects the ship. 

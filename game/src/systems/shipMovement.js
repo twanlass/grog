@@ -85,30 +85,38 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
 
         // Calculate path if needed
         if (!ship.path) {
-            // Check if destination is blocked by another ship
-            const destKey = hexKey(ship.waypoint.q, ship.waypoint.r);
-            let targetQ = ship.waypoint.q;
-            let targetR = ship.waypoint.r;
+            // If ship is mid-movement toward a saved target, restore path to that target first
+            // This prevents visual snapping when waypoint changes mid-movement
+            if (ship.moveProgress > 0 && ship.movingToward) {
+                // Restore minimal path to current movement target
+                ship.path = [{ q: ship.movingToward.q, r: ship.movingToward.r }];
+                ship.movingToward = null;  // Clear it, will be set again below
+            } else {
+                // Check if destination is blocked by another ship
+                const destKey = hexKey(ship.waypoint.q, ship.waypoint.r);
+                let targetQ = ship.waypoint.q;
+                let targetR = ship.waypoint.r;
 
-            if (blockedHexes.has(destKey)) {
-                // Find nearest available hex to the destination
-                const alt = findNearestAvailable(map, ship.waypoint.q, ship.waypoint.r, blockedHexes);
-                if (alt) {
-                    targetQ = alt.q;
-                    targetR = alt.r;
-                } else {
-                    // No available hex nearby - clear waypoint
+                if (blockedHexes.has(destKey)) {
+                    // Find nearest available hex to the destination
+                    const alt = findNearestAvailable(map, ship.waypoint.q, ship.waypoint.r, blockedHexes);
+                    if (alt) {
+                        targetQ = alt.q;
+                        targetR = alt.r;
+                    } else {
+                        // No available hex nearby - clear waypoint
+                        ship.waypoint = null;
+                        continue;
+                    }
+                }
+
+                ship.path = findPath(map, ship.q, ship.r, targetQ, targetR, blockedHexes);
+
+                // No valid path - clear waypoint
+                if (!ship.path) {
                     ship.waypoint = null;
                     continue;
                 }
-            }
-
-            ship.path = findPath(map, ship.q, ship.r, targetQ, targetR, blockedHexes);
-
-            // No valid path - clear waypoint
-            if (!ship.path) {
-                ship.waypoint = null;
-                continue;
             }
         }
 
@@ -120,6 +128,9 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
             // Check ahead: is next hex going to be blocked?
             const next = ship.path[0];
             const nextKey = hexKey(next.q, next.r);
+
+            // Save current movement target for smooth waypoint changes
+            ship.movingToward = { q: next.q, r: next.r };
 
             // Update ship heading to face the next hex (snapped to 6 directions)
             const fromPos = hexToPixel(ship.q, ship.r);
@@ -140,12 +151,14 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
                         // No valid path - stop and wait
                         ship.path = null;
                         ship.moveProgress = 0;
+                        ship.movingToward = null;
                     }
                 } else {
                     // Already at or near destination - stop
                     ship.waypoint = null;
                     ship.path = null;
                     ship.moveProgress = 0;
+                    ship.movingToward = null;
                 }
                 continue;
             }
@@ -185,11 +198,22 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
                 }
             }
 
-            // Arrived at destination
+            // Path exhausted - check if we actually reached the waypoint
             if (ship.path && ship.path.length === 0) {
-                ship.waypoint = null;
-                ship.path = null;
-                ship.moveProgress = 0;
+                if (ship.waypoint && (ship.q !== ship.waypoint.q || ship.r !== ship.waypoint.r)) {
+                    // Haven't reached waypoint yet - need to recalculate path
+                    // This happens when waypoint was changed mid-movement
+                    ship.path = null;
+                    // Keep moveProgress at 0 for fresh start to new destination
+                    ship.moveProgress = 0;
+                    ship.movingToward = null;
+                } else {
+                    // Actually arrived at destination
+                    ship.waypoint = null;
+                    ship.path = null;
+                    ship.moveProgress = 0;
+                    ship.movingToward = null;
+                }
             }
         }
     }

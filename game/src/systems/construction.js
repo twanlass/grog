@@ -1,6 +1,6 @@
 // Construction system - handles port, settlement, and tower building progress
 import { createShip, findFreeAdjacentWater } from "../gameState.js";
-import { SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
+import { SHIPS, SETTLEMENTS, TOWERS, PORTS } from "../sprites/index.js";
 import { revealRadius } from "../fogOfWar.js";
 
 /**
@@ -70,6 +70,7 @@ function updatePortConstruction(gameState, fogState, dt) {
             if (port.construction.upgradeTo) {
                 const oldType = port.type;
                 port.type = port.construction.upgradeTo;
+                port.health = PORTS[port.type].health;  // Restore health on upgrade
                 console.log(`Port upgraded: ${oldType} → ${port.type} at (${port.q}, ${port.r})`);
             } else {
                 console.log(`Port construction complete: ${port.type} at (${port.q}, ${port.r})`);

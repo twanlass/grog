@@ -1,5 +1,5 @@
 // Selection UI rendering: selection indicators, waypoints, attack targets, paths
-import { hexToPixel, hexCorners, HEX_SIZE } from "../hex.js";
+import { hexToPixel, hexCorners, hexNeighbors, HEX_SIZE } from "../hex.js";
 import { isSelected } from "../gameState.js";
 import { TOWERS } from "../sprites/index.js";
 import { drawHexRangeFilled, drawHexRangeOutline } from "./renderHelpers.js";
@@ -20,6 +20,58 @@ function drawSelectionHexOutline(ctx, q, r, color, lineWidth = 3) {
         const p1 = pts[j];
         const p2 = pts[(j + 1) % pts.length];
         k.drawLine({ p1, p2, width: lineWidth, color });
+    }
+}
+
+/**
+ * Draw selection indicator at a world position (for moving units)
+ */
+function drawSelectionAtPosition(ctx, worldX, worldY, color, lineWidth = 3) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, scaledHexSize } = ctx;
+    const screenX = (worldX - cameraX) * zoom + halfWidth;
+    const screenY = (worldY - cameraY) * zoom + halfHeight;
+
+    const corners = hexCorners(screenX, screenY, scaledHexSize);
+    const pts = corners.map(c => k.vec2(c.x, c.y));
+
+    for (let j = 0; j < pts.length; j++) {
+        const p1 = pts[j];
+        const p2 = pts[(j + 1) % pts.length];
+        k.drawLine({ p1, p2, width: lineWidth, color });
+    }
+}
+
+/**
+ * Draw merged selection outlines - skips edges shared between adjacent selected hexes
+ */
+function drawMergedSelectionOutlines(ctx, selectedHexes, color, lineWidth = 3) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, scaledHexSize } = ctx;
+
+    // Build set of selected hex keys for fast lookup
+    const selectedKeys = new Set(selectedHexes.map(h => `${h.q},${h.r}`));
+
+    for (const hex of selectedHexes) {
+        const pos = hexToPixel(hex.q, hex.r);
+        const screenX = (pos.x - cameraX) * zoom + halfWidth;
+        const screenY = (pos.y - cameraY) * zoom + halfHeight;
+        const corners = hexCorners(screenX, screenY, scaledHexSize);
+        const neighbors = hexNeighbors(hex.q, hex.r);
+
+        // Only draw edges where neighbor is NOT selected
+        for (let i = 0; i < 6; i++) {
+            const neighborKey = `${neighbors[i].q},${neighbors[i].r}`;
+            if (selectedKeys.has(neighborKey)) continue;  // Skip shared edges
+
+            const c1 = (6 - i) % 6;
+            const c2 = (c1 + 1) % 6;
+            k.drawLine({
+                p1: k.vec2(corners[c1].x, corners[c1].y),
+                p2: k.vec2(corners[c2].x, corners[c2].y),
+                width: lineWidth,
+                color: color,
+                cap: "round",
+            });
+        }
     }
 }
 
@@ -103,27 +155,20 @@ function drawDashedPath(ctx, path, startScreenX, startScreenY) {
 }
 
 /**
- * Draw all selection indicators for ships
- * @param {function} getShipVisualPosLocal - Function to get ship visual position
+ * Draw additional ship selection indicators (waypoints, attack targets, paths)
+ * Note: Hex outlines are now drawn by drawAllSelectionUI using merged outlines
  */
 export function drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLocal) {
-    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, scaledHexSize } = ctx;
-    const selectionColor = k.rgb(255, 220, 50);
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
 
     for (let i = 0; i < gameState.ships.length; i++) {
         if (!isSelected(gameState, 'ship', i)) continue;
         const ship = gameState.ships[i];
-        const isMoving = ship.path && ship.path.length > 0;
 
         // Calculate screen position (needed for path drawing)
         const pos = hexToPixel(ship.q, ship.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
-
-        // Only show hex outline when stationary
-        if (!isMoving) {
-            drawSelectionHexOutline(ctx, ship.q, ship.r, selectionColor);
-        }
 
         // Draw attack target indicator (red hex outline) or waypoint marker
         if (ship.attackTarget && ship.attackTarget.type === 'ship') {
@@ -177,18 +222,15 @@ export function drawSettlementSelectionIndicators(ctx, gameState) {
 }
 
 /**
- * Draw selection indicators and attack range for towers
+ * Draw attack range indicators for selected towers
+ * Note: Hex outlines are now drawn by drawAllSelectionUI using merged outlines
  */
 export function drawTowerSelectionIndicators(ctx, gameState) {
-    const { k, cameraX, cameraY } = ctx;
-    const selectionColor = k.rgb(255, 220, 50);
+    const { k } = ctx;
 
     for (let i = 0; i < gameState.towers.length; i++) {
         if (!isSelected(gameState, 'tower', i)) continue;
         const tower = gameState.towers[i];
-
-        // Draw selection outline
-        drawSelectionHexOutline(ctx, tower.q, tower.r, selectionColor);
 
         // Draw attack range for completed towers
         if (!tower.construction) {
@@ -317,9 +359,62 @@ export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selecti
  * Draw all selection UI elements
  */
 export function drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, selectionState) {
+    const { k } = ctx;
+    const selectionColor = k.rgb(255, 220, 50);
+
+    // Collect all selected stationary unit hexes for merged outline
+    const selectedHexes = [];
+    // Track moving ships separately (they need visual position indicators)
+    const movingSelectedShips = [];
+
+    // Collect selected ships - stationary ones go to merged outline, moving ones to separate list
+    for (let i = 0; i < gameState.ships.length; i++) {
+        if (!isSelected(gameState, 'ship', i)) continue;
+        const ship = gameState.ships[i];
+        const isMoving = ship.path && ship.path.length > 0;
+        if (!isMoving) {
+            selectedHexes.push({ q: ship.q, r: ship.r });
+        } else {
+            movingSelectedShips.push(ship);
+        }
+    }
+
+    // Collect selected ports
+    for (let i = 0; i < gameState.ports.length; i++) {
+        if (!isSelected(gameState, 'port', i)) continue;
+        const port = gameState.ports[i];
+        selectedHexes.push({ q: port.q, r: port.r });
+    }
+
+    // Collect selected settlements
+    for (let i = 0; i < gameState.settlements.length; i++) {
+        if (!isSelected(gameState, 'settlement', i)) continue;
+        const settlement = gameState.settlements[i];
+        selectedHexes.push({ q: settlement.q, r: settlement.r });
+    }
+
+    // Collect selected towers
+    for (let i = 0; i < gameState.towers.length; i++) {
+        if (!isSelected(gameState, 'tower', i)) continue;
+        const tower = gameState.towers[i];
+        selectedHexes.push({ q: tower.q, r: tower.r });
+    }
+
+    // Draw merged selection outlines for all selected units
+    if (selectedHexes.length > 0) {
+        drawMergedSelectionOutlines(ctx, selectedHexes, selectionColor);
+    }
+
+    // Draw selection indicators for moving ships at their visual position
+    for (const ship of movingSelectedShips) {
+        const pos = getShipVisualPosLocal(ship);
+        drawSelectionAtPosition(ctx, pos.x, pos.y, selectionColor);
+    }
+
+    // Draw additional ship-specific indicators (waypoints, attack targets, paths)
     drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLocal);
-    drawPortSelectionIndicators(ctx, gameState);
-    drawSettlementSelectionIndicators(ctx, gameState);
+
+    // Draw tower attack range indicators
     drawTowerSelectionIndicators(ctx, gameState);
 
     if (selectionState) {

@@ -624,3 +624,27 @@ xn @ kaplay.js?v=8270b6e8:5276
 
 ## 148. User prompt
 > yes
+
+## 149. User prompt
+> still not working. When changing the waypoint (command + left click) during a ships navigation, the ship is unselected. See this gif: 
+
+## 150. User prompt
+> heres the debug log: [Click] isCommandHeld=false, isShiftHeld=false, selectedUnits=0
+inputHandler.js:386 Selected ship: cutter
+gameScene.js:772 [Click] handleUnitSelection returned true
+gameScene.js:788 [Click] End - selectedUnits=1
+gameScene.js:749 [Click] isCommandHeld=true, isShiftHeld=false, selectedUnits=1
+gameScene.js:772 [Click] handleUnitSelection returned false
+gameScene.js:779 [Click] Setting waypoint, selectedUnits before=1
+inputHandler.js:494 Set waypoint at (27, 33) for 1 ship(s)
+gameScene.js:781 [Click] After waypoint, selectedUnits=1
+gameScene.js:788 [Click] End - selectedUnits=1
+gameScene.js:749 [Click] isCommandHeld=true, isShiftHeld=false, selectedUnits=1
+gameScene.js:772 [Click] handleUnitSelection returned false
+gameScene.js:779 [Click] Setting waypoint, selectedUnits before=1
+inputHandler.js:494 Set waypoint at (33, 31) for 1 ship(s)
+gameScene.js:781 [Click] After waypoint, selectedUnits=1
+gameScene.js:788 [Click] End - selectedUnits=1
+
+## 151. User prompt
+> okay, so the ship stays visually selected, but I"m unable to set a new waypoint / trigger the ship to change it's path while a current waypoitn is set

@@ -291,13 +291,11 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
                 if (adjacentWater) {
                     ship.waypoint = { q: adjacentWater.q, r: adjacentWater.r };
                     ship.path = null;
-                    ship.moveProgress = 0;
                 } else {
                     const waitingSpot = findNearbyWaitingHex(map, port.q, port.r, gameState.ships);
                     if (waitingSpot) {
                         ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
                         ship.path = null;
-                        ship.moveProgress = 0;
                         ship.waitingForDock = { portIndex: i, retryTimer: 0 };
                     }
                 }
@@ -351,13 +349,11 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
         if (adjacentWater) {
             ship.waypoint = { q: adjacentWater.q, r: adjacentWater.r };
             ship.path = null;
-            ship.moveProgress = 0;
         } else {
             const waitingSpot = findNearbyWaitingHex(map, homePort.q, homePort.r, gameState.ships);
             if (waitingSpot) {
                 ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
                 ship.path = null;
-                ship.moveProgress = 0;
                 ship.waitingForDock = { portIndex: homePortIndex, retryTimer: 0 };
             }
         }
@@ -368,13 +364,15 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
 
 /**
  * Handle unit selection (ship, port, or settlement)
+ * @param {function} getShipVisualPos - Function to get ship visual position for smooth hit detection
  * @returns {boolean} true if a unit was clicked
  */
-export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld) {
-    // Check ships first
+export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPos) {
+    // Check ships first - use visual position for hit detection during movement
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
-        const shipPos = hexToPixel(ship.q, ship.r);
+        // Use visual position if available (smooth movement), fallback to hex position
+        const shipPos = getShipVisualPos ? getShipVisualPos(ship) : hexToPixel(ship.q, ship.r);
         const dx = worldX - shipPos.x;
         const dy = worldY - shipPos.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -488,7 +486,7 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         ship.attackTarget = null;  // Clear attack target when manually moving
         ship.waypoint = { q: targetQ, r: targetR };
         ship.path = null;
-        ship.moveProgress = 0;
+        // Don't reset moveProgress - let ship complete current movement smoothly
         movedCount++;
     }
 
@@ -501,18 +499,19 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
 
 /**
  * Handle Ctrl+click to attack a pirate ship
+ * @param {function} getShipVisualPos - Function to get ship visual position for smooth hit detection
  * @returns {boolean} true if attack target was set
  */
-export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS) {
+export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPos) {
     const selectedShips = getSelectedShips(gameState);
     if (selectedShips.length === 0) return false;
 
-    // Find clicked pirate ship
+    // Find clicked pirate ship - use visual position for hit detection during movement
     for (let i = 0; i < gameState.ships.length; i++) {
         const target = gameState.ships[i];
         if (target.type !== 'pirate') continue;
 
-        const pos = hexToPixel(target.q, target.r);
+        const pos = getShipVisualPos ? getShipVisualPos(target) : hexToPixel(target.q, target.r);
         const dx = worldX - pos.x;
         const dy = worldY - pos.y;
         if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {

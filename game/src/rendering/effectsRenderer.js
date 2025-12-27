@@ -361,7 +361,7 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
 
         const barWidth = 40 * zoom;
         const barHeight = 5 * zoom;
-        const barY = screenY - 35 * zoom;
+        const barY = screenY - 43 * zoom;  // 35 + 8 to clear selection highlight
 
         const healthPercent = Math.max(0, entity.health / maxHealth);
 
