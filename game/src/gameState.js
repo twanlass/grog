@@ -60,6 +60,9 @@ export function createGameState() {
         // Pirate respawn queue: [{ timer }]
         pirateRespawnQueue: [],
 
+        // Pirate kill counter
+        pirateKills: 0,
+
         // Ship explosion effects: [{ q, r, age, duration }]
         shipExplosions: [],
 

@@ -661,3 +661,12 @@ This feature allows a player to choose where newly spawned ships should collect
 
 ## 154. User prompt
 > one more update: when selecting both a port and ship, when a user command + left clicks, set a waypoitn for the selected ships, don't modify the port rally point. Only allow a port rally point to be set if just the port is selected. 
+
+## 155. User prompt
+> let's add a 4x and 5x speed mode to existing 1,2 and 3x modes
+
+## 156. User prompt
+> let's add a simple pirate kill counter to the bottom center of the screen: show the number of pirate ships the player has sunk 
+
+## 157. User prompt
+> let's add a little UX improvment: when double clicking a ship, select all of that ship kind within view. For example, double click on a cutter, and we'd auto select all cutters in view. 

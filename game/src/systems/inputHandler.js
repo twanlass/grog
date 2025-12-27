@@ -365,7 +365,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
 /**
  * Handle unit selection (ship, port, or settlement)
  * @param {function} getShipVisualPos - Function to get ship visual position for smooth hit detection
- * @returns {boolean} true if a unit was clicked
+ * @returns {{ type: string, index: number } | null} clicked unit info, or null if nothing clicked
  */
 export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPos) {
     // Check ships first - use visual position for hit detection during movement
@@ -384,7 +384,7 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
                 selectUnit(gameState, 'ship', i);
             }
             console.log(`Selected ship: ${ship.type}`);
-            return true;
+            return { type: 'ship', index: i };
         }
     }
 
@@ -403,7 +403,7 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
                 selectUnit(gameState, 'port', i);
             }
             console.log(`Selected port: ${port.type}`);
-            return true;
+            return { type: 'port', index: i };
         }
     }
 
@@ -422,7 +422,7 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
                 selectUnit(gameState, 'settlement', i);
             }
             console.log(`Selected settlement at (${settlement.q}, ${settlement.r})`);
-            return true;
+            return { type: 'settlement', index: i };
         }
     }
 
@@ -441,11 +441,11 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
                 selectUnit(gameState, 'tower', i);
             }
             console.log(`Selected tower at (${tower.q}, ${tower.r})`);
-            return true;
+            return { type: 'tower', index: i };
         }
     }
 
-    return false;
+    return null;
 }
 
 /**

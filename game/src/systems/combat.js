@@ -433,9 +433,10 @@ function destroyShip(gameState, shipIndex) {
 
     spawnDestructionEffects(gameState, ship.q, ship.r, 'ship');
 
-    // Queue pirate respawn
+    // Queue pirate respawn and increment kill counter
     if (ship.type === 'pirate') {
         gameState.pirateRespawnQueue.push({ timer: PIRATE_RESPAWN_COOLDOWN });
+        gameState.pirateKills++;
     }
 
     // Remove from array

@@ -161,6 +161,11 @@ export function createGameScene(k) {
         let selectEndY = 0;
         const DRAG_THRESHOLD = 5;
 
+        // Double-click state (for selecting all ships of same type)
+        let lastClickTime = 0;
+        let lastClickedShipType = null;
+        const DOUBLE_CLICK_THRESHOLD = 350;  // milliseconds
+
         // Pan state (right-drag)
         let isPanning = false;
         let panStartX = 0;
@@ -656,6 +661,8 @@ export function createGameScene(k) {
         k.onKeyPress("1", () => { gameState.timeScale = 1; });
         k.onKeyPress("2", () => { gameState.timeScale = 2; });
         k.onKeyPress("3", () => { gameState.timeScale = 3; });
+        k.onKeyPress("4", () => { gameState.timeScale = 4; });
+        k.onKeyPress("5", () => { gameState.timeScale = 5; });
         k.onKeyPress("p", () => {
             gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
         });
@@ -766,7 +773,30 @@ export function createGameScene(k) {
 
             // Check unit selection (ships, ports, settlements)
             if (!clickedOnUnit) {
-                clickedOnUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPosLocal);
+                const clickedUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPosLocal);
+                clickedOnUnit = clickedUnit !== null;
+
+                // Handle double-click to select all ships of same type in view
+                if (clickedUnit && clickedUnit.type === 'ship') {
+                    const ship = gameState.ships[clickedUnit.index];
+                    const now = Date.now();
+
+                    if (ship.type === lastClickedShipType &&
+                        now - lastClickTime < DOUBLE_CLICK_THRESHOLD) {
+                        // Double-click detected - select all ships of this type in view
+                        selectAllShipsOfTypeInView(ship.type);
+                        lastClickedShipType = null;
+                        lastClickTime = 0;
+                    } else {
+                        // Single click - track for potential double-click
+                        lastClickedShipType = ship.type;
+                        lastClickTime = now;
+                    }
+                } else {
+                    // Clicked on non-ship or empty space - reset double-click tracking
+                    lastClickedShipType = null;
+                    lastClickTime = 0;
+                }
             }
 
             // If clicked on empty space...
@@ -843,6 +873,34 @@ export function createGameScene(k) {
             const count = gameState.selectedUnits.length;
             if (count > 0) {
                 console.log(`Selected ${count} unit(s)`);
+            }
+        }
+
+        // Select all ships of the same type currently visible on screen
+        function selectAllShipsOfTypeInView(shipType) {
+            const halfWidth = k.width() / 2;
+            const halfHeight = k.height() / 2;
+            clearSelection(gameState);
+
+            for (let i = 0; i < gameState.ships.length; i++) {
+                const ship = gameState.ships[i];
+                if (ship.type !== shipType) continue;
+                if (ship.type === 'pirate') continue;  // Don't select enemy ships
+
+                const pos = getShipVisualPosLocal(ship);
+                const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+                // Check if ship is on screen (with small margin)
+                if (screenX >= -50 && screenX <= k.width() + 50 &&
+                    screenY >= -50 && screenY <= k.height() + 50) {
+                    addToSelection(gameState, 'ship', i);
+                }
+            }
+
+            const count = gameState.selectedUnits.length;
+            if (count > 0) {
+                console.log(`Double-click: selected ${count} ${shipType}(s) in view`);
             }
         }
 

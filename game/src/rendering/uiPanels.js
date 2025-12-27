@@ -166,6 +166,23 @@ export function drawTimeIndicator(ctx, timeScale) {
 }
 
 /**
+ * Draw pirate kill counter at bottom center of screen
+ */
+export function drawPirateKillCounter(ctx, pirateKills) {
+    const { k, screenWidth, screenHeight } = ctx;
+
+    const label = `Pirates Sunk: ${pirateKills}`;
+    const textWidth = label.length * 8;  // Approximate width
+
+    k.drawText({
+        text: label,
+        pos: k.vec2(screenWidth / 2 - textWidth / 2, screenHeight - 25),
+        size: 16,
+        color: k.rgb(200, 80, 80),
+    });
+}
+
+/**
  * Draw ship info panel (bottom right, when single ship is selected)
  */
 export function drawShipInfoPanel(ctx, ship) {
@@ -1002,10 +1019,11 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 }
 
 /**
- * Draw all simple UI panels (resource, title, time)
+ * Draw all simple UI panels (resource, title, time, pirate kills)
  */
 export function drawSimpleUIPanels(ctx, gameState) {
     drawResourcePanel(ctx, gameState);
     drawGameTitle(ctx);
     drawTimeIndicator(ctx, gameState.timeScale);
+    drawPirateKillCounter(ctx, gameState.pirateKills);
 }
