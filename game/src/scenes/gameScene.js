@@ -28,6 +28,7 @@ import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
 import { updateCombat, updatePirateRespawns } from "../systems/combat.js";
+import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick,
@@ -35,9 +36,8 @@ import {
     handleUnitSelection, handleWaypointClick, handleAttackClick, handlePortRallyPointClick
 } from "../systems/inputHandler.js";
 
-// Game start configuration
-export const STARTING_PIRATES = 2;
-export const PIRATE_INITIAL_DELAY = 60;  // seconds before first pirates spawn
+// Default scenario config (used if none provided)
+import { getScenario, DEFAULT_SCENARIO_ID } from "../scenarios/index.js";
 
 // Decoration generation config
 const GRASS_MIN = 3;           // Minimum grass patches per hex
@@ -109,16 +109,25 @@ function drawHexRangeOutline(k, centerQ, centerR, range, cameraX, cameraY, zoom,
     }
 }
 
-export function createGameScene(k) {
+export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
     return function gameScene() {
+        // Get scenario configuration
+        const scenarioId = getScenarioId();
+        const scenario = getScenario(scenarioId);
+
         // Generate the map (random each time)
         const map = generateMap({
-            width: 60,
-            height: 60,
+            width: scenario.mapSize.width,
+            height: scenario.mapSize.height,
         });
 
-        // Initialize game state
-        const gameState = createGameState();
+        // Initialize game state with scenario config
+        const gameState = createGameState({
+            startingResources: scenario.startingResources,
+        });
+
+        // Store scenario reference for wave system
+        gameState.scenario = scenario;
 
         // Find starting position and place initial units
         const startTile = findStartingPosition(map);
@@ -129,9 +138,15 @@ export function createGameScene(k) {
             // Set home island - the landmass where the first port was placed
             gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
 
-            // Queue initial pirates to spawn after delay
-            for (let p = 0; p < STARTING_PIRATES; p++) {
-                gameState.pirateRespawnQueue.push({ timer: PIRATE_INITIAL_DELAY });
+            // Handle initial pirate spawning based on game mode
+            if (scenario.gameMode === 'sandbox') {
+                // Sandbox mode: queue initial pirates after delay
+                for (let p = 0; p < scenario.pirateConfig.startingCount; p++) {
+                    gameState.pirateRespawnQueue.push({ timer: scenario.pirateConfig.initialDelay });
+                }
+            } else if (scenario.gameMode === 'defend') {
+                // Defend mode: initialize wave timer
+                gameState.waveState.initialTimer = scenario.pirateConfig.initialDelay;
             }
         }
 
@@ -303,6 +318,7 @@ export function createGameScene(k) {
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
             updateCombat(hexToPixel, gameState, dt);
             updatePirateRespawns(gameState, map, createShip, hexKey, dt);
+            updateWaveSpawner(gameState, map, createShip, hexKey, dt);
 
             // Decay hit flash timers
             for (const ship of gameState.ships) {
@@ -481,7 +497,8 @@ export function createGameScene(k) {
             drawSelectionBox(ctx, isSelecting, selectStartX, selectStartY, selectEndX, selectEndY);
 
             // Draw simple UI panels (migrated to rendering module)
-            drawSimpleUIPanels(ctx, gameState);
+            const waveStatus = getWaveStatus(gameState);
+            drawSimpleUIPanels(ctx, gameState, waveStatus);
 
             // Build panel UI (when exactly one port is selected)
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');

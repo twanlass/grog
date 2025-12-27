@@ -435,8 +435,13 @@ function destroyShip(gameState, shipIndex) {
 
     // Queue pirate respawn and increment kill counter
     if (ship.type === 'pirate') {
-        gameState.pirateRespawnQueue.push({ timer: PIRATE_RESPAWN_COOLDOWN });
         gameState.pirateKills++;
+
+        // In sandbox mode, pirates respawn after a cooldown
+        // In defend mode, pirates don't respawn (waves handle spawning)
+        if (!gameState.scenario || gameState.scenario.gameMode !== 'defend') {
+            gameState.pirateRespawnQueue.push({ timer: PIRATE_RESPAWN_COOLDOWN });
+        }
     }
 
     // Remove from array

@@ -491,3 +491,6 @@ xn @ kaplay.js?v=8270b6e8:5276
 
 ## 131. User prompt
 > hmmm now I'm unable to change the ships waypoint during navigation. attempting to set a new waypoint deselects the ship. 
+
+## 132. User prompt
+> we're going to implement a new game mode, Defend, where the player must survive waves of enemy pirate ships. Before we do this, is our gameScene setup to support different levels or scenarios? Ideally we could select scenarios from the main menu. 

@@ -5,7 +5,9 @@ import { SETTLEMENTS } from "./sprites/settlements.js";
 import { TOWERS, TOWER_TECH_TREE } from "./sprites/towers.js";
 import { hexKey, hexNeighbors, hexDistance } from "./hex.js";
 
-export function createGameState() {
+export function createGameState(config = {}) {
+    const startingResources = config.startingResources || { wood: 25, food: 25 };
+
     return {
         // Player's ports: [{ type: 'dock'|'shipyard'|'stronghold', q, r }]
         ports: [],
@@ -21,8 +23,8 @@ export function createGameState() {
 
         // Resources
         resources: {
-            wood: 25,
-            food: 25,
+            wood: startingResources.wood,
+            food: startingResources.food,
         },
 
         // Time scale multiplier (1 = normal, 2 = 2x speed, 0 = paused)
@@ -62,6 +64,15 @@ export function createGameState() {
 
         // Pirate kill counter
         pirateKills: 0,
+
+        // Wave state (for defend mode)
+        waveState: {
+            currentWave: 0,          // Which wave we're on (0 = not started)
+            waveActive: false,       // Is a wave currently in progress?
+            rebuildTimer: 0,         // Countdown after wave cleared
+            initialTimer: 0,         // Countdown before first wave
+            waveStarted: false,      // Has the first wave been triggered?
+        },
 
         // Ship explosion effects: [{ q, r, age, duration }]
         shipExplosions: [],

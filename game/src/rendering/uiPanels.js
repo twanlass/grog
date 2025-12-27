@@ -183,6 +183,62 @@ export function drawPirateKillCounter(ctx, pirateKills) {
 }
 
 /**
+ * Draw wave status indicator for Defend mode (top center of screen)
+ */
+export function drawWaveStatus(ctx, waveStatus) {
+    if (!waveStatus) return;
+
+    const { k, screenWidth } = ctx;
+
+    // Background panel
+    const panelWidth = 200;
+    const panelHeight = 50;
+    const panelX = screenWidth / 2 - panelWidth / 2;
+    const panelY = 10;
+
+    k.drawRect({
+        pos: k.vec2(panelX, panelY),
+        width: panelWidth,
+        height: panelHeight,
+        color: k.rgb(20, 30, 40),
+        radius: 6,
+        opacity: 0.9,
+    });
+
+    // Wave number
+    const waveNum = waveStatus.wave || 1;
+    k.drawText({
+        text: `WAVE ${waveNum}`,
+        pos: k.vec2(screenWidth / 2, panelY + 15),
+        size: 16,
+        anchor: "center",
+        color: k.rgb(255, 200, 100),
+    });
+
+    // Status message
+    let statusColor;
+    let statusText;
+    if (waveStatus.phase === 'preparing') {
+        statusColor = k.rgb(100, 200, 255);
+        statusText = `Starting in ${waveStatus.timer}s`;
+    } else if (waveStatus.phase === 'active') {
+        statusColor = k.rgb(255, 100, 100);
+        statusText = `${waveStatus.remaining} pirates remaining`;
+    } else if (waveStatus.phase === 'rebuild') {
+        statusColor = k.rgb(100, 255, 150);
+        statusText = `Next wave in ${waveStatus.timer}s`;
+    }
+
+    k.drawText({
+        text: statusText,
+        pos: k.vec2(screenWidth / 2, panelY + 35),
+        size: 12,
+        anchor: "center",
+        color: statusColor,
+    });
+}
+
+/**
  * Draw ship info panel (bottom right, when single ship is selected)
  */
 export function drawShipInfoPanel(ctx, ship) {
@@ -1019,11 +1075,12 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 }
 
 /**
- * Draw all simple UI panels (resource, title, time, pirate kills)
+ * Draw all simple UI panels (resource, title, time, pirate kills, wave status)
  */
-export function drawSimpleUIPanels(ctx, gameState) {
+export function drawSimpleUIPanels(ctx, gameState, waveStatus = null) {
     drawResourcePanel(ctx, gameState);
     drawGameTitle(ctx);
     drawTimeIndicator(ctx, gameState.timeScale);
     drawPirateKillCounter(ctx, gameState.pirateKills);
+    drawWaveStatus(ctx, waveStatus);
 }
