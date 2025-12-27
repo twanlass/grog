@@ -544,3 +544,50 @@ export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTI
     }
     return false;
 }
+
+/**
+ * Handle Command+click to set rally point for selected ports
+ * Only sets rally point if ONLY ports are selected (no ships)
+ * @returns {boolean} true if rally point was set
+ */
+export function handlePortRallyPointClick(gameState, map, clickedHex) {
+    // If any ships are selected, let ship waypoint handler take over
+    const hasSelectedShips = gameState.selectedUnits.some(u => u.type === 'ship');
+    if (hasSelectedShips) return false;
+
+    // Get selected ports
+    const selectedPorts = gameState.selectedUnits
+        .filter(u => u.type === 'port')
+        .map(u => gameState.ports[u.index]);
+
+    if (selectedPorts.length === 0) return false;
+
+    // Find valid water target (same logic as ship waypoints)
+    let targetQ = clickedHex.q;
+    let targetR = clickedHex.r;
+    const tile = map.tiles.get(hexKey(clickedHex.q, clickedHex.r));
+
+    // If land, find nearest coast
+    if (tile && tile.type === 'land') {
+        const coast = findNearestWater(map, clickedHex.q, clickedHex.r);
+        if (coast) {
+            targetQ = coast.q;
+            targetR = coast.r;
+        } else {
+            return false; // No water found
+        }
+    }
+
+    // Set rally point for all selected ports
+    let setCount = 0;
+    for (const port of selectedPorts) {
+        port.rallyPoint = { q: targetQ, r: targetR };
+        setCount++;
+    }
+
+    if (setCount > 0) {
+        console.log(`Set rally point at (${targetQ}, ${targetR}) for ${setCount} port(s)`);
+        return true;
+    }
+    return false;
+}

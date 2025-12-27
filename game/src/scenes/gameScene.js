@@ -32,7 +32,7 @@ import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
-    handleUnitSelection, handleWaypointClick, handleAttackClick
+    handleUnitSelection, handleWaypointClick, handleAttackClick, handlePortRallyPointClick
 } from "../systems/inputHandler.js";
 
 // Game start configuration
@@ -772,8 +772,10 @@ export function createGameScene(k) {
             // If clicked on empty space...
             if (!clickedOnUnit) {
                 if (isCommandHeld) {
-                    // Command+click = set waypoint
-                    handleWaypointClick(gameState, map, clickedHex, isShiftHeld);
+                    // Command+click = set waypoint (try port rally point first, then ship waypoint)
+                    if (!handlePortRallyPointClick(gameState, map, clickedHex)) {
+                        handleWaypointClick(gameState, map, clickedHex, isShiftHeld);
+                    }
                 } else if (!isShiftHeld) {
                     // Regular click on empty = deselect
                     clearSelection(gameState);

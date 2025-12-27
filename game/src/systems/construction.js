@@ -42,6 +42,12 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
             if (waterTile) {
                 const ship = createShip(port.buildQueue.shipType, waterTile.q, waterTile.r);
                 gameState.ships.push(ship);
+
+                // If port has rally point, set ship's waypoint
+                if (port.rallyPoint) {
+                    ship.waypoint = { q: port.rallyPoint.q, r: port.rallyPoint.r };
+                }
+
                 const newShipSight = SHIPS[ship.type].sightDistance;
                 revealRadius(fogState, waterTile.q, waterTile.r, newShipSight);
                 port.buildQueue = null;

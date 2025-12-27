@@ -111,6 +111,7 @@ export function createPort(type, q, r, isConstructing = false, builderShipIndex 
         r,
         buildQueue: null,  // { shipType, progress, buildTime } | null
         storage: { wood: 0, food: 0 },  // Local resource storage for built ports
+        rallyPoint: null,  // { q, r } - waypoint for newly built ships
         // Port construction state (while being built by a ship)
         construction: isConstructing ? {
             progress: 0,

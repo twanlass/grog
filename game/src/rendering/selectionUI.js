@@ -109,6 +109,40 @@ function drawWaypointMarker(ctx, q, r) {
 }
 
 /**
+ * Draw rally point flag marker (for port spawn destinations)
+ */
+function drawRallyPointFlag(ctx, q, r) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
+    const pos = hexToPixel(q, r);
+    const screenX = (pos.x - cameraX) * zoom + halfWidth;
+    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+    const poleHeight = HEX_SIZE * zoom * 0.6;
+    const poleWidth = 2 * zoom;
+    const flagWidth = HEX_SIZE * zoom * 0.35;
+    const flagHeight = HEX_SIZE * zoom * 0.25;
+
+    const poleColor = k.rgb(80, 60, 40);  // Brown pole
+    const flagColor = k.rgb(200, 40, 40); // Red flag
+
+    // Draw pole (vertical line from center down)
+    k.drawLine({
+        p1: k.vec2(screenX, screenY),
+        p2: k.vec2(screenX, screenY - poleHeight),
+        width: poleWidth,
+        color: poleColor,
+    });
+
+    // Draw triangular flag at top of pole
+    k.drawTriangle({
+        p1: k.vec2(screenX, screenY - poleHeight),           // Top of pole
+        p2: k.vec2(screenX + flagWidth, screenY - poleHeight + flagHeight / 2), // Right point
+        p3: k.vec2(screenX, screenY - poleHeight + flagHeight), // Bottom of flag on pole
+        color: flagColor,
+    });
+}
+
+/**
  * Draw dashed path from ship to waypoint
  */
 function drawDashedPath(ctx, path, startScreenX, startScreenY) {
@@ -413,6 +447,15 @@ export function drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, select
 
     // Draw additional ship-specific indicators (waypoints, attack targets, paths)
     drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLocal);
+
+    // Draw port rally point indicators (flag instead of X)
+    for (let i = 0; i < gameState.ports.length; i++) {
+        if (!isSelected(gameState, 'port', i)) continue;
+        const port = gameState.ports[i];
+        if (port.rallyPoint) {
+            drawRallyPointFlag(ctx, port.rallyPoint.q, port.rallyPoint.r);
+        }
+    }
 
     // Draw tower attack range indicators
     drawTowerSelectionIndicators(ctx, gameState);

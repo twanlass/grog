@@ -648,3 +648,16 @@ gameScene.js:788 [Click] End - selectedUnits=1
 
 ## 151. User prompt
 > okay, so the ship stays visually selected, but I"m unable to set a new waypoint / trigger the ship to change it's path while a current waypoitn is set
+
+## 152. User prompt
+> let's implement a new feature: for ports, allow a waypoint to be set for newly built ships. 
+1. When selecting a port, allow user to command + left click to set a waypoint (just like ships)
+2. When a new ship is built, spawn it like normal, but have it navigate to the chosen waypoint then stop
+
+This feature allows a player to choose where newly spawned ships should collect 
+
+## 153. User prompt
+> one update – for the rally point, instead of rendering a red x, coudl we render a red flag? 
+
+## 154. User prompt
+> one more update: when selecting both a port and ship, when a user command + left clicks, set a waypoitn for the selected ships, don't modify the port rally point. Only allow a port rally point to be set if just the port is selected. 
