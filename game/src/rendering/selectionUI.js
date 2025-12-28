@@ -117,28 +117,13 @@ function drawRallyPointFlag(ctx, q, r) {
     const screenX = (pos.x - cameraX) * zoom + halfWidth;
     const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
-    const poleHeight = HEX_SIZE * zoom * 0.6;
-    const poleWidth = 2 * zoom;
-    const flagWidth = HEX_SIZE * zoom * 0.35;
-    const flagHeight = HEX_SIZE * zoom * 0.25;
+    const scale = zoom * 1.5;
 
-    const poleColor = k.rgb(80, 60, 40);  // Brown pole
-    const flagColor = k.rgb(200, 40, 40); // Red flag
-
-    // Draw pole (vertical line from center down)
-    k.drawLine({
-        p1: k.vec2(screenX, screenY),
-        p2: k.vec2(screenX, screenY - poleHeight),
-        width: poleWidth,
-        color: poleColor,
-    });
-
-    // Draw triangular flag at top of pole
-    k.drawTriangle({
-        p1: k.vec2(screenX, screenY - poleHeight),           // Top of pole
-        p2: k.vec2(screenX + flagWidth, screenY - poleHeight + flagHeight / 2), // Right point
-        p3: k.vec2(screenX, screenY - poleHeight + flagHeight), // Bottom of flag on pole
-        color: flagColor,
+    k.drawSprite({
+        sprite: "rally-point",
+        pos: k.vec2(screenX, screenY),
+        anchor: "center",
+        scale: k.vec2(scale, scale),
     });
 }
 

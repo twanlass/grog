@@ -3,16 +3,19 @@ import { hexToPixel, HEX_SIZE } from "../hex.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { isHexRevealed } from "../fogOfWar.js";
 import { getShipVisualPos } from "../systems/shipMovement.js";
+import { getHomePortIndex } from "../gameState.js";
 import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js";
 
 /**
  * Draw all ports
  */
-export function drawPorts(ctx, gameState) {
+export function drawPorts(ctx, gameState, map) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
     const unitScale = zoom * 1.5;
+    const homePortIndex = getHomePortIndex(gameState, map);
 
-    for (const port of gameState.ports) {
+    for (let i = 0; i < gameState.ports.length; i++) {
+        const port = gameState.ports[i];
         const pos = hexToPixel(port.q, port.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
@@ -22,34 +25,50 @@ export function drawPorts(ctx, gameState) {
             screenY < -100 || screenY > ctx.screenHeight + 100) continue;
 
         const portData = PORTS[port.type];
-        const spriteSize = getSpriteSize(portData.sprite, unitScale);
-
-        // Draw port sprite (semi-transparent if under construction)
         const isConstructing = port.construction !== null;
-        drawSprite(k, portData.sprite,
-            screenX - spriteSize.width / 2,
-            screenY - spriteSize.height / 2,
-            unitScale,
-            isConstructing ? 0.5 : 1.0);
+        const isHomePort = (i === homePortIndex);
 
-        // Draw hit flash overlay
-        if (port.hitFlash > 0) {
-            drawSpriteFlash(k, portData.sprite,
+        // Use PNG sprite for home port dock, otherwise pixel art
+        if (isHomePort && portData.imageSprite) {
+            const spriteScale = zoom * (portData.spriteScale || 1);
+            // Frame 0 = normal, Frame 1 = flash (white silhouette)
+            const frame = port.hitFlash > 0 ? 1 : 0;
+            k.drawSprite({
+                sprite: portData.imageSprite,
+                frame: frame,
+                pos: k.vec2(screenX, screenY),
+                anchor: "center",
+                scale: spriteScale,
+                opacity: isConstructing ? 0.5 : 1.0,
+            });
+        } else {
+            // Pixel art rendering
+            const spriteSize = getSpriteSize(portData.sprite, unitScale);
+            drawSprite(k, portData.sprite,
                 screenX - spriteSize.width / 2,
                 screenY - spriteSize.height / 2,
-                unitScale, port.hitFlash / 0.15);
+                unitScale,
+                isConstructing ? 0.5 : 1.0);
+
+            // Draw hit flash overlay (only for pixel art)
+            if (port.hitFlash > 0) {
+                drawSpriteFlash(k, portData.sprite,
+                    screenX - spriteSize.width / 2,
+                    screenY - spriteSize.height / 2,
+                    unitScale, port.hitFlash / 0.15);
+            }
         }
 
-        // Draw port CONSTRUCTION progress bar
+        // Draw port CONSTRUCTION progress bar (below unit, same distance as health bar is above)
         if (port.construction) {
-            const barY = screenY - spriteSize.height / 2 - 20 * zoom;
+            const barY = screenY + 43 * zoom;
             const progress = Math.min(port.construction.progress / port.construction.buildTime, 1);
             drawConstructionProgressBar(ctx, screenX, barY, progress);
         }
 
-        // Draw ship build progress bar if building a ship
+        // Draw ship build progress bar if building a ship (below unit)
         if (port.buildQueue) {
-            const barY = screenY - spriteSize.height / 2 - 20 * zoom;
+            const barY = screenY + 43 * zoom;
             const progress = Math.min(port.buildQueue.progress / port.buildQueue.buildTime, 1);
             drawConstructionProgressBar(ctx, screenX, barY, progress);
         }
@@ -83,9 +102,9 @@ export function drawSettlements(ctx, gameState) {
             unitScale,
             isConstructing ? 0.5 : 1.0);
 
-        // Draw settlement CONSTRUCTION progress bar
+        // Draw settlement CONSTRUCTION progress bar (below unit)
         if (settlement.construction) {
-            const barY = screenY - spriteSize.height / 2 - 20 * zoom;
+            const barY = screenY + 43 * zoom;
             const progress = Math.min(settlement.construction.progress / settlement.construction.buildTime, 1);
             drawConstructionProgressBar(ctx, screenX, barY, progress);
         }
@@ -127,9 +146,9 @@ export function drawTowers(ctx, gameState) {
                 isConstructing ? 0.5 : 1.0);
         }
 
-        // Draw tower CONSTRUCTION progress bar
+        // Draw tower CONSTRUCTION progress bar (below unit)
         if (tower.construction) {
-            const barY = screenY - spriteSize.height / 2 - 20 * zoom;
+            const barY = screenY + 43 * zoom;
             const progress = Math.min(tower.construction.progress / tower.construction.buildTime, 1);
             drawConstructionProgressBar(ctx, screenX, barY, progress);
         }

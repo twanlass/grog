@@ -363,26 +363,49 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
         const barHeight = 5 * zoom;
         const barY = screenY - 43 * zoom;  // 35 + 8 to clear selection highlight
 
-        const healthPercent = Math.max(0, entity.health / maxHealth);
+        // Check if unit is repairing - show repair bar instead of health bar
+        if (entity.repair) {
+            const repairPercent = Math.max(0, entity.repair.progress / entity.repair.totalTime);
 
-        // Background bar (dark)
-        k.drawRect({
-            pos: k.vec2(screenX - barWidth / 2, barY),
-            width: barWidth,
-            height: barHeight,
-            color: k.rgb(40, 40, 40),
-            radius: 2,
-        });
+            // Background bar (dark)
+            k.drawRect({
+                pos: k.vec2(screenX - barWidth / 2, barY),
+                width: barWidth,
+                height: barHeight,
+                color: k.rgb(40, 40, 40),
+                radius: 2,
+            });
 
-        // Health fill (red to green gradient based on health)
-        const r = Math.floor(255 * (1 - healthPercent));
-        const g = Math.floor(180 * healthPercent);
-        k.drawRect({
-            pos: k.vec2(screenX - barWidth / 2, barY),
-            width: barWidth * healthPercent,
-            height: barHeight,
-            color: k.rgb(r, g, 40),
-            radius: 2,
-        });
+            // Repair progress fill (cyan/blue)
+            k.drawRect({
+                pos: k.vec2(screenX - barWidth / 2, barY),
+                width: barWidth * repairPercent,
+                height: barHeight,
+                color: k.rgb(80, 180, 220),
+                radius: 2,
+            });
+        } else {
+            const healthPercent = Math.max(0, entity.health / maxHealth);
+
+            // Background bar (dark)
+            k.drawRect({
+                pos: k.vec2(screenX - barWidth / 2, barY),
+                width: barWidth,
+                height: barHeight,
+                color: k.rgb(40, 40, 40),
+                radius: 2,
+            });
+
+            // Health fill (red to green gradient based on health)
+            const r = Math.floor(255 * (1 - healthPercent));
+            const g = Math.floor(180 * healthPercent);
+            k.drawRect({
+                pos: k.vec2(screenX - barWidth / 2, barY),
+                width: barWidth * healthPercent,
+                height: barHeight,
+                color: k.rgb(r, g, 40),
+                radius: 2,
+            });
+        }
     }
 }

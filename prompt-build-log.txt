@@ -497,3 +497,83 @@ xn @ kaplay.js?v=8270b6e8:5276
 
 ## 133. User prompt
 > can you check the UI panel for towers? It looks like the upgrade costs 75 wood, but in towers.js the upgrade cost is only 25. Maybe the fonts just too small to read or maybe the panel doesn't read from the tower metadata and is hard coded. See screenshot: 
+
+## 134. User prompt
+> 1. clear cache, restart dev server 
+2. yea, lets bump font size to 10 for all panels
+
+## 135. User prompt
+> let's replace the sprite for the dock port for the home island with the newly added home-port.png. We should render it like we the cutter and other units w/ sprite images  
+
+## 136. User prompt
+> home-port is a two image sprite; left image is default state, right image is flash attacked state (just like the pirate ship and cutter sprites)
+
+## 137. User prompt
+> little visual improvment: when a unit is building something: 
+1. Remove / don't render the "builing" text above it
+2. Render the building loading bar (blue bar) below the unit so that it doesn't overlap w/ the health bar; the same distance below as the health bar is above
+3. Update the building loading bar to be the same thickness/height as the health bar
+
+## 138. User prompt
+> let's update the Defend game mode: if the home port is destroyed the game is over (player loses)
+
+## 139. User prompt
+> let's add hotkey for building Cutters (C)
+
+## 140. User prompt
+> add the hotkey to build panel like it is for other units (settlements, watchtower): 
+
+## 141. User prompt
+> re-arange the port panel items order: 
+1. Settlement
+2. Ships
+3. Watchtower
+4. Upgrades 
+
+## 142. User prompt
+> Let's introduce a repair mechanic for units: 
+1. with a unit selected, show a Repair option in the panel; "R" is the hotkey
+2. Use the units built time for how long a repair takes (build in reverse essentially)
+3. Repair stops when health is back to 100%
+4. While a unit is repairing it can't navigate or fire. So ships are stuck in place and can't attack; towers can't fire, etc. 
+
+## 143. User prompt
+> can we replace the health bar w/ the repair bar while repairing?
+
+## 144. User prompt
+> crash: Set rally point at (16, 20) for 1 port(s)
+2inputHandler.js:447 Selected ship: cutter
+gameScene.js:1043 Double-click: selected 3 cutter(s) in view
+construction.js:54 Ship built: cutter at (19, 21)
+inputHandler.js:447 Selected ship: cutter
+inputHandler.js:601 4 ship(s) attacking pirate at (20, 21)
+inputHandler.js:447 Selected ship: pirate
+kaplay.js?v=c855e41f:5276 TypeError: Cannot read properties of undefined (reading 'wood')
+    at getRepairCost (repair.js:71:40)
+    at drawShipInfoPanel (uiPanels.js:437:28)
+    at Object.<anonymous> (gameScene.js:552:39)
+    at n (kaplay.js?v=c855e41f:1281:29)
+    at kaplay.js?v=c855e41f:1297:15
+    at rn.forEach (<anonymous>)
+    at re.trigger (kaplay.js?v=c855e41f:1296:19)
+    at ze.trigger (kaplay.js?v=c855e41f:1328:42)
+    at Object.trigger (kaplay.js?v=c855e41f:3863:7)
+    at Object.draw (kaplay.js?v=c855e41f:3763:17)
+
+## 145. User prompt
+> now that the repair bar replaces the health bar while repairing, we can remove the duplicate repair bar in the panel bottom right 
+
+## 146. User prompt
+> let's also 2x the repair time. makes it valuable but not easy and more of a last resort. 
+
+## 147. User prompt
+> ive added a custom sprite for the port rally point icon called game/src/sprites/assets/rally-point.png 
+
+## 148. User prompt
+> what's the cost to repair a unit? 
+
+## 149. User prompt
+> make sure that units can still take damange, even while repairing 
+
+## 150. User prompt
+> document the repair feature in docs

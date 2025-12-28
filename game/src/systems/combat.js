@@ -124,6 +124,7 @@ function handlePlayerAttacks(gameState, dt) {
         const ship = gameState.ships[i];
         if (ship.type === 'pirate') continue;  // Skip pirates (handled by handlePirateAttacks)
         if (isShipBuilding(i, gameState)) continue;  // Can't attack while building
+        if (ship.repair) continue;  // Can't attack while repairing
 
         // Always decrement cooldown for player ships (even when not in combat)
         if (ship.attackCooldown > 0) {
@@ -168,8 +169,9 @@ function handleTowerAttacks(gameState, dt) {
     for (let i = 0; i < gameState.towers.length; i++) {
         const tower = gameState.towers[i];
 
-        // Skip towers under construction
+        // Skip towers under construction or being repaired
         if (tower.construction) continue;
+        if (tower.repair) continue;
 
         const towerData = TOWERS[tower.type];
 

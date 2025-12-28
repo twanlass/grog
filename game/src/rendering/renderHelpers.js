@@ -59,16 +59,16 @@ export function drawProgressBar(ctx, screenX, screenY, progress, options = {}) {
 }
 
 /**
- * Draw construction progress bar with "BUILDING" label
+ * Draw construction progress bar (no label, matches health bar thickness)
  * Common pattern used for ports, settlements, and towers under construction
  */
 export function drawConstructionProgressBar(ctx, screenX, screenY, progress) {
     drawProgressBar(ctx, screenX, screenY, progress, {
-        width: 50,
-        height: 8,
+        width: 40,
+        height: 5,
         bgColor: { r: 40, g: 40, b: 40 },
         fillColor: { r: 80, g: 180, b: 220 },
-        label: "BUILDING",
+        radius: 2,
     });
 }
 

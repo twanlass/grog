@@ -28,6 +28,12 @@
 - [ ] cursor upgrades: show hand when spacebar pressed; show sword when cmd click on ship
 - [ ] don't render waves at edge of world
 - [ ] do a scale pass on structures and boats. Pirate ships are huge. The largest ship should probably be 75% of a hex. Ports should be a full hex. 
+- [ ] Add hotkey for ship building
+- [ ] the primary port should look different, be bigger; want to comm that this is where ships should return goods etc for traderoutes 
+
+### Bugs
+- [ ] render build, health bars on top of units
+- [ ] render birds above everything
 
 ### Defend notes 
 - [ ] Cutters are probably too strong; maybe 1 cutter is worth 1/2 a pirate ship

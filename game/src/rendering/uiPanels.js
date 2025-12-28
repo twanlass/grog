@@ -1,6 +1,7 @@
 // UI panel rendering: resource panel, build panels, ship info panel
 import { drawSprite, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford } from "../gameState.js";
+import { getRepairCost, getRepairTime } from "../systems/repair.js";
 import {
     drawPanelContainer,
     drawStatusBadge,
@@ -240,17 +241,32 @@ export function drawWaveStatus(ctx, waveStatus) {
 
 /**
  * Draw ship info panel (bottom right, when single ship is selected)
+ * Returns bounds for repair button click detection
  */
-export function drawShipInfoPanel(ctx, ship) {
-    if (!ship) return;
+export function drawShipInfoPanel(ctx, ship, gameState) {
+    if (!ship) return null;
 
     const { k, screenWidth, screenHeight } = ctx;
     const shipData = SHIPS[ship.type];
+    const maxHealth = shipData.health;
+    const isDamaged = ship.health < maxHealth;
+    const isRepairing = !!ship.repair;
+    const canRepair = ship.type !== 'pirate';  // Pirates can't be repaired
 
+    // Calculate panel height based on whether repair button is shown (not when already repairing - bar shows above unit)
+    const repairSectionHeight = (canRepair && isDamaged && !isRepairing) ? 50 : 0;
     const infoPanelWidth = 140;
-    const infoPanelHeight = 130;
+    const infoPanelHeight = 130 + repairSectionHeight;
     const infoPanelX = screenWidth - infoPanelWidth - 15;
     const infoPanelY = screenHeight - infoPanelHeight - 50;
+
+    const bounds = {
+        x: infoPanelX,
+        y: infoPanelY,
+        width: infoPanelWidth,
+        height: infoPanelHeight,
+        repairButton: null,
+    };
 
     // Panel background
     k.drawRect({
@@ -340,7 +356,7 @@ export function drawShipInfoPanel(ctx, ship) {
         k.drawText({
             text: statusText,
             pos: k.vec2(infoPanelX + infoPanelWidth / 2, badgeY + badgeHeight / 2),
-            size: 9,
+            size: 10,
             anchor: "center",
             color: statusColor,
         });
@@ -355,7 +371,7 @@ export function drawShipInfoPanel(ctx, ship) {
     k.drawText({
         text: "CARGO",
         pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 48),
-        size: 9,
+        size: 10,
         anchor: "center",
         color: k.rgb(120, 120, 120),
     });
@@ -389,6 +405,64 @@ export function drawShipInfoPanel(ctx, ship) {
     const maxCooldown = shipData.fireCooldown;
 
     drawCooldownBar(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 96, 100, cooldown, maxCooldown);
+
+    // Repair button (only if damaged and not already repairing - repair bar shows above unit)
+    if (canRepair && isDamaged && !isRepairing && gameState) {
+        // Show repair button
+        const repairCost = getRepairCost('ship', ship);
+        const canAffordRepair = gameState.resources.wood >= repairCost.wood &&
+                               gameState.resources.food >= repairCost.food;
+
+        k.drawLine({
+            p1: k.vec2(infoPanelX + 10, infoPanelY + 115),
+            p2: k.vec2(infoPanelX + infoPanelWidth - 10, infoPanelY + 115),
+            width: 1,
+            color: k.rgb(60, 70, 80),
+        });
+
+        const btnY = infoPanelY + 122;
+        const btnHeight = 36;
+        const mousePos = k.mousePos();
+
+        bounds.repairButton = { y: btnY, height: btnHeight };
+
+        const isHovered = canAffordRepair &&
+            mousePos.x >= infoPanelX && mousePos.x <= infoPanelX + infoPanelWidth &&
+            mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+        // Button background
+        k.drawRect({
+            pos: k.vec2(infoPanelX + 5, btnY),
+            width: infoPanelWidth - 10,
+            height: btnHeight,
+            color: isHovered ? k.rgb(60, 80, 60) : k.rgb(40, 50, 60),
+            radius: 4,
+        });
+
+        // Repair text
+        const costColor = canAffordRepair ? k.rgb(180, 200, 180) : k.rgb(200, 100, 100);
+        k.drawText({
+            text: "Repair (R)",
+            pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 12),
+            size: 10,
+            anchor: "center",
+            color: canAffordRepair ? k.rgb(200, 220, 200) : k.rgb(150, 150, 150),
+        });
+
+        // Cost
+        const costText = repairCost.food > 0
+            ? `${repairCost.wood} wood, ${repairCost.food} food`
+            : `${repairCost.wood} wood`;
+        k.drawText({
+            text: costText,
+            pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 26),
+            size: 9,
+            anchor: "center",
+            color: costColor,
+        });
+    }
+
+    return bounds;
 }
 
 /**
@@ -401,11 +475,16 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
     const { k, screenWidth, screenHeight } = ctx;
     const towerData = TOWERS[tower.type];
     const nextTowerType = getNextTowerType(tower.type);
-    const canUpgrade = nextTowerType && !tower.construction;
+    const canUpgrade = nextTowerType && !tower.construction && !tower.repair;
+    const maxHealth = towerData.health;
+    const isDamaged = tower.health < maxHealth;
+    const isRepairing = !!tower.repair;
 
     const infoPanelWidth = 160;
     const upgradeHeight = canUpgrade ? 50 : 0;
-    const infoPanelHeight = 100 + upgradeHeight;
+    // Only show repair button when damaged and not already repairing (repair bar shows above unit)
+    const repairHeight = (isDamaged && !isRepairing) && !tower.construction ? 50 : 0;
+    const infoPanelHeight = 100 + upgradeHeight + repairHeight;
     const infoPanelX = screenWidth - infoPanelWidth - 15;
     const infoPanelY = screenHeight - infoPanelHeight - 50;
 
@@ -415,6 +494,7 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
         width: infoPanelWidth,
         height: infoPanelHeight,
         upgradeButton: null,
+        repairButton: null,
     };
 
     // Panel background
@@ -443,7 +523,7 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
         k.drawText({
             text: statusText,
             pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 36),
-            size: 9,
+            size: 10,
             anchor: "center",
             color: k.rgb(220, 180, 80),
         });
@@ -470,7 +550,7 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
         k.drawText({
             text: `${progressPercent}%`,
             pos: k.vec2(infoPanelX + infoPanelWidth / 2, barY + 18),
-            size: 9,
+            size: 10,
             anchor: "center",
             color: k.rgb(180, 150, 80),
         });
@@ -546,7 +626,62 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
             k.drawText({
                 text: `${nextTowerData.cost.wood} wood`,
                 pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 26),
-                size: 9,
+                size: 10,
+                anchor: "center",
+                color: costColor,
+            });
+        }
+
+        // Repair button (only if damaged and not repairing - repair bar shows above unit)
+        if (isDamaged && !isRepairing) {
+            // Show repair button
+            const repairCost = getRepairCost('tower', tower);
+            const canAffordRepair = gameState.resources.wood >= repairCost.wood &&
+                                   gameState.resources.food >= repairCost.food;
+
+            const repairY = infoPanelY + 85 + upgradeHeight;
+
+            k.drawLine({
+                p1: k.vec2(infoPanelX + 10, repairY),
+                p2: k.vec2(infoPanelX + infoPanelWidth - 10, repairY),
+                width: 1,
+                color: k.rgb(60, 70, 80),
+            });
+
+            const btnY = repairY + 5;
+            const btnHeight = 36;
+            const mousePos = k.mousePos();
+
+            bounds.repairButton = { y: btnY, height: btnHeight };
+
+            const isHovered = canAffordRepair &&
+                mousePos.x >= infoPanelX && mousePos.x <= infoPanelX + infoPanelWidth &&
+                mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+            // Button background
+            k.drawRect({
+                pos: k.vec2(infoPanelX + 5, btnY),
+                width: infoPanelWidth - 10,
+                height: btnHeight,
+                color: isHovered ? k.rgb(60, 80, 60) : k.rgb(40, 50, 60),
+                radius: 4,
+            });
+
+            // Repair text
+            const costColor = canAffordRepair ? k.rgb(180, 200, 180) : k.rgb(200, 100, 100);
+            k.drawText({
+                text: "Repair (R)",
+                pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 12),
+                size: 10,
+                anchor: "center",
+                color: canAffordRepair ? k.rgb(200, 220, 200) : k.rgb(150, 150, 150),
+            });
+
+            // Cost
+            k.drawText({
+                text: `${repairCost.wood} wood`,
+                pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 26),
+                size: 10,
                 anchor: "center",
                 color: costColor,
             });
@@ -738,7 +873,7 @@ export function drawPortStorage(ctx, port, panelX, panelWidth, panelY) {
     k.drawText({
         text: "wood",
         pos: k.vec2(panelX + panelWidth / 4, panelY + 46),
-        size: 9,
+        size: 10,
         anchor: "center",
         color: k.rgb(120, 80, 40),
     });
@@ -754,7 +889,7 @@ export function drawPortStorage(ctx, port, panelX, panelWidth, panelY) {
     k.drawText({
         text: "food",
         pos: k.vec2(panelX + panelWidth * 3 / 4, panelY + 46),
-        size: 9,
+        size: 10,
         anchor: "center",
         color: k.rgb(50, 120, 50),
     });
@@ -895,6 +1030,10 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
     const { k, screenHeight } = ctx;
     const { isPortBuildingSettlement: checkBuildingSettlement } = helpers;
+    const portData = PORTS[port.type];
+    const maxHealth = portData.health;
+    const isDamaged = port.health < maxHealth;
+    const isRepairing = !!port.repair;
 
     // Handle construction/upgrading status
     if (port.construction) {
@@ -907,7 +1046,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const nextPortType = getNextPortType(port.type);
     const isBuildingSettlement = checkBuildingSettlement(portIndex, gameState.settlements);
     const portBusy = port.buildQueue || isBuildingSettlement;
-    const canUpgrade = nextPortType && !portBusy;
+    const canUpgrade = nextPortType && !portBusy && !isRepairing;
     const canBuildSettlement = !isBuildingSettlement && !gameState.settlementBuildMode.active;
     const canBuildDefense = !gameState.towerBuildMode.active;
 
@@ -921,10 +1060,13 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const shipBuildStatusHeight = 70; // Height of the ship build status display
     const shipButtonsHeight = bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight;
     const shipSectionHeight = port.buildQueue ? shipBuildStatusHeight : shipButtonsHeight;
-    const upgradeHeight = canUpgrade ? (bpHeaderHeight + bpRowHeight) : 0;
     const settlementHeight = canBuildSettlement ? (bpHeaderHeight + bpRowHeight) : 0;
     const defenseHeight = canBuildDefense ? (bpHeaderHeight + bpRowHeight) : 0; // Just Watchtower
-    const bpHeight = storageHeight + shipSectionHeight + bpPadding + upgradeHeight + settlementHeight + defenseHeight;
+    const upgradeHeight = canUpgrade ? (bpHeaderHeight + bpRowHeight) : 0;
+    // Only show repair button when damaged and not already repairing (repair bar shows above unit)
+    const repairHeight = (isDamaged && !isRepairing) ? 50 : 0;
+    // New order: Settlement, Ships, Watchtower, Upgrades, Repair
+    const bpHeight = storageHeight + settlementHeight + shipSectionHeight + bpPadding + defenseHeight + upgradeHeight + repairHeight;
     const bpX = 15;
     const bpY = screenHeight - 50 - bpHeight;
 
@@ -937,6 +1079,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         upgradeButton: null,
         settlementButton: null,
         towerButton: null,
+        repairButton: null,
         portIndex: portIndex,
     };
 
@@ -956,82 +1099,25 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
     const mousePos = k.mousePos();
 
-    // Ship building in progress - show status instead of buttons
-    if (port.buildQueue) {
-        drawShipBuildingStatus(ctx, port, bpX, bpWidth, bpY + storageHeight);
-    } else {
-        // Build ship section
-        k.drawText({
-            text: "BUILD SHIP",
-            pos: k.vec2(bpX + bpWidth / 2, bpY + storageHeight + 14),
-            size: 11,
-            anchor: "center",
-            color: k.rgb(150, 150, 150),
-        });
+    // Track current Y position for sections (after storage)
+    let currentY = bpY + storageHeight;
 
-        // Ship buttons
-        for (let i = 0; i < buildableShips.length; i++) {
-            const shipType = buildableShips[i];
-            const shipData = SHIPS[shipType];
-            const btnY = bpY + storageHeight + bpHeaderHeight + bpPadding + i * bpRowHeight;
-            const btnHeight = bpRowHeight - 4;
-            const affordable = canAfford(gameState.resources, shipData.cost);
-            const canBuildShip = affordable && !port.buildQueue;
-
-            bounds.buttons.push({ y: btnY, height: btnHeight, shipType: shipType });
-
-            const isHovered = canBuildShip && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
-                              mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
-
-            drawPanelButton(ctx, bpX, bpWidth, btnY, btnHeight, shipData, shipData.name,
-                shipData.cost, shipData.build_time, isHovered, canBuildShip);
-        }
-    }
-
-    // Upgrade section
-    if (canUpgrade) {
-        const upgradeY = bpY + storageHeight + shipSectionHeight + bpPadding;
-        const nextPortData = PORTS[nextPortType];
-        const upgradeAffordable = canAfford(gameState.resources, nextPortData.cost);
-
-        drawPanelSeparator(ctx, bpX, bpWidth, upgradeY);
-        k.drawText({
-            text: "UPGRADE",
-            pos: k.vec2(bpX + bpWidth / 2, upgradeY + 8),
-            size: 10,
-            anchor: "center",
-            color: k.rgb(150, 150, 150),
-        });
-
-        const upgradeBtnY = upgradeY + bpHeaderHeight;
-        const upgradeBtnHeight = bpRowHeight - 4;
-        bounds.upgradeButton = { y: upgradeBtnY, height: upgradeBtnHeight, portType: nextPortType };
-
-        const isUpgradeHovered = upgradeAffordable && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
-                                 mousePos.y >= upgradeBtnY && mousePos.y <= upgradeBtnY + upgradeBtnHeight;
-
-        drawPanelButton(ctx, bpX, bpWidth, upgradeBtnY, upgradeBtnHeight, nextPortData, nextPortData.name,
-            nextPortData.cost, nextPortData.buildTime, isUpgradeHovered, upgradeAffordable);
-    }
-
-    // Settlement section
+    // 1. Settlement section (first)
     if (canBuildSettlement) {
-        const settlementY = bpY + storageHeight + shipSectionHeight + bpPadding + upgradeHeight;
         const settlementData = SETTLEMENTS.settlement;
         const alreadyBuildingSettlement = isBuildingSettlement;
         const settlementAffordable = canAfford(gameState.resources, settlementData.cost);
         const canBuildSettlementNow = settlementAffordable && !alreadyBuildingSettlement;
 
-        drawPanelSeparator(ctx, bpX, bpWidth, settlementY);
         k.drawText({
             text: "BUILD SETTLEMENT",
-            pos: k.vec2(bpX + bpWidth / 2, settlementY + 10),
+            pos: k.vec2(bpX + bpWidth / 2, currentY + 10),
             size: 11,
             anchor: "center",
             color: k.rgb(150, 150, 150),
         });
 
-        const settlementBtnY = settlementY + bpHeaderHeight;
+        const settlementBtnY = currentY + bpHeaderHeight;
         const settlementBtnHeight = bpRowHeight - 4;
         bounds.settlementButton = { y: settlementBtnY, height: settlementBtnHeight };
 
@@ -1042,25 +1128,61 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         const settlementName = alreadyBuildingSettlement ? `${settlementData.name} (building...)` : `${settlementData.name} (S)`;
         drawPanelButton(ctx, bpX, bpWidth, settlementBtnY, settlementBtnHeight, settlementData, settlementName,
             settlementData.cost, settlementData.buildTime, isSettlementHovered, canBuildSettlementNow);
+
+        currentY += settlementHeight;
     }
 
-    // Defense section (Watchtower only - upgrades via tower panel)
-    if (canBuildDefense) {
-        const defenseY = bpY + storageHeight + shipSectionHeight + bpPadding + upgradeHeight + settlementHeight;
-        const watchtowerData = TOWERS.watchtower;
-        const towerAffordable = canAfford(gameState.resources, watchtowerData.cost);
-
-        drawPanelSeparator(ctx, bpX, bpWidth, defenseY);
+    // 2. Ship section
+    if (port.buildQueue) {
+        drawShipBuildingStatus(ctx, port, bpX, bpWidth, currentY);
+        currentY += shipSectionHeight;
+    } else {
+        drawPanelSeparator(ctx, bpX, bpWidth, currentY);
         k.drawText({
-            text: "BUILD DEFENSE",
-            pos: k.vec2(bpX + bpWidth / 2, defenseY + 10),
+            text: "BUILD SHIP",
+            pos: k.vec2(bpX + bpWidth / 2, currentY + 14),
             size: 11,
             anchor: "center",
             color: k.rgb(150, 150, 150),
         });
 
-        // Watchtower button
-        const towerBtnY = defenseY + bpHeaderHeight;
+        // Ship buttons
+        for (let i = 0; i < buildableShips.length; i++) {
+            const shipType = buildableShips[i];
+            const shipData = SHIPS[shipType];
+            const btnY = currentY + bpHeaderHeight + bpPadding + i * bpRowHeight;
+            const btnHeight = bpRowHeight - 4;
+            const affordable = canAfford(gameState.resources, shipData.cost);
+            const canBuildShip = affordable && !port.buildQueue;
+
+            bounds.buttons.push({ y: btnY, height: btnHeight, shipType: shipType });
+
+            const isHovered = canBuildShip && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                              mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+            // Add hotkey hint to ship name (C for Cutter)
+            const hotkey = shipType === 'cutter' ? ' (C)' : '';
+            drawPanelButton(ctx, bpX, bpWidth, btnY, btnHeight, shipData, shipData.name + hotkey,
+                shipData.cost, shipData.build_time, isHovered, canBuildShip);
+        }
+        currentY += shipSectionHeight;
+    }
+
+    // 3. Defense section (Watchtower only - upgrades via tower panel)
+    if (canBuildDefense) {
+        const watchtowerData = TOWERS.watchtower;
+        const towerAffordable = canAfford(gameState.resources, watchtowerData.cost);
+
+        drawPanelSeparator(ctx, bpX, bpWidth, currentY);
+        k.drawText({
+            text: "BUILD DEFENSE",
+            pos: k.vec2(bpX + bpWidth / 2, currentY + 10),
+            size: 11,
+            anchor: "center",
+            color: k.rgb(150, 150, 150),
+        });
+
+        const towerBtnY = currentY + bpHeaderHeight;
         const towerBtnHeight = bpRowHeight - 4;
         bounds.towerButton = { y: towerBtnY, height: towerBtnHeight };
 
@@ -1069,6 +1191,85 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
         drawPanelButton(ctx, bpX, bpWidth, towerBtnY, towerBtnHeight, watchtowerData, `${watchtowerData.name} (T)`,
             watchtowerData.cost, watchtowerData.buildTime, isTowerHovered, towerAffordable);
+
+        currentY += defenseHeight;
+    }
+
+    // 4. Upgrade section
+    if (canUpgrade) {
+        const nextPortData = PORTS[nextPortType];
+        const upgradeAffordable = canAfford(gameState.resources, nextPortData.cost);
+
+        drawPanelSeparator(ctx, bpX, bpWidth, currentY);
+        k.drawText({
+            text: "UPGRADE",
+            pos: k.vec2(bpX + bpWidth / 2, currentY + 8),
+            size: 10,
+            anchor: "center",
+            color: k.rgb(150, 150, 150),
+        });
+
+        const upgradeBtnY = currentY + bpHeaderHeight;
+        const upgradeBtnHeight = bpRowHeight - 4;
+        bounds.upgradeButton = { y: upgradeBtnY, height: upgradeBtnHeight, portType: nextPortType };
+
+        const isUpgradeHovered = upgradeAffordable && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                                 mousePos.y >= upgradeBtnY && mousePos.y <= upgradeBtnY + upgradeBtnHeight;
+
+        drawPanelButton(ctx, bpX, bpWidth, upgradeBtnY, upgradeBtnHeight, nextPortData, nextPortData.name,
+            nextPortData.cost, nextPortData.buildTime, isUpgradeHovered, upgradeAffordable);
+
+        currentY += upgradeHeight;
+    }
+
+    // 5. Repair button (only if damaged and not repairing - repair bar shows above unit)
+    if (isDamaged && !isRepairing) {
+        // Show repair button
+        const repairCost = getRepairCost('port', port);
+        const canAffordRepair = gameState.resources.wood >= repairCost.wood &&
+                               gameState.resources.food >= repairCost.food;
+
+        drawPanelSeparator(ctx, bpX, bpWidth, currentY);
+
+        const btnY = currentY + 7;
+        const btnHeight = 36;
+
+        bounds.repairButton = { y: btnY, height: btnHeight };
+
+        const isHovered = canAffordRepair &&
+            mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+            mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+        // Button background
+        k.drawRect({
+            pos: k.vec2(bpX + 5, btnY),
+            width: bpWidth - 10,
+            height: btnHeight,
+            color: isHovered ? k.rgb(60, 80, 60) : k.rgb(40, 50, 60),
+            radius: 4,
+        });
+
+        // Repair text
+        const costColor = canAffordRepair ? k.rgb(180, 200, 180) : k.rgb(200, 100, 100);
+        k.drawText({
+            text: "Repair (R)",
+            pos: k.vec2(bpX + bpWidth / 2, btnY + 12),
+            size: 10,
+            anchor: "center",
+            color: canAffordRepair ? k.rgb(200, 220, 200) : k.rgb(150, 150, 150),
+        });
+
+        // Cost
+        const costText = repairCost.food > 0
+            ? `${repairCost.wood} wood, ${repairCost.food} food`
+            : `${repairCost.wood} wood`;
+        k.drawText({
+            text: costText,
+            pos: k.vec2(bpX + bpWidth / 2, btnY + 26),
+            size: 9,
+            anchor: "center",
+            color: costColor,
+        });
     }
 
     return bounds;

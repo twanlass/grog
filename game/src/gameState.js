@@ -86,6 +86,9 @@ export function createGameState(config = {}) {
         // Home island - the landmass where the first port was placed
         // Used to determine which port is the "home port" (most recent port on this island)
         homeIslandHex: null,  // { q, r } - a reference hex on the home island
+
+        // Game over state (for defend mode)
+        gameOver: null,  // null = playing, 'win' = victory, 'lose' = defeated
     };
 }
 
@@ -114,6 +117,8 @@ export function createShip(type, q, r) {
         health: SHIPS[type].health,  // Current health (from ship metadata)
         attackCooldown: 0,           // Timer for shot cooldown
         attackTarget: null,          // { type: 'ship', index } for player ships attacking pirates
+        // Repair state
+        repair: null,  // { progress, totalTime, healthToRestore } | null
     };
 }
 
@@ -134,6 +139,8 @@ export function createPort(type, q, r, isConstructing = false, builderShipIndex 
         } : null,
         // Combat state
         health: PORTS[type].health,  // Current health (from port metadata)
+        // Repair state
+        repair: null,  // { progress, totalTime, healthToRestore } | null
     };
 }
 
@@ -544,6 +551,8 @@ export function createTower(type, q, r, isConstructing = false, builderShipIndex
             buildTime: TOWERS[type].buildTime,
             builderShipIndex: builderShipIndex,
         } : null,
+        // Repair state
+        repair: null,  // { progress, totalTime, healthToRestore } | null
     };
 }
 

@@ -56,6 +56,9 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
     }
 
     for (const ship of gameState.ships) {
+        // Skip ships being repaired (can't move while repairing)
+        if (ship.repair) continue;
+
         // Check if player ship is in attack range of its target
         if (ship.attackTarget && ship.attackTarget.type === 'ship') {
             const target = gameState.ships[ship.attackTarget.index];

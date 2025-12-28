@@ -169,7 +169,7 @@ export const SHIPS = {
         name: "Pirate Ship",
         sprite: PIRATE,
         imageSprite: "pirate",
-        spriteScale: 1.25,
+        spriteScale: 1,
         speed: 1,
         cargo: 4,
         combat: 4,

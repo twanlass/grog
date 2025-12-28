@@ -66,6 +66,8 @@ export const PORTS = {
     dock: {
         name: "Dock",
         sprite: DOCK,
+        imageSprite: "home-port",  // PNG sprite for home island dock
+        spriteScale: 1.5,
         capacity: 2,
         health: 50,
         canBuild: ["Cutter"],

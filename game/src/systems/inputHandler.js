@@ -11,6 +11,7 @@ import {
 } from "../gameState.js";
 import { hexKey } from "../hex.js";
 import { findNearestWater } from "../pathfinding.js";
+import { startRepair } from "./repair.js";
 
 /**
  * Handle click in port placement mode
@@ -214,11 +215,23 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         }
     }
 
+    // Check repair button
+    if (bp.repairButton) {
+        const rbtn = bp.repairButton;
+        if (mouseY >= rbtn.y && mouseY <= rbtn.y + rbtn.height) {
+            const port = gameState.ports[bp.portIndex];
+            if (startRepair('port', port, gameState.resources)) {
+                console.log(`Started repairing port`);
+            }
+            return true;
+        }
+    }
+
     return true; // Clicked panel but not on a button
 }
 
 /**
- * Handle click on tower info panel (for tower upgrades)
+ * Handle click on tower info panel (for tower upgrades and repair)
  * @returns {boolean} true if handled
  */
 export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState) {
@@ -243,6 +256,54 @@ export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, 
                     deductCost(gameState.resources, nextTowerData.cost);
                     startTowerUpgrade(tower);
                     console.log(`Started upgrading tower to: ${ubtn.towerType}`);
+                }
+            }
+            return true;
+        }
+    }
+
+    // Check repair button
+    if (tip.repairButton) {
+        const rbtn = tip.repairButton;
+        if (mouseY >= rbtn.y && mouseY <= rbtn.y + rbtn.height) {
+            const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
+            if (selectedTowerIndices.length === 1) {
+                const towerIdx = selectedTowerIndices[0].index;
+                const tower = gameState.towers[towerIdx];
+                if (startRepair('tower', tower, gameState.resources)) {
+                    console.log(`Started repairing tower`);
+                }
+            }
+            return true;
+        }
+    }
+
+    return true; // Clicked panel but not on a button
+}
+
+/**
+ * Handle click on ship info panel (for ship repair)
+ * @returns {boolean} true if handled
+ */
+export function handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState) {
+    if (!shipInfoPanelBounds) return false;
+
+    const sip = shipInfoPanelBounds;
+    if (mouseX < sip.x || mouseX > sip.x + sip.width ||
+        mouseY < sip.y || mouseY > sip.y + sip.height) {
+        return false;
+    }
+
+    // Check repair button
+    if (sip.repairButton) {
+        const rbtn = sip.repairButton;
+        if (mouseY >= rbtn.y && mouseY <= rbtn.y + rbtn.height) {
+            const selectedShipIndices = gameState.selectedUnits.filter(u => u.type === 'ship');
+            if (selectedShipIndices.length === 1) {
+                const shipIdx = selectedShipIndices[0].index;
+                const ship = gameState.ships[shipIdx];
+                if (startRepair('ship', ship, gameState.resources)) {
+                    console.log(`Started repairing ship`);
                 }
             }
             return true;

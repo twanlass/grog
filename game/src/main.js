@@ -36,6 +36,15 @@ k.loadSprite("pirate", "src/sprites/assets/pirate.png", {
     sliceY: 1,
 });
 
+// Load port sprites (2 frames: normal, flash)
+k.loadSprite("home-port", "src/sprites/assets/home-port.png", {
+    sliceX: 2,
+    sliceY: 1,
+});
+
+// Load UI sprites
+k.loadSprite("rally-point", "src/sprites/assets/rally-point.png");
+
 // Register scenes
 k.scene("title", () => {
     // Title text

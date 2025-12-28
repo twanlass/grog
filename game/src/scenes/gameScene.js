@@ -29,9 +29,11 @@ import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
 import { updateCombat, updatePirateRespawns } from "../systems/combat.js";
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
+import { updateRepair } from "../systems/repair.js";
+import { startRepair } from "../systems/repair.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
-    handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick,
+    handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick, handleShipInfoPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
     handleUnitSelection, handleWaypointClick, handleAttackClick, handlePortRallyPointClick
 } from "../systems/inputHandler.js";
@@ -193,6 +195,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         let shipBuildPanelBounds = null;  // For ship's port build panel
         let settlementBuildPanelBounds = null;  // For settlement build button in port panel
         let towerInfoPanelBounds = null;  // For tower upgrade button
+        let shipInfoPanelBounds = null;  // For ship repair button
 
         // Floating numbers for resource generation animation
         const floatingNumbers = [];
@@ -305,8 +308,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             const rawDt = k.dt();
             const dt = rawDt * gameState.timeScale;
 
-            // Update stipple animation (always runs, even when paused)
+            // Update stipple animation (always runs, even when paused or game over)
             stippleAnimTime += rawDt;
+
+            // Skip game updates when game is over
+            if (gameState.gameOver) return;
 
             // Delegate to game systems
             updateShipMovement(hexToPixel, gameState, map, fogState, dt);
@@ -317,6 +323,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             updateConstruction(gameState, map, fogState, dt);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
             updateCombat(hexToPixel, gameState, dt);
+            updateRepair(gameState, dt);
             updatePirateRespawns(gameState, map, createShip, hexKey, dt);
             updateWaveSpawner(gameState, map, createShip, hexKey, dt);
 
@@ -380,11 +387,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 }
             }
 
-            // Check for game over: all player ships and ports destroyed
+            // Check for game over conditions
             const playerShips = gameState.ships.filter(s => s.type !== 'pirate');
+
+            // Defend mode: lose if home port is destroyed
+            if (scenario && scenario.gameMode === 'defend' && !gameState.gameOver) {
+                const homePortIndex = getHomePortIndex(gameState, map);
+                if (homePortIndex === null) {
+                    gameState.gameOver = 'lose';
+                }
+            }
+
+            // Generic game over: all player ships and ports destroyed
             if (playerShips.length === 0 && gameState.ports.length === 0) {
-                k.go("game"); // Restart
-                return;
+                gameState.gameOver = 'lose';
             }
 
             // Animate birds
@@ -442,7 +458,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             drawFogOfWar(ctx, map, tilePositions, fogState);
 
             // Draw ports (migrated to rendering module)
-            drawPorts(ctx, gameState);
+            drawPorts(ctx, gameState, map);
 
             // Draw settlements (migrated to rendering module)
             drawSettlements(ctx, gameState);
@@ -530,9 +546,55 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             }
 
             // Ship info panel (bottom right, when ship is selected)
+            shipInfoPanelBounds = null;
             if (selectedShipIndices.length === 1 && selectedTowerIndices.length === 0) {
                 const ship = gameState.ships[selectedShipIndices[0].index];
-                drawShipInfoPanel(ctx, ship);
+                shipInfoPanelBounds = drawShipInfoPanel(ctx, ship, gameState);
+            }
+
+            // Game over overlay
+            if (gameState.gameOver) {
+                const screenWidth = k.width();
+                const screenHeight = k.height();
+
+                // Semi-transparent overlay
+                k.drawRect({
+                    pos: k.vec2(0, 0),
+                    width: screenWidth,
+                    height: screenHeight,
+                    color: k.rgb(0, 0, 0),
+                    opacity: 0.7,
+                });
+
+                // Game over text
+                const isLose = gameState.gameOver === 'lose';
+                const title = isLose ? "DEFEATED" : "VICTORY";
+                const subtitle = isLose ? "Your home port was destroyed" : "You survived!";
+                const titleColor = isLose ? k.rgb(200, 60, 60) : k.rgb(60, 200, 60);
+
+                k.drawText({
+                    text: title,
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 - 40),
+                    size: 48,
+                    anchor: "center",
+                    color: titleColor,
+                });
+
+                k.drawText({
+                    text: subtitle,
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 + 10),
+                    size: 18,
+                    anchor: "center",
+                    color: k.rgb(180, 180, 180),
+                });
+
+                k.drawText({
+                    text: "Press SPACE to restart",
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 + 60),
+                    size: 14,
+                    anchor: "center",
+                    color: k.rgb(120, 120, 120),
+                });
             }
         });
 
@@ -684,6 +746,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
         });
 
+        // Space to restart when game over
+        k.onKeyPress("space", () => {
+            if (gameState.gameOver) {
+                k.go("game", { scenarioId });
+            }
+        });
+
         // ESC to cancel placement modes or deselect all units
         k.onKeyPress("escape", () => {
             if (gameState.portBuildMode.active) {
@@ -723,6 +792,26 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             }
         });
 
+        // Hotkey 'C' to build a Cutter when port panel is open
+        k.onKeyPress("c", () => {
+            if (buildPanelBounds?.buttons) {
+                const cutterButton = buildPanelBounds.buttons.find(b => b.shipType === 'cutter');
+                if (cutterButton) {
+                    const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
+                    if (selectedPortIndices.length === 1) {
+                        const portIdx = selectedPortIndices[0].index;
+                        const port = gameState.ports[portIdx];
+                        const shipData = SHIPS.cutter;
+                        if (!port.buildQueue && canAfford(gameState.resources, shipData.cost)) {
+                            deductCost(gameState.resources, shipData.cost);
+                            startBuilding(port, 'cutter');
+                            console.log("Started building: cutter (hotkey C)");
+                        }
+                    }
+                }
+            }
+        });
+
         // Hotkey 'U' to upgrade selected tower
         k.onKeyPress("u", () => {
             if (towerInfoPanelBounds?.upgradeButton) {
@@ -746,6 +835,39 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             }
         });
 
+        // Hotkey 'R' to repair selected unit
+        k.onKeyPress("r", () => {
+            // Ship repair
+            const selectedShipIndices = gameState.selectedUnits.filter(u => u.type === 'ship');
+            if (selectedShipIndices.length === 1 && shipInfoPanelBounds?.repairButton) {
+                const ship = gameState.ships[selectedShipIndices[0].index];
+                if (startRepair('ship', ship, gameState.resources)) {
+                    console.log("Started repairing ship (hotkey R)");
+                }
+                return;
+            }
+
+            // Tower repair
+            const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
+            if (selectedTowerIndices.length === 1 && towerInfoPanelBounds?.repairButton) {
+                const tower = gameState.towers[selectedTowerIndices[0].index];
+                if (startRepair('tower', tower, gameState.resources)) {
+                    console.log("Started repairing tower (hotkey R)");
+                }
+                return;
+            }
+
+            // Port repair
+            const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
+            if (selectedPortIndices.length === 1 && buildPanelBounds?.repairButton) {
+                const port = gameState.ports[selectedPortIndices[0].index];
+                if (startRepair('port', port, gameState.resources)) {
+                    console.log("Started repairing port (hotkey R)");
+                }
+                return;
+            }
+        });
+
         // Click handler for selection and waypoints - delegates to input handler helpers
         function handleClick() {
             const mouseX = k.mousePos().x;
@@ -760,6 +882,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) return;
             if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) return;
             if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) return;
+            if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) return;
 
             // Convert to world coordinates
             const worldX = (mouseX - k.width() / 2) / zoom + cameraX;
