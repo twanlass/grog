@@ -3,7 +3,7 @@ import { findFreeAdjacentWater, isShipAdjacentToPort, getCargoSpace, cancelTrade
 import { SHIPS } from "../sprites/index.js";
 
 // Loading/unloading speed
-const LOAD_TIME_PER_UNIT = 1.0;  // seconds per wood/food unit
+const LOAD_TIME_PER_UNIT = 1.0;  // seconds per wood unit
 
 // Dock retry interval for waiting ships
 const DOCK_RETRY_INTERVAL = 2.0;
@@ -31,7 +31,7 @@ export function updateTradeRoutes(gameState, map, dt) {
         }
 
         // Initialize cargo if not present (for ships created before this feature)
-        if (!ship.cargo) ship.cargo = { wood: 0, food: 0 };
+        if (!ship.cargo) ship.cargo = { wood: 0 };
 
         const isAtForeignPort = isShipAdjacentToPort(ship, foreignPort) && !ship.waypoint;
         const isAtHomePort = isShipAdjacentToPort(ship, homePort) && !ship.waypoint;
@@ -49,46 +49,16 @@ export function updateTradeRoutes(gameState, map, dt) {
                     const space = getCargoSpace(ship, SHIPS);
                     if (space <= 0) break;
 
-                    // Ratio-based loading: load whichever resource is further behind target
-                    const ds = ship.dockingState;
-                    const woodNeeded = ds.targetWood - ds.woodLoaded;
-                    const foodNeeded = ds.targetFood - ds.foodLoaded;
-
-                    let loaded = false;
-                    // Prefer loading whichever is further behind (or either if equal)
-                    if (woodNeeded >= foodNeeded && foreignPort.storage.wood > 0) {
+                    if (foreignPort.storage.wood > 0) {
                         foreignPort.storage.wood--;
                         ship.cargo.wood++;
-                        ds.woodLoaded++;
-                        ds.unitsTransferred++;
-                        loaded = true;
-                    } else if (foodNeeded > 0 && foreignPort.storage.food > 0) {
-                        foreignPort.storage.food--;
-                        ship.cargo.food++;
-                        ds.foodLoaded++;
-                        ds.unitsTransferred++;
-                        loaded = true;
-                    }
-
-                    // Fallback if preferred resource ran out
-                    if (!loaded) {
-                        if (foreignPort.storage.wood > 0) {
-                            foreignPort.storage.wood--;
-                            ship.cargo.wood++;
-                            ds.woodLoaded++;
-                            ds.unitsTransferred++;
-                        } else if (foreignPort.storage.food > 0) {
-                            foreignPort.storage.food--;
-                            ship.cargo.food++;
-                            ds.foodLoaded++;
-                            ds.unitsTransferred++;
-                        }
+                        ship.dockingState.unitsTransferred++;
                     }
                 }
             }
 
             // Check if loading complete
-            const portEmpty = foreignPort.storage.wood === 0 && foreignPort.storage.food === 0;
+            const portEmpty = foreignPort.storage.wood === 0;
             const cargoFull = getCargoSpace(ship, SHIPS) === 0;
             const expectedDuration = ship.dockingState.totalUnits * LOAD_TIME_PER_UNIT;
 
@@ -123,21 +93,16 @@ export function updateTradeRoutes(gameState, map, dt) {
             if (unitsToUnload > ship.dockingState.unitsTransferred) {
                 const toUnload = unitsToUnload - ship.dockingState.unitsTransferred;
                 for (let i = 0; i < toUnload; i++) {
-                    // Unload wood first, then food
                     if (ship.cargo.wood > 0) {
                         ship.cargo.wood--;
                         gameState.resources.wood++;
-                        ship.dockingState.unitsTransferred++;
-                    } else if (ship.cargo.food > 0) {
-                        ship.cargo.food--;
-                        gameState.resources.food++;
                         ship.dockingState.unitsTransferred++;
                     }
                 }
             }
 
             // Check if unloading complete
-            const cargoEmpty = ship.cargo.wood === 0 && ship.cargo.food === 0;
+            const cargoEmpty = ship.cargo.wood === 0;
             const expectedDuration = ship.dockingState.totalUnits * LOAD_TIME_PER_UNIT;
 
             if (cargoEmpty || ship.dockingState.progress >= expectedDuration) {
@@ -164,17 +129,11 @@ export function updateTradeRoutes(gameState, map, dt) {
 
         // Handle arrival at foreign port (start loading)
         if (isAtForeignPort && !ship.dockingState) {
-            const availableResources = foreignPort.storage.wood + foreignPort.storage.food;
+            const availableResources = foreignPort.storage.wood;
             const space = getCargoSpace(ship, SHIPS);
             const toLoad = Math.min(availableResources, space);
 
             if (toLoad > 0) {
-                // Calculate target amounts based on port's resource ratio
-                const totalInPort = foreignPort.storage.wood + foreignPort.storage.food;
-                const woodRatio = totalInPort > 0 ? foreignPort.storage.wood / totalInPort : 0.5;
-                const targetWood = Math.round(toLoad * woodRatio);
-                const targetFood = toLoad - targetWood;
-
                 // Start loading
                 ship.dockingState = {
                     action: 'loading',
@@ -182,11 +141,6 @@ export function updateTradeRoutes(gameState, map, dt) {
                     totalUnits: toLoad,
                     unitsTransferred: 0,
                     targetPortIndex: ship.tradeRoute.foreignPortIndex,
-                    // Ratio-based loading targets
-                    targetWood: targetWood,
-                    targetFood: targetFood,
-                    woodLoaded: 0,
-                    foodLoaded: 0,
                 };
             }
             // If no resources, ship just waits (checked each frame)
@@ -195,7 +149,7 @@ export function updateTradeRoutes(gameState, map, dt) {
 
         // Handle arrival at home port (start unloading)
         if (isAtHomePort && !ship.dockingState) {
-            const cargoTotal = ship.cargo.wood + ship.cargo.food;
+            const cargoTotal = ship.cargo.wood;
 
             if (cargoTotal > 0) {
                 // Start unloading
@@ -230,7 +184,7 @@ export function updateTradeRoutes(gameState, map, dt) {
         // Catch-all: ship has trade route but is stuck (no waypoint, not at either port, not waiting)
         // This can happen if pathfinding failed - try to navigate again
         if (!ship.waypoint && !ship.dockingState && !ship.waitingForDock) {
-            const cargoTotal = ship.cargo.wood + ship.cargo.food;
+            const cargoTotal = ship.cargo.wood;
             // Decide where to go based on cargo
             const targetPort = cargoTotal > 0 ? homePort : foreignPort;
             const targetPortIndex = cargoTotal > 0 ? ship.tradeRoute.homePortIndex : ship.tradeRoute.foreignPortIndex;
@@ -272,7 +226,7 @@ function updatePendingUnloads(gameState, map, dt) {
         if (!ship.pendingUnload) continue;
 
         // Initialize cargo if not present
-        if (!ship.cargo) ship.cargo = { wood: 0, food: 0 };
+        if (!ship.cargo) ship.cargo = { wood: 0 };
 
         const isAtHomePort = isShipAdjacentToPort(ship, homePort) && !ship.waypoint;
 
@@ -289,16 +243,12 @@ function updatePendingUnloads(gameState, map, dt) {
                         ship.cargo.wood--;
                         gameState.resources.wood++;
                         ship.dockingState.unitsTransferred++;
-                    } else if (ship.cargo.food > 0) {
-                        ship.cargo.food--;
-                        gameState.resources.food++;
-                        ship.dockingState.unitsTransferred++;
                     }
                 }
             }
 
             // Check if unloading complete
-            const cargoEmpty = ship.cargo.wood === 0 && ship.cargo.food === 0;
+            const cargoEmpty = ship.cargo.wood === 0;
             const expectedDuration = ship.dockingState.totalUnits * LOAD_TIME_PER_UNIT;
 
             if (cargoEmpty || ship.dockingState.progress >= expectedDuration) {
@@ -310,7 +260,7 @@ function updatePendingUnloads(gameState, map, dt) {
 
         // Start unloading when ship arrives at home port
         if (isAtHomePort && !ship.dockingState) {
-            const cargoTotal = ship.cargo.wood + ship.cargo.food;
+            const cargoTotal = ship.cargo.wood;
 
             if (cargoTotal > 0) {
                 ship.dockingState = {

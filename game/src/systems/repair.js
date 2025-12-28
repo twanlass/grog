@@ -48,7 +48,7 @@ export function updateRepair(gameState, dt) {
  * Calculate repair cost for a unit
  * @param {string} unitType - 'ship', 'port', or 'tower'
  * @param {object} unit - The unit object
- * @returns {{ wood: number, food: number }} Repair cost
+ * @returns {{ wood: number }} Repair cost
  */
 export function getRepairCost(unitType, unit) {
     let metadata, maxHealth;
@@ -69,7 +69,6 @@ export function getRepairCost(unitType, unit) {
 
     return {
         wood: Math.ceil((metadata.cost.wood || 0) * damagePercent),
-        food: Math.ceil((metadata.cost.food || 0) * damagePercent),
     };
 }
 
@@ -133,13 +132,12 @@ export function startRepair(unitType, unit, resources) {
     const cost = getRepairCost(unitType, unit);
 
     // Check if can afford
-    if (resources.wood < cost.wood || resources.food < cost.food) {
+    if (resources.wood < cost.wood) {
         return false;
     }
 
     // Deduct cost
     resources.wood -= cost.wood;
-    resources.food -= cost.food;
 
     // Start repair
     const repairTime = getRepairTime(unitType, unit);

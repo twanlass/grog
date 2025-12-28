@@ -577,3 +577,135 @@ kaplay.js?v=c855e41f:5276 TypeError: Cannot read properties of undefined (readin
 
 ## 150. User prompt
 > document the repair feature in docs
+
+## 151. User prompt
+> how does the cannonBattery targeting work? Does it target a single unit at a time? 
+
+## 152. User prompt
+> Let's plan out a random loot drop mechanic. The idea is that when a pirate ship is destroyed it can leave behind a food or wood drop that can then be touched by a player ship to collect and add to the global store. It should be a % chance that a drop occurs. 
+
+## 153. User prompt
+> Lets simplfy. just drop barrels; each barrel should be worth 20 wood. Increase drop chance to 33%.  
+
+## 154. User prompt
+> quick update to our repair mechanic: don't allow structures (ports) to do anything else while repairing (can't creat ships or settlements, etc)
+
+## 155. User prompt
+> hmmm. If I click a port, press "R", it starts repairing, I'm still seeing it's panel and can still press "C" to create a cutter
+
+## 156. User prompt
+> let's swap out the loot barrel sprite for the newly added barrel.png
+
+## 157. User prompt
+> one more update to repair mode – the port panel still shows menu items for build things as active. Can make them inactive (since you can't click them anyway?
+
+## 158. User prompt
+> let's reduce the size of cannonballs by 15% overall. 
+
+## 159. User prompt
+> can we add a sightDistance const to ports.js so that we can configure how much fog of war they reveal when built
+
+## 160. User prompt
+> for the lootdrop barrels, remove the glow circle underneath; slow down the bob animation by half
+
+## 161. User prompt
+> quick edits to the end game defeat screen: 
+1. don't allow anything to be clicked on (treat the mask as a click trap; player can only press space to continue)
+
+## 162. User prompt
+> update the settlement sprite w/ the newly added settlement.png
+
+## 163. User prompt
+> let's update the lootdrop mechanic a bit: 
+1. leave barrels until collected; they dont' vanish
+2. remove the +20 text above the barrel 
+3. increase the sprite size to 1.25
+4. add a yellow sparkle particle effect when collected to make it more obvious 
+
+## 164. User prompt
+> we're going to refactor our economy. First things first, let's remove food: 
+- remove from the UI (top right)
+- remove from build panels
+- settlements now only generate wood
+- ships only cost wood
+- etc 
+
+## 165. User prompt
+> let's update the controls to allow for right clicking as an alternative to command + left click. This will allow players to right click on pirates with ships selected to attack, etc 
+
+## 166. User prompt
+> crash: Selected port: dock
+inputHandler.js:165 Started building: cutter
+construction.js:54 Ship built: cutter at (29, 24)
+inputHandler.js:449 Selected ship: cutter
+inputHandler.js:603 1 ship(s) attacking pirate at (31, 24)
+inputHandler.js:468 Selected port: dock
+inputHandler.js:200 Entering settlement placement mode from port 0
+kaplay.js?v=c855e41f:5276 TypeError: Cannot read properties of undefined (reading 'q')
+    at drawSettlementPlacementMode (placementUI.js:128:51)
+    at drawAllPlacementUI (placementUI.js:245:5)
+    at Object.<anonymous> (gameScene.js:532:13)
+    at n (kaplay.js?v=c855e41f:1281:29)
+    at kaplay.js?v=c855e41f:1297:15
+    at rn.forEach (<anonymous>)
+    at re.trigger (kaplay.js?v=c855e41f:1296:19)
+    at ze.trigger (kaplay.js?v=c855e41f:1328:42)
+    at Object.trigger (kaplay.js?v=c855e41f:3863:7)
+    at Object.draw (kaplay.js?v=c855e41f:3763:17)
+xn @ kaplay.js?v=c855e41f:5276
+
+## 167. User prompt
+> one more control update - right click drag should pan the camera 
+
+## 168. User prompt
+> lets add a hotkey: when "H" is pressed, snapped the camera back to the home port (centered)
+
+## 169. User prompt
+> in sandbox mode, how long until the pirates first spawn?
+
+## 170. User prompt
+> small bug with ports: only the very first port built (or initially spawned) should use the the home-port.png sprite 
+
+## 171. User prompt
+> let's add a new resource to our economy: Crew. It's a simple cap that limits how many ships can be built. Here's how it works: 
+1. Ports and settlements contribute to the Crew cap. 1 port adds 40 to the crew cap. 1 settlement adds 5 to the crew cap. 
+2. Ships deduct from the crew cap. When a ship, like a Cutter, is built, it deducts 5 from the cap. It not enough crew is available a ship can't be built. 
+3. When a ship is destroyed, it frees up crew cap. For example, when a cutter is destroyed, crew cap is incremented by 5
+4. when ports or settlements are destroyed, the crew cap is reduced. 
+5. Towers for now should also require 5 crew. 
+6. Show crew in the top right next to wood. Show it as a fraction: total crew used over available like 5/40  
+ 
+
+## 172. User prompt
+> sweet! Let's update the stockpile UI to use some new sprites for wood and crew respectivly: 
+- resource-wood.png and resource-crew.png
+
+## 173. User prompt
+> lets update the settlement generation +number that appears above them on each iteration: 
+- have the number full opacity rise up above the settlement
+- pause for 2 seconds
+- then fade out
+
+
+This should make it easier to read / see 
+
+## 174. User prompt
+> set the font size to 12px; can we do white text w/ black outline? Can we show our resource-wood sprite to the right of it? So it reads "[sprite] +5"
+
+## 175. User prompt
+> have it rise 8 px above the settlement (its too high right now). Let's also bump the font to 12px 
+
+## 176. User prompt
+> bump the fontsize to 14px. Set the rise to be same distnace from the unit as we do for healthbars on units 
+
+## 177. User prompt
+> update the fontsize to 16px
+
+## 178. User prompt
+> let's also show a similar thing when a settlement or port is first built "[resource-crew-sprite] +5"
+
+## 179. User prompt
+> don't scale the sprite; render it at 1x; also add a little more spacing between the sprite and the floating number
+
+## 180. User prompt
+> can we animate it up with an ease-out function (not linear)?

@@ -17,7 +17,7 @@ function seededRandom(seed) {
     return x - Math.floor(x);
 }
 import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
-import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars } from "../rendering/effectsRenderer.js";
+import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
 import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel } from "../rendering/uiPanels.js";
@@ -113,6 +113,9 @@ function drawHexRangeOutline(k, centerQ, centerR, range, cameraX, cameraY, zoom,
 
 export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
     return function gameScene() {
+        // Prevent browser context menu on right-click
+        k.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
         // Get scenario configuration
         const scenarioId = getScenarioId();
         const scenario = getScenario(scenarioId);
@@ -183,8 +186,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         let lastClickedShipType = null;
         const DOUBLE_CLICK_THRESHOLD = 350;  // milliseconds
 
-        // Pan state (right-drag)
+        // Pan state (spacebar+left-drag or right-drag)
         let isPanning = false;
+        let isRightMouseDown = false;
         let panStartX = 0;
         let panStartY = 0;
         let cameraStartX = 0;
@@ -320,7 +324,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             const homePort = homePortIdx !== null ? gameState.ports[homePortIdx] : null;
             updatePirateAI(gameState, map, homePort, dt); // Pirates patrol near home port
             updateTradeRoutes(gameState, map, dt);
-            updateConstruction(gameState, map, fogState, dt);
+            updateConstruction(gameState, map, fogState, dt, floatingNumbers);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
             updateCombat(hexToPixel, gameState, dt);
             updateRepair(gameState, dt);
@@ -376,6 +380,19 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 gameState.floatingDebris[i].age += dt;
                 if (gameState.floatingDebris[i].age >= gameState.floatingDebris[i].duration) {
                     gameState.floatingDebris.splice(i, 1);
+                }
+            }
+
+            // Update loot drop animation age (no expiration)
+            for (const loot of gameState.lootDrops) {
+                loot.age += dt;
+            }
+
+            // Update loot sparkle effects
+            for (let i = gameState.lootSparkles.length - 1; i >= 0; i--) {
+                gameState.lootSparkles[i].age += dt;
+                if (gameState.lootSparkles[i].age >= gameState.lootSparkles[i].duration) {
+                    gameState.lootSparkles.splice(i, 1);
                 }
             }
 
@@ -477,6 +494,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
             // Draw floating debris (migrated to rendering module)
             drawFloatingDebris(ctx, gameState.floatingDebris);
+
+            // Draw loot drops
+            drawLootDrops(ctx, gameState.lootDrops);
+
+            // Draw loot collection sparkles
+            drawLootSparkles(ctx, gameState.lootSparkles);
 
             // Draw unit hover highlight (before units so it appears underneath)
             drawUnitHoverHighlight(ctx, gameState, getShipVisualPosLocal, SELECTION_RADIUS);
@@ -600,6 +623,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
         // Left-click/drag for selection or panning (spacebar + left-click)
         k.onMousePress("left", () => {
+            if (gameState.gameOver) return; // Block clicks when game over
             isLeftMouseDown = true;
 
             // Spacebar + left-click = pan mode
@@ -619,6 +643,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         });
 
         k.onMouseRelease("left", () => {
+            if (gameState.gameOver) return; // Block clicks when game over
             if (isPanning) {
                 // End panning
                 isPanning = false;
@@ -639,29 +664,64 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             isSelecting = false;
         });
 
-        // Right-click to cancel placement modes
+        // Right-click for panning (drag) or commands (click)
         k.onMousePress("right", () => {
-            if (gameState.portBuildMode.active) {
-                exitPortBuildMode(gameState);
-                console.log("Port placement cancelled");
+            if (gameState.gameOver) return;
+            isRightMouseDown = true;
+
+            // Start tracking for potential pan
+            panStartX = k.mousePos().x;
+            panStartY = k.mousePos().y;
+            cameraStartX = cameraX;
+            cameraStartY = cameraY;
+        });
+
+        k.onMouseRelease("right", () => {
+            if (gameState.gameOver) return;
+
+            const dx = k.mousePos().x - panStartX;
+            const dy = k.mousePos().y - panStartY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (isPanning) {
+                // Was dragging - just end panning
+                isPanning = false;
+            } else if (dist <= DRAG_THRESHOLD) {
+                // Was a click (not a drag) - handle as command
+                // If any placement mode is active, cancel it
+                if (gameState.portBuildMode.active) {
+                    exitPortBuildMode(gameState);
+                    console.log("Port placement cancelled");
+                } else if (gameState.settlementBuildMode.active) {
+                    exitSettlementBuildMode(gameState);
+                    console.log("Settlement placement cancelled");
+                } else if (gameState.towerBuildMode.active) {
+                    exitTowerBuildMode(gameState);
+                    console.log("Tower placement cancelled");
+                } else {
+                    // No placement mode active - handle as command click
+                    handleRightClick();
+                }
             }
-            if (gameState.settlementBuildMode.active) {
-                exitSettlementBuildMode(gameState);
-                console.log("Settlement placement cancelled");
-            }
-            if (gameState.towerBuildMode.active) {
-                exitTowerBuildMode(gameState);
-                console.log("Tower placement cancelled");
-            }
+
+            isRightMouseDown = false;
         });
 
         k.onMouseMove(() => {
-            // Camera panning with spacebar + left-drag
+            // Camera panning (spacebar+left-drag or right-drag)
             if (isPanning) {
                 const pdx = k.mousePos().x - panStartX;
                 const pdy = k.mousePos().y - panStartY;
                 cameraX = cameraStartX - pdx / zoom;
                 cameraY = cameraStartY - pdy / zoom;
+            }
+            // Right-drag starts panning
+            else if (isRightMouseDown) {
+                const dx = k.mousePos().x - panStartX;
+                const dy = k.mousePos().y - panStartY;
+                if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
+                    isPanning = true;
+                }
             }
             // Selection box dragging (only when left mouse is held and not panning)
             else if (isLeftMouseDown) {
@@ -746,6 +806,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
         });
 
+        // H to center camera on home port
+        k.onKeyPress("h", () => {
+            const homePortIndex = getHomePortIndex(gameState, map);
+            if (homePortIndex !== null) {
+                const homePort = gameState.ports[homePortIndex];
+                const pos = hexToPixel(homePort.q, homePort.r);
+                cameraX = pos.x;
+                cameraY = pos.y;
+            }
+        });
+
         // Space to restart when game over
         k.onKeyPress("space", () => {
             if (gameState.gameOver) {
@@ -772,7 +843,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         // Hotkey 'S' to enter settlement build mode when port panel is open
         k.onKeyPress("s", () => {
             // Only works if settlement button is visible in the build panel and can afford
+            const port = buildPanelBounds?.portIndex != null ? gameState.ports[buildPanelBounds.portIndex] : null;
             if (buildPanelBounds?.settlementButton &&
+                port && !port.repair &&
                 !isPortBuildingSettlement(buildPanelBounds.portIndex, gameState.settlements) &&
                 canAfford(gameState.resources, SETTLEMENTS.settlement.cost)) {
                 enterSettlementBuildMode(gameState, buildPanelBounds.portIndex);
@@ -787,8 +860,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 enterTowerBuildMode(gameState, shipBuildPanelBounds.shipIndex, 'ship');
                 console.log("Watchtower placement mode from ship (hotkey T)");
             } else if (buildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.watchtower.cost)) {
-                enterTowerBuildMode(gameState, buildPanelBounds.portIndex, 'port');
-                console.log("Watchtower placement mode from port (hotkey T)");
+                const port = gameState.ports[buildPanelBounds.portIndex];
+                if (!port.repair) {
+                    enterTowerBuildMode(gameState, buildPanelBounds.portIndex, 'port');
+                    console.log("Watchtower placement mode from port (hotkey T)");
+                }
             }
         });
 
@@ -802,7 +878,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                         const portIdx = selectedPortIndices[0].index;
                         const port = gameState.ports[portIdx];
                         const shipData = SHIPS.cutter;
-                        if (!port.buildQueue && canAfford(gameState.resources, shipData.cost)) {
+                        if (!port.buildQueue && !port.repair && canAfford(gameState.resources, shipData.cost)) {
                             deductCost(gameState.resources, shipData.cost);
                             startBuilding(port, 'cutter');
                             console.log("Started building: cutter (hotkey C)");
@@ -950,6 +1026,40 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                     // Regular click on empty = deselect
                     clearSelection(gameState);
                 }
+            }
+        }
+
+        // Right-click handler for commands (attack, waypoint, trade route, unload)
+        // Acts like Command+click but without needing the modifier key
+        function handleRightClick() {
+            const mouseX = k.mousePos().x;
+            const mouseY = k.mousePos().y;
+
+            // Convert to world coordinates
+            const worldX = (mouseX - k.width() / 2) / zoom + cameraX;
+            const worldY = (mouseY - k.height() / 2) / zoom + cameraY;
+            const clickedHex = pixelToHex(worldX, worldY);
+
+            const isShiftHeld = k.isKeyDown("shift");
+
+            // Attack pirate ship
+            if (handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
+                return;
+            }
+
+            // Trade route to foreign port
+            if (handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
+                return;
+            }
+
+            // Unload at home port
+            if (handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
+                return;
+            }
+
+            // Set waypoint (try port rally point first, then ship waypoint)
+            if (!handlePortRallyPointClick(gameState, map, clickedHex)) {
+                handleWaypointClick(gameState, map, clickedHex, isShiftHeld);
             }
         }
 

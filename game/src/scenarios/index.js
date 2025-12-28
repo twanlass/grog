@@ -7,7 +7,7 @@ export const SCENARIOS = [
         description: 'Open world trading',
         gameMode: 'sandbox',
         mapSize: { width: 60, height: 60 },
-        startingResources: { wood: 25, food: 25 },
+        startingResources: { wood: 25 },
         pirateConfig: {
             startingCount: 2,
             initialDelay: 60,  // seconds before first pirates spawn
@@ -19,7 +19,7 @@ export const SCENARIOS = [
         description: 'Survive the waves',
         gameMode: 'defend',
         mapSize: { width: 40, height: 40 },
-        startingResources: { wood: 50, food: 50 },
+        startingResources: { wood: 50 },
         pirateConfig: {
             startingCount: 0,
             initialDelay: 30,  // seconds before first wave

@@ -7,7 +7,8 @@ import {
     startBuilding, startPortUpgrade, startTowerUpgrade, isPortBuildingSettlement,
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute,
-    findFreeAdjacentWater, findNearbyWaitingHex, getHomePortIndex
+    findFreeAdjacentWater, findNearbyWaitingHex, getHomePortIndex,
+    canAffordCrew
 } from "../gameState.js";
 import { hexKey } from "../hex.js";
 import { findNearestWater } from "../pathfinding.js";
@@ -87,6 +88,11 @@ export function handleTowerPlacementClick(gameState) {
             exitTowerBuildMode(gameState);
             return true;
         }
+        if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+            console.log(`Not enough crew for ${watchtowerData.name}`);
+            exitTowerBuildMode(gameState);
+            return true;
+        }
         deductCost(gameState.resources, watchtowerData.cost);
 
         const newTower = createTower('watchtower', hex.q, hex.r, true, builderShipIndex);
@@ -127,7 +133,8 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
         const tbtn = sbp.towerButton;
         if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
             const watchtowerData = TOWERS.watchtower;
-            if (canAfford(gameState.resources, watchtowerData.cost)) {
+            if (canAfford(gameState.resources, watchtowerData.cost) &&
+                canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
                 enterTowerBuildMode(gameState, sbp.shipIndex, 'ship');
                 console.log(`Entering watchtower placement mode from ship ${sbp.shipIndex}`);
             }
@@ -159,7 +166,9 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const portIdx = selectedPortIndices[0].index;
                 const port = gameState.ports[portIdx];
                 const shipData = SHIPS[btn.shipType];
-                if (!port.buildQueue && canAfford(gameState.resources, shipData.cost)) {
+                if (!port.buildQueue && !port.repair &&
+                    canAfford(gameState.resources, shipData.cost) &&
+                    canAffordCrew(gameState, shipData.crewCost || 0)) {
                     deductCost(gameState.resources, shipData.cost);
                     startBuilding(port, btn.shipType);
                     console.log(`Started building: ${btn.shipType}`);
@@ -178,7 +187,7 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const portIdx = selectedPortIndices[0].index;
                 const port = gameState.ports[portIdx];
                 const nextPortData = PORTS[ubtn.portType];
-                const portBusy = port.buildQueue || isPortBuildingSettlement(portIdx, gameState.settlements);
+                const portBusy = port.buildQueue || port.repair || isPortBuildingSettlement(portIdx, gameState.settlements);
                 if (!portBusy && !port.construction && canAfford(gameState.resources, nextPortData.cost)) {
                     deductCost(gameState.resources, nextPortData.cost);
                     startPortUpgrade(port);
@@ -194,7 +203,8 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         const sbtn = bp.settlementButton;
         if (mouseY >= sbtn.y && mouseY <= sbtn.y + sbtn.height) {
             const settlementData = SETTLEMENTS.settlement;
-            if (!isPortBuildingSettlement(bp.portIndex, gameState.settlements) && canAfford(gameState.resources, settlementData.cost)) {
+            const port = gameState.ports[bp.portIndex];
+            if (!port.repair && !isPortBuildingSettlement(bp.portIndex, gameState.settlements) && canAfford(gameState.resources, settlementData.cost)) {
                 enterSettlementBuildMode(gameState, bp.portIndex);
                 console.log(`Entering settlement placement mode from port ${bp.portIndex}`);
             }
@@ -207,7 +217,10 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         const tbtn = bp.towerButton;
         if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
             const watchtowerData = TOWERS.watchtower;
-            if (canAfford(gameState.resources, watchtowerData.cost)) {
+            const port = gameState.ports[bp.portIndex];
+            if (!port.repair &&
+                canAfford(gameState.resources, watchtowerData.cost) &&
+                canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
                 enterTowerBuildMode(gameState, bp.portIndex, 'port');
                 console.log(`Entering watchtower placement mode from port ${bp.portIndex}`);
             }
@@ -378,7 +391,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
 
     const selectedShips = getSelectedShips(gameState);
     const shipsWithCargo = selectedShips.filter(ship =>
-        (ship.cargo?.wood || 0) + (ship.cargo?.food || 0) > 0
+        (ship.cargo?.wood || 0) > 0
     );
     if (shipsWithCargo.length === 0) return false;
 
@@ -399,7 +412,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
 
         const ship = gameState.ships[sel.index];
         if (ship.type === 'pirate') continue; // Can't control enemy ships
-        const hasCargo = (ship.cargo?.wood || 0) + (ship.cargo?.food || 0) > 0;
+        const hasCargo = (ship.cargo?.wood || 0) > 0;
         if (!hasCargo) continue;
 
         ship.tradeRoute = null;

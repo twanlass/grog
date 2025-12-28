@@ -1,6 +1,7 @@
 // Fog of war state and logic
 import { hexKey, hexNeighbors } from "./hex.js";
 import { SHIPS } from "./sprites/ships.js";
+import { PORTS } from "./sprites/ports.js";
 
 // Create fog state (Set of revealed hex keys)
 export function createFogState() {
@@ -47,9 +48,10 @@ export function isHexRevealed(fogState, q, r) {
 
 // Initialize fog with starting visibility around ships and ports
 export function initializeFog(fogState, gameState) {
-    // Ports reveal 2-hex radius
+    // Ports reveal based on their sightDistance
     for (const port of gameState.ports) {
-        revealRadius(fogState, port.q, port.r, 2);
+        const portData = PORTS[port.type];
+        revealRadius(fogState, port.q, port.r, portData.sightDistance);
     }
     // Ships reveal based on their sightDistance (player ships only)
     for (const ship of gameState.ships) {

@@ -173,7 +173,7 @@ export function drawProjectiles(ctx, gameState) {
 
             const fadeRatio = 1 - (t / trailSegments);
             const trailOpacity = 0.7 * fadeRatio;
-            const trailSize = (3 + 2 * fadeRatio) * zoom * sizeScale;
+            const trailSize = (2.55 + 1.7 * fadeRatio) * zoom * sizeScale;
 
             // Fiery colors: orange to red gradient
             const r = 255;
@@ -191,7 +191,7 @@ export function drawProjectiles(ctx, gameState) {
         // Draw cannon ball (dark circle)
         k.drawCircle({
             pos: k.vec2(screenX, screenY),
-            radius: 4 * zoom * sizeScale,
+            radius: 3.4 * zoom * sizeScale,
             color: k.rgb(30, 30, 30),
         });
     }
@@ -405,6 +405,69 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
                 height: barHeight,
                 color: k.rgb(r, g, 40),
                 radius: 2,
+            });
+        }
+    }
+}
+
+/**
+ * Draw loot drops floating on the water
+ */
+export function drawLootDrops(ctx, lootDrops) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
+
+    for (const loot of lootDrops) {
+        const pos = hexToPixel(loot.q, loot.r);
+        const screenX = (pos.x - cameraX) * zoom + halfWidth;
+        const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+        // Skip if off screen
+        if (screenX < -50 || screenX > screenWidth + 50 ||
+            screenY < -50 || screenY > screenHeight + 50) continue;
+
+        // Bob up and down animation (slower)
+        const bobOffset = Math.sin(loot.age * 1.5) * 3 * zoom;
+
+        // Draw barrel sprite
+        k.drawSprite({
+            sprite: "barrel",
+            pos: k.vec2(screenX, screenY + bobOffset),
+            anchor: "center",
+            scale: zoom * 1.25,
+        });
+    }
+}
+
+/**
+ * Draw loot collection sparkles
+ */
+export function drawLootSparkles(ctx, lootSparkles) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
+
+    for (const sparkle of lootSparkles) {
+        const pos = hexToPixel(sparkle.q, sparkle.r);
+        const screenX = (pos.x - cameraX) * zoom + halfWidth;
+        const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+        // Skip if off screen
+        if (screenX < -100 || screenX > screenWidth + 100 ||
+            screenY < -100 || screenY > screenHeight + 100) continue;
+
+        const progress = sparkle.age / sparkle.duration;
+        const opacity = 1 - progress;
+
+        // Draw expanding sparkle particles
+        for (const particle of sparkle.particles) {
+            const px = screenX + particle.dx * progress * 30 * zoom;
+            const py = screenY + particle.dy * progress * 30 * zoom - progress * 20 * zoom;
+            const size = (3 + particle.size * 2) * zoom * (1 - progress * 0.5);
+
+            // Yellow sparkle
+            k.drawCircle({
+                pos: k.vec2(px, py),
+                radius: size,
+                color: k.rgb(255, 220, 80),
+                opacity: opacity,
             });
         }
     }

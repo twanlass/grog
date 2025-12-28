@@ -73,6 +73,8 @@ export const PORTS = {
         canBuild: ["Cutter"],
         buildTime: 25,
         cost: { wood: 20 },
+        crewCapContribution: 20,
+        sightDistance: 4,
         description: "Basic dock, small capacity",
     },
     shipyard: {
@@ -83,6 +85,8 @@ export const PORTS = {
         canBuild: ["Cutter", "Schooner"],
         buildTime: 60,
         cost: { wood: 50 },
+        crewCapContribution: 20,
+        sightDistance: 5,
         description: "Harbor with repairs",
     },
     stronghold: {
@@ -93,6 +97,8 @@ export const PORTS = {
         canBuild: ["Cutter", "Schooner", "Brigantine", "Galleon"],
         buildTime: 120,
         cost: { wood: 100 },
+        crewCapContribution: 20,
+        sightDistance: 6,
         description: "Fortified, builds all ships",
     },
 };

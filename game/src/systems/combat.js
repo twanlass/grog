@@ -12,6 +12,11 @@ export const PIRATE_RESPAWN_COOLDOWN = 30;  // seconds before a destroyed pirate
 const PROJECTILE_SPEED = 1.0;      // progress per second (~1s travel time)
 const SHOT_STAGGER_DELAY = 0.3;   // seconds between multi-shot tower shots
 
+// Loot drop constants
+const LOOT_DROP_CHANCE = 0.33;    // 33% chance to drop loot
+const LOOT_AMOUNT = 20;           // wood per barrel
+const LOOT_DURATION = 30;         // seconds before loot expires
+
 /**
  * Updates combat: pirate attacks and projectile movement
  * @param {Function} hexToPixel - Coordinate conversion function
@@ -427,6 +432,21 @@ function spawnDestructionEffects(gameState, q, r, unitType, buildingType = null)
 }
 
 /**
+ * Potentially spawn loot drop when a pirate is destroyed
+ */
+function spawnLootDrop(gameState, q, r) {
+    if (Math.random() > LOOT_DROP_CHANCE) return;
+
+    gameState.lootDrops.push({
+        q,
+        r,
+        amount: LOOT_AMOUNT,
+        age: 0,
+        duration: LOOT_DURATION,
+    });
+}
+
+/**
  * Remove a ship and clean up all references to it
  */
 function destroyShip(gameState, shipIndex) {
@@ -438,6 +458,9 @@ function destroyShip(gameState, shipIndex) {
     // Queue pirate respawn and increment kill counter
     if (ship.type === 'pirate') {
         gameState.pirateKills++;
+
+        // Chance to drop loot
+        spawnLootDrop(gameState, ship.q, ship.r);
 
         // In sandbox mode, pirates respawn after a cooldown
         // In defend mode, pirates don't respawn (waves handle spawning)

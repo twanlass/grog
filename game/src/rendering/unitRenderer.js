@@ -92,15 +92,28 @@ export function drawSettlements(ctx, gameState) {
             screenY < -100 || screenY > ctx.screenHeight + 100) continue;
 
         const settlementData = SETTLEMENTS.settlement;
-        const spriteSize = getSpriteSize(settlementData.sprite, unitScale);
-
-        // Draw settlement sprite (semi-transparent if under construction)
         const isConstructing = settlement.construction !== null;
-        drawSprite(k, settlementData.sprite,
-            screenX - spriteSize.width / 2,
-            screenY - spriteSize.height / 2,
-            unitScale,
-            isConstructing ? 0.5 : 1.0);
+
+        // Use image sprite if available, otherwise fall back to pixel art
+        if (settlementData.imageSprite) {
+            const spriteScale = zoom * 1.0;
+            const frame = settlement.hitFlash > 0 ? 1 : 0;
+            k.drawSprite({
+                sprite: settlementData.imageSprite,
+                frame: frame,
+                pos: k.vec2(screenX, screenY),
+                anchor: "center",
+                scale: spriteScale,
+                opacity: isConstructing ? 0.5 : 1.0,
+            });
+        } else {
+            const spriteSize = getSpriteSize(settlementData.sprite, unitScale);
+            drawSprite(k, settlementData.sprite,
+                screenX - spriteSize.width / 2,
+                screenY - spriteSize.height / 2,
+                unitScale,
+                isConstructing ? 0.5 : 1.0);
+        }
 
         // Draw settlement CONSTRUCTION progress bar (below unit)
         if (settlement.construction) {
@@ -213,29 +226,84 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
 
 /**
  * Draw floating resource numbers (for resource generation animation)
+ * Animation phases: rise (0.5s) → pause (2s) → fade (0.5s)
  */
 export function drawFloatingNumbers(ctx, floatingNumbers) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
 
+    // Animation timing constants
+    const RISE_DURATION = 0.5;   // Time to rise up
+    const PAUSE_DURATION = 2.0;  // Time to pause at top
+    const FADE_DURATION = 0.5;   // Time to fade out
+    const RISE_DISTANCE = 43;    // Same offset as health bars above units
+
     for (const fn of floatingNumbers) {
         const pos = hexToPixel(fn.q, fn.r);
-        const progress = fn.age / fn.duration;
-        const offsetY = -30 - (progress * 40);  // Float upward
-        const opacity = 1 - progress;  // Fade out
+        const age = fn.age;
+
+        // Calculate offset and opacity based on animation phase
+        let offsetY;
+        let opacity;
+
+        if (age < RISE_DURATION) {
+            // Phase 1: Rise up (full opacity) with ease-out
+            const riseProgress = age / RISE_DURATION;
+            const easedProgress = 1 - Math.pow(1 - riseProgress, 3);  // Cubic ease-out
+            offsetY = -(easedProgress * RISE_DISTANCE);
+            opacity = 1;
+        } else if (age < RISE_DURATION + PAUSE_DURATION) {
+            // Phase 2: Pause at top (full opacity)
+            offsetY = -RISE_DISTANCE;
+            opacity = 1;
+        } else {
+            // Phase 3: Fade out (stay in place)
+            const fadeProgress = (age - RISE_DURATION - PAUSE_DURATION) / FADE_DURATION;
+            offsetY = -RISE_DISTANCE;
+            opacity = 1 - fadeProgress;
+        }
 
         const screenX = (pos.x - cameraX) * zoom + halfWidth + (fn.offsetX || 0) * zoom;
         const screenY = (pos.y - cameraY) * zoom + halfHeight + offsetY * zoom;
 
-        const color = fn.type === 'wood'
-            ? k.rgb(180, 120, 60)   // Brown for wood
-            : k.rgb(80, 180, 80);   // Green for food
+        const fontSize = 16 * zoom;
+        const iconSize = 12;  // 1x scale, no zoom
+        const spacing = 6;    // More spacing between sprite and text
 
+        // Draw sprite on the left (wood or crew based on type)
+        const spriteName = fn.type === 'crew' ? "resource-crew" : "resource-wood";
+        k.drawSprite({
+            sprite: spriteName,
+            pos: k.vec2(screenX - spacing - iconSize / 2, screenY),
+            width: iconSize,
+            height: iconSize,
+            anchor: "center",
+            opacity: opacity,
+        });
+
+        // Draw text with black outline (white fill)
+        // Outline: draw text in black offset in 4 directions
+        const outlineOffset = 1 * zoom;
+        const outlineColor = k.rgb(0, 0, 0);
+        const textX = screenX + spacing + iconSize / 2;
+
+        for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+            k.drawText({
+                text: fn.text,
+                pos: k.vec2(textX + ox * outlineOffset, screenY + oy * outlineOffset),
+                size: fontSize,
+                anchor: "center",
+                color: outlineColor,
+                opacity: opacity,
+            });
+        }
+
+        // White text on top
         k.drawText({
             text: fn.text,
-            pos: k.vec2(screenX, screenY),
-            size: 28 * zoom,
+            pos: k.vec2(textX, screenY),
+            size: fontSize,
             anchor: "center",
-            color: color,
+            color: k.rgb(255, 255, 255),
             opacity: opacity,
         });
     }

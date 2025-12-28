@@ -198,6 +198,9 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
                 if (ship.type !== 'pirate') {
                     const sightDistance = SHIPS[ship.type].sightDistance;
                     revealRadius(fogState, nextHex.q, nextHex.r, sightDistance);
+
+                    // Collect any loot drops at this position
+                    collectLootAtHex(gameState, nextHex.q, nextHex.r);
                 }
             }
 
@@ -480,4 +483,47 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                 ship.aiState = 'patrol';
         }
     }
+}
+
+/**
+ * Collect any loot drops at the given hex position
+ */
+function collectLootAtHex(gameState, q, r) {
+    for (let i = gameState.lootDrops.length - 1; i >= 0; i--) {
+        const loot = gameState.lootDrops[i];
+        if (loot.q === q && loot.r === r) {
+            // Add wood to global resources
+            gameState.resources.wood += loot.amount;
+
+            // Spawn sparkle effect
+            spawnLootSparkle(gameState, q, r);
+
+            // Remove the loot drop
+            gameState.lootDrops.splice(i, 1);
+        }
+    }
+}
+
+/**
+ * Spawn a yellow sparkle effect at the given position
+ */
+function spawnLootSparkle(gameState, q, r) {
+    const particles = [];
+    const numParticles = 8;
+    for (let i = 0; i < numParticles; i++) {
+        const angle = (i / numParticles) * Math.PI * 2;
+        particles.push({
+            dx: Math.cos(angle),
+            dy: Math.sin(angle),
+            size: 0.5 + Math.random() * 0.5,
+        });
+    }
+
+    gameState.lootSparkles.push({
+        q,
+        r,
+        age: 0,
+        duration: 0.5,
+        particles,
+    });
 }

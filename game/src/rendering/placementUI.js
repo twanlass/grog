@@ -61,6 +61,7 @@ export function drawPortPlacementMode(ctx, gameState, map, tilePositions, fogSta
     const margin = HEX_SIZE * zoom * 2;
 
     const builderShip = gameState.ships[gameState.portBuildMode.builderShipIndex];
+    if (!builderShip) return;  // Ship no longer exists
     const MAX_BUILD_DISTANCE = 5;
 
     // Get current mouse position in world coords
@@ -115,6 +116,7 @@ export function drawSettlementPlacementMode(ctx, gameState, map, tilePositions, 
     const margin = HEX_SIZE * zoom * 2;
 
     const builderPort = gameState.ports[gameState.settlementBuildMode.builderPortIndex];
+    if (!builderPort) return;  // Port no longer exists
     const MAX_SETTLEMENT_BUILD_DISTANCE = 10;
 
     // Get current mouse position in world coords
@@ -172,12 +174,16 @@ export function drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogSt
     let builderQ, builderR;
     if (gameState.towerBuildMode.builderShipIndex !== null) {
         const builderShip = gameState.ships[gameState.towerBuildMode.builderShipIndex];
+        if (!builderShip) return;  // Ship no longer exists
         builderQ = builderShip.q;
         builderR = builderShip.r;
     } else if (gameState.towerBuildMode.builderPortIndex !== null) {
         const builderPort = gameState.ports[gameState.towerBuildMode.builderPortIndex];
+        if (!builderPort) return;  // Port no longer exists
         builderQ = builderPort.q;
         builderR = builderPort.r;
+    } else {
+        return;  // No valid builder
     }
     const MAX_TOWER_BUILD_DISTANCE = 5;
 

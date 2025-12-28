@@ -6,7 +6,7 @@ import { TOWERS, TOWER_TECH_TREE } from "./sprites/towers.js";
 import { hexKey, hexNeighbors, hexDistance } from "./hex.js";
 
 export function createGameState(config = {}) {
-    const startingResources = config.startingResources || { wood: 25, food: 25 };
+    const startingResources = config.startingResources || { wood: 25 };
 
     return {
         // Player's ports: [{ type: 'dock'|'shipyard'|'stronghold', q, r }]
@@ -24,7 +24,6 @@ export function createGameState(config = {}) {
         // Resources
         resources: {
             wood: startingResources.wood,
-            food: startingResources.food,
         },
 
         // Time scale multiplier (1 = normal, 2 = 2x speed, 0 = paused)
@@ -89,6 +88,12 @@ export function createGameState(config = {}) {
 
         // Game over state (for defend mode)
         gameOver: null,  // null = playing, 'win' = victory, 'lose' = defeated
+
+        // Loot drops from destroyed pirates
+        lootDrops: [],
+
+        // Loot collection sparkle effects
+        lootSparkles: [],
     };
 }
 
@@ -104,7 +109,7 @@ export function createShip(type, q, r) {
         heading: 0,         // Direction ship is facing (radians, 0 = right/east)
         // Trade route state
         tradeRoute: null,   // { foreignPortIndex, homePortIndex: 0 } | null
-        cargo: { wood: 0, food: 0 },  // Current loaded cargo
+        cargo: { wood: 0 },  // Current loaded cargo
         dockingState: null, // { action: 'loading'|'unloading', progress, totalUnits, unitsTransferred } | null
         pendingUnload: false, // Flag for one-time unload at home port
         waitingForDock: null, // { portIndex, retryTimer } | null - waiting for dock to be free
@@ -129,7 +134,7 @@ export function createPort(type, q, r, isConstructing = false, builderShipIndex 
         q,
         r,
         buildQueue: null,  // { shipType, progress, buildTime } | null
-        storage: { wood: 0, food: 0 },  // Local resource storage for built ports
+        storage: { wood: 0 },  // Local resource storage for built ports
         rallyPoint: null,  // { q, r } - waypoint for newly built ships
         // Port construction state (while being built by a ship)
         construction: isConstructing ? {
@@ -494,13 +499,13 @@ export function findNearestLandConnectedPort(map, settlementQ, settlementR, port
     return nearestPort;
 }
 
-// Get the home port index (most recent completed port on the home island)
+// Get the home port index (first completed port on the home island)
 // Returns null if no home port exists
 export function getHomePortIndex(gameState, map) {
     if (!gameState.homeIslandHex) return null;
 
-    // Find the most recent (highest index) completed port on the home island
-    for (let i = gameState.ports.length - 1; i >= 0; i--) {
+    // Find the first (lowest index) completed port on the home island
+    for (let i = 0; i < gameState.ports.length; i++) {
         const port = gameState.ports[i];
         if (port.construction) continue; // Skip ports under construction
 
@@ -645,6 +650,59 @@ export function deductCost(resources, cost) {
     }
 }
 
+// Compute current crew status (used/cap/available)
+export function computeCrewStatus(gameState) {
+    let cap = 0;
+    let used = 0;
+
+    // Ports contribute to cap (only completed ports)
+    for (const port of gameState.ports) {
+        if (!port.construction) {
+            const portData = PORTS[port.type];
+            cap += portData.crewCapContribution || 0;
+        }
+        // Ships in build queue count toward crew used (reserved when building starts)
+        if (port.buildQueue) {
+            const shipData = SHIPS[port.buildQueue.shipType];
+            used += shipData.crewCost || 0;
+        }
+    }
+
+    // Settlements contribute to cap (only completed settlements)
+    for (const settlement of gameState.settlements) {
+        if (!settlement.construction) {
+            const settlementData = SETTLEMENTS.settlement;
+            cap += settlementData.crewCapContribution || 0;
+        }
+    }
+
+    // Player ships use crew (not pirates)
+    for (const ship of gameState.ships) {
+        if (ship.type !== 'pirate') {
+            const shipData = SHIPS[ship.type];
+            used += shipData.crewCost || 0;
+        }
+    }
+
+    // Towers use crew (include under-construction since crew reserved at placement)
+    for (const tower of gameState.towers) {
+        const towerData = TOWERS[tower.type];
+        used += towerData.crewCost || 0;
+    }
+
+    return {
+        used,
+        cap,
+        available: cap - used,
+    };
+}
+
+// Check if player can afford crew cost
+export function canAffordCrew(gameState, crewCost) {
+    const status = computeCrewStatus(gameState);
+    return status.available >= crewCost;
+}
+
 // Check if a port is already building a settlement
 export function isPortBuildingSettlement(portIndex, settlements) {
     return settlements.some(settlement => settlement.construction && settlement.parentPortIndex === portIndex);
@@ -662,7 +720,7 @@ export function isShipAdjacentToPort(ship, port) {
 // Get remaining cargo space on a ship
 export function getCargoSpace(ship, shipDefs) {
     const maxCargo = shipDefs[ship.type].cargo;
-    const currentCargo = (ship.cargo?.wood || 0) + (ship.cargo?.food || 0);
+    const currentCargo = ship.cargo?.wood || 0;
     return maxCargo - currentCargo;
 }
 

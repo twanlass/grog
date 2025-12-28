@@ -26,7 +26,6 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt, map) {
         const settlementData = SETTLEMENTS.settlement;  // Currently only one settlement type
         const interval = settlementData.generationInterval;
         const woodAmount = settlementData.woodPerHarvest;
-        const foodAmount = settlementData.foodPerHarvest;
 
         settlement.generationTimer = (settlement.generationTimer || 0) + dt;
 
@@ -39,32 +38,22 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt, map) {
             if (isHomePort) {
                 // Add to global resources
                 gameState.resources.wood += woodAmount;
-                gameState.resources.food += foodAmount;
             } else {
                 // Add to port's local storage
                 const port = gameState.ports[connectedPortIndex];
                 if (port && port.storage) {
                     port.storage.wood += woodAmount;
-                    port.storage.food += foodAmount;
                 }
             }
 
-            // Spawn floating numbers
+            // Spawn floating number
             floatingNumbers.push({
                 q: settlement.q, r: settlement.r,
                 text: `+${woodAmount}`,
                 type: 'wood',
                 age: 0,
-                duration: 0.75,
-                offsetX: -30,  // Offset left for wood
-            });
-            floatingNumbers.push({
-                q: settlement.q, r: settlement.r,
-                text: `+${foodAmount}`,
-                type: 'food',
-                age: 0,
-                duration: 0.75,
-                offsetX: 30,  // Offset right for food
+                duration: 3.0,  // Total: 0.5s rise + 2s pause + 0.5s fade
+                offsetX: 0,
             });
         }
     }

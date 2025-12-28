@@ -9,18 +9,19 @@ import { revealRadius } from "../fogOfWar.js";
  * @param {Object} map - The game map
  * @param {Object} fogState - Fog of war state
  * @param {number} dt - Delta time (already scaled by timeScale)
+ * @param {Array} floatingNumbers - Array to push floating number animations to
  */
-export function updateConstruction(gameState, map, fogState, dt) {
+export function updateConstruction(gameState, map, fogState, dt, floatingNumbers = []) {
     if (dt === 0) return; // Paused
 
     // Update port ship build queue progress
     updatePortBuildQueues(gameState, map, fogState, dt);
 
     // Update port construction/upgrade progress
-    updatePortConstruction(gameState, fogState, dt);
+    updatePortConstruction(gameState, fogState, dt, floatingNumbers);
 
     // Update settlement construction progress
-    updateSettlementConstruction(gameState, fogState, dt);
+    updateSettlementConstruction(gameState, fogState, dt, floatingNumbers);
 
     // Update tower construction progress
     updateTowerConstruction(gameState, fogState, dt);
@@ -64,7 +65,7 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
 /**
  * Update port construction/upgrade progress
  */
-function updatePortConstruction(gameState, fogState, dt) {
+function updatePortConstruction(gameState, fogState, dt, floatingNumbers) {
     for (const port of gameState.ports) {
         if (!port.construction) continue;
 
@@ -80,12 +81,27 @@ function updatePortConstruction(gameState, fogState, dt) {
                 console.log(`Port upgraded: ${oldType} → ${port.type} at (${port.q}, ${port.r})`);
             } else {
                 console.log(`Port construction complete: ${port.type} at (${port.q}, ${port.r})`);
+
+                // Spawn floating crew number for new port
+                const portData = PORTS[port.type];
+                const crewContribution = portData.crewCapContribution || 0;
+                if (crewContribution > 0) {
+                    floatingNumbers.push({
+                        q: port.q, r: port.r,
+                        text: `+${crewContribution}`,
+                        type: 'crew',
+                        age: 0,
+                        duration: 3.0,
+                        offsetX: 0,
+                    });
+                }
             }
 
             port.construction = null;  // Clear construction state
 
             // Reveal fog around completed port
-            revealRadius(fogState, port.q, port.r, 2);
+            const portData = PORTS[port.type];
+            revealRadius(fogState, port.q, port.r, portData.sightDistance);
 
             // Port is now fully operational and can build ships
         }
@@ -95,7 +111,7 @@ function updatePortConstruction(gameState, fogState, dt) {
 /**
  * Update settlement construction progress
  */
-function updateSettlementConstruction(gameState, fogState, dt) {
+function updateSettlementConstruction(gameState, fogState, dt, floatingNumbers) {
     for (const settlement of gameState.settlements) {
         if (!settlement.construction) continue;
 
@@ -105,6 +121,20 @@ function updateSettlementConstruction(gameState, fogState, dt) {
         if (settlement.construction.progress >= settlement.construction.buildTime) {
             console.log(`Settlement construction complete at (${settlement.q}, ${settlement.r})`);
             settlement.construction = null;  // Clear construction state
+
+            // Spawn floating crew number for new settlement
+            const settlementData = SETTLEMENTS.settlement;
+            const crewContribution = settlementData.crewCapContribution || 0;
+            if (crewContribution > 0) {
+                floatingNumbers.push({
+                    q: settlement.q, r: settlement.r,
+                    text: `+${crewContribution}`,
+                    type: 'crew',
+                    age: 0,
+                    duration: 3.0,
+                    offsetX: 0,
+                });
+            }
 
             // Reveal fog around completed settlement
             const sightDistance = SETTLEMENTS.settlement.sightDistance;

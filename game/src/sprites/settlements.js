@@ -30,13 +30,14 @@ export const SETTLEMENTS = {
     settlement: {
         name: "Settlement",
         sprite: SETTLEMENT,
-        cost: { wood: 5, food: 5 },
+        imageSprite: "settlement",
+        cost: { wood: 5 },
+        crewCapContribution: 5,
         buildTime: 5,
         sightDistance: 3,
-        description: "Produces food over time",
+        description: "Produces wood over time",
         // Resource generation
-        generationInterval: 20,  // seconds between harvests
+        generationInterval: 15,  // seconds between harvests
         woodPerHarvest: 5,
-        foodPerHarvest: 5,
     },
 };

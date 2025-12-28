@@ -42,8 +42,17 @@ k.loadSprite("home-port", "src/sprites/assets/home-port.png", {
     sliceY: 1,
 });
 
+// Load settlement sprites (2 frames: normal, flash)
+k.loadSprite("settlement", "src/sprites/assets/settlement.png", {
+    sliceX: 2,
+    sliceY: 1,
+});
+
 // Load UI sprites
 k.loadSprite("rally-point", "src/sprites/assets/rally-point.png");
+k.loadSprite("barrel", "src/sprites/assets/barrel.png");
+k.loadSprite("resource-wood", "src/sprites/assets/resource-wood.png");
+k.loadSprite("resource-crew", "src/sprites/assets/resource-crew.png");
 
 // Register scenes
 k.scene("title", () => {

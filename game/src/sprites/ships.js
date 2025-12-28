@@ -113,7 +113,7 @@ export const SHIPS = {
         name: "Cutter",
         sprite: CUTTER,
         imageSprite: "cutter",  // Kaplay sprite name (loaded in main.js)
-        spriteScale: 1,       // scale multiplier for image sprite
+        spriteScale: .75,       // scale multiplier for image sprite
         build_time: 5,
         speed: 2,
         cargo: 2,
@@ -121,7 +121,8 @@ export const SHIPS = {
         health: 20,
         fireCooldown: 6,        // seconds between shots
         sightDistance: 1,
-        cost: { wood: 10, food: 5 },
+        cost: { wood: 10 },
+        crewCost: 5,
         description: "Small, scrappy starter",
     },
     schooner: {
@@ -136,7 +137,8 @@ export const SHIPS = {
         health: 30,
         fireCooldown: 3,        // seconds between shots
         sightDistance: 1,
-        cost: { wood: 25, food: 10 },
+        cost: { wood: 25 },
+        crewCost: 8,
         description: "Balanced workhorse",
     },
     brigantine: {
@@ -149,7 +151,8 @@ export const SHIPS = {
         health: 30,
         fireCooldown: 4,        // seconds between shots
         sightDistance: 2,
-        cost: { wood: 50, food: 20 },
+        cost: { wood: 50 },
+        crewCost: 12,
         description: "Fast, medium cargo",
     },
     galleon: {
@@ -162,7 +165,8 @@ export const SHIPS = {
         health: 50,
         fireCooldown: 3,        // seconds between shots
         sightDistance: 3,
-        cost: { wood: 100, food: 75 },
+        cost: { wood: 100 },
+        crewCost: 20,
         description: "Massive cargo hauler",
     },
     pirate: {

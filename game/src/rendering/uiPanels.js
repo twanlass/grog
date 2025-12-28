@@ -1,6 +1,6 @@
 // UI panel rendering: resource panel, build panels, ship info panel
 import { drawSprite, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford } from "../gameState.js";
+import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew } from "../gameState.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
 import {
     drawPanelContainer,
@@ -18,7 +18,7 @@ import {
 export function drawResourcePanel(ctx, gameState) {
     const { k, screenWidth } = ctx;
 
-    const panelWidth = 280;
+    const panelWidth = 200;
     const panelHeight = 70;
     const panelX = screenWidth - panelWidth - 15;
     const panelY = 15;
@@ -45,34 +45,22 @@ export function drawResourcePanel(ctx, gameState) {
     // Resource values
     const res = gameState.resources;
     const resY = panelY + 38;
-    const resSpacing = 68;
-    const iconSize = 12;
-    const iconOffset = iconSize + 6;
+    const iconSize = 16;
+    const iconOffset = iconSize + 8;
 
-    // Wood icon (log with rings)
+    // Wood section
     const woodIconX = panelX + 15;
-    const woodIconY = resY - 4;
-    // Log body (brown rectangle)
-    k.drawRect({
-        pos: k.vec2(woodIconX, woodIconY - 4),
+    const woodIconY = resY - 8;
+
+    // Wood sprite icon
+    k.drawSprite({
+        sprite: "resource-wood",
+        pos: k.vec2(woodIconX, woodIconY),
         width: iconSize,
-        height: 8,
-        color: k.rgb(139, 90, 43),
-        radius: 1,
-    });
-    // Wood rings (lighter circles on end)
-    k.drawCircle({
-        pos: k.vec2(woodIconX + iconSize - 1, woodIconY),
-        radius: 4,
-        color: k.rgb(180, 130, 80),
-    });
-    k.drawCircle({
-        pos: k.vec2(woodIconX + iconSize - 1, woodIconY),
-        radius: 2,
-        color: k.rgb(139, 90, 43),
+        height: iconSize,
     });
 
-    // Wood (brown)
+    // Wood label and value
     k.drawText({
         text: `Wood`,
         pos: k.vec2(woodIconX + iconOffset, resY - 10),
@@ -86,44 +74,37 @@ export function drawResourcePanel(ctx, gameState) {
         color: k.rgb(200, 150, 100),
     });
 
-    // Food icon (t-bone steak)
-    const foodIconX = panelX + 15 + resSpacing * 2;
-    const foodIconY = resY - 4;
-    // Meat (pink/red oval)
-    k.drawEllipse({
-        pos: k.vec2(foodIconX + 6, foodIconY),
-        radiusX: 6,
-        radiusY: 4,
-        color: k.rgb(180, 80, 80),
-    });
-    // Bone (white/cream line)
-    k.drawRect({
-        pos: k.vec2(foodIconX + 8, foodIconY - 1),
-        width: 6,
-        height: 2,
-        color: k.rgb(240, 230, 210),
-        radius: 1,
-    });
-    // Bone knob
-    k.drawCircle({
-        pos: k.vec2(foodIconX + 13, foodIconY),
-        radius: 2,
-        color: k.rgb(240, 230, 210),
+    // Crew section (right side of panel)
+    const crewStatus = computeCrewStatus(gameState);
+    const crewIconX = panelX + 110;
+    const crewIconY = resY - 8;
+
+    // Crew sprite icon
+    k.drawSprite({
+        sprite: "resource-crew",
+        pos: k.vec2(crewIconX, crewIconY),
+        width: iconSize,
+        height: iconSize,
     });
 
-    // Food (green)
+    // Crew label
     k.drawText({
-        text: `Food`,
-        pos: k.vec2(foodIconX + iconOffset, resY - 10),
+        text: `Crew`,
+        pos: k.vec2(crewIconX + iconOffset, resY - 10),
         size: 10,
-        color: k.rgb(80, 140, 80),
+        color: k.rgb(140, 160, 180),
     });
+
+    // Crew value (used/cap format)
+    const isOverCap = crewStatus.used > crewStatus.cap;
+    const crewColor = isOverCap ? k.rgb(255, 100, 100) : k.rgb(180, 200, 220);
     k.drawText({
-        text: `${res.food}`,
-        pos: k.vec2(foodIconX + iconOffset, resY + 6),
+        text: `${crewStatus.used}/${crewStatus.cap}`,
+        pos: k.vec2(crewIconX + iconOffset, resY + 6),
         size: 18,
-        color: k.rgb(120, 200, 120),
+        color: crewColor,
     });
+
 }
 
 /**
@@ -364,9 +345,7 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
 
     // Cargo section
     const cargoWood = ship.cargo?.wood || 0;
-    const cargoFood = ship.cargo?.food || 0;
     const maxCargo = shipData.cargo;
-    const totalCargo = cargoWood + cargoFood;
 
     k.drawText({
         text: "CARGO",
@@ -385,19 +364,11 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
     });
 
     k.drawText({
-        text: `Food: ${cargoFood}`,
-        pos: k.vec2(infoPanelX + 12, infoPanelY + 80),
-        size: 11,
-        anchor: "left",
-        color: k.rgb(100, 160, 80),
-    });
-
-    k.drawText({
-        text: `${totalCargo}/${maxCargo}`,
-        pos: k.vec2(infoPanelX + infoPanelWidth - 12, infoPanelY + 73),
+        text: `${cargoWood}/${maxCargo}`,
+        pos: k.vec2(infoPanelX + infoPanelWidth - 12, infoPanelY + 66),
         size: 11,
         anchor: "right",
-        color: totalCargo > 0 ? k.rgb(180, 180, 180) : k.rgb(100, 100, 100),
+        color: cargoWood > 0 ? k.rgb(180, 180, 180) : k.rgb(100, 100, 100),
     });
 
     // Cooldown section
@@ -410,8 +381,7 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
     if (canRepair && isDamaged && !isRepairing && gameState) {
         // Show repair button
         const repairCost = getRepairCost('ship', ship);
-        const canAffordRepair = gameState.resources.wood >= repairCost.wood &&
-                               gameState.resources.food >= repairCost.food;
+        const canAffordRepair = gameState.resources.wood >= repairCost.wood;
 
         k.drawLine({
             p1: k.vec2(infoPanelX + 10, infoPanelY + 115),
@@ -450,11 +420,8 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
         });
 
         // Cost
-        const costText = repairCost.food > 0
-            ? `${repairCost.wood} wood, ${repairCost.food} food`
-            : `${repairCost.wood} wood`;
         k.drawText({
-            text: costText,
+            text: `${repairCost.wood} wood`,
             pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 26),
             size: 9,
             anchor: "center",
@@ -636,8 +603,7 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
         if (isDamaged && !isRepairing) {
             // Show repair button
             const repairCost = getRepairCost('tower', tower);
-            const canAffordRepair = gameState.resources.wood >= repairCost.wood &&
-                                   gameState.resources.food >= repairCost.food;
+            const canAffordRepair = gameState.resources.wood >= repairCost.wood;
 
             const repairY = infoPanelY + 85 + upgradeHeight;
 
@@ -727,11 +693,7 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
     });
 
     // Cost
-    const costText = cost.food
-        ? `${cost.wood} wood, ${cost.food} food`
-        : cost.wood
-            ? `${cost.wood} wood`
-            : "Free";
+    const costText = cost.wood ? `${cost.wood} wood` : "Free";
     k.drawText({
         text: costText,
         pos: k.vec2(panelX + 44, btnY + 26),
@@ -865,33 +827,17 @@ export function drawPortStorage(ctx, port, panelX, panelWidth, panelY) {
     // Wood
     k.drawText({
         text: `${port.storage.wood}`,
-        pos: k.vec2(panelX + panelWidth / 4, panelY + 32),
+        pos: k.vec2(panelX + panelWidth / 2, panelY + 32),
         size: 16,
         anchor: "center",
         color: k.rgb(180, 120, 60),
     });
     k.drawText({
         text: "wood",
-        pos: k.vec2(panelX + panelWidth / 4, panelY + 46),
+        pos: k.vec2(panelX + panelWidth / 2, panelY + 46),
         size: 10,
         anchor: "center",
         color: k.rgb(120, 80, 40),
-    });
-
-    // Food
-    k.drawText({
-        text: `${port.storage.food}`,
-        pos: k.vec2(panelX + panelWidth * 3 / 4, panelY + 32),
-        size: 16,
-        anchor: "center",
-        color: k.rgb(80, 180, 80),
-    });
-    k.drawText({
-        text: "food",
-        pos: k.vec2(panelX + panelWidth * 3 / 4, panelY + 46),
-        size: 10,
-        anchor: "center",
-        color: k.rgb(50, 120, 50),
     });
 }
 
@@ -1008,7 +954,8 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
     // Watchtower button
     const towerBtnY = towerSectionY + sbpHeaderHeight;
     const towerBtnHeight = sbpRowHeight - 4;
-    const towerAffordable = canAfford(gameState.resources, watchtowerData.cost);
+    const towerAffordable = canAfford(gameState.resources, watchtowerData.cost) &&
+                            canAffordCrew(gameState, watchtowerData.crewCost || 0);
 
     bounds.towerButton = { y: towerBtnY, height: towerBtnHeight };
 
@@ -1047,10 +994,10 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const isBuildingSettlement = checkBuildingSettlement(portIndex, gameState.settlements);
     const portBusy = port.buildQueue || isBuildingSettlement;
     const canUpgrade = nextPortType && !portBusy && !isRepairing;
-    const canBuildSettlement = !isBuildingSettlement && !gameState.settlementBuildMode.active;
-    const canBuildDefense = !gameState.towerBuildMode.active;
+    const canBuildSettlement = !isBuildingSettlement && !gameState.settlementBuildMode.active && !isRepairing;
+    const canBuildDefense = !gameState.towerBuildMode.active && !isRepairing;
 
-    const hasStorage = portIndex > 0 && port.storage && (port.storage.wood > 0 || port.storage.food > 0);
+    const hasStorage = portIndex > 0 && port.storage && port.storage.wood > 0;
     const storageHeight = hasStorage ? 45 : 0;
 
     const bpWidth = 200;
@@ -1152,8 +1099,9 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
             const shipData = SHIPS[shipType];
             const btnY = currentY + bpHeaderHeight + bpPadding + i * bpRowHeight;
             const btnHeight = bpRowHeight - 4;
-            const affordable = canAfford(gameState.resources, shipData.cost);
-            const canBuildShip = affordable && !port.buildQueue;
+            const affordable = canAfford(gameState.resources, shipData.cost) &&
+                               canAffordCrew(gameState, shipData.crewCost || 0);
+            const canBuildShip = affordable && !port.buildQueue && !isRepairing;
 
             bounds.buttons.push({ y: btnY, height: btnHeight, shipType: shipType });
 
@@ -1171,7 +1119,8 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     // 3. Defense section (Watchtower only - upgrades via tower panel)
     if (canBuildDefense) {
         const watchtowerData = TOWERS.watchtower;
-        const towerAffordable = canAfford(gameState.resources, watchtowerData.cost);
+        const towerAffordable = canAfford(gameState.resources, watchtowerData.cost) &&
+                                canAffordCrew(gameState, watchtowerData.crewCost || 0);
 
         drawPanelSeparator(ctx, bpX, bpWidth, currentY);
         k.drawText({
@@ -1226,8 +1175,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     if (isDamaged && !isRepairing) {
         // Show repair button
         const repairCost = getRepairCost('port', port);
-        const canAffordRepair = gameState.resources.wood >= repairCost.wood &&
-                               gameState.resources.food >= repairCost.food;
+        const canAffordRepair = gameState.resources.wood >= repairCost.wood;
 
         drawPanelSeparator(ctx, bpX, bpWidth, currentY);
 
@@ -1260,11 +1208,8 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         });
 
         // Cost
-        const costText = repairCost.food > 0
-            ? `${repairCost.wood} wood, ${repairCost.food} food`
-            : `${repairCost.wood} wood`;
         k.drawText({
-            text: costText,
+            text: `${repairCost.wood} wood`,
             pos: k.vec2(bpX + bpWidth / 2, btnY + 26),
             size: 9,
             anchor: "center",
