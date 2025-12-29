@@ -59,3 +59,33 @@ This documents the prompts used to build this project with Claude.
 > update for settlements: 
 1. Show a health bar (like other units that can take damange)
 2. Make them repairable (like other units)
+
+## 18. User prompt
+> <bash-notification>
+<shell-id>bcc6958</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bcc6958.output</output-file>
+<status>killed</status>
+<summary>Background command "Start dev server and check it's running" was killed.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bc4f873</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bc4f873.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b1221d1</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b1221d1.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to test changes" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bed1a51</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bed1a51.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server and test" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>

@@ -1,6 +1,22 @@
 CAPTAIN'S LOG
 =============
 
+2025-12-29 | Add tooltips and animated fog of war
+-------------------------------------------------
+### New
+- UI tooltip system for build menu items with word wrapping
+- Animated fog of war reveal effect - hexes reveal ring-by-ring from vision source
+- Animated fog shroud effect - fog returns with inward ripple when losing visibility
+- Tooltips documentation (docs/features/tooltips.md)
+
+### Improved
+- Fog transitions smoothly between unexplored, shrouded, and visible states
+- Previously unexplored hexes animate from full fog; explored hexes animate from shroud
+
+### Fixed
+- Home port upgrade no longer triggers false "defeated" game over in Defend mode
+
+
 2025-12-29 | new watchtower assets; fog of war updated to be dynamic; settlements can be repaired.
 --------------------------------------------------------------------------------------------------
 ### New

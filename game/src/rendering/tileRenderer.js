@@ -1,6 +1,6 @@
 // Tile and fog of war rendering
 import { hexCorners, HEX_SIZE } from "../hex.js";
-import { isHexExplored, isHexVisible } from "../fogOfWar.js";
+import { isHexExplored, isHexVisible, getHexFogOpacity } from "../fogOfWar.js";
 
 // Decoration rendering config
 const TREE_SCALE = 1.4;        // Tree size multiplier (base * zoom)
@@ -186,16 +186,17 @@ export function drawDecorations(ctx, map, tilePositions, tileDecorations, gameSt
 }
 
 /**
- * Draw fog of war overlay with three states:
- * - Currently visible: no fog
- * - Explored but not visible: partial fog (greyed out, shows terrain)
+ * Draw fog of war overlay with animated transitions:
+ * - Currently visible: no fog (or fading in from shroud)
+ * - Explored but not visible: partial fog (or fading to shroud)
  * - Never seen: full dark fog with hatching
  * @param {object} ctx - Render context
  * @param {Map} map - The game map
  * @param {Map} tilePositions - Pre-calculated tile world positions
  * @param {object} fogState - Fog of war state
+ * @param {number} currentTime - Current game time for animations
  */
-export function drawFogOfWar(ctx, map, tilePositions, fogState) {
+export function drawFogOfWar(ctx, map, tilePositions, fogState, currentTime = 0) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
     const margin = HEX_SIZE * zoom * 2;
     const scaledSize = HEX_SIZE * zoom;
@@ -209,11 +210,11 @@ export function drawFogOfWar(ctx, map, tilePositions, fogState) {
     const shroudColor = k.rgb(30, 40, 50);
 
     for (const tile of map.tiles.values()) {
-        const visible = isHexVisible(fogState, tile.q, tile.r);
-        const explored = isHexExplored(fogState, tile.q, tile.r);
+        // Get animated fog opacity
+        const { shroudOpacity, unexploredOpacity } = getHexFogOpacity(fogState, tile.q, tile.r, currentTime);
 
-        // Skip currently visible hexes - no fog at all
-        if (visible) continue;
+        // Skip fully visible hexes (no fog)
+        if (shroudOpacity === 0 && unexploredOpacity === 0) continue;
 
         const pos = tilePositions.get(tile);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -228,20 +229,12 @@ export function drawFogOfWar(ctx, map, tilePositions, fogState) {
         const corners = hexCorners(screenX, screenY, scaledSize);
         const pts = corners.map(c => k.vec2(c.x, c.y));
 
-        if (explored) {
-            // Explored but not visible - partial fog (shroud)
-            // Shows terrain but dimmed/greyed
-            k.drawPolygon({
-                pts,
-                color: shroudColor,
-                opacity: 0.5,
-            });
-        } else {
+        if (unexploredOpacity > 0) {
             // Never seen - full dark fog with hatching
             k.drawPolygon({
                 pts,
                 color: fogBaseColor,
-                opacity: 0.92,
+                opacity: unexploredOpacity,
             });
 
             // Draw diagonal hatching pattern
@@ -253,9 +246,16 @@ export function drawFogOfWar(ctx, map, tilePositions, fogState) {
                     p2: k.vec2(screenX + offset + hexRadius, screenY + hexRadius),
                     width: 1,
                     color: fogHatchColor,
-                    opacity: 0.4,
+                    opacity: 0.4 * (unexploredOpacity / 0.92), // Scale with fog opacity
                 });
             }
+        } else if (shroudOpacity > 0) {
+            // Explored but not fully visible - partial fog (shroud) with animation
+            k.drawPolygon({
+                pts,
+                color: shroudColor,
+                opacity: shroudOpacity,
+            });
         }
     }
 }

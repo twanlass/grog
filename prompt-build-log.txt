@@ -970,3 +970,35 @@ when clicked pause the game and show a panel center center w/ that lists out the
 
 ## 213. User prompt
 > run /captains-log 
+
+## 214. User prompt
+> can you setup /captains-log to be run as a pre-commit hook? 
+
+## 215. User prompt
+> let's add tooltips to UI panels when hovering specific items. To start, we'll add a tooltip to the Settlement option. The tooltip should read "Produces wood and increases your crew cap". The tooltip should appear only hover of the settlement menu item. Place the tooltip to the right, top aligned to the menu item. Example placement: 
+
+## 216. User prompt
+> text is still overflowing the tooltip box: 
+
+## 217. User prompt
+> update the tooltip text to read: "Produces wood and increases your crew cap allowing you to build more ships and structures"
+
+## 218. User prompt
+> document tooltips as we'll be adding more in the future 
+
+## 219. User prompt
+> Next, let's fix a bug: 
+When starting Defend mode, immeidately upgrading my port to Shipyard causes the game to end "your home port was destroyed...". It should upgrade my port instead lol. 
+
+## 220. User prompt
+> let's explore adding a fun fog of war reveal effect: 
+When fog is revealed, reveal the first immedidate "ring" of hexes, then the next, and so on. Do each ring with a small delay so that it feels like the fog is animating away (or animate back as it's shrouded)
+
+## 221. User prompt
+> this should work for stationary units that expand fog like towers too right? 
+
+## 222. User prompt
+> When a tower is built it looks like we immediately (no ripple animation) show a grayed version of the fog  and then animate the fog away. Since the area being shown was not preivously seen, I assume we woulnd't show the grayed out version first, but just animate ripple away the fog  
+
+## 223. User prompt
+> git add 

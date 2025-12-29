@@ -1352,13 +1352,23 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         const settlementBtnHeight = bpRowHeight - 4;
         bounds.settlementButton = { y: settlementBtnY, height: settlementBtnHeight };
 
-        const isSettlementHovered = canBuildSettlementNow &&
-                                    mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
-                                    mousePos.y >= settlementBtnY && mousePos.y <= settlementBtnY + settlementBtnHeight;
+        // Check if mouse is over settlement button (for highlighting when affordable)
+        const isMouseOverSettlement = mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                                      mousePos.y >= settlementBtnY && mousePos.y <= settlementBtnY + settlementBtnHeight;
+        const isSettlementHovered = canBuildSettlementNow && isMouseOverSettlement;
 
         const settlementName = alreadyBuildingSettlement ? `${settlementData.name} (building...)` : `${settlementData.name} (S)`;
         drawPanelButton(ctx, bpX, bpWidth, settlementBtnY, settlementBtnHeight, settlementData, settlementName,
             settlementData.cost, settlementData.buildTime, isSettlementHovered, canBuildSettlementNow);
+
+        // Store tooltip info if mouse is over (show regardless of affordability)
+        if (isMouseOverSettlement) {
+            bounds.tooltip = {
+                x: bpX + bpWidth + 8,
+                y: settlementBtnY,
+                text: "Produces wood and increases your crew cap allowing you to build more ships and structures",
+            };
+        }
 
         currentY += settlementHeight;
         hasPreviousSection = true;
@@ -1601,6 +1611,77 @@ export function drawSimpleUIPanels(ctx, gameState, waveStatus = null, speedMenuO
     }
 
     return { ...buttonBounds, speedIndicator: speedBounds, menuPanel: menuPanelBounds };
+}
+
+/**
+ * Draw a tooltip box at specified position
+ */
+export function drawTooltip(ctx, tooltip) {
+    if (!tooltip) return;
+
+    const { k } = ctx;
+    const { x, y, text } = tooltip;
+
+    const padding = 12;
+    const fontSize = 14;
+    const maxWidth = 220;
+    const lineHeight = fontSize + 6;
+
+    // Word wrap text to fit within maxWidth
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+    const charWidth = fontSize * 0.65; // Monospace font is wider
+
+    for (const word of words) {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const testWidth = testLine.length * charWidth;
+        if (testWidth > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    }
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+
+    // Calculate tooltip dimensions
+    const longestLine = lines.reduce((max, line) => Math.max(max, line.length), 0);
+    const tooltipWidth = longestLine * charWidth + padding * 2 + 8; // Extra buffer for font rendering
+    const tooltipHeight = lines.length * lineHeight + padding * 2;
+
+    // Background
+    k.drawRect({
+        pos: k.vec2(x, y),
+        width: tooltipWidth,
+        height: tooltipHeight,
+        color: k.rgb(30, 35, 45),
+        radius: 4,
+        opacity: 0.95,
+    });
+
+    // Border
+    k.drawRect({
+        pos: k.vec2(x, y),
+        width: tooltipWidth,
+        height: tooltipHeight,
+        color: k.rgb(80, 90, 100),
+        radius: 4,
+        fill: false,
+        outline: { width: 1, color: k.rgb(80, 90, 100) },
+    });
+
+    // Draw each line of text
+    for (let i = 0; i < lines.length; i++) {
+        k.drawText({
+            text: lines[i],
+            pos: k.vec2(x + padding, y + padding + i * lineHeight),
+            size: fontSize,
+            color: k.rgb(220, 220, 220),
+        });
+    }
 }
 
 /**

@@ -3,7 +3,7 @@ import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hex
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
 import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility } from "../fogOfWar.js";
+import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations } from "../fogOfWar.js";
 
 // Rendering modules (new - extracted from this file for better organization)
 // These can be used to gradually replace inline rendering code below
@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip } from "../rendering/uiPanels.js";
 
 // Game systems
 import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems/shipMovement.js";
@@ -214,6 +214,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         // Stipple animation timer for water twinkling effect
         let stippleAnimTime = 0;
 
+        // Game time tracker for fog animations (runs independently of game speed)
+        let gameTime = 0;
+
         // Bird states (3 birds orbiting home port with varying sizes and staggered starts)
         const birdStates = startTile ? [
             { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0, angle: 0, orbitRadius: 140, orbitSpeed: 0.3, scale: 1.0 },
@@ -320,6 +323,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             // Update stipple animation (always runs, even when paused or game over)
             stippleAnimTime += rawDt;
 
+            // Update game time for fog animations (always runs for smooth transitions)
+            gameTime += rawDt;
+            updateFogAnimations(fogState, gameTime);
+
             // Update notification timer (always runs)
             updateNotification(gameState, rawDt);
 
@@ -341,7 +348,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
             // Recalculate fog visibility if any vision source changed
             if (isVisibilityDirty(fogState)) {
-                recalculateVisibility(fogState, gameState);
+                recalculateVisibility(fogState, gameState, gameTime);
             }
 
             // Decay hit flash timers
@@ -488,7 +495,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             drawTiles(ctx, map, tilePositions, tileColors, tileStipples, stippleAnimTime);
             drawIslandWaves(ctx, islands, stippleAnimTime);
             drawDecorations(ctx, map, tilePositions, tileDecorations, gameState);
-            drawFogOfWar(ctx, map, tilePositions, fogState);
+            drawFogOfWar(ctx, map, tilePositions, fogState, gameTime);
 
             // Draw ports (migrated to rendering module)
             drawPorts(ctx, gameState, map);
@@ -563,6 +570,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 const portIndex = selectedPortIndices[0].index;
                 const port = gameState.ports[portIndex];
                 buildPanelBounds = drawPortBuildPanel(ctx, port, portIndex, gameState, { isPortBuildingSettlement });
+            }
+
+            // Draw tooltip if present (from build panel hover)
+            if (buildPanelBounds?.tooltip) {
+                drawTooltip(ctx, buildPanelBounds.tooltip);
             }
 
             // Ship build panel UI (when exactly one docked ship is selected, not in placement mode)

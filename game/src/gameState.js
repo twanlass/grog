@@ -512,10 +512,12 @@ export function findNearestLandConnectedPort(map, settlementQ, settlementR, port
 export function getHomePortIndex(gameState, map) {
     if (!gameState.homeIslandHex) return null;
 
-    // Find the first (lowest index) completed port on the home island
+    // Find the first (lowest index) port on the home island
+    // (skip new construction, but allow upgrading ports)
     for (let i = 0; i < gameState.ports.length; i++) {
         const port = gameState.ports[i];
-        if (port.construction) continue; // Skip ports under construction
+        // Skip ports under new construction, but allow upgrading ports
+        if (port.construction && !port.construction.upgradeTo) continue;
 
         // Check if this port is on the home island (land-connected to home island hex)
         if (isLandConnected(map, gameState.homeIslandHex.q, gameState.homeIslandHex.r, port.q, port.r)) {

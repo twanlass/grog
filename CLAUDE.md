@@ -44,6 +44,7 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [Tower Building](docs/features/tower-building.md)
 - [Trade Routes](docs/features/trade-routes.md)
 - [Repair](docs/features/repair.md)
+- [Tooltips](docs/features/tooltips.md)
 
 ## Key Patterns
 
