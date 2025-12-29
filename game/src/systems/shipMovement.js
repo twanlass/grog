@@ -45,8 +45,9 @@ function snapToHexDirection(angle) {
  * @param {Object} map - The game map
  * @param {Object} fogState - Fog of war state
  * @param {number} dt - Delta time (already scaled by timeScale)
+ * @param {Array} floatingNumbers - Array to push floating number animations to
  */
-export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
+export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, floatingNumbers = []) {
     if (dt === 0) return; // Paused
 
     // Build set of occupied hexes (all ships)
@@ -200,7 +201,7 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt) {
                     revealRadius(fogState, nextHex.q, nextHex.r, sightDistance);
 
                     // Collect any loot drops at this position
-                    collectLootAtHex(gameState, nextHex.q, nextHex.r);
+                    collectLootAtHex(gameState, nextHex.q, nextHex.r, floatingNumbers);
                 }
             }
 
@@ -488,7 +489,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
 /**
  * Collect any loot drops at the given hex position
  */
-function collectLootAtHex(gameState, q, r) {
+function collectLootAtHex(gameState, q, r, floatingNumbers = []) {
     for (let i = gameState.lootDrops.length - 1; i >= 0; i--) {
         const loot = gameState.lootDrops[i];
         if (loot.q === q && loot.r === r) {
@@ -497,6 +498,16 @@ function collectLootAtHex(gameState, q, r) {
 
             // Spawn sparkle effect
             spawnLootSparkle(gameState, q, r);
+
+            // Spawn floating number
+            floatingNumbers.push({
+                q, r,
+                text: `+${loot.amount}`,
+                type: 'wood',
+                age: 0,
+                duration: 3.0,
+                offsetX: 0,
+            });
 
             // Remove the loot drop
             gameState.lootDrops.splice(i, 1);

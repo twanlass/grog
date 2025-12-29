@@ -793,3 +793,90 @@ Read the output file to retrieve the output.
 <summary>Background command "Start dev server and check" failed with exit code 137.</summary>
 Read the output file to retrieve the output.
 </bash-notification>
+
+## 162. User prompt
+> let's update the title screen: 
+- rename "gallery" to "unit gallery" 
+- Add a copyright line to the bottom center: "(c) 2026 Tyler Wanlass / https://tyler.cv"
+- Update the mode cards (Sandbox, Defend) by removing the green "sandbox" and orange "defend" text at the bottom of the cards 
+
+## 163. User prompt
+> can't access the title on http://localhost:3001/
+
+## 164. User prompt
+> lets update the zindex of a few things (or however Kaplay handles render layers): 
+1. Make sure that waypoints and rallypoints render under units (so that ships appear on top etc)
+2. make sure that all health, build, and repair bars render on top of units 
+
+## 165. User prompt
+> lets make some UI updates to the main game scene:  
+1. remove the controls text top left
+2. remove "grog" from top left
+3. remove the "stockpile" text; leave just the wood and crew stuff
+4. move the wood and crew UI to the top left
+5. top right, add a pause button and menu button
+
+## 166. User prompt
+> update the resources UI background to black; add even padding around it: 
+
+## 167. User prompt
+> next, update the speed UI to use white text with a black outline; one click, show a menu with with 1x - 5x options; on click, set the speed. Show the 1-5 hotkeys in the menu items. 
+
+## 168. User prompt
+> vertically align center the wood and crew sprites w/ the numbers in the resource UI: 
+
+## 169. User prompt
+> crash when selecting the speed selector UI: kaplay.js?v=c855e41f:5276 Error: Styled text error: unclosed tags 1
+    at drawTimeIndicator (uiPanels.js:283:15)
+    at drawSimpleUIPanels (uiPanels.js:1383:25)
+    at Object.<anonymous> (gameScene.js:545:31)
+xn    @    kaplay.js?v=c855e41f:5276
+
+## 170. User prompt
+> vertically align the speed and hotkey in speed selector panel 
+
+## 171. User prompt
+> update the wave UI to have a black background; update the pause and menu button UI to have a black background on hover 
+
+## 172. User prompt
+> let's update the menu button top right: 
+when clicked pause the game and show a panel center center w/ that lists out the basic controls fo the game: left click to select units; right click to navigate or attack; right click drag to pan camera 
+
+## 173. User prompt
+> sweet. Next, let's update the "Pirates sunk"; move to bottom right of the screen and show the pirate ship sprite w/ the number next to it. 
+
+## 174. User prompt
+> have the pirate ship face north west for visual interest
+
+## 175. User prompt
+> when collecting barrels / loot drops, show the wood sprite and a + number above it just like settlements show as they produce wood (animates up, then fades out etc). Turn this into a component / resuable code if needed
+
+## 176. User prompt
+> update the wave UI to be the same distanced from the top fo the scren as the resrouce UI 
+
+## 177. User prompt
+> put the pirate kill counter UI in a black box like the resource UI; render the priate ship sprite at full size: 
+
+## 178. User prompt
+> replace the menu icon with a "?" 
+
+## 179. User prompt
+> lets make some updates to the port build menu: 
+
+## 180. User prompt
+> Great. Remove the section headings "build settlement", "build ship" etc. Remove the time to build ("60s"). Make the hotkey text match that of the speed selection menu hotkeys (slightly off white)
+
+## 181. User prompt
+> add some even padding around the menu 
+
+## 182. User prompt
+> make sure the menu items are each the same height and then evenly spaced out vertically. Cutter and Watchtower nearly overlap: 
+
+## 183. User prompt
+> make sure the padding is the same all around; bottom has more padding than sides; incresae the sides tomatch. 
+
+## 184. User prompt
+> make the "?" hokey just default "/" 
+
+## 185. User prompt
+> get rid of the "building" UI that gets added to the port build panel when building a ship etc (we already show the blue build bar) 

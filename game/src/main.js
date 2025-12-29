@@ -11,10 +11,10 @@ const k = kaplay({
 let selectedScenarioId = DEFAULT_SCENARIO_ID;
 
 // Custom cursor (CSS-based for smooth performance)
-k.setCursor("url('src/sprites/assets/cursor.png'), auto");
+k.setCursor("url('sprites/assets/cursor.png'), auto");
 
 // Load animated sprites
-k.loadSprite("bird", "src/sprites/assets/bird.png", {
+k.loadSprite("bird", "sprites/assets/bird.png", {
     sliceX: 2,
     sliceY: 1,
     anims: {
@@ -23,36 +23,36 @@ k.loadSprite("bird", "src/sprites/assets/bird.png", {
 });
 
 // Load ship sprites (2 frames: normal, flash)
-k.loadSprite("cutter", "src/sprites/assets/cutter.png", {
+k.loadSprite("cutter", "sprites/assets/cutter.png", {
     sliceX: 2,
     sliceY: 1,
 });
-k.loadSprite("schooner", "src/sprites/assets/schooner.png", {
+k.loadSprite("schooner", "sprites/assets/schooner.png", {
     sliceX: 2,
     sliceY: 1,
 });
-k.loadSprite("pirate", "src/sprites/assets/pirate.png", {
+k.loadSprite("pirate", "sprites/assets/pirate.png", {
     sliceX: 2,
     sliceY: 1,
 });
 
 // Load port sprites (2 frames: normal, flash)
-k.loadSprite("home-port", "src/sprites/assets/home-port.png", {
+k.loadSprite("home-port", "sprites/assets/home-port.png", {
     sliceX: 2,
     sliceY: 1,
 });
 
 // Load settlement sprites (2 frames: normal, flash)
-k.loadSprite("settlement", "src/sprites/assets/settlement.png", {
+k.loadSprite("settlement", "sprites/assets/settlement.png", {
     sliceX: 2,
     sliceY: 1,
 });
 
 // Load UI sprites
-k.loadSprite("rally-point", "src/sprites/assets/rally-point.png");
-k.loadSprite("barrel", "src/sprites/assets/barrel.png");
-k.loadSprite("resource-wood", "src/sprites/assets/resource-wood.png");
-k.loadSprite("resource-crew", "src/sprites/assets/resource-crew.png");
+k.loadSprite("rally-point", "sprites/assets/rally-point.png");
+k.loadSprite("barrel", "sprites/assets/barrel.png");
+k.loadSprite("resource-wood", "sprites/assets/resource-wood.png");
+k.loadSprite("resource-crew", "sprites/assets/resource-crew.png");
 
 // Register scenes
 k.scene("title", () => {
@@ -116,17 +116,6 @@ k.scene("title", () => {
             k.color(180, 200, 220),
         ]);
 
-        // Game mode indicator
-        const modeColor = scenario.gameMode === 'defend'
-            ? k.rgb(255, 150, 100)
-            : k.rgb(100, 200, 150);
-        k.add([
-            k.text(scenario.gameMode, { size: 10 }),
-            k.pos(cardX, cardY + 30),
-            k.anchor("center"),
-            k.color(modeColor),
-        ]);
-
         // Click handler
         k.onClick(`card-${scenario.id}`, () => {
             selectedScenarioId = scenario.id;
@@ -155,14 +144,22 @@ k.scene("title", () => {
         "playBtn",
     ]);
 
-    // Gallery button
+    // Unit Gallery button
     k.add([
-        k.text("[ Gallery ]", { size: 18 }),
+        k.text("[ Unit Gallery ]", { size: 18 }),
         k.pos(k.center().x, playY + 40),
         k.anchor("center"),
         k.color(120, 150, 180),
         k.area(),
         "galleryBtn",
+    ]);
+
+    // Copyright
+    k.add([
+        k.text("(c) 2026 Tyler Wanlass / https://tyler.cv", { size: 12 }),
+        k.pos(k.center().x, k.height() - 20),
+        k.anchor("center"),
+        k.color(80, 90, 100),
     ]);
 
     // Button interactions

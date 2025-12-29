@@ -4,7 +4,7 @@
  * Standard panel colors
  */
 export const PANEL_COLORS = {
-    background: { r: 20, g: 30, b: 40 },
+    background: { r: 0, g: 0, b: 0 },
     separator: { r: 60, g: 70, b: 80 },
     headerText: { r: 150, g: 150, b: 150 },
     bodyText: { r: 200, g: 200, b: 200 },

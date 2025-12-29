@@ -68,11 +68,21 @@ export function createGalleryScene(k) {
                     color: k.rgb(255, 255, 255),
                 });
 
-                // Draw sprite
-                const spriteSize = getSpriteSize(ship.sprite, scale);
-                const spriteX = cardX + (cardWidth - spriteSize.width) / 2;
-                const spriteY = cardY + 32;
-                drawSprite(k, ship.sprite, spriteX, spriteY, scale);
+                // Draw sprite (PNG if available, otherwise pixel art)
+                if (ship.imageSprite) {
+                    const pngScale = scale * (ship.spriteScale || 1);
+                    k.drawSprite({
+                        sprite: ship.imageSprite,
+                        pos: k.vec2(cardX + cardWidth / 2, cardY + 65),
+                        anchor: "center",
+                        scale: pngScale,
+                    });
+                } else {
+                    const spriteSize = getSpriteSize(ship.sprite, scale);
+                    const spriteX = cardX + (cardWidth - spriteSize.width) / 2;
+                    const spriteY = cardY + 32;
+                    drawSprite(k, ship.sprite, spriteX, spriteY, scale);
+                }
 
                 // Stats
                 const statsY = cardY + 115;
@@ -127,11 +137,21 @@ export function createGalleryScene(k) {
                     color: k.rgb(255, 255, 255),
                 });
 
-                // Draw sprite
-                const spriteSize = getSpriteSize(port.sprite, scale);
-                const spriteX = cardX + (cardWidth - spriteSize.width) / 2;
-                const spriteY = cardY + 32;
-                drawSprite(k, port.sprite, spriteX, spriteY, scale);
+                // Draw sprite (PNG if available, otherwise pixel art)
+                if (port.imageSprite) {
+                    const pngScale = scale * (port.spriteScale || 1);
+                    k.drawSprite({
+                        sprite: port.imageSprite,
+                        pos: k.vec2(cardX + cardWidth / 2, cardY + 65),
+                        anchor: "center",
+                        scale: pngScale,
+                    });
+                } else {
+                    const spriteSize = getSpriteSize(port.sprite, scale);
+                    const spriteX = cardX + (cardWidth - spriteSize.width) / 2;
+                    const spriteY = cardY + 32;
+                    drawSprite(k, port.sprite, spriteX, spriteY, scale);
+                }
 
                 // Stats
                 k.drawText({
@@ -183,11 +203,21 @@ export function createGalleryScene(k) {
                     color: k.rgb(255, 255, 255),
                 });
 
-                // Draw sprite
-                const spriteSize = getSpriteSize(tower.sprite, scale);
-                const spriteX = cardX + (cardWidth - spriteSize.width) / 2;
-                const spriteY = cardY + 32;
-                drawSprite(k, tower.sprite, spriteX, spriteY, scale);
+                // Draw sprite (PNG if available, otherwise pixel art)
+                if (tower.imageSprite) {
+                    const pngScale = scale * (tower.spriteScale || 1);
+                    k.drawSprite({
+                        sprite: tower.imageSprite,
+                        pos: k.vec2(cardX + cardWidth / 2, cardY + 65),
+                        anchor: "center",
+                        scale: pngScale,
+                    });
+                } else {
+                    const spriteSize = getSpriteSize(tower.sprite, scale);
+                    const spriteX = cardX + (cardWidth - spriteSize.width) / 2;
+                    const spriteY = cardY + 32;
+                    drawSprite(k, tower.sprite, spriteX, spriteY, scale);
+                }
 
                 // Stats
                 k.drawText({

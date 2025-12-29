@@ -13,44 +13,39 @@ import {
 } from "./uiPrimitives.js";
 
 /**
- * Draw the resource panel (top right)
+ * Draw the resource panel (top left)
  */
 export function drawResourcePanel(ctx, gameState) {
-    const { k, screenWidth } = ctx;
+    const { k } = ctx;
 
+    const padding = 12;
     const panelWidth = 200;
-    const panelHeight = 70;
-    const panelX = screenWidth - panelWidth - 15;
+    const panelHeight = 56;
+    const panelX = 15;
     const panelY = 15;
 
-    // Panel background
+    // Panel background (black)
     k.drawRect({
         pos: k.vec2(panelX, panelY),
         width: panelWidth,
         height: panelHeight,
-        color: k.rgb(20, 30, 40),
+        color: k.rgb(0, 0, 0),
         radius: 6,
-        opacity: 0.9,
-    });
-
-    // Panel title
-    k.drawText({
-        text: "STOCKPILE",
-        pos: k.vec2(panelX + panelWidth / 2, panelY + 12),
-        size: 12,
-        anchor: "center",
-        color: k.rgb(150, 150, 150),
+        opacity: 0.85,
     });
 
     // Resource values
     const res = gameState.resources;
-    const resY = panelY + 38;
+    const contentY = panelY + padding;
     const iconSize = 16;
     const iconOffset = iconSize + 8;
+    const valueY = contentY + 16;  // Y position of the value text
+    const valueFontSize = 18;
 
     // Wood section
-    const woodIconX = panelX + 15;
-    const woodIconY = resY - 8;
+    const woodIconX = panelX + padding;
+    // Center icon vertically with the value text (value text baseline + half font height)
+    const woodIconY = valueY + (valueFontSize / 2) - (iconSize / 2);
 
     // Wood sprite icon
     k.drawSprite({
@@ -63,21 +58,21 @@ export function drawResourcePanel(ctx, gameState) {
     // Wood label and value
     k.drawText({
         text: `Wood`,
-        pos: k.vec2(woodIconX + iconOffset, resY - 10),
+        pos: k.vec2(woodIconX + iconOffset, contentY),
         size: 10,
         color: k.rgb(139, 90, 43),
     });
     k.drawText({
         text: `${res.wood}`,
-        pos: k.vec2(woodIconX + iconOffset, resY + 6),
-        size: 18,
+        pos: k.vec2(woodIconX + iconOffset, valueY),
+        size: valueFontSize,
         color: k.rgb(200, 150, 100),
     });
 
     // Crew section (right side of panel)
     const crewStatus = computeCrewStatus(gameState);
-    const crewIconX = panelX + 110;
-    const crewIconY = resY - 8;
+    const crewIconX = panelX + 108;
+    const crewIconY = valueY + (valueFontSize / 2) - (iconSize / 2);
 
     // Crew sprite icon
     k.drawSprite({
@@ -90,7 +85,7 @@ export function drawResourcePanel(ctx, gameState) {
     // Crew label
     k.drawText({
         text: `Crew`,
-        pos: k.vec2(crewIconX + iconOffset, resY - 10),
+        pos: k.vec2(crewIconX + iconOffset, contentY),
         size: 10,
         color: k.rgb(140, 160, 180),
     });
@@ -100,67 +95,269 @@ export function drawResourcePanel(ctx, gameState) {
     const crewColor = isOverCap ? k.rgb(255, 100, 100) : k.rgb(180, 200, 220);
     k.drawText({
         text: `${crewStatus.used}/${crewStatus.cap}`,
-        pos: k.vec2(crewIconX + iconOffset, resY + 6),
-        size: 18,
+        pos: k.vec2(crewIconX + iconOffset, valueY),
+        size: valueFontSize,
         color: crewColor,
     });
 
 }
 
 /**
- * Draw game title and controls hint (top left)
+ * Draw top right buttons (pause and menu)
+ * Returns bounds for click detection
  */
-export function drawGameTitle(ctx) {
-    const { k } = ctx;
+export function drawTopRightButtons(ctx, gameState) {
+    const { k, screenWidth } = ctx;
 
-    k.drawText({
-        text: "Grog",
-        pos: k.vec2(20, 20),
-        size: 28,
-        color: k.rgb(255, 255, 255),
+    const buttonWidth = 36;
+    const buttonHeight = 36;
+    const buttonSpacing = 8;
+    const buttonY = 15;
+    const mousePos = k.mousePos();
+
+    // Menu button (rightmost)
+    const menuX = screenWidth - buttonWidth - 15;
+    const menuHovered = mousePos.x >= menuX && mousePos.x <= menuX + buttonWidth &&
+                        mousePos.y >= buttonY && mousePos.y <= buttonY + buttonHeight;
+
+    k.drawRect({
+        pos: k.vec2(menuX, buttonY),
+        width: buttonWidth,
+        height: buttonHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 6,
+        opacity: menuHovered ? 1.0 : 0.85,
     });
 
+    // Help icon (?)
+    const menuCenterX = menuX + buttonWidth / 2;
+    const menuCenterY = buttonY + buttonHeight / 2;
+    const menuIconColor = menuHovered ? k.rgb(200, 210, 220) : k.rgb(150, 160, 170);
     k.drawText({
-        text: "Drag: Select | Shift+click: Add to selection | Click: Set waypoint (when ships selected)",
-        pos: k.vec2(20, 52),
-        size: 12,
-        color: k.rgb(120, 120, 120),
+        text: "?",
+        pos: k.vec2(menuCenterX, menuCenterY),
+        size: 20,
+        anchor: "center",
+        color: menuIconColor,
     });
+
+    // Pause button (left of menu)
+    const pauseX = menuX - buttonWidth - buttonSpacing;
+    const isPaused = gameState.timeScale === 0;
+    const pauseHovered = mousePos.x >= pauseX && mousePos.x <= pauseX + buttonWidth &&
+                         mousePos.y >= buttonY && mousePos.y <= buttonY + buttonHeight;
+
+    k.drawRect({
+        pos: k.vec2(pauseX, buttonY),
+        width: buttonWidth,
+        height: buttonHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 6,
+        opacity: pauseHovered ? 1.0 : 0.85,
+    });
+
+    const pauseCenterX = pauseX + buttonWidth / 2;
+    const pauseCenterY = buttonY + buttonHeight / 2;
+
+    if (isPaused) {
+        // Play icon (triangle)
+        const playColor = pauseHovered ? k.rgb(120, 230, 120) : k.rgb(100, 200, 100);
+        k.drawTriangle({
+            p1: k.vec2(pauseCenterX - 6, pauseCenterY - 8),
+            p2: k.vec2(pauseCenterX - 6, pauseCenterY + 8),
+            p3: k.vec2(pauseCenterX + 8, pauseCenterY),
+            color: playColor,
+        });
+    } else {
+        // Pause icon (two bars)
+        const pauseIconColor = pauseHovered ? k.rgb(200, 210, 220) : k.rgb(150, 160, 170);
+        k.drawRect({
+            pos: k.vec2(pauseCenterX - 7, pauseCenterY - 8),
+            width: 5,
+            height: 16,
+            color: pauseIconColor,
+            radius: 1,
+        });
+        k.drawRect({
+            pos: k.vec2(pauseCenterX + 2, pauseCenterY - 8),
+            width: 5,
+            height: 16,
+            color: pauseIconColor,
+            radius: 1,
+        });
+    }
+
+    return {
+        pauseButton: { x: pauseX, y: buttonY, width: buttonWidth, height: buttonHeight },
+        menuButton: { x: menuX, y: buttonY, width: buttonWidth, height: buttonHeight },
+    };
 }
 
 /**
- * Draw time scale indicator (bottom left)
+ * Draw time scale indicator (bottom left) with clickable speed selector
+ * Returns bounds for click detection
  */
-export function drawTimeIndicator(ctx, timeScale) {
+export function drawTimeIndicator(ctx, timeScale, speedMenuOpen = false) {
     const { k, screenHeight } = ctx;
 
     const timeLabel = timeScale === 0 ? "PAUSED" : `${timeScale}x`;
-    const timeColor = timeScale === 0
-        ? k.rgb(255, 100, 100)
-        : k.rgb(150, 200, 150);
+    const x = 20;
+    const y = screenHeight - 30;
+    const fontSize = 18;
 
+    // Draw text with black outline (white fill)
+    const outlineOffset = 1;
+    const outlineColor = k.rgb(0, 0, 0);
+
+    // Draw outline in 4 directions
+    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+        k.drawText({
+            text: timeLabel,
+            pos: k.vec2(x + ox * outlineOffset, y + oy * outlineOffset),
+            size: fontSize,
+            color: outlineColor,
+        });
+    }
+
+    // White text on top
     k.drawText({
         text: timeLabel,
-        pos: k.vec2(20, screenHeight - 25),
-        size: 18,
-        color: timeColor,
+        pos: k.vec2(x, y),
+        size: fontSize,
+        color: k.rgb(255, 255, 255),
     });
+
+    // Calculate bounds for click detection
+    const textWidth = timeLabel.length * 10;  // Approximate
+    const bounds = {
+        x: x - 5,
+        y: y - 5,
+        width: textWidth + 10,
+        height: fontSize + 10,
+    };
+
+    // Draw speed menu if open
+    if (speedMenuOpen) {
+        const menuX = x;
+        const menuY = y - 160;  // Above the indicator
+        const menuWidth = 80;
+        const itemHeight = 28;
+        const menuHeight = 5 * itemHeight + 8;  // 5 options + padding
+
+        // Menu background
+        k.drawRect({
+            pos: k.vec2(menuX, menuY),
+            width: menuWidth,
+            height: menuHeight,
+            color: k.rgb(0, 0, 0),
+            radius: 6,
+            opacity: 0.9,
+        });
+
+        const mousePos = k.mousePos();
+        bounds.menuItems = [];
+
+        // Speed options 1x - 5x
+        for (let i = 1; i <= 5; i++) {
+            const itemY = menuY + 4 + (i - 1) * itemHeight;
+            const isCurrentSpeed = timeScale === i;
+            const isHovered = mousePos.x >= menuX && mousePos.x <= menuX + menuWidth &&
+                             mousePos.y >= itemY && mousePos.y <= itemY + itemHeight;
+
+            bounds.menuItems.push({
+                y: itemY,
+                height: itemHeight,
+                speed: i,
+            });
+
+            // Highlight on hover
+            if (isHovered) {
+                k.drawRect({
+                    pos: k.vec2(menuX + 4, itemY),
+                    width: menuWidth - 8,
+                    height: itemHeight,
+                    color: k.rgb(60, 80, 100),
+                    radius: 4,
+                });
+            }
+
+            // Speed label
+            const labelColor = isCurrentSpeed ? k.rgb(100, 200, 100) : k.rgb(200, 200, 200);
+            const textY = itemY + itemHeight / 2;
+            k.drawText({
+                text: `${i}x`,
+                pos: k.vec2(menuX + 14, textY),
+                size: 14,
+                anchor: "left",
+                color: labelColor,
+            });
+
+            // Hotkey hint
+            k.drawText({
+                text: `(${i})`,
+                pos: k.vec2(menuX + menuWidth - 14, textY),
+                size: 12,
+                anchor: "right",
+                color: k.rgb(120, 120, 120),
+            });
+        }
+
+        bounds.menu = {
+            x: menuX,
+            y: menuY,
+            width: menuWidth,
+            height: menuHeight,
+        };
+    }
+
+    return bounds;
 }
 
 /**
- * Draw pirate kill counter at bottom center of screen
+ * Draw pirate kill counter at bottom right of screen
  */
 export function drawPirateKillCounter(ctx, pirateKills) {
     const { k, screenWidth, screenHeight } = ctx;
 
-    const label = `Pirates Sunk: ${pirateKills}`;
-    const textWidth = label.length * 8;  // Approximate width
+    const padding = 12;
+    const spriteSize = 32;
+    const fontSize = 18;
+    const spacing = 8;
+    const panelWidth = spriteSize + spacing + 30 + padding * 2;
+    const panelHeight = spriteSize + padding * 2;
+    const panelX = screenWidth - 15 - panelWidth;
+    const panelY = screenHeight - 15 - panelHeight;
 
+    // Panel background (black)
+    k.drawRect({
+        pos: k.vec2(panelX, panelY),
+        width: panelWidth,
+        height: panelHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 6,
+        opacity: 0.85,
+    });
+
+    // Draw pirate ship sprite at full size (facing northwest)
+    const spriteX = panelX + padding + spriteSize / 2;
+    const spriteY = panelY + panelHeight / 2;
+    k.drawSprite({
+        sprite: "pirate",
+        pos: k.vec2(spriteX, spriteY),
+        anchor: "center",
+        scale: 1.0,
+        angle: -45,
+    });
+
+    // Draw kill count (white text)
+    const textX = spriteX + spriteSize / 2 + spacing;
+    const textY = spriteY;
     k.drawText({
-        text: label,
-        pos: k.vec2(screenWidth / 2 - textWidth / 2, screenHeight - 25),
-        size: 16,
-        color: k.rgb(200, 80, 80),
+        text: `${pirateKills}`,
+        pos: k.vec2(textX, textY),
+        size: fontSize,
+        anchor: "left",
+        color: k.rgb(255, 255, 255),
     });
 }
 
@@ -176,15 +373,15 @@ export function drawWaveStatus(ctx, waveStatus) {
     const panelWidth = 200;
     const panelHeight = 50;
     const panelX = screenWidth / 2 - panelWidth / 2;
-    const panelY = 10;
+    const panelY = 15;
 
     k.drawRect({
         pos: k.vec2(panelX, panelY),
         width: panelWidth,
         height: panelHeight,
-        color: k.rgb(20, 30, 40),
+        color: k.rgb(0, 0, 0),
         radius: 6,
-        opacity: 0.9,
+        opacity: 0.85,
     });
 
     // Wave number
@@ -664,12 +861,13 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
 export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, spriteData, name, cost, buildTime, isHovered, isAffordable, extraData = {}) {
     const { k } = ctx;
     const canBuild = isAffordable && !extraData.isBusy;
+    const sidePadding = 10;
 
     // Button background (highlight on hover, only if can build)
     if (isHovered && canBuild) {
         k.drawRect({
-            pos: k.vec2(panelX + 4, btnY),
-            width: panelWidth - 8,
+            pos: k.vec2(panelX + sidePadding, btnY),
+            width: panelWidth - sidePadding * 2,
             height: btnHeight,
             color: k.rgb(60, 80, 100),
             radius: 4,
@@ -679,36 +877,43 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
     // Draw sprite thumbnail
     const thumbScale = 1.2;
     const spriteSize = getSpriteSize(spriteData.sprite, thumbScale);
-    const spriteX = panelX + 10;
+    const spriteX = panelX + sidePadding + 4;
     const spriteY = btnY + (btnHeight - spriteSize.height) / 2;
     drawSprite(k, spriteData.sprite, spriteX, spriteY, thumbScale, canBuild ? 1.0 : 0.4);
 
+    // Parse name and hotkey (e.g., "Cutter (C)" -> "Cutter" and "(C)")
+    const hotkeyMatch = name.match(/^(.+?)(\s*\([A-Z]\))$/);
+    const displayName = hotkeyMatch ? hotkeyMatch[1] : name;
+    const hotkey = hotkeyMatch ? hotkeyMatch[2] : null;
+
     // Name (greyed out if can't build)
     k.drawText({
-        text: name,
-        pos: k.vec2(panelX + 44, btnY + 10),
+        text: displayName,
+        pos: k.vec2(panelX + sidePadding + 38, btnY + 10),
         size: 13,
         anchor: "left",
         color: !canBuild ? k.rgb(80, 80, 80) : isHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
     });
 
+    // Hotkey hint (slightly off-white, matching speed menu)
+    if (hotkey) {
+        k.drawText({
+            text: hotkey.trim(),
+            pos: k.vec2(panelX + panelWidth - sidePadding - 4, btnY + 10),
+            size: 12,
+            anchor: "right",
+            color: !canBuild ? k.rgb(60, 60, 60) : k.rgb(120, 120, 120),
+        });
+    }
+
     // Cost
     const costText = cost.wood ? `${cost.wood} wood` : "Free";
     k.drawText({
         text: costText,
-        pos: k.vec2(panelX + 44, btnY + 26),
+        pos: k.vec2(panelX + sidePadding + 38, btnY + 26),
         size: 10,
         anchor: "left",
         color: !canBuild ? k.rgb(100, 60, 60) : k.rgb(120, 120, 120),
-    });
-
-    // Build time (right side)
-    k.drawText({
-        text: `${buildTime}s`,
-        pos: k.vec2(panelX + panelWidth - 12, btnY + btnHeight / 2),
-        size: 11,
-        anchor: "right",
-        color: !canBuild ? k.rgb(80, 80, 80) : k.rgb(150, 150, 150),
     });
 
     return { y: btnY, height: btnHeight };
@@ -719,9 +924,10 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
  */
 export function drawPanelSeparator(ctx, panelX, panelWidth, y) {
     const { k } = ctx;
+    const sidePadding = 10;
     k.drawLine({
-        p1: k.vec2(panelX + 8, y - 4),
-        p2: k.vec2(panelX + panelWidth - 8, y - 4),
+        p1: k.vec2(panelX + sidePadding, y),
+        p2: k.vec2(panelX + panelWidth - sidePadding, y),
         width: 1,
         color: k.rgb(60, 70, 80),
     });
@@ -1002,18 +1208,21 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
     const bpWidth = 200;
     const bpRowHeight = 44;
-    const bpPadding = 8;
-    const bpHeaderHeight = 20;
-    const shipBuildStatusHeight = 70; // Height of the ship build status display
-    const shipButtonsHeight = bpHeaderHeight + bpPadding + buildableShips.length * bpRowHeight;
-    const shipSectionHeight = port.buildQueue ? shipBuildStatusHeight : shipButtonsHeight;
-    const settlementHeight = canBuildSettlement ? (bpHeaderHeight + bpRowHeight) : 0;
-    const defenseHeight = canBuildDefense ? (bpHeaderHeight + bpRowHeight) : 0; // Just Watchtower
-    const upgradeHeight = canUpgrade ? (bpHeaderHeight + bpRowHeight) : 0;
+    const bpPadding = 10;
+    const sectionGap = 8; // Gap between sections (for separator line)
+    const shipButtonsHeight = buildableShips.length * bpRowHeight;
+    // Hide ship buttons when building (progress shown via bar above port)
+    const shipSectionHeight = port.buildQueue ? 0 : shipButtonsHeight;
+    const settlementHeight = canBuildSettlement ? bpRowHeight : 0;
+    const defenseHeight = canBuildDefense ? bpRowHeight : 0; // Just Watchtower
+    const upgradeHeight = canUpgrade ? bpRowHeight : 0;
     // Only show repair button when damaged and not already repairing (repair bar shows above unit)
     const repairHeight = (isDamaged && !isRepairing) ? 50 : 0;
-    // New order: Settlement, Ships, Watchtower, Upgrades, Repair
-    const bpHeight = storageHeight + settlementHeight + shipSectionHeight + bpPadding + defenseHeight + upgradeHeight + repairHeight;
+    // Count number of section gaps needed
+    const numSections = [settlementHeight > 0, shipSectionHeight > 0, defenseHeight > 0, upgradeHeight > 0, repairHeight > 0].filter(Boolean).length;
+    const totalSectionGaps = Math.max(0, numSections - 1) * sectionGap;
+    // New order: Settlement, Ships, Watchtower, Upgrades, Repair (with padding top/bottom)
+    const bpHeight = bpPadding + storageHeight + settlementHeight + shipSectionHeight + defenseHeight + upgradeHeight + repairHeight + totalSectionGaps + bpPadding;
     const bpX = 15;
     const bpY = screenHeight - 50 - bpHeight;
 
@@ -1035,10 +1244,10 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
     // Storage section for non-home ports
     if (hasStorage) {
-        drawPortStorage(ctx, port, bpX, bpWidth, bpY);
+        drawPortStorage(ctx, port, bpX, bpWidth, bpY + bpPadding);
         k.drawLine({
-            p1: k.vec2(bpX + 8, bpY + storageHeight - 4),
-            p2: k.vec2(bpX + bpWidth - 8, bpY + storageHeight - 4),
+            p1: k.vec2(bpX + 8, bpY + bpPadding + storageHeight - 4),
+            p2: k.vec2(bpX + bpWidth - 8, bpY + bpPadding + storageHeight - 4),
             width: 1,
             color: k.rgb(60, 70, 80),
         });
@@ -1046,8 +1255,9 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
     const mousePos = k.mousePos();
 
-    // Track current Y position for sections (after storage)
-    let currentY = bpY + storageHeight;
+    // Track current Y position for sections (after top padding and storage)
+    let currentY = bpY + bpPadding + storageHeight;
+    let hasPreviousSection = false;
 
     // 1. Settlement section (first)
     if (canBuildSettlement) {
@@ -1056,15 +1266,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         const settlementAffordable = canAfford(gameState.resources, settlementData.cost);
         const canBuildSettlementNow = settlementAffordable && !alreadyBuildingSettlement;
 
-        k.drawText({
-            text: "BUILD SETTLEMENT",
-            pos: k.vec2(bpX + bpWidth / 2, currentY + 10),
-            size: 11,
-            anchor: "center",
-            color: k.rgb(150, 150, 150),
-        });
-
-        const settlementBtnY = currentY + bpHeaderHeight;
+        const settlementBtnY = currentY;
         const settlementBtnHeight = bpRowHeight - 4;
         bounds.settlementButton = { y: settlementBtnY, height: settlementBtnHeight };
 
@@ -1077,27 +1279,21 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
             settlementData.cost, settlementData.buildTime, isSettlementHovered, canBuildSettlementNow);
 
         currentY += settlementHeight;
+        hasPreviousSection = true;
     }
 
-    // 2. Ship section
-    if (port.buildQueue) {
-        drawShipBuildingStatus(ctx, port, bpX, bpWidth, currentY);
-        currentY += shipSectionHeight;
-    } else {
-        drawPanelSeparator(ctx, bpX, bpWidth, currentY);
-        k.drawText({
-            text: "BUILD SHIP",
-            pos: k.vec2(bpX + bpWidth / 2, currentY + 14),
-            size: 11,
-            anchor: "center",
-            color: k.rgb(150, 150, 150),
-        });
+    // 2. Ship section (hidden when building - progress shown via bar above port)
+    if (!port.buildQueue && buildableShips.length > 0) {
+        if (hasPreviousSection) {
+            currentY += sectionGap;
+            drawPanelSeparator(ctx, bpX, bpWidth, currentY - sectionGap / 2);
+        }
 
         // Ship buttons
         for (let i = 0; i < buildableShips.length; i++) {
             const shipType = buildableShips[i];
             const shipData = SHIPS[shipType];
-            const btnY = currentY + bpHeaderHeight + bpPadding + i * bpRowHeight;
+            const btnY = currentY + i * bpRowHeight;
             const btnHeight = bpRowHeight - 4;
             const affordable = canAfford(gameState.resources, shipData.cost) &&
                                canAffordCrew(gameState, shipData.crewCost || 0);
@@ -1114,6 +1310,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
                 shipData.cost, shipData.build_time, isHovered, canBuildShip);
         }
         currentY += shipSectionHeight;
+        hasPreviousSection = true;
     }
 
     // 3. Defense section (Watchtower only - upgrades via tower panel)
@@ -1122,16 +1319,12 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         const towerAffordable = canAfford(gameState.resources, watchtowerData.cost) &&
                                 canAffordCrew(gameState, watchtowerData.crewCost || 0);
 
-        drawPanelSeparator(ctx, bpX, bpWidth, currentY);
-        k.drawText({
-            text: "BUILD DEFENSE",
-            pos: k.vec2(bpX + bpWidth / 2, currentY + 10),
-            size: 11,
-            anchor: "center",
-            color: k.rgb(150, 150, 150),
-        });
+        if (hasPreviousSection) {
+            currentY += sectionGap;
+            drawPanelSeparator(ctx, bpX, bpWidth, currentY - sectionGap / 2);
+        }
 
-        const towerBtnY = currentY + bpHeaderHeight;
+        const towerBtnY = currentY;
         const towerBtnHeight = bpRowHeight - 4;
         bounds.towerButton = { y: towerBtnY, height: towerBtnHeight };
 
@@ -1142,6 +1335,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
             watchtowerData.cost, watchtowerData.buildTime, isTowerHovered, towerAffordable);
 
         currentY += defenseHeight;
+        hasPreviousSection = true;
     }
 
     // 4. Upgrade section
@@ -1149,26 +1343,23 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         const nextPortData = PORTS[nextPortType];
         const upgradeAffordable = canAfford(gameState.resources, nextPortData.cost);
 
-        drawPanelSeparator(ctx, bpX, bpWidth, currentY);
-        k.drawText({
-            text: "UPGRADE",
-            pos: k.vec2(bpX + bpWidth / 2, currentY + 8),
-            size: 10,
-            anchor: "center",
-            color: k.rgb(150, 150, 150),
-        });
+        if (hasPreviousSection) {
+            currentY += sectionGap;
+            drawPanelSeparator(ctx, bpX, bpWidth, currentY - sectionGap / 2);
+        }
 
-        const upgradeBtnY = currentY + bpHeaderHeight;
+        const upgradeBtnY = currentY;
         const upgradeBtnHeight = bpRowHeight - 4;
         bounds.upgradeButton = { y: upgradeBtnY, height: upgradeBtnHeight, portType: nextPortType };
 
         const isUpgradeHovered = upgradeAffordable && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
                                  mousePos.y >= upgradeBtnY && mousePos.y <= upgradeBtnY + upgradeBtnHeight;
 
-        drawPanelButton(ctx, bpX, bpWidth, upgradeBtnY, upgradeBtnHeight, nextPortData, nextPortData.name,
+        drawPanelButton(ctx, bpX, bpWidth, upgradeBtnY, upgradeBtnHeight, nextPortData, "Upgrade to " + nextPortData.name,
             nextPortData.cost, nextPortData.buildTime, isUpgradeHovered, upgradeAffordable);
 
         currentY += upgradeHeight;
+        hasPreviousSection = true;
     }
 
     // 5. Repair button (only if damaged and not repairing - repair bar shows above unit)
@@ -1177,9 +1368,12 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         const repairCost = getRepairCost('port', port);
         const canAffordRepair = gameState.resources.wood >= repairCost.wood;
 
-        drawPanelSeparator(ctx, bpX, bpWidth, currentY);
+        if (hasPreviousSection) {
+            currentY += sectionGap;
+            drawPanelSeparator(ctx, bpX, bpWidth, currentY - sectionGap / 2);
+        }
 
-        const btnY = currentY + 7;
+        const btnY = currentY;
         const btnHeight = 36;
 
         bounds.repairButton = { y: btnY, height: btnHeight };
@@ -1221,12 +1415,111 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 }
 
 /**
- * Draw all simple UI panels (resource, title, time, pirate kills, wave status)
+ * Draw controls menu panel (center of screen)
+ * Returns bounds for click detection
  */
-export function drawSimpleUIPanels(ctx, gameState, waveStatus = null) {
+export function drawMenuPanel(ctx) {
+    const { k, screenWidth, screenHeight } = ctx;
+
+    const panelWidth = 320;
+    const panelHeight = 306;
+    const panelX = screenWidth / 2 - panelWidth / 2;
+    const panelY = screenHeight / 2 - panelHeight / 2;
+
+    // Panel background
+    k.drawRect({
+        pos: k.vec2(panelX, panelY),
+        width: panelWidth,
+        height: panelHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 8,
+        opacity: 0.95,
+    });
+
+    // Title
+    k.drawText({
+        text: "CONTROLS",
+        pos: k.vec2(screenWidth / 2, panelY + 25),
+        size: 20,
+        anchor: "center",
+        color: k.rgb(255, 255, 255),
+    });
+
+    // Separator
+    k.drawLine({
+        p1: k.vec2(panelX + 20, panelY + 50),
+        p2: k.vec2(panelX + panelWidth - 20, panelY + 50),
+        width: 1,
+        color: k.rgb(60, 70, 80),
+    });
+
+    // Controls list
+    const controls = [
+        { key: "Left Click", action: "Select units" },
+        { key: "Shift + Click", action: "Add to selection" },
+        { key: "Left Drag", action: "Box select" },
+        { key: "Right Click", action: "Move / Attack" },
+        { key: "Right Drag", action: "Pan camera" },
+        { key: "Scroll", action: "Zoom in/out" },
+        { key: "1-5", action: "Set game speed" },
+        { key: "/", action: "Toggle this menu" },
+    ];
+
+    const startY = panelY + 70;
+    const rowHeight = 26;
+
+    for (let i = 0; i < controls.length; i++) {
+        const y = startY + i * rowHeight;
+
+        // Key
+        k.drawText({
+            text: controls[i].key,
+            pos: k.vec2(panelX + 25, y),
+            size: 13,
+            color: k.rgb(180, 200, 220),
+        });
+
+        // Action
+        k.drawText({
+            text: controls[i].action,
+            pos: k.vec2(panelX + 140, y),
+            size: 13,
+            color: k.rgb(150, 150, 150),
+        });
+    }
+
+    // Close hint
+    k.drawText({
+        text: "Click anywhere to close",
+        pos: k.vec2(screenWidth / 2, panelY + panelHeight - 25),
+        size: 11,
+        anchor: "center",
+        color: k.rgb(100, 100, 100),
+    });
+
+    return {
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: panelHeight,
+    };
+}
+
+/**
+ * Draw all simple UI panels (resource, buttons, time, pirate kills, wave status)
+ * Returns bounds for button click detection
+ */
+export function drawSimpleUIPanels(ctx, gameState, waveStatus = null, speedMenuOpen = false, menuPanelOpen = false) {
     drawResourcePanel(ctx, gameState);
-    drawGameTitle(ctx);
-    drawTimeIndicator(ctx, gameState.timeScale);
+    const buttonBounds = drawTopRightButtons(ctx, gameState);
+    const speedBounds = drawTimeIndicator(ctx, gameState.timeScale, speedMenuOpen);
     drawPirateKillCounter(ctx, gameState.pirateKills);
     drawWaveStatus(ctx, waveStatus);
+
+    let menuPanelBounds = null;
+    if (menuPanelOpen) {
+        menuPanelBounds = drawMenuPanel(ctx);
+    }
+
+    return { ...buttonBounds, speedIndicator: speedBounds, menuPanel: menuPanelBounds };
 }

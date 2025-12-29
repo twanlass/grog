@@ -18,7 +18,7 @@ function seededRandom(seed) {
 }
 import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
-import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight } from "../rendering/selectionUI.js";
+import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
 import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel } from "../rendering/uiPanels.js";
 
@@ -200,6 +200,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         let settlementBuildPanelBounds = null;  // For settlement build button in port panel
         let towerInfoPanelBounds = null;  // For tower upgrade button
         let shipInfoPanelBounds = null;  // For ship repair button
+        let topButtonBounds = null;  // For pause/menu buttons
+        let speedMenuOpen = false;  // Speed selector menu state
+        let menuPanelOpen = false;  // Controls menu panel state
+        let timeScaleBeforeMenu = 1;  // Store time scale before opening menu
 
         // Floating numbers for resource generation animation
         const floatingNumbers = [];
@@ -319,7 +323,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             if (gameState.gameOver) return;
 
             // Delegate to game systems
-            updateShipMovement(hexToPixel, gameState, map, fogState, dt);
+            updateShipMovement(hexToPixel, gameState, map, fogState, dt, floatingNumbers);
             const homePortIdx = getHomePortIndex(gameState, map);
             const homePort = homePortIdx !== null ? gameState.ports[homePortIdx] : null;
             updatePirateAI(gameState, map, homePort, dt); // Pirates patrol near home port
@@ -504,6 +508,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             // Draw unit hover highlight (before units so it appears underneath)
             drawUnitHoverHighlight(ctx, gameState, getShipVisualPosLocal, SELECTION_RADIUS);
 
+            // Draw waypoints and rally points (before units so they appear underneath)
+            drawWaypointsAndRallyPoints(ctx, gameState);
+
             // Draw ships (migrated to rendering module)
             drawShips(ctx, gameState, fogState, getShipVisualPosLocal);
 
@@ -537,7 +544,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
             // Draw simple UI panels (migrated to rendering module)
             const waveStatus = getWaveStatus(gameState);
-            drawSimpleUIPanels(ctx, gameState, waveStatus);
+            topButtonBounds = drawSimpleUIPanels(ctx, gameState, waveStatus, speedMenuOpen, menuPanelOpen);
 
             // Build panel UI (when exactly one port is selected)
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
@@ -797,13 +804,14 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         });
 
         // Time scale controls
-        k.onKeyPress("1", () => { gameState.timeScale = 1; });
-        k.onKeyPress("2", () => { gameState.timeScale = 2; });
-        k.onKeyPress("3", () => { gameState.timeScale = 3; });
-        k.onKeyPress("4", () => { gameState.timeScale = 4; });
-        k.onKeyPress("5", () => { gameState.timeScale = 5; });
+        k.onKeyPress("1", () => { gameState.timeScale = 1; speedMenuOpen = false; });
+        k.onKeyPress("2", () => { gameState.timeScale = 2; speedMenuOpen = false; });
+        k.onKeyPress("3", () => { gameState.timeScale = 3; speedMenuOpen = false; });
+        k.onKeyPress("4", () => { gameState.timeScale = 4; speedMenuOpen = false; });
+        k.onKeyPress("5", () => { gameState.timeScale = 5; speedMenuOpen = false; });
         k.onKeyPress("p", () => {
             gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
+            speedMenuOpen = false;
         });
 
         // H to center camera on home port
@@ -826,7 +834,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
         // ESC to cancel placement modes or deselect all units
         k.onKeyPress("escape", () => {
-            if (gameState.portBuildMode.active) {
+            if (menuPanelOpen) {
+                menuPanelOpen = false;
+                gameState.timeScale = timeScaleBeforeMenu;
+            } else if (gameState.portBuildMode.active) {
                 exitPortBuildMode(gameState);
                 console.log("Port placement cancelled");
             } else if (gameState.settlementBuildMode.active) {
@@ -837,6 +848,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 console.log("Tower placement cancelled");
             } else if (gameState.selectedUnits.length > 0) {
                 clearSelection(gameState);
+            }
+        });
+
+        // '/' to toggle controls/help menu
+        k.onKeyPress("/", () => {
+            if (menuPanelOpen) {
+                menuPanelOpen = false;
+                gameState.timeScale = timeScaleBeforeMenu;
+            } else {
+                timeScaleBeforeMenu = gameState.timeScale || 1;
+                menuPanelOpen = true;
+                gameState.timeScale = 0;
             }
         });
 
@@ -949,10 +972,91 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             const mouseX = k.mousePos().x;
             const mouseY = k.mousePos().y;
 
+            // Close menu panel on any click (except menu button itself, handled below)
+            if (menuPanelOpen) {
+                // Check if clicking the menu button to toggle off
+                if (topButtonBounds && topButtonBounds.menuButton) {
+                    const mb = topButtonBounds.menuButton;
+                    if (mouseX >= mb.x && mouseX <= mb.x + mb.width &&
+                        mouseY >= mb.y && mouseY <= mb.y + mb.height) {
+                        // Let the menu button handler deal with this
+                    } else {
+                        // Click anywhere else closes the panel
+                        gameState.timeScale = timeScaleBeforeMenu;
+                        menuPanelOpen = false;
+                        return;
+                    }
+                } else {
+                    gameState.timeScale = timeScaleBeforeMenu;
+                    menuPanelOpen = false;
+                    return;
+                }
+            }
+
             // Handle placement mode clicks first
             if (handlePortPlacementClick(gameState)) return;
             if (handleSettlementPlacementClick(gameState)) return;
             if (handleTowerPlacementClick(gameState)) return;
+
+            // Check top button clicks (pause/menu)
+            if (topButtonBounds) {
+                const { pauseButton, menuButton, speedIndicator } = topButtonBounds;
+                if (pauseButton &&
+                    mouseX >= pauseButton.x && mouseX <= pauseButton.x + pauseButton.width &&
+                    mouseY >= pauseButton.y && mouseY <= pauseButton.y + pauseButton.height) {
+                    // Toggle pause
+                    gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
+                    speedMenuOpen = false;
+                    return;
+                }
+                if (menuButton &&
+                    mouseX >= menuButton.x && mouseX <= menuButton.x + menuButton.width &&
+                    mouseY >= menuButton.y && mouseY <= menuButton.y + menuButton.height) {
+                    // Toggle menu panel
+                    if (!menuPanelOpen) {
+                        timeScaleBeforeMenu = gameState.timeScale || 1;
+                        gameState.timeScale = 0;
+                        menuPanelOpen = true;
+                    } else {
+                        gameState.timeScale = timeScaleBeforeMenu;
+                        menuPanelOpen = false;
+                    }
+                    speedMenuOpen = false;
+                    return;
+                }
+
+                // Check speed menu clicks
+                if (speedIndicator) {
+                    // If menu is open, check menu item clicks first
+                    if (speedMenuOpen && speedIndicator.menu && speedIndicator.menuItems) {
+                        const menu = speedIndicator.menu;
+                        if (mouseX >= menu.x && mouseX <= menu.x + menu.width &&
+                            mouseY >= menu.y && mouseY <= menu.y + menu.height) {
+                            // Check which item was clicked
+                            for (const item of speedIndicator.menuItems) {
+                                if (mouseY >= item.y && mouseY <= item.y + item.height) {
+                                    gameState.timeScale = item.speed;
+                                    speedMenuOpen = false;
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    // Check click on speed indicator to toggle menu
+                    if (mouseX >= speedIndicator.x && mouseX <= speedIndicator.x + speedIndicator.width &&
+                        mouseY >= speedIndicator.y && mouseY <= speedIndicator.y + speedIndicator.height) {
+                        speedMenuOpen = !speedMenuOpen;
+                        return;
+                    }
+
+                    // Close menu if clicking outside
+                    if (speedMenuOpen) {
+                        speedMenuOpen = false;
+                        // Don't return - allow click to pass through
+                    }
+                }
+            }
 
             // Check UI panel clicks
             if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) return;

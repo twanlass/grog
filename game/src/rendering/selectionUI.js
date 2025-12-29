@@ -189,7 +189,7 @@ export function drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLoca
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
-        // Draw attack target indicator (red hex outline) or waypoint marker
+        // Draw attack target indicator (red hex outline)
         if (ship.attackTarget && ship.attackTarget.type === 'ship') {
             const target = gameState.ships[ship.attackTarget.index];
             if (target) {
@@ -201,13 +201,12 @@ export function drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLoca
                     drawSelectionHexOutline(ctx, target.q, target.r, attackColor);
                 }
             }
-        } else if (ship.waypoint) {
-            drawWaypointMarker(ctx, ship.waypoint.q, ship.waypoint.r);
+        }
 
-            // Draw A* path from ship to waypoint (dashed orange line)
-            if (ship.path && ship.path.length > 0) {
-                drawDashedPath(ctx, ship.path, screenX, screenY);
-            }
+        // Draw A* path from ship to waypoint (dashed orange line)
+        // Note: Waypoint marker itself is drawn earlier by drawWaypointsAndRallyPoints
+        if (ship.waypoint && ship.path && ship.path.length > 0) {
+            drawDashedPath(ctx, ship.path, screenX, screenY);
         }
     }
 }
@@ -375,7 +374,32 @@ export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selecti
 }
 
 /**
- * Draw all selection UI elements
+ * Draw waypoints and rally points (should be called BEFORE units to render underneath)
+ */
+export function drawWaypointsAndRallyPoints(ctx, gameState) {
+    // Draw ship waypoints
+    for (let i = 0; i < gameState.ships.length; i++) {
+        if (!isSelected(gameState, 'ship', i)) continue;
+        const ship = gameState.ships[i];
+
+        // Only draw waypoint if not attacking (attack has its own indicator)
+        if (ship.waypoint && !ship.attackTarget) {
+            drawWaypointMarker(ctx, ship.waypoint.q, ship.waypoint.r);
+        }
+    }
+
+    // Draw port rally points
+    for (let i = 0; i < gameState.ports.length; i++) {
+        if (!isSelected(gameState, 'port', i)) continue;
+        const port = gameState.ports[i];
+        if (port.rallyPoint) {
+            drawRallyPointFlag(ctx, port.rallyPoint.q, port.rallyPoint.r);
+        }
+    }
+}
+
+/**
+ * Draw all selection UI elements (selection outlines, paths, attack targets)
  */
 export function drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, selectionState) {
     const { k } = ctx;
@@ -430,17 +454,8 @@ export function drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, select
         drawSelectionAtPosition(ctx, pos.x, pos.y, selectionColor);
     }
 
-    // Draw additional ship-specific indicators (waypoints, attack targets, paths)
+    // Draw additional ship-specific indicators (attack targets, paths - waypoints drawn earlier)
     drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLocal);
-
-    // Draw port rally point indicators (flag instead of X)
-    for (let i = 0; i < gameState.ports.length; i++) {
-        if (!isSelected(gameState, 'port', i)) continue;
-        const port = gameState.ports[i];
-        if (port.rallyPoint) {
-            drawRallyPointFlag(ctx, port.rallyPoint.q, port.rallyPoint.r);
-        }
-    }
 
     // Draw tower attack range indicators
     drawTowerSelectionIndicators(ctx, gameState);

@@ -709,3 +709,6 @@ This should make it easier to read / see
 
 ## 180. User prompt
 > can we animate it up with an ease-out function (not linear)?
+
+## 181. User prompt
+> can you prep this to be deployed via netlify? 

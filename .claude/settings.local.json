@@ -18,14 +18,16 @@
       "Bash(git -C /Users/tylerwanlass/code/grog diff --stat game/src/scenes/gameScene.js)",
       "Bash(git -C /Users/tylerwanlass/code/grog diff --stat)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(kill:*)",
+      "Bash(xargs kill:*)"
     ]
   },
-  "disabledMcpjsonServers": [
-    "bear-notes"
-  ],
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "bear-notes"
   ],
-  "enableAllProjectMcpServers": true
+  "disabledMcpjsonServers": [
+    "bear-notes"
+  ]
 }
