@@ -796,6 +796,147 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
 }
 
 /**
+ * Draw the settlement info panel (bottom right, when settlement is selected)
+ */
+export function drawSettlementInfoPanel(ctx, settlement, gameState) {
+    if (!settlement) return null;
+
+    const { k, screenWidth, screenHeight } = ctx;
+    const settlementData = SETTLEMENTS.settlement;
+    const maxHealth = settlementData.health;
+    const isDamaged = settlement.health < maxHealth;
+    const isRepairing = !!settlement.repair;
+    const isConstructing = !!settlement.construction;
+
+    const infoPanelWidth = 160;
+    // Only show repair button when damaged and not already repairing
+    const repairHeight = (isDamaged && !isRepairing && !isConstructing) ? 50 : 0;
+    const infoPanelHeight = 80 + repairHeight;
+    const infoPanelX = screenWidth - infoPanelWidth - 15;
+    const infoPanelY = screenHeight - infoPanelHeight - 50;
+
+    const bounds = {
+        x: infoPanelX,
+        y: infoPanelY,
+        width: infoPanelWidth,
+        height: infoPanelHeight,
+        repairButton: null,
+    };
+
+    // Panel background
+    drawPanelContainer(ctx, infoPanelX, infoPanelY, infoPanelWidth, infoPanelHeight);
+
+    // Settlement name
+    k.drawText({
+        text: settlementData.name,
+        pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 14),
+        size: 13,
+        anchor: "center",
+        color: k.rgb(200, 200, 200),
+    });
+
+    // Construction status or stats
+    if (isConstructing) {
+        const progress = settlement.construction.progress || 0;
+        const buildTime = settlement.construction.buildTime;
+        const progressPercent = Math.floor((progress / buildTime) * 100);
+
+        k.drawText({
+            text: "BUILDING",
+            pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 36),
+            size: 10,
+            anchor: "center",
+            color: k.rgb(220, 180, 80),
+        });
+
+        // Progress bar
+        const barWidth = 120;
+        const barX = infoPanelX + (infoPanelWidth - barWidth) / 2;
+        const barY = infoPanelY + 50;
+
+        drawProgressBar(ctx, barX, barY, barWidth, progress / buildTime, {
+            fillColor: { r: 220, g: 180, b: 80 }
+        });
+
+        k.drawText({
+            text: `${progressPercent}%`,
+            pos: k.vec2(infoPanelX + infoPanelWidth / 2, barY + 18),
+            size: 10,
+            anchor: "center",
+            color: k.rgb(180, 150, 80),
+        });
+    } else {
+        // Health display
+        const health = settlement.health || settlementData.health;
+        drawHealthDisplay(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 36, health, maxHealth);
+
+        // Sight range info
+        k.drawText({
+            text: `Sight: ${settlementData.sightDistance} hexes`,
+            pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 60),
+            size: 10,
+            anchor: "center",
+            color: k.rgb(150, 180, 200),
+        });
+
+        // Repair button (only if damaged and not repairing)
+        if (isDamaged && !isRepairing) {
+            const repairCost = getRepairCost('settlement', settlement);
+            const canAffordRepair = gameState.resources.wood >= repairCost.wood;
+
+            const repairY = infoPanelY + 70;
+
+            k.drawLine({
+                p1: k.vec2(infoPanelX + 10, repairY),
+                p2: k.vec2(infoPanelX + infoPanelWidth - 10, repairY),
+                width: 1,
+                color: k.rgb(60, 70, 80),
+            });
+
+            const btnY = repairY + 5;
+            const btnHeight = 36;
+            const mousePos = k.mousePos();
+
+            bounds.repairButton = { y: btnY, height: btnHeight };
+
+            const isHovered = canAffordRepair &&
+                mousePos.x >= infoPanelX && mousePos.x <= infoPanelX + infoPanelWidth &&
+                mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+            // Button background
+            k.drawRect({
+                pos: k.vec2(infoPanelX + 5, btnY),
+                width: infoPanelWidth - 10,
+                height: btnHeight,
+                color: isHovered ? k.rgb(60, 80, 60) : k.rgb(40, 50, 60),
+                radius: 4,
+            });
+
+            // Repair text
+            const costColor = canAffordRepair ? k.rgb(180, 200, 180) : k.rgb(200, 100, 100);
+            k.drawText({
+                text: "Repair (R)",
+                pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 12),
+                size: 10,
+                anchor: "center",
+                color: canAffordRepair ? k.rgb(200, 220, 200) : k.rgb(150, 150, 150),
+            });
+
+            // Cost
+            k.drawText({
+                text: `${repairCost.wood} wood`,
+                pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 26),
+                size: 10,
+                anchor: "center",
+                color: costColor,
+            });
+        }
+    }
+
+    return bounds;
+}
+
+/**
  * Draw a generic panel button (reusable for build panels)
  * @returns {object} Button bounds { y, height, ... }
  */

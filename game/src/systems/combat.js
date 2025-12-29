@@ -5,6 +5,7 @@ import { TOWERS } from "../sprites/towers.js";
 import { PORTS } from "../sprites/ports.js";
 import { SETTLEMENTS } from "../sprites/settlements.js";
 import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex } from "../gameState.js";
+import { markVisibilityDirty } from "../fogOfWar.js";
 
 // Combat constants
 export const CANNON_DAMAGE = 5;
@@ -22,15 +23,16 @@ const LOOT_DURATION = 30;         // seconds before loot expires
  * @param {Function} hexToPixel - Coordinate conversion function
  * @param {Object} gameState - The game state
  * @param {number} dt - Delta time (already scaled by timeScale)
+ * @param {Object} fogState - Fog of war state (for marking dirty on destruction)
  */
-export function updateCombat(hexToPixel, gameState, dt) {
+export function updateCombat(hexToPixel, gameState, dt, fogState) {
     if (dt === 0) return; // Paused
 
     handlePirateAttacks(gameState, dt);
     handleAutoReturnFire(gameState);  // Player ships automatically defend themselves
     handlePlayerAttacks(gameState, dt);
     handleTowerAttacks(gameState, dt);  // Towers auto-attack pirates
-    updateProjectiles(gameState, dt);
+    updateProjectiles(gameState, dt, fogState);
 }
 
 /**
@@ -271,7 +273,7 @@ function handleTowerAttacks(gameState, dt) {
  * Move projectiles and apply damage when they hit
  * Uses position-based hit detection: only hits if a valid target is at destination hex
  */
-function updateProjectiles(gameState, dt) {
+function updateProjectiles(gameState, dt, fogState) {
     for (let i = gameState.projectiles.length - 1; i >= 0; i--) {
         const proj = gameState.projectiles[i];
         proj.progress += proj.speed * dt;
@@ -336,7 +338,7 @@ function updateProjectiles(gameState, dt) {
 
             if (hitIndex !== -1) {
                 // Hit! Apply damage to whatever is at the destination
-                applyDamage(gameState, hitType, hitIndex, proj.damage);
+                applyDamage(gameState, hitType, hitIndex, proj.damage, fogState);
             } else {
                 // Miss - create water splash effect
                 gameState.waterSplashes.push({
@@ -358,7 +360,7 @@ const HIT_FLASH_DURATION = 0.15;
 /**
  * Apply damage to a target, destroying it if health reaches 0
  */
-function applyDamage(gameState, targetType, targetIndex, damage) {
+function applyDamage(gameState, targetType, targetIndex, damage, fogState) {
     let target;
     if (targetType === 'ship') {
         target = gameState.ships[targetIndex];
@@ -377,13 +379,13 @@ function applyDamage(gameState, targetType, targetIndex, damage) {
 
     if (target.health <= 0) {
         if (targetType === 'ship') {
-            destroyShip(gameState, targetIndex);
+            destroyShip(gameState, targetIndex, fogState);
         } else if (targetType === 'port') {
-            destroyPort(gameState, targetIndex);
+            destroyPort(gameState, targetIndex, fogState);
         } else if (targetType === 'tower') {
-            destroyTower(gameState, targetIndex);
+            destroyTower(gameState, targetIndex, fogState);
         } else if (targetType === 'settlement') {
-            destroySettlement(gameState, targetIndex);
+            destroySettlement(gameState, targetIndex, fogState);
         }
     }
 }
@@ -465,11 +467,16 @@ function spawnLootDrop(gameState, q, r) {
 /**
  * Remove a ship and clean up all references to it
  */
-function destroyShip(gameState, shipIndex) {
+function destroyShip(gameState, shipIndex, fogState) {
     const ship = gameState.ships[shipIndex];
     if (!ship) return;
 
     spawnDestructionEffects(gameState, ship.q, ship.r, 'ship');
+
+    // Mark fog dirty if player ship destroyed (affects vision)
+    if (ship.type !== 'pirate' && fogState) {
+        markVisibilityDirty(fogState);
+    }
 
     // Queue pirate respawn and increment kill counter
     if (ship.type === 'pirate') {
@@ -495,11 +502,16 @@ function destroyShip(gameState, shipIndex) {
 /**
  * Remove a port and clean up all references to it
  */
-function destroyPort(gameState, portIndex) {
+function destroyPort(gameState, portIndex, fogState) {
     const port = gameState.ports[portIndex];
     if (!port) return;
 
     spawnDestructionEffects(gameState, port.q, port.r, 'port', port.type);
+
+    // Mark fog dirty (port was providing vision)
+    if (fogState) {
+        markVisibilityDirty(fogState);
+    }
 
     // Remove from array
     gameState.ports.splice(portIndex, 1);
@@ -511,11 +523,16 @@ function destroyPort(gameState, portIndex) {
 /**
  * Remove a tower and clean up all references to it
  */
-function destroyTower(gameState, towerIndex) {
+function destroyTower(gameState, towerIndex, fogState) {
     const tower = gameState.towers[towerIndex];
     if (!tower) return;
 
     spawnDestructionEffects(gameState, tower.q, tower.r, 'tower');
+
+    // Mark fog dirty (tower was providing vision)
+    if (fogState) {
+        markVisibilityDirty(fogState);
+    }
 
     // Remove from array
     gameState.towers.splice(towerIndex, 1);
@@ -527,11 +544,16 @@ function destroyTower(gameState, towerIndex) {
 /**
  * Remove a settlement and clean up all references to it
  */
-function destroySettlement(gameState, settlementIndex) {
+function destroySettlement(gameState, settlementIndex, fogState) {
     const settlement = gameState.settlements[settlementIndex];
     if (!settlement) return;
 
     spawnDestructionEffects(gameState, settlement.q, settlement.r, 'settlement');
+
+    // Mark fog dirty (settlement was providing vision)
+    if (fogState) {
+        markVisibilityDirty(fogState);
+    }
 
     // Remove from array
     gameState.settlements.splice(settlementIndex, 1);

@@ -1,7 +1,7 @@
 // Construction system - handles port, settlement, and tower building progress
 import { createShip, findFreeAdjacentWater } from "../gameState.js";
 import { SHIPS, SETTLEMENTS, TOWERS, PORTS } from "../sprites/index.js";
-import { revealRadius } from "../fogOfWar.js";
+import { markVisibilityDirty } from "../fogOfWar.js";
 
 /**
  * Updates all construction progress for ports, settlements, and towers
@@ -49,8 +49,8 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
                     ship.waypoint = { q: port.rallyPoint.q, r: port.rallyPoint.r };
                 }
 
-                const newShipSight = SHIPS[ship.type].sightDistance;
-                revealRadius(fogState, waterTile.q, waterTile.r, newShipSight);
+                // Mark fog dirty - new ship will be included in visibility recalculation
+                markVisibilityDirty(fogState);
                 port.buildQueue = null;
                 console.log(`Ship built: ${ship.type} at (${waterTile.q}, ${waterTile.r})`);
             }
@@ -99,9 +99,8 @@ function updatePortConstruction(gameState, fogState, dt, floatingNumbers) {
 
             port.construction = null;  // Clear construction state
 
-            // Reveal fog around completed port
-            const portData = PORTS[port.type];
-            revealRadius(fogState, port.q, port.r, portData.sightDistance);
+            // Mark fog dirty - completed port will be included in visibility recalculation
+            markVisibilityDirty(fogState);
 
             // Port is now fully operational and can build ships
         }
@@ -136,9 +135,8 @@ function updateSettlementConstruction(gameState, fogState, dt, floatingNumbers) 
                 });
             }
 
-            // Reveal fog around completed settlement
-            const sightDistance = SETTLEMENTS.settlement.sightDistance;
-            revealRadius(fogState, settlement.q, settlement.r, sightDistance);
+            // Mark fog dirty - completed settlement will be included in visibility recalculation
+            markVisibilityDirty(fogState);
         }
     }
 }
@@ -166,9 +164,8 @@ function updateTowerConstruction(gameState, fogState, dt) {
 
             tower.construction = null;  // Clear construction state
 
-            // Reveal fog around completed tower (upgrades may have better sight)
-            const sightDistance = TOWERS[tower.type].sightDistance;
-            revealRadius(fogState, tower.q, tower.r, sightDistance);
+            // Mark fog dirty - completed tower will be included in visibility recalculation
+            markVisibilityDirty(fogState);
         }
     }
 }

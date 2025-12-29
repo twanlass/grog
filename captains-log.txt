@@ -1,0 +1,288 @@
+CAPTAIN'S LOG
+=============
+
+2025-12-28 | hide pathfinding trails; fix enemy selection; make settlements attackable
+---------------------------------------------------------------------------------------
+### New
+- Settlements can now be attacked by enemy ships
+- Crew limit notification system with on-screen messages
+
+### Improved
+- Pathfinding trails are now hidden for cleaner visuals
+- Bird animations have staggered starts and varied orbit radii
+- Speed menu can be closed with ESC key
+
+### Fixed
+- Enemy ship selection now works correctly
+
+
+2025-12-28 | build cleanup
+--------------------------
+### Improved
+- Removed unused sprite assets from src/sprites/assets
+- Cleaned up vite configuration
+- Reduced build size
+
+
+2025-12-28 | more ui polish
+---------------------------
+### Improved
+- Ship info panel repositioned to center-bottom of screen
+- Ship info panel styling (darker background, adjusted opacity)
+- Port build panel widened for better layout
+- Removed separator lines between panel sections
+
+
+2025-12-28 | Large UI polish + refactor
+---------------------------------------
+### New
+- Netlify deployment configuration added
+
+### Improved
+- Major UI panel refactoring and polish
+- Selection UI improvements
+- Sprite assets reorganized to public folder
+- Gallery scene updates
+
+
+2025-12-28 | New Crew resource mechanic; lots of sprite updates
+---------------------------------------------------------------
+### New
+- Crew resource mechanic - units now require crew to build
+- Settlements provide max crew capacity
+- Loot drops from destroyed enemies
+- New sprites: barrel, resource icons (crew, wood), settlement
+
+### Improved
+- Updated cutter, rally-point sprites
+- Combat system enhancements with crew mechanics
+- Fog of war updates
+- Trade routes simplified
+
+
+2025-12-27 | Adds unit repair feature. Adds custom rally point sprite
+---------------------------------------------------------------------
+### New
+- Unit repair system - ships and towers can be repaired at ports
+- Custom rally point sprite
+- Home port sprite
+
+### Improved
+- Effects renderer enhancements
+- UI panels expanded with repair options
+
+
+2025-12-27 | Tuning. Nerfing resource gen, cutter combat
+--------------------------------------------------------
+### Improved
+- Balanced resource generation rates
+- Nerfed cutter combat stats for better game balance
+
+
+2025-12-27 | Adds Defend mode
+-----------------------------
+### New
+- Defend game mode with wave spawning system
+- Scenario system for different game modes
+- Wave spawner system for enemy attacks
+
+### Improved
+- UI panels updated for game mode display
+
+
+2025-12-27 | adds double click to select all of type
+----------------------------------------------------
+### New
+- Double-click to select all units of the same type on screen
+
+### Improved
+- Combat system refinements
+
+
+2025-12-27 | Adds port rally points for newly built ships
+---------------------------------------------------------
+### New
+- Rally points for ports - newly built ships automatically move to rally point
+- Rally point visualization in selection UI
+
+
+2025-12-27 | Adds waves, group selection outline, smoother waypoint changing
+----------------------------------------------------------------------------
+### New
+- Wave renderer for animated water effects
+- Group selection outline for multiple selected units
+
+### Improved
+- Smoother waypoint changing - ships no longer "pop" when changing direction
+- Ship movement interpolation improvements
+
+
+2025-12-26 | updated ship sprites, foliage added to land
+--------------------------------------------------------
+### New
+- Foliage/vegetation rendering on land tiles
+- Attack cursor sprite
+
+### Improved
+- Updated ship sprites (cutter, pirate)
+
+
+2025-12-26 | Adds tower tech tree
+---------------------------------
+### New
+- Tower upgrade tech tree (watchtower -> guard tower -> fortress)
+- New tower sprites and stats
+
+### Improved
+- Tower combat mechanics
+- UI panels for tower upgrades
+- New ship sprites (pirate, schooner)
+
+
+2025-12-26 | Adds custom cursor, updates starting island conditions, build rules
+--------------------------------------------------------------------------------
+### New
+- Custom cursor sprite
+- Settlement build rules (adjacency requirements)
+
+### Improved
+- Starting island conditions refined
+- Trade routes documentation
+- Combat system improvements
+
+
+2025-12-26 | Refactor menu panels
+---------------------------------
+### Improved
+- Major menu panel refactoring
+- New UI primitives system for consistent styling
+- Cleaner panel code organization
+
+
+2025-12-26 | large refactor of gameScene into new systems components
+--------------------------------------------------------------------
+### Improved
+- Massive rendering system refactor
+- New rendering modules: effectsRenderer, placementUI, selectionUI, tileRenderer, uiPanels, unitRenderer
+- Render context and helpers extracted
+- gameScene.js significantly simplified
+
+
+2025-12-26 | Adds destruction effects. updates fog of war
+---------------------------------------------------------
+### New
+- Destruction effects when units are destroyed
+- Debris and explosion visuals
+
+### Improved
+- Fog of war now only revealed by player units, not pirates
+- Pathfinding updates
+
+
+2025-12-24 | Towers are working. Hotkeys added for build commands
+-----------------------------------------------------------------
+### New
+- Tower defense system with watchtowers
+- Hotkeys for build commands
+- Tower combat mechanics
+
+### Improved
+- Gallery scene updated with towers
+
+
+2025-12-24 | adds cutter ship sprite. Lots of combat updates. new hex highlight
+-------------------------------------------------------------------------------
+### New
+- Cutter ship sprite and animations
+- New hex highlight selection style
+
+### Improved
+- Combat system updates
+- Ship movement enhancements
+
+
+2025-12-23 | working combat system with pirates and players
+-----------------------------------------------------------
+### New
+- Complete combat system
+- Ship-to-ship combat mechanics
+- Combat module (systems/combat.js)
+
+### Improved
+- Ship movement with combat integration
+- Input handling for attack commands
+
+
+2025-12-23 | Add pirate ship with AI state machine and health constants
+-----------------------------------------------------------------------
+### New
+- Pirate ship enemy type
+- AI state machine for pirates (patrol, chase, attack, flee)
+- Health system for ships
+
+### Improved
+- Ship sprites with pirate variant
+- Fog of war documentation
+
+
+2025-12-23 | Add animated sea birds and rename farms to settlements
+-------------------------------------------------------------------
+### New
+- Animated sea birds orbiting home port
+- Bird sprite
+
+### Improved
+- Renamed "farms" to "settlements" throughout codebase
+- Settlement building documentation
+
+
+2025-12-23 | Add project README
+-------------------------------
+### New
+- Project README with setup instructions
+
+
+2025-12-23 | Refactor gameScene.js into modular systems
+-------------------------------------------------------
+### New
+- Modular systems architecture (construction, inputHandler, resourceGeneration, shipMovement, tradeRoutes)
+- CLAUDE.md project context file
+- Feature documentation (fog-of-war, port-building, settlement-building, ship-building, trade-routes)
+- Game design document
+
+### Improved
+- Project reorganized into game/ subdirectory
+- gameScene.js split into focused modules
+
+
+2025-12-22 | Add fog of war, sprites reorganization, and map updates
+--------------------------------------------------------------------
+### New
+- Fog of war system
+- Sprites reorganization (colors, farms, ports, ships, utils modules)
+
+### Improved
+- Map generation updates
+
+
+2025-12-22 | Update selection controls: Command+click for waypoints/actions
+---------------------------------------------------------------------------
+### New
+- Multi-unit selection system
+- Command+click for waypoints and actions
+- Waypoint queuing for ships
+
+### Improved
+- Expanded game state management
+
+
+2025-12-22 | Initial commit: Trade Winds hex-based trading game
+---------------------------------------------------------------
+### New
+- Hex-based game grid with axial coordinates
+- Procedural map generation
+- A* pathfinding for hex grids
+- Ship movement and navigation
+- Port and trading system foundation
+- Gallery scene for unit showcase
+- Kaplay game engine integration

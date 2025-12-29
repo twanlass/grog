@@ -21,7 +21,13 @@
       "Bash(find:*)",
       "Bash(kill:*)",
       "Bash(xargs kill:*)",
-      "Bash(timeout 5 npm run dev:*)"
+      "Bash(timeout 5 npm run dev:*)",
+      "Bash(git -C /Users/tylerwanlass/code/grog show --stat --format=\"%H%n%s%n%b\" ec2ba83)",
+      "Bash(git -C /Users/tylerwanlass/code/grog show --stat --format=\"%H%n%s%n%b\" 75216e2)",
+      "Bash(git -C /Users/tylerwanlass/code/grog show:*)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff 39c36f8^..39c36f8 -- game/src/systems/combat.js game/src/scenes/gameScene.js game/src/systems/inputHandler.js)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff 75216e2^..75216e2 -- game/src/rendering/uiPanels.js)",
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline --reverse)"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -3,7 +3,7 @@ import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hex
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
 import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../fogOfWar.js";
+import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility } from "../fogOfWar.js";
 
 // Rendering modules (new - extracted from this file for better organization)
 // These can be used to gradually replace inline rendering code below
@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification } from "../rendering/uiPanels.js";
 
 // Game systems
 import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems/shipMovement.js";
@@ -33,7 +33,7 @@ import { updateRepair } from "../systems/repair.js";
 import { startRepair } from "../systems/repair.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
-    handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick, handleShipInfoPanelClick,
+    handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
     handleUnitSelection, handleWaypointClick, handleAttackClick, handlePortRallyPointClick
 } from "../systems/inputHandler.js";
@@ -181,9 +181,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         let selectEndY = 0;
         const DRAG_THRESHOLD = 5;
 
-        // Double-click state (for selecting all ships of same type)
+        // Double-click state (for selecting all units of same type)
         let lastClickTime = 0;
-        let lastClickedShipType = null;
+        let lastClickedUnit = null;  // { unitType: 'ship'|'port'|'tower'|'settlement', subType: string }
         const DOUBLE_CLICK_THRESHOLD = 350;  // milliseconds
 
         // Pan state (spacebar+left-drag or right-drag)
@@ -199,6 +199,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         let shipBuildPanelBounds = null;  // For ship's port build panel
         let settlementBuildPanelBounds = null;  // For settlement build button in port panel
         let towerInfoPanelBounds = null;  // For tower upgrade button
+        let settlementInfoPanelBounds = null;  // For settlement repair button
         let shipInfoPanelBounds = null;  // For ship repair button
         let topButtonBounds = null;  // For pause/menu buttons
         let speedMenuOpen = false;  // Speed selector menu state
@@ -333,10 +334,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             updateTradeRoutes(gameState, map, dt);
             updateConstruction(gameState, map, fogState, dt, floatingNumbers);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
-            updateCombat(hexToPixel, gameState, dt);
+            updateCombat(hexToPixel, gameState, dt, fogState);
             updateRepair(gameState, dt);
             updatePirateRespawns(gameState, map, createShip, hexKey, dt);
             updateWaveSpawner(gameState, map, createShip, hexKey, dt);
+
+            // Recalculate fog visibility if any vision source changed
+            if (isVisibilityDirty(fogState)) {
+                recalculateVisibility(fogState, gameState);
+            }
 
             // Decay hit flash timers
             for (const ship of gameState.ships) {
@@ -347,6 +353,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             }
             for (const tower of gameState.towers) {
                 if (tower.hitFlash > 0) tower.hitFlash -= rawDt;
+            }
+            for (const settlement of gameState.settlements) {
+                if (settlement.hitFlash > 0) settlement.hitFlash -= rawDt;
             }
 
             // Update ship explosions and trigger camera shake for new ones (if visible)
@@ -427,15 +436,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 gameState.gameOver = 'lose';
             }
 
-            // Animate birds
+            // Animate birds (pauses with game)
             for (const bird of birdStates) {
-                bird.frameTimer += rawDt;  // Use rawDt so it animates even when paused
+                bird.frameTimer += dt;
                 if (bird.frameTimer > 0.25) {  // ~4 FPS flapping
                     bird.frameTimer = 0;
                     bird.frame = (bird.frame + 1) % 2;
                 }
                 // Update orbit position
-                bird.angle += bird.orbitSpeed * rawDt;
+                bird.angle += bird.orbitSpeed * dt;
             }
         });
 
@@ -493,9 +502,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             // Draw towers (migrated to rendering module)
             drawTowers(ctx, gameState);
 
-            // Draw floating resource numbers (migrated to rendering module)
-            drawFloatingNumbers(ctx, floatingNumbers);
-
             // Draw ship water trails (migrated to rendering module)
             drawShipTrails(ctx, gameState, fogState);
 
@@ -532,9 +538,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             // Draw loading/unloading progress bars (migrated to rendering module)
             drawDockingProgress(ctx, gameState, getShipVisualPosLocal);
 
-            // Draw birds (migrated to rendering module)
-            drawBirds(ctx, birdStates);
-
             // Draw all selection indicators (migrated to rendering module)
             drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, null);
 
@@ -544,6 +547,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
             // Draw selection box (migrated to rendering module)
             drawSelectionBox(ctx, isSelecting, selectStartX, selectStartY, selectEndX, selectEndY);
+
+            // Draw floating resource numbers (above selection UI)
+            drawFloatingNumbers(ctx, floatingNumbers);
 
             // Draw simple UI panels (migrated to rendering module)
             const waveStatus = getWaveStatus(gameState);
@@ -578,9 +584,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 towerInfoPanelBounds = drawTowerInfoPanel(ctx, tower, gameState);
             }
 
+            // Settlement info panel (bottom right, when settlement is selected)
+            const selectedSettlementIndices = gameState.selectedUnits.filter(u => u.type === 'settlement');
+            settlementInfoPanelBounds = null;
+            if (selectedSettlementIndices.length === 1 && selectedTowerIndices.length === 0) {
+                const settlement = gameState.settlements[selectedSettlementIndices[0].index];
+                settlementInfoPanelBounds = drawSettlementInfoPanel(ctx, settlement, gameState);
+            }
+
             // Ship info panel (bottom right, when ship is selected)
             shipInfoPanelBounds = null;
-            if (selectedShipIndices.length === 1 && selectedTowerIndices.length === 0) {
+            if (selectedShipIndices.length === 1 && selectedTowerIndices.length === 0 && selectedSettlementIndices.length === 0) {
                 const ship = gameState.ships[selectedShipIndices[0].index];
                 shipInfoPanelBounds = drawShipInfoPanel(ctx, ship, gameState);
             }
@@ -632,6 +646,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                     color: k.rgb(120, 120, 120),
                 });
             }
+
+            // Draw birds at the very top (above all UI)
+            drawBirds(ctx, birdStates);
         });
 
         // Left-click/drag for selection or panning (spacebar + left-click)
@@ -970,6 +987,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 return;
             }
 
+            // Settlement repair
+            const selectedSettlementIndices = gameState.selectedUnits.filter(u => u.type === 'settlement');
+            if (selectedSettlementIndices.length === 1 && settlementInfoPanelBounds?.repairButton) {
+                const settlement = gameState.settlements[selectedSettlementIndices[0].index];
+                if (startRepair('settlement', settlement, gameState.resources)) {
+                    console.log("Started repairing settlement (hotkey R)");
+                }
+                return;
+            }
+
             // Port repair
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
             if (selectedPortIndices.length === 1 && buildPanelBounds?.repairButton) {
@@ -1076,6 +1103,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) return;
             if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) return;
             if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) return;
+            if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) return;
             if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) return;
 
             // Convert to world coordinates
@@ -1110,25 +1138,38 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 const clickedUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPosLocal);
                 clickedOnUnit = clickedUnit !== null;
 
-                // Handle double-click to select all ships of same type in view
-                if (clickedUnit && clickedUnit.type === 'ship') {
-                    const ship = gameState.ships[clickedUnit.index];
+                // Handle double-click to select all units of same type in view
+                if (clickedUnit) {
                     const now = Date.now();
+                    let subType = null;
 
-                    if (ship.type === lastClickedShipType &&
+                    // Get the subtype based on unit type
+                    if (clickedUnit.type === 'ship') {
+                        subType = gameState.ships[clickedUnit.index].type;
+                    } else if (clickedUnit.type === 'port') {
+                        subType = gameState.ports[clickedUnit.index].type;
+                    } else if (clickedUnit.type === 'tower') {
+                        subType = gameState.towers[clickedUnit.index].type;
+                    } else if (clickedUnit.type === 'settlement') {
+                        subType = 'settlement';  // All settlements are same type
+                    }
+
+                    if (lastClickedUnit &&
+                        lastClickedUnit.unitType === clickedUnit.type &&
+                        lastClickedUnit.subType === subType &&
                         now - lastClickTime < DOUBLE_CLICK_THRESHOLD) {
-                        // Double-click detected - select all ships of this type in view
-                        selectAllShipsOfTypeInView(ship.type);
-                        lastClickedShipType = null;
+                        // Double-click detected - select all units of this type in view
+                        selectAllUnitsOfTypeInView(clickedUnit.type, subType);
+                        lastClickedUnit = null;
                         lastClickTime = 0;
                     } else {
                         // Single click - track for potential double-click
-                        lastClickedShipType = ship.type;
+                        lastClickedUnit = { unitType: clickedUnit.type, subType };
                         lastClickTime = now;
                     }
                 } else {
-                    // Clicked on non-ship or empty space - reset double-click tracking
-                    lastClickedShipType = null;
+                    // Clicked on empty space - reset double-click tracking
+                    lastClickedUnit = null;
                     lastClickTime = 0;
                 }
             }
@@ -1245,31 +1286,78 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             }
         }
 
-        // Select all ships of the same type currently visible on screen
-        function selectAllShipsOfTypeInView(shipType) {
+        // Select all units of the same type currently visible on screen
+        function selectAllUnitsOfTypeInView(unitType, subType) {
             const halfWidth = k.width() / 2;
             const halfHeight = k.height() / 2;
             clearSelection(gameState);
 
-            for (let i = 0; i < gameState.ships.length; i++) {
-                const ship = gameState.ships[i];
-                if (ship.type !== shipType) continue;
-                if (ship.type === 'pirate') continue;  // Don't select enemy ships
+            // Helper to check if position is on screen
+            const isOnScreen = (screenX, screenY) => {
+                return screenX >= -50 && screenX <= k.width() + 50 &&
+                       screenY >= -50 && screenY <= k.height() + 50;
+            };
 
-                const pos = getShipVisualPosLocal(ship);
-                const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                const screenY = (pos.y - cameraY) * zoom + halfHeight;
+            if (unitType === 'ship') {
+                for (let i = 0; i < gameState.ships.length; i++) {
+                    const ship = gameState.ships[i];
+                    if (ship.type !== subType) continue;
+                    if (ship.type === 'pirate') continue;  // Don't select enemy ships
+                    // Exclude ships that are currently building something
+                    if (isShipBuildingPort(i, gameState.ports)) continue;
+                    if (isShipBuildingTower(i, gameState.towers)) continue;
 
-                // Check if ship is on screen (with small margin)
-                if (screenX >= -50 && screenX <= k.width() + 50 &&
-                    screenY >= -50 && screenY <= k.height() + 50) {
-                    addToSelection(gameState, 'ship', i);
+                    const pos = getShipVisualPosLocal(ship);
+                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+                    if (isOnScreen(screenX, screenY)) {
+                        addToSelection(gameState, 'ship', i);
+                    }
+                }
+            } else if (unitType === 'port') {
+                for (let i = 0; i < gameState.ports.length; i++) {
+                    const port = gameState.ports[i];
+                    if (port.type !== subType) continue;
+
+                    const pos = hexToPixel(port.q, port.r);
+                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+                    if (isOnScreen(screenX, screenY)) {
+                        addToSelection(gameState, 'port', i);
+                    }
+                }
+            } else if (unitType === 'tower') {
+                for (let i = 0; i < gameState.towers.length; i++) {
+                    const tower = gameState.towers[i];
+                    if (tower.type !== subType) continue;
+
+                    const pos = hexToPixel(tower.q, tower.r);
+                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+                    if (isOnScreen(screenX, screenY)) {
+                        addToSelection(gameState, 'tower', i);
+                    }
+                }
+            } else if (unitType === 'settlement') {
+                for (let i = 0; i < gameState.settlements.length; i++) {
+                    const settlement = gameState.settlements[i];
+
+                    const pos = hexToPixel(settlement.q, settlement.r);
+                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+                    if (isOnScreen(screenX, screenY)) {
+                        addToSelection(gameState, 'settlement', i);
+                    }
                 }
             }
 
             const count = gameState.selectedUnits.length;
             if (count > 0) {
-                console.log(`Double-click: selected ${count} ${shipType}(s) in view`);
+                console.log(`Double-click: selected ${count} ${subType}(s) in view`);
             }
         }
 

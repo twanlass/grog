@@ -2,6 +2,7 @@
 import { SHIPS } from "../sprites/ships.js";
 import { PORTS } from "../sprites/ports.js";
 import { TOWERS } from "../sprites/towers.js";
+import { SETTLEMENTS } from "../sprites/settlements.js";
 
 /**
  * Update repair progress for all units
@@ -42,11 +43,23 @@ export function updateRepair(gameState, dt) {
             tower.repair = null;
         }
     }
+
+    // Update settlement repairs
+    for (const settlement of gameState.settlements) {
+        if (!settlement.repair) continue;
+
+        settlement.repair.progress += dt;
+        if (settlement.repair.progress >= settlement.repair.totalTime) {
+            // Repair complete
+            settlement.health += settlement.repair.healthToRestore;
+            settlement.repair = null;
+        }
+    }
 }
 
 /**
  * Calculate repair cost for a unit
- * @param {string} unitType - 'ship', 'port', or 'tower'
+ * @param {string} unitType - 'ship', 'port', 'tower', or 'settlement'
  * @param {object} unit - The unit object
  * @returns {{ wood: number }} Repair cost
  */
@@ -62,6 +75,9 @@ export function getRepairCost(unitType, unit) {
     } else if (unitType === 'tower') {
         metadata = TOWERS[unit.type];
         maxHealth = metadata.health;
+    } else if (unitType === 'settlement') {
+        metadata = SETTLEMENTS.settlement;
+        maxHealth = metadata.health;
     }
 
     const missingHealth = maxHealth - unit.health;
@@ -74,7 +90,7 @@ export function getRepairCost(unitType, unit) {
 
 /**
  * Calculate repair time for a unit
- * @param {string} unitType - 'ship', 'port', or 'tower'
+ * @param {string} unitType - 'ship', 'port', 'tower', or 'settlement'
  * @param {object} unit - The unit object
  * @returns {number} Repair time in seconds
  */
@@ -97,9 +113,12 @@ export function getRepairTime(unitType, unit) {
     } else if (unitType === 'tower') {
         metadata = TOWERS[unit.type];
         maxHealth = metadata.health;
+    } else if (unitType === 'settlement') {
+        metadata = SETTLEMENTS.settlement;
+        maxHealth = metadata.health;
     }
 
-    // Ports and towers use buildTime (camelCase)
+    // Ports, towers, and settlements use buildTime (camelCase)
     const buildTime = metadata.buildTime;
     const damagePercent = (maxHealth - unit.health) / maxHealth;
     return buildTime * damagePercent * REPAIR_TIME_MULTIPLIER;
@@ -107,7 +126,7 @@ export function getRepairTime(unitType, unit) {
 
 /**
  * Start repairing a unit
- * @param {string} unitType - 'ship', 'port', or 'tower'
+ * @param {string} unitType - 'ship', 'port', 'tower', or 'settlement'
  * @param {object} unit - The unit object
  * @param {object} resources - Game resources to deduct from
  * @returns {boolean} True if repair started successfully
@@ -121,6 +140,8 @@ export function startRepair(unitType, unit, resources) {
         maxHealth = PORTS[unit.type].health;
     } else if (unitType === 'tower') {
         maxHealth = TOWERS[unit.type].health;
+    } else if (unitType === 'settlement') {
+        maxHealth = SETTLEMENTS.settlement.health;
     }
 
     // Already at full health

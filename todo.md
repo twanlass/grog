@@ -28,22 +28,27 @@
 - [ ] cursor upgrades: show hand when spacebar pressed; show sword when cmd click on ship
 - [ ] don't render waves at edge of world
 - [ ] do a scale pass on structures and boats. Pirate ships are huge. The largest ship should probably be 75% of a hex. Ports should be a full hex. 
-- [ ] Add hotkey for ship building
-- [ ] the primary port should look different, be bigger; want to comm that this is where ships should return goods etc for traderoutes 
+- [ ]  don't show pathfinding line - super busy with a fleet selected; maybe an option you can turn on 
+- [ ] don't allow bulk selection of enemy units (drag select); maybe don't allow select / hover at all. Just show their health bar? 
+- [ ] show some impact dust when a cannon ball hits it's target 
+
 
 ### Bugs
 - [ ] render build, health bars on top of units
 - [ ] render birds above everything
+- [ ] buildings that take damange while repairing should just deduct the damage from repair progress (right now they will repair but not all the way lol)
+- [ ] don't allow tower placement mode if crew cap is max
+- [ ] render build bar (blue bar) above units, sprites
 
 ### Defend notes 
-- [ ] Cutters are probably too strong; maybe 1 cutter is worth 1/2 a pirate ship
-- [ ] Pirate ship water trails aren't visible 
-- [ ] Pirate AI: should have them focus on the primary port and attack that; losing that loses the game
 - [ ] make sure pirates spawn off screen, under fog of war 
 - [ ] Resource generation is too fast
 - [ ] Upgrading towers is too easy / fast
 - [ ] Need a few different pirate units for sure!
 - - [ ] Longer range, nets to slow ships down, faster smaller units, etc 
+- [ ] add some different AI stratgies: bezerk focus on port, only attack settlements, attack in groups vs flank, rertreat when at 25% health. 
+- [ ] when crew cap is at max, make it red so it's obvious youre at max
+- [ ]
 
 
 ## Ideas

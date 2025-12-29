@@ -69,11 +69,12 @@ export const TOWERS = {
     watchtower: {
         name: "Watchtower",
         sprite: WATCHTOWER,
+        imageSprite: "watchtower",
         buildTime: 15,
         health: 75,
         cost: { wood: 25 },
         crewCost: 5,
-        sightDistance: 3,
+        sightDistance: 4,
         description: "Reveals fog of war",
     },
     mortarTower: {
@@ -87,7 +88,7 @@ export const TOWERS = {
         fireCooldown: 4,
         damage: 5,
         projectileCount: 1,
-        sightDistance: 5,
+        sightDistance: 6,
         description: "Single cannon tower",
     },
     cannonBattery: {
@@ -101,7 +102,7 @@ export const TOWERS = {
         fireCooldown: 4,
         damage: 5,
         projectileCount: 2,
-        sightDistance: 7,
+        sightDistance: 8,
         description: "Dual cannon tower",
     },
 };

@@ -944,3 +944,20 @@ when clicked pause the game and show a panel center center w/ that lists out the
 
 ## 205. User prompt
 > I'd like pirates to be able to attack settlements 
+
+## 206. User prompt
+> Review the last 3 commits from this repo. For each commit, review the files changed, the commit message, and then generate a simple changlog. Include three categories: new, improved, fixed. New shoudl be things like new features, etc. Improved should be tweaks, updates, etc. And fixed should be bug fixes. Write this to a file in the root called captains-log.txt. Create it if it does not exist.  
+
+## 207. User prompt
+> can you create a new entry for each commit? And can you go back and review all commits so far and update the captains log? 
+
+## 208. User prompt
+> can you turn this into a Claude hook or skill I can run again each time I commit change? 
+
+## 209. User prompt
+> let's update our fog of war feature to be more dynamic: 
+1. When a structure like a port, tower, or settlement is destroyed, we should reshroud the sightDistance it uncovered.
+2. Let's apply the same logic to player ships; as they leave an area reshroud it.  
+
+## 210. User prompt
+> is there any check in place to ensure it doesnt' try to re-document a previously documented commit? 

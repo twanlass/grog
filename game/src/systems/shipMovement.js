@@ -2,7 +2,7 @@
 import { hexKey, hexDistance, hexToPixel } from "../hex.js";
 import { SHIPS } from "../sprites/index.js";
 import { findPath, findNearestAvailable, findNearestWater } from "../pathfinding.js";
-import { revealRadius } from "../fogOfWar.js";
+import { markVisibilityDirty } from "../fogOfWar.js";
 
 // Trail configuration
 const TRAIL_MAX_SEGMENTS = 8;
@@ -195,10 +195,9 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                     ship.aiChaseDistance++;
                 }
 
-                // Reveal fog around new position (player ships only - pirates stay hidden)
+                // Mark fog dirty when player ship moves (triggers visibility recalculation)
                 if (ship.type !== 'pirate') {
-                    const sightDistance = SHIPS[ship.type].sightDistance;
-                    revealRadius(fogState, nextHex.q, nextHex.r, sightDistance);
+                    markVisibilityDirty(fogState);
 
                     // Collect any loot drops at this position
                     collectLootAtHex(gameState, nextHex.q, nextHex.r, floatingNumbers);

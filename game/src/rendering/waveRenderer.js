@@ -69,7 +69,9 @@ function computeIslandOutline(map, islandTiles) {
 
         for (let i = 0; i < 6; i++) {
             const neighborKey = hexKey(neighbors[i].q, neighbors[i].r);
-            if (!islandTiles.has(neighborKey)) {
+            const neighborTile = map.tiles.get(neighborKey);
+            // Only add wave edge if neighbor is water (not if it's off the map edge)
+            if (!islandTiles.has(neighborKey) && neighborTile && neighborTile.type === 'water') {
                 const c1Idx = (6 - i) % 6;
                 const c2Idx = (c1Idx + 1) % 6;
                 const start = corners[c1Idx];

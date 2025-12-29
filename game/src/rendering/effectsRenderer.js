@@ -1,7 +1,7 @@
 // Effects rendering: projectiles, explosions, debris, trails, health bars
 import { hexToPixel, HEX_SIZE } from "../hex.js";
-import { SHIPS, PORTS, TOWERS } from "../sprites/index.js";
-import { isHexRevealed } from "../fogOfWar.js";
+import { SHIPS, PORTS, TOWERS, SETTLEMENTS } from "../sprites/index.js";
+import { isHexVisible } from "../fogOfWar.js";
 
 /**
  * Draw ship water trails (behind ships)
@@ -15,8 +15,8 @@ export function drawShipTrails(ctx, gameState, fogState) {
     for (const ship of gameState.ships) {
         if (!ship.trail || ship.trail.length < 2) continue;
 
-        // Hide pirate trails in fog of war
-        if (ship.type === 'pirate' && !isHexRevealed(fogState, ship.q, ship.r)) continue;
+        // Hide pirate trails in non-visible areas
+        if (ship.type === 'pirate' && !isHexVisible(fogState, ship.q, ship.r)) continue;
 
         // Scale wake size based on ship size (using cargo as proxy)
         const shipData = SHIPS[ship.type];
@@ -298,7 +298,7 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
 
     // Selected units
     for (const sel of gameState.selectedUnits) {
-        if (sel.type === 'ship' || sel.type === 'port' || sel.type === 'tower') {
+        if (sel.type === 'ship' || sel.type === 'port' || sel.type === 'tower' || sel.type === 'settlement') {
             healthBarUnits.add(`${sel.type}:${sel.index}`);
         }
     }
@@ -348,6 +348,11 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
             if (!entity) continue;
             maxHealth = TOWERS[entity.type].health;
             pos = hexToPixel(entity.q, entity.r);
+        } else if (type === 'settlement') {
+            entity = gameState.settlements[index];
+            if (!entity) continue;
+            maxHealth = SETTLEMENTS.settlement.health;
+            pos = hexToPixel(entity.q, entity.r);
         } else {
             continue;
         }
@@ -361,26 +366,28 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
 
         const barWidth = 40 * zoom;
         const barHeight = 5 * zoom;
-        const barY = screenY - 43 * zoom;  // 35 + 8 to clear selection highlight
+        const barY = screenY + 32 * zoom;  // ~4px below hex outline
 
-        // Check if unit is repairing - show repair bar instead of health bar
+        // Check if unit is repairing - show repair bar centered on unit (like build bar)
         if (entity.repair) {
             const repairPercent = Math.max(0, entity.repair.progress / entity.repair.totalTime);
+            const repairBarWidth = 50 * zoom;
+            const repairBarHeight = 8 * zoom;
 
-            // Background bar (dark)
+            // Background bar (dark) - centered on unit
             k.drawRect({
-                pos: k.vec2(screenX - barWidth / 2, barY),
-                width: barWidth,
-                height: barHeight,
+                pos: k.vec2(screenX - repairBarWidth / 2, screenY),
+                width: repairBarWidth,
+                height: repairBarHeight,
                 color: k.rgb(40, 40, 40),
                 radius: 2,
             });
 
             // Repair progress fill (cyan/blue)
             k.drawRect({
-                pos: k.vec2(screenX - barWidth / 2, barY),
-                width: barWidth * repairPercent,
-                height: barHeight,
+                pos: k.vec2(screenX - repairBarWidth / 2, screenY),
+                width: repairBarWidth * repairPercent,
+                height: repairBarHeight,
                 color: k.rgb(80, 180, 220),
                 radius: 2,
             });

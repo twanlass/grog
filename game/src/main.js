@@ -48,6 +48,12 @@ k.loadSprite("settlement", "sprites/assets/settlement.png", {
     sliceY: 1,
 });
 
+// Load tower sprites (2 frames: normal, flash)
+k.loadSprite("watchtower", "sprites/assets/watchtower.png", {
+    sliceX: 2,
+    sliceY: 1,
+});
+
 // Load UI sprites
 k.loadSprite("rally-point", "sprites/assets/rally-point.png");
 k.loadSprite("barrel", "sprites/assets/barrel.png");

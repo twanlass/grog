@@ -308,6 +308,38 @@ export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, 
 }
 
 /**
+ * Handle click on settlement info panel
+ * @returns {boolean} true if handled
+ */
+export function handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState) {
+    if (!settlementInfoPanelBounds) return false;
+
+    const sip = settlementInfoPanelBounds;
+    if (mouseX < sip.x || mouseX > sip.x + sip.width ||
+        mouseY < sip.y || mouseY > sip.y + sip.height) {
+        return false;
+    }
+
+    // Check repair button
+    if (sip.repairButton) {
+        const rbtn = sip.repairButton;
+        if (mouseY >= rbtn.y && mouseY <= rbtn.y + rbtn.height) {
+            const selectedSettlementIndices = gameState.selectedUnits.filter(u => u.type === 'settlement');
+            if (selectedSettlementIndices.length === 1) {
+                const settlementIdx = selectedSettlementIndices[0].index;
+                const settlement = gameState.settlements[settlementIdx];
+                if (startRepair('settlement', settlement, gameState.resources)) {
+                    console.log(`Started repairing settlement`);
+                }
+            }
+            return true;
+        }
+    }
+
+    return true; // Clicked panel but not on a button
+}
+
+/**
  * Handle click on ship info panel
  * Ships cannot repair themselves - this just checks if click was on panel
  * @returns {boolean} true if handled

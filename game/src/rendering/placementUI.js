@@ -1,6 +1,6 @@
 // Placement mode UI rendering: port, settlement, tower placement previews
 import { hexToPixel, hexCorners, hexDistance, HEX_SIZE } from "../hex.js";
-import { isHexRevealed } from "../fogOfWar.js";
+import { isHexExplored } from "../fogOfWar.js";
 import { TOWERS } from "../sprites/index.js";
 import { drawHexRangeFilled, drawHexRangeOutline } from "./renderHelpers.js";
 
@@ -80,7 +80,7 @@ export function drawPortPlacementMode(ctx, gameState, map, tilePositions, fogSta
     // Draw highlights on all valid port sites within range
     for (const tile of map.tiles.values()) {
         if (!tile.isPortSite) continue;
-        if (!isHexRevealed(fogState, tile.q, tile.r)) continue;
+        if (!isHexExplored(fogState, tile.q, tile.r)) continue;
 
         const dist = hexDistance(builderShip.q, builderShip.r, tile.q, tile.r);
         if (dist > MAX_BUILD_DISTANCE) continue;
@@ -135,7 +135,7 @@ export function drawSettlementPlacementMode(ctx, gameState, map, tilePositions, 
     // Draw highlights on all valid settlement sites within range
     for (const tile of map.tiles.values()) {
         if (tile.type !== 'land') continue;
-        if (!isHexRevealed(fogState, tile.q, tile.r)) continue;
+        if (!isHexExplored(fogState, tile.q, tile.r)) continue;
 
         const dist = hexDistance(builderPort.q, builderPort.r, tile.q, tile.r);
         if (dist > MAX_SETTLEMENT_BUILD_DISTANCE) continue;
@@ -203,7 +203,7 @@ export function drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogSt
     // Draw highlights on all valid tower sites within range
     for (const tile of map.tiles.values()) {
         if (tile.type !== 'land') continue;
-        if (!isHexRevealed(fogState, tile.q, tile.r)) continue;
+        if (!isHexExplored(fogState, tile.q, tile.r)) continue;
 
         const dist = hexDistance(builderQ, builderR, tile.q, tile.r);
         if (dist > MAX_TOWER_BUILD_DISTANCE) continue;

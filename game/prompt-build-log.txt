@@ -12,3 +12,50 @@ This documents the prompts used to build this project with Claude.
 
 ## 3. User prompt
 > update the esc hotkey to also close the speed selection menu if open 
+
+## 4. User prompt
+> update the Tower watchtower to use the the newly added watchtower.png sprite asset 
+
+## 5. User prompt
+> i think there's a bug when settlements are attacked. the sprite turns and stays white instead of flashing white (like other sprite units when attacked, aka ships, port)
+
+## 6. User prompt
+> let's update the double click > select all units of type functionality - this shoudl _exclude_ selecting any units that are currently building (ships building a dock or tower for example). Also update this to work with all unit types. Select all towers. Select all ports,etc
+
+## 7. User prompt
+> whats our rendering order of things (layers, zindex, etc)? 
+
+## 8. User prompt
+> let's render birds at the very top; then lets render selection ui, placement, ui, selection box, then Floating Numbers. Everything else to remain the same.  
+
+## 9. User prompt
+> lets update the position of health bars, building bars, repair bars, and load/unload bars: 
+- let's place unit health bars on the bottom insetad of top (same distance below hex)
+- place building and repair bars center center on the unit; 
+- place load/unload bars center center on the unit
+
+## 10. User prompt
+> when the game is paused, pause the birds as well 
+
+## 11. User prompt
+> will they also respond to game speed changes? 
+
+## 12. User prompt
+> lets reduce the health bar offset by half: 
+
+## 13. User prompt
+> can we place it ~4 pixels below the hex outline: 
+
+## 14. User prompt
+> update our gitignore to not sync our .claude folder
+
+## 15. User prompt
+> small bug fix for ocean waves: don't render waves on hex edges facing the edge of the map: 
+
+## 16. User prompt
+> quick update: render the unit repair bar center center on the unit/hex (like the build bar)
+
+## 17. User prompt
+> update for settlements: 
+1. Show a health bar (like other units that can take damange)
+2. Make them repairable (like other units)

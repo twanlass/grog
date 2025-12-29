@@ -1,6 +1,6 @@
 // Tile and fog of war rendering
 import { hexCorners, HEX_SIZE } from "../hex.js";
-import { isHexRevealed } from "../fogOfWar.js";
+import { isHexExplored, isHexVisible } from "../fogOfWar.js";
 
 // Decoration rendering config
 const TREE_SCALE = 1.4;        // Tree size multiplier (base * zoom)
@@ -186,7 +186,10 @@ export function drawDecorations(ctx, map, tilePositions, tileDecorations, gameSt
 }
 
 /**
- * Draw fog of war overlay for unrevealed hexes
+ * Draw fog of war overlay with three states:
+ * - Currently visible: no fog
+ * - Explored but not visible: partial fog (greyed out, shows terrain)
+ * - Never seen: full dark fog with hatching
  * @param {object} ctx - Render context
  * @param {Map} map - The game map
  * @param {Map} tilePositions - Pre-calculated tile world positions
@@ -197,13 +200,20 @@ export function drawFogOfWar(ctx, map, tilePositions, fogState) {
     const margin = HEX_SIZE * zoom * 2;
     const scaledSize = HEX_SIZE * zoom;
 
+    // Full fog colors (never seen)
     const fogBaseColor = k.rgb(15, 20, 30);
     const fogHatchColor = k.rgb(25, 35, 50);
     const hatchSpacing = Math.max(4, 6 * zoom);
 
+    // Partial fog color (explored but not visible)
+    const shroudColor = k.rgb(30, 40, 50);
+
     for (const tile of map.tiles.values()) {
-        // Skip revealed hexes
-        if (isHexRevealed(fogState, tile.q, tile.r)) continue;
+        const visible = isHexVisible(fogState, tile.q, tile.r);
+        const explored = isHexExplored(fogState, tile.q, tile.r);
+
+        // Skip currently visible hexes - no fog at all
+        if (visible) continue;
 
         const pos = tilePositions.get(tile);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -218,24 +228,34 @@ export function drawFogOfWar(ctx, map, tilePositions, fogState) {
         const corners = hexCorners(screenX, screenY, scaledSize);
         const pts = corners.map(c => k.vec2(c.x, c.y));
 
-        // Draw fog base polygon
-        k.drawPolygon({
-            pts,
-            color: fogBaseColor,
-            opacity: 0.92,
-        });
-
-        // Draw diagonal hatching pattern
-        const hexRadius = scaledSize;
-        for (let i = -4; i <= 4; i++) {
-            const offset = i * hatchSpacing;
-            k.drawLine({
-                p1: k.vec2(screenX + offset - hexRadius, screenY - hexRadius),
-                p2: k.vec2(screenX + offset + hexRadius, screenY + hexRadius),
-                width: 1,
-                color: fogHatchColor,
-                opacity: 0.4,
+        if (explored) {
+            // Explored but not visible - partial fog (shroud)
+            // Shows terrain but dimmed/greyed
+            k.drawPolygon({
+                pts,
+                color: shroudColor,
+                opacity: 0.5,
             });
+        } else {
+            // Never seen - full dark fog with hatching
+            k.drawPolygon({
+                pts,
+                color: fogBaseColor,
+                opacity: 0.92,
+            });
+
+            // Draw diagonal hatching pattern
+            const hexRadius = scaledSize;
+            for (let i = -4; i <= 4; i++) {
+                const offset = i * hatchSpacing;
+                k.drawLine({
+                    p1: k.vec2(screenX + offset - hexRadius, screenY - hexRadius),
+                    p2: k.vec2(screenX + offset + hexRadius, screenY + hexRadius),
+                    width: 1,
+                    color: fogHatchColor,
+                    opacity: 0.4,
+                });
+            }
         }
     }
 }
