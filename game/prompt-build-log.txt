@@ -6,3 +6,9 @@ This documents the prompts used to build this project with Claude.
 
 ## 1. User prompt
 > can you check if there are duplicate sprite asssets? 
+
+## 2. User prompt
+> add the "H" return to home port hotkey to the controls menu
+
+## 3. User prompt
+> update the esc hotkey to also close the speed selection menu if open 

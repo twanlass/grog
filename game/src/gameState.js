@@ -21,6 +21,9 @@ export function createGameState(config = {}) {
         // Currently selected units (multi-select)
         selectedUnits: [], // [{ type: 'ship'|'port', index: number }, ...]
 
+        // Currently targeted enemy ship for attack visualization (red hex border)
+        attackTargetShipIndex: null,
+
         // Resources
         resources: {
             wood: startingResources.wood,
@@ -88,6 +91,9 @@ export function createGameState(config = {}) {
 
         // Game over state (for defend mode)
         gameOver: null,  // null = playing, 'win' = victory, 'lose' = defeated
+
+        // Notification message to display (bottom center)
+        notification: null,  // { message: string, timer: number }
 
         // Loot drops from destroyed pirates
         lootDrops: [],
@@ -160,6 +166,7 @@ export function isShipBuildingPort(shipIndex, ports) {
 // Select a single unit (clears other selections)
 export function selectUnit(gameState, type, index) {
     gameState.selectedUnits = [{ type, index }];
+    gameState.attackTargetShipIndex = null; // Clear attack target when selecting a unit
 }
 
 // Add unit to selection (for multi-select)
@@ -424,6 +431,7 @@ export function createSettlement(q, r, isConstructing = false, builderPortIndex 
         r,
         parentPortIndex: builderPortIndex,  // Track which port owns this settlement
         generationTimer: 0,  // Timer for resource generation
+        health: SETTLEMENTS.settlement.health,  // Combat health
         construction: isConstructing ? {
             progress: 0,
             buildTime: SETTLEMENTS.settlement.buildTime,
@@ -784,4 +792,19 @@ export function findNearbyWaitingHex(map, portQ, portR, ships) {
     }
 
     return null;
+}
+
+// Show a notification message (bottom center of screen)
+export function showNotification(gameState, message, duration = 2.5) {
+    gameState.notification = { message, timer: duration };
+}
+
+// Update notification timer (call each frame with dt)
+export function updateNotification(gameState, dt) {
+    if (gameState.notification) {
+        gameState.notification.timer -= dt;
+        if (gameState.notification.timer <= 0) {
+            gameState.notification = null;
+        }
+    }
 }

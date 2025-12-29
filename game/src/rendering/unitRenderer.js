@@ -266,16 +266,15 @@ export function drawFloatingNumbers(ctx, floatingNumbers) {
         const screenY = (pos.y - cameraY) * zoom + halfHeight + offsetY * zoom;
 
         const fontSize = 16 * zoom;
-        const iconSize = 12;  // 1x scale, no zoom
-        const spacing = 6;    // More spacing between sprite and text
+        const spriteSize = 16;  // Native sprite size (approximate)
+        const spacing = 4;      // Spacing between sprite and text
 
-        // Draw sprite on the left (wood or crew based on type)
+        // Draw sprite on the left (wood or crew based on type) at 1x native size
         const spriteName = fn.type === 'crew' ? "resource-crew" : "resource-wood";
+        const spriteX = screenX - spacing - spriteSize / 2;
         k.drawSprite({
             sprite: spriteName,
-            pos: k.vec2(screenX - spacing - iconSize / 2, screenY),
-            width: iconSize,
-            height: iconSize,
+            pos: k.vec2(spriteX, screenY),
             anchor: "center",
             opacity: opacity,
         });
@@ -284,12 +283,14 @@ export function drawFloatingNumbers(ctx, floatingNumbers) {
         // Outline: draw text in black offset in 4 directions
         const outlineOffset = 1 * zoom;
         const outlineColor = k.rgb(0, 0, 0);
-        const textX = screenX + spacing + iconSize / 2;
+        const textX = screenX + spacing + spriteSize / 2;
+        // Offset text Y slightly to align with sprite center (text baseline adjustment)
+        const textY = screenY + 1;
 
         for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
             k.drawText({
                 text: fn.text,
-                pos: k.vec2(textX + ox * outlineOffset, screenY + oy * outlineOffset),
+                pos: k.vec2(textX + ox * outlineOffset, textY + oy * outlineOffset),
                 size: fontSize,
                 anchor: "center",
                 color: outlineColor,
@@ -300,7 +301,7 @@ export function drawFloatingNumbers(ctx, floatingNumbers) {
         // White text on top
         k.drawText({
             text: fn.text,
-            pos: k.vec2(textX, screenY),
+            pos: k.vec2(textX, textY),
             size: fontSize,
             anchor: "center",
             color: k.rgb(255, 255, 255),

@@ -53,6 +53,8 @@ function handlePirateAttacks(gameState, dt) {
                 target = gameState.ports[ship.aiTarget.index];
             } else if (ship.aiTarget.type === 'tower') {
                 target = gameState.towers[ship.aiTarget.index];
+            } else if (ship.aiTarget.type === 'settlement') {
+                target = gameState.settlements[ship.aiTarget.index];
             }
 
             if (target) {
@@ -320,6 +322,16 @@ function updateProjectiles(gameState, dt) {
                         }
                     }
                 }
+                if (hitIndex === -1) {
+                    for (let j = 0; j < gameState.settlements.length; j++) {
+                        const settlement = gameState.settlements[j];
+                        if (settlement.q === proj.toQ && settlement.r === proj.toR) {
+                            hitType = 'settlement';
+                            hitIndex = j;
+                            break;
+                        }
+                    }
+                }
             }
 
             if (hitIndex !== -1) {
@@ -354,6 +366,8 @@ function applyDamage(gameState, targetType, targetIndex, damage) {
         target = gameState.ports[targetIndex];
     } else if (targetType === 'tower') {
         target = gameState.towers[targetIndex];
+    } else if (targetType === 'settlement') {
+        target = gameState.settlements[targetIndex];
     }
 
     if (!target) return; // Target already destroyed
@@ -368,6 +382,8 @@ function applyDamage(gameState, targetType, targetIndex, damage) {
             destroyPort(gameState, targetIndex);
         } else if (targetType === 'tower') {
             destroyTower(gameState, targetIndex);
+        } else if (targetType === 'settlement') {
+            destroySettlement(gameState, targetIndex);
         }
     }
 }
@@ -390,7 +406,7 @@ function spawnDestructionEffects(gameState, q, r, unitType, buildingType = null)
     });
 
     // Determine debris type and location type
-    const isWoodDebris = unitType === 'ship' || buildingType === 'dock';
+    const isWoodDebris = unitType === 'ship' || buildingType === 'dock' || unitType === 'settlement';
     const isOnWater = unitType === 'ship';
 
     // Spawn debris pieces (constrained to hex bounds)
@@ -506,6 +522,22 @@ function destroyTower(gameState, towerIndex) {
 
     // Clean up references
     cleanupStaleReferences(gameState, 'tower', towerIndex);
+}
+
+/**
+ * Remove a settlement and clean up all references to it
+ */
+function destroySettlement(gameState, settlementIndex) {
+    const settlement = gameState.settlements[settlementIndex];
+    if (!settlement) return;
+
+    spawnDestructionEffects(gameState, settlement.q, settlement.r, 'settlement');
+
+    // Remove from array
+    gameState.settlements.splice(settlementIndex, 1);
+
+    // Clean up references
+    cleanupStaleReferences(gameState, 'settlement', settlementIndex);
 }
 
 /**

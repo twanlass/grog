@@ -889,3 +889,58 @@ when clicked pause the game and show a panel center center w/ that lists out the
 
 ## 188. User prompt
 > set the background of that ui panel to black like the others too
+
+## 189. User prompt
+> let's make some improvements to unit selection: 
+1. Don't allow non-player units to be selected (pirate ships) like player units (don't render yellow hex border etc). When a pirate ship is attacked (command + left click or right clicked) render the red hex border and continue to render it until another player unit is selected, another ship is targed for attack 
+2. Only show the first selected player ships pathfinding line when more than one ship is selected
+
+## 190. User prompt
+> make sure priates are selected w/ the drag box select either (still see that they are selected when I drag; yellow hex outlined rendered)
+
+## 191. User prompt
+> bug: don't allow cutters (or any other units) to be built if crew is already at or greater than current cap. Right now I'm able to build new Cutter's by selecting my home port and using the "C" hotkey even though I'm above my crew cap (current is 30/25)
+
+## 192. User prompt
+> make sure all units can't be built when over crew cap (docks, towers, etc)
+
+## 193. User prompt
+> start rendering the crew text in red when the current crew == the cap (e.g. 25/25 should be red) 
+
+## 194. User prompt
+> When a player attempts to build a ship or tower (either by using a hotkey or clicking the disabled menu item) and they are at their crew max, show a simple message bottom center screen that says "Max crew reached. Built more  settlements." in white text, black outline, 16px size  
+
+## 195. User prompt
+> lets remove the ability for ships to repaire themselves 
+
+## 196. User prompt
+> let's updating the flying birds: 
+1. stagger their starts so they don't animate in unison
+2. put them on slightly offset paths so they don't circle and overlap each other
+
+## 197. User prompt
+> the little sprites and + 5s that appear when capturing a barrel or placing a settlement - what do we call those? 
+
+## 198. User prompt
+> update the floating numbers so that they render the resource sprites at 1x (don't scale them)
+
+## 199. User prompt
+> update the "Under Construction" panel to use a black background (like all UI panels) and change copy to "Buliding"
+
+## 200. User prompt
+> with the floating numbers – make sure the newly resized sprite and number are vertically aligned 
+
+## 201. User prompt
+> Render the sprite at actual asset size – don't resize it. 
+
+## 202. User prompt
+> let's hide the waypoint path line for the selected ship for now; don't remove the code. We'll show it later via an option/setting. 
+
+## 203. User prompt
+> let's update the selected ship UI panel (ref: image #1). Remove the cannon cooldown bar. Consolidate the cargo to show the resource-wood sprite and the count. So "[sprite] 0/2"
+
+## 204. User prompt
+> can pirate ship AI see / attack settlements? 
+
+## 205. User prompt
+> I'd like pirates to be able to attack settlements 

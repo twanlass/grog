@@ -91,8 +91,8 @@ export function drawResourcePanel(ctx, gameState) {
     });
 
     // Crew value (used/cap format)
-    const isOverCap = crewStatus.used > crewStatus.cap;
-    const crewColor = isOverCap ? k.rgb(255, 100, 100) : k.rgb(180, 200, 220);
+    const isAtOrOverCap = crewStatus.used >= crewStatus.cap;
+    const crewColor = isAtOrOverCap ? k.rgb(255, 100, 100) : k.rgb(180, 200, 220);
     k.drawText({
         text: `${crewStatus.used}/${crewStatus.cap}`,
         pos: k.vec2(crewIconX + iconOffset, valueY),
@@ -429,12 +429,11 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
     const maxHealth = shipData.health;
     const isDamaged = ship.health < maxHealth;
     const isRepairing = !!ship.repair;
-    const canRepair = ship.type !== 'pirate';  // Pirates can't be repaired
 
-    // Calculate panel height based on whether repair button is shown (not when already repairing - bar shows above unit)
-    const repairSectionHeight = (canRepair && isDamaged && !isRepairing) ? 50 : 0;
+    // Ships cannot repair themselves - only ports and towers can be repaired
+    const repairSectionHeight = 0;
     const infoPanelWidth = 140;
-    const infoPanelHeight = 130 + repairSectionHeight;
+    const infoPanelHeight = 85 + repairSectionHeight;  // Reduced: removed cooldown bar
     const infoPanelX = screenWidth / 2 - infoPanelWidth / 2;
     const infoPanelY = screenHeight - infoPanelHeight - 15;
 
@@ -540,91 +539,31 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
         });
     }
 
-    // Cargo section
+    // Cargo section - consolidated with sprite
     const cargoWood = ship.cargo?.wood || 0;
     const maxCargo = shipData.cargo;
+    const cargoY = infoPanelY + 58;
 
-    k.drawText({
-        text: "CARGO",
-        pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 48),
-        size: 10,
+    // Draw wood sprite
+    k.drawSprite({
+        sprite: "resource-wood",
+        pos: k.vec2(infoPanelX + infoPanelWidth / 2 - 20, cargoY),
         anchor: "center",
-        color: k.rgb(120, 120, 120),
     });
 
-    k.drawText({
-        text: `Wood: ${cargoWood}`,
-        pos: k.vec2(infoPanelX + 12, infoPanelY + 66),
-        size: 11,
-        anchor: "left",
-        color: k.rgb(180, 130, 70),
-    });
-
+    // Draw cargo count: "0/2"
     k.drawText({
         text: `${cargoWood}/${maxCargo}`,
-        pos: k.vec2(infoPanelX + infoPanelWidth - 12, infoPanelY + 66),
-        size: 11,
-        anchor: "right",
-        color: cargoWood > 0 ? k.rgb(180, 180, 180) : k.rgb(100, 100, 100),
+        pos: k.vec2(infoPanelX + infoPanelWidth / 2 + 8, cargoY),
+        size: 14,
+        anchor: "left",
+        color: cargoWood > 0 ? k.rgb(200, 150, 100) : k.rgb(120, 120, 120),
     });
 
-    // Cooldown section
-    const cooldown = ship.attackCooldown || 0;
-    const maxCooldown = shipData.fireCooldown;
-
-    drawCooldownBar(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 96, 100, cooldown, maxCooldown);
-
-    // Repair button (only if damaged and not already repairing - repair bar shows above unit)
-    if (canRepair && isDamaged && !isRepairing && gameState) {
-        // Show repair button
-        const repairCost = getRepairCost('ship', ship);
-        const canAffordRepair = gameState.resources.wood >= repairCost.wood;
-
-        k.drawLine({
-            p1: k.vec2(infoPanelX + 10, infoPanelY + 115),
-            p2: k.vec2(infoPanelX + infoPanelWidth - 10, infoPanelY + 115),
-            width: 1,
-            color: k.rgb(60, 70, 80),
-        });
-
-        const btnY = infoPanelY + 122;
-        const btnHeight = 36;
-        const mousePos = k.mousePos();
-
-        bounds.repairButton = { y: btnY, height: btnHeight };
-
-        const isHovered = canAffordRepair &&
-            mousePos.x >= infoPanelX && mousePos.x <= infoPanelX + infoPanelWidth &&
-            mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
-
-        // Button background
-        k.drawRect({
-            pos: k.vec2(infoPanelX + 5, btnY),
-            width: infoPanelWidth - 10,
-            height: btnHeight,
-            color: isHovered ? k.rgb(60, 80, 60) : k.rgb(40, 50, 60),
-            radius: 4,
-        });
-
-        // Repair text
-        const costColor = canAffordRepair ? k.rgb(180, 200, 180) : k.rgb(200, 100, 100);
-        k.drawText({
-            text: "Repair (R)",
-            pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 12),
-            size: 10,
-            anchor: "center",
-            color: canAffordRepair ? k.rgb(200, 220, 200) : k.rgb(150, 150, 150),
-        });
-
-        // Cost
-        k.drawText({
-            text: `${repairCost.wood} wood`,
-            pos: k.vec2(infoPanelX + infoPanelWidth / 2, btnY + 26),
-            size: 9,
-            anchor: "center",
-            color: costColor,
-        });
-    }
+    // Cooldown bar removed - keeping code for potential future use
+    // const cooldown = ship.attackCooldown || 0;
+    // const maxCooldown = shipData.fireCooldown;
+    // drawCooldownBar(ctx, infoPanelX + infoPanelWidth / 2, infoPanelY + 96, 100, cooldown, maxCooldown);
 
     return bounds;
 }
@@ -745,7 +684,9 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
         // Upgrade section
         if (canUpgrade) {
             const nextTowerData = TOWERS[nextTowerType];
-            const upgradeAffordable = canAfford(gameState.resources, nextTowerData.cost);
+            const crewDiff = (nextTowerData.crewCost || 0) - (towerData.crewCost || 0);
+            const upgradeAffordable = canAfford(gameState.resources, nextTowerData.cost) &&
+                                      canAffordCrew(gameState, crewDiff);
 
             // Separator
             const sepY = infoPanelY + 85;
@@ -966,9 +907,9 @@ export function drawConstructionStatusPanel(ctx, port) {
         pos: k.vec2(cpX, cpY),
         width: cpWidth,
         height: cpHeight,
-        color: k.rgb(20, 30, 40),
+        color: k.rgb(0, 0, 0),
         radius: 6,
-        opacity: 0.9,
+        opacity: 0.85,
     });
 
     if (isUpgrading) {
@@ -999,7 +940,7 @@ export function drawConstructionStatusPanel(ctx, port) {
         });
     } else {
         k.drawText({
-            text: "UNDER CONSTRUCTION",
+            text: "BUILDING",
             pos: k.vec2(cpX + cpWidth / 2, cpY + 20),
             size: 10,
             anchor: "center",
@@ -1418,7 +1359,7 @@ export function drawMenuPanel(ctx) {
     const { k, screenWidth, screenHeight } = ctx;
 
     const panelWidth = 320;
-    const panelHeight = 306;
+    const panelHeight = 332;
     const panelX = screenWidth / 2 - panelWidth / 2;
     const panelY = screenHeight / 2 - panelHeight / 2;
 
@@ -1457,6 +1398,7 @@ export function drawMenuPanel(ctx) {
         { key: "Right Click", action: "Move / Attack" },
         { key: "Right Drag", action: "Pan camera" },
         { key: "Scroll", action: "Zoom in/out" },
+        { key: "H", action: "Return to home port" },
         { key: "1-5", action: "Set game speed" },
         { key: "/", action: "Toggle this menu" },
     ];
@@ -1518,4 +1460,43 @@ export function drawSimpleUIPanels(ctx, gameState, waveStatus = null, speedMenuO
     }
 
     return { ...buttonBounds, speedIndicator: speedBounds, menuPanel: menuPanelBounds };
+}
+
+/**
+ * Draw notification message at bottom center of screen
+ */
+export function drawNotification(ctx, notification) {
+    if (!notification) return;
+
+    const { k, screenWidth, screenHeight } = ctx;
+    const message = notification.message;
+
+    const x = screenWidth / 2;
+    const y = screenHeight - 60;
+
+    // Draw text with black outline
+    const outlineOffsets = [
+        [-1, -1], [0, -1], [1, -1],
+        [-1, 0],          [1, 0],
+        [-1, 1],  [0, 1],  [1, 1],
+    ];
+
+    for (const [ox, oy] of outlineOffsets) {
+        k.drawText({
+            text: message,
+            pos: k.vec2(x + ox, y + oy),
+            size: 16,
+            anchor: "center",
+            color: k.rgb(0, 0, 0),
+        });
+    }
+
+    // Draw white text on top
+    k.drawText({
+        text: message,
+        pos: k.vec2(x, y),
+        size: 16,
+        anchor: "center",
+        color: k.rgb(255, 255, 255),
+    });
 }

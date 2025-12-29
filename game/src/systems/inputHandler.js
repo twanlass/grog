@@ -8,7 +8,7 @@ import {
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute,
     findFreeAdjacentWater, findNearbyWaitingHex, getHomePortIndex,
-    canAffordCrew
+    canAffordCrew, showNotification
 } from "../gameState.js";
 import { hexKey } from "../hex.js";
 import { findNearestWater } from "../pathfinding.js";
@@ -133,10 +133,13 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
         const tbtn = sbp.towerButton;
         if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
             const watchtowerData = TOWERS.watchtower;
-            if (canAfford(gameState.resources, watchtowerData.cost) &&
-                canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
-                enterTowerBuildMode(gameState, sbp.shipIndex, 'ship');
-                console.log(`Entering watchtower placement mode from ship ${sbp.shipIndex}`);
+            if (canAfford(gameState.resources, watchtowerData.cost)) {
+                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+                    showNotification(gameState, "Max crew reached. Build more settlements.");
+                } else {
+                    enterTowerBuildMode(gameState, sbp.shipIndex, 'ship');
+                    console.log(`Entering watchtower placement mode from ship ${sbp.shipIndex}`);
+                }
             }
             return true;
         }
@@ -166,12 +169,14 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const portIdx = selectedPortIndices[0].index;
                 const port = gameState.ports[portIdx];
                 const shipData = SHIPS[btn.shipType];
-                if (!port.buildQueue && !port.repair &&
-                    canAfford(gameState.resources, shipData.cost) &&
-                    canAffordCrew(gameState, shipData.crewCost || 0)) {
-                    deductCost(gameState.resources, shipData.cost);
-                    startBuilding(port, btn.shipType);
-                    console.log(`Started building: ${btn.shipType}`);
+                if (!port.buildQueue && !port.repair && canAfford(gameState.resources, shipData.cost)) {
+                    if (!canAffordCrew(gameState, shipData.crewCost || 0)) {
+                        showNotification(gameState, "Max crew reached. Build more settlements.");
+                    } else {
+                        deductCost(gameState.resources, shipData.cost);
+                        startBuilding(port, btn.shipType);
+                        console.log(`Started building: ${btn.shipType}`);
+                    }
                 }
             }
             return true;
@@ -218,11 +223,13 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
             const watchtowerData = TOWERS.watchtower;
             const port = gameState.ports[bp.portIndex];
-            if (!port.repair &&
-                canAfford(gameState.resources, watchtowerData.cost) &&
-                canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
-                enterTowerBuildMode(gameState, bp.portIndex, 'port');
-                console.log(`Entering watchtower placement mode from port ${bp.portIndex}`);
+            if (!port.repair && canAfford(gameState.resources, watchtowerData.cost)) {
+                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+                    showNotification(gameState, "Max crew reached. Build more settlements.");
+                } else {
+                    enterTowerBuildMode(gameState, bp.portIndex, 'port');
+                    console.log(`Entering watchtower placement mode from port ${bp.portIndex}`);
+                }
             }
             return true;
         }
@@ -265,10 +272,16 @@ export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, 
                 const towerIdx = selectedTowerIndices[0].index;
                 const tower = gameState.towers[towerIdx];
                 const nextTowerData = TOWERS[ubtn.towerType];
+                const currentTowerData = TOWERS[tower.type];
+                const crewDiff = (nextTowerData.crewCost || 0) - (currentTowerData.crewCost || 0);
                 if (!tower.construction && canAfford(gameState.resources, nextTowerData.cost)) {
-                    deductCost(gameState.resources, nextTowerData.cost);
-                    startTowerUpgrade(tower);
-                    console.log(`Started upgrading tower to: ${ubtn.towerType}`);
+                    if (!canAffordCrew(gameState, crewDiff)) {
+                        showNotification(gameState, "Max crew reached. Build more settlements.");
+                    } else {
+                        deductCost(gameState.resources, nextTowerData.cost);
+                        startTowerUpgrade(tower);
+                        console.log(`Started upgrading tower to: ${ubtn.towerType}`);
+                    }
                 }
             }
             return true;
@@ -295,7 +308,8 @@ export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, 
 }
 
 /**
- * Handle click on ship info panel (for ship repair)
+ * Handle click on ship info panel
+ * Ships cannot repair themselves - this just checks if click was on panel
  * @returns {boolean} true if handled
  */
 export function handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState) {
@@ -307,23 +321,7 @@ export function handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, ga
         return false;
     }
 
-    // Check repair button
-    if (sip.repairButton) {
-        const rbtn = sip.repairButton;
-        if (mouseY >= rbtn.y && mouseY <= rbtn.y + rbtn.height) {
-            const selectedShipIndices = gameState.selectedUnits.filter(u => u.type === 'ship');
-            if (selectedShipIndices.length === 1) {
-                const shipIdx = selectedShipIndices[0].index;
-                const ship = gameState.ships[shipIdx];
-                if (startRepair('ship', ship, gameState.resources)) {
-                    console.log(`Started repairing ship`);
-                }
-            }
-            return true;
-        }
-    }
-
-    return true; // Clicked panel but not on a button
+    return true; // Clicked panel
 }
 
 /**
@@ -445,6 +443,8 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     // Check ships first - use visual position for hit detection during movement
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
+        // Don't allow selecting pirate ships like player units
+        if (ship.type === 'pirate') continue;
         // Use visual position if available (smooth movement), fallback to hex position
         const shipPos = getShipVisualPos ? getShipVisualPos(ship) : hexToPixel(ship.q, ship.r);
         const dx = worldX - shipPos.x;
@@ -611,6 +611,7 @@ export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTI
                 attackCount++;
             }
             if (attackCount > 0) {
+                gameState.attackTargetShipIndex = i; // Track for red border visualization
                 console.log(`${attackCount} ship(s) attacking pirate at (${target.q}, ${target.r})`);
                 return true;
             }

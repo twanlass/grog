@@ -20,7 +20,8 @@
       "Bash(ls:*)",
       "Bash(find:*)",
       "Bash(kill:*)",
-      "Bash(xargs kill:*)"
+      "Bash(xargs kill:*)",
+      "Bash(timeout 5 npm run dev:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

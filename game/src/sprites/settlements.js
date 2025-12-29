@@ -35,6 +35,7 @@ export const SETTLEMENTS = {
         crewCapContribution: 5,
         buildTime: 5,
         sightDistance: 3,
+        health: 25,
         description: "Produces wood over time",
         // Resource generation
         generationInterval: 15,  // seconds between harvests

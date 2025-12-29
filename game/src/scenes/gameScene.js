@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { createFogState, initializeFog, revealRadius, isHexRevealed } from "../fogOfWar.js";
 
@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification } from "../rendering/uiPanels.js";
 
 // Game systems
 import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems/shipMovement.js";
@@ -213,11 +213,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         // Stipple animation timer for water twinkling effect
         let stippleAnimTime = 0;
 
-        // Bird states (3 birds orbiting home port with varying sizes)
+        // Bird states (3 birds orbiting home port with varying sizes and staggered starts)
         const birdStates = startTile ? [
-            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0, angle: 0, orbitRadius: 150, orbitSpeed: 0.3, scale: 1.0 },
-            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0, angle: 2 * Math.PI / 3, orbitRadius: 150, orbitSpeed: 0.28, scale: 0.85 },
-            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0, angle: 4 * Math.PI / 3, orbitRadius: 150, orbitSpeed: 0.32, scale: 0.70 },
+            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0, angle: 0, orbitRadius: 140, orbitSpeed: 0.3, scale: 1.0 },
+            { q: startTile.q, r: startTile.r, frame: 1, frameTimer: 0.12, angle: 2.5, orbitRadius: 160, orbitSpeed: 0.26, scale: 0.85 },
+            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0.06, angle: 4.8, orbitRadius: 180, orbitSpeed: 0.22, scale: 0.70 },
         ] : [];
 
         // Pre-calculate world positions for all tiles (once at load)
@@ -318,6 +318,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
             // Update stipple animation (always runs, even when paused or game over)
             stippleAnimTime += rawDt;
+
+            // Update notification timer (always runs)
+            updateNotification(gameState, rawDt);
 
             // Skip game updates when game is over
             if (gameState.gameOver) return;
@@ -582,6 +585,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 shipInfoPanelBounds = drawShipInfoPanel(ctx, ship, gameState);
             }
 
+            // Draw notification message (bottom center)
+            drawNotification(ctx, gameState.notification);
+
             // Game over overlay
             if (gameState.gameOver) {
                 const screenWidth = k.width();
@@ -834,7 +840,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
         // ESC to cancel placement modes or deselect all units
         k.onKeyPress("escape", () => {
-            if (menuPanelOpen) {
+            if (speedMenuOpen) {
+                speedMenuOpen = false;
+            } else if (menuPanelOpen) {
                 menuPanelOpen = false;
                 gameState.timeScale = timeScaleBeforeMenu;
             } else if (gameState.portBuildMode.active) {
@@ -878,15 +886,24 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
         // Hotkey 'T' to enter watchtower build mode when ship or port panel is open
         k.onKeyPress("t", () => {
+            const watchtowerData = TOWERS.watchtower;
             // Ship panel takes priority if both are somehow open
-            if (shipBuildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.watchtower.cost)) {
-                enterTowerBuildMode(gameState, shipBuildPanelBounds.shipIndex, 'ship');
-                console.log("Watchtower placement mode from ship (hotkey T)");
-            } else if (buildPanelBounds?.towerButton && canAfford(gameState.resources, TOWERS.watchtower.cost)) {
+            if (shipBuildPanelBounds?.towerButton && canAfford(gameState.resources, watchtowerData.cost)) {
+                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+                    showNotification(gameState, "Max crew reached. Build more settlements.");
+                } else {
+                    enterTowerBuildMode(gameState, shipBuildPanelBounds.shipIndex, 'ship');
+                    console.log("Watchtower placement mode from ship (hotkey T)");
+                }
+            } else if (buildPanelBounds?.towerButton && canAfford(gameState.resources, watchtowerData.cost)) {
                 const port = gameState.ports[buildPanelBounds.portIndex];
                 if (!port.repair) {
-                    enterTowerBuildMode(gameState, buildPanelBounds.portIndex, 'port');
-                    console.log("Watchtower placement mode from port (hotkey T)");
+                    if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+                        showNotification(gameState, "Max crew reached. Build more settlements.");
+                    } else {
+                        enterTowerBuildMode(gameState, buildPanelBounds.portIndex, 'port');
+                        console.log("Watchtower placement mode from port (hotkey T)");
+                    }
                 }
             }
         });
@@ -902,9 +919,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                         const port = gameState.ports[portIdx];
                         const shipData = SHIPS.cutter;
                         if (!port.buildQueue && !port.repair && canAfford(gameState.resources, shipData.cost)) {
-                            deductCost(gameState.resources, shipData.cost);
-                            startBuilding(port, 'cutter');
-                            console.log("Started building: cutter (hotkey C)");
+                            if (!canAffordCrew(gameState, shipData.crewCost || 0)) {
+                                showNotification(gameState, "Max crew reached. Build more settlements.");
+                            } else {
+                                deductCost(gameState.resources, shipData.cost);
+                                startBuilding(port, 'cutter');
+                                console.log("Started building: cutter (hotkey C)");
+                            }
                         }
                     }
                 }
@@ -915,13 +936,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         k.onKeyPress("u", () => {
             if (towerInfoPanelBounds?.upgradeButton) {
                 const nextTowerData = TOWERS[towerInfoPanelBounds.upgradeButton.towerType];
-                if (canAfford(gameState.resources, nextTowerData.cost)) {
-                    const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
-                    if (selectedTowerIndices.length === 1) {
-                        const tower = gameState.towers[selectedTowerIndices[0].index];
-                        if (!tower.construction) {
+                const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
+                if (selectedTowerIndices.length === 1) {
+                    const tower = gameState.towers[selectedTowerIndices[0].index];
+                    const currentTowerData = TOWERS[tower.type];
+                    const crewDiff = (nextTowerData.crewCost || 0) - (currentTowerData.crewCost || 0);
+                    if (!tower.construction && canAfford(gameState.resources, nextTowerData.cost)) {
+                        if (!canAffordCrew(gameState, crewDiff)) {
+                            showNotification(gameState, "Max crew reached. Build more settlements.");
+                        } else {
                             deductCost(gameState.resources, nextTowerData.cost);
-                            // Import startTowerUpgrade if needed, or inline the upgrade
                             tower.construction = {
                                 progress: 0,
                                 buildTime: nextTowerData.buildTime,
@@ -934,18 +958,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             }
         });
 
-        // Hotkey 'R' to repair selected unit
+        // Hotkey 'R' to repair selected unit (ships cannot repair themselves)
         k.onKeyPress("r", () => {
-            // Ship repair
-            const selectedShipIndices = gameState.selectedUnits.filter(u => u.type === 'ship');
-            if (selectedShipIndices.length === 1 && shipInfoPanelBounds?.repairButton) {
-                const ship = gameState.ships[selectedShipIndices[0].index];
-                if (startRepair('ship', ship, gameState.resources)) {
-                    console.log("Started repairing ship (hotkey R)");
-                }
-                return;
-            }
-
             // Tower repair
             const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
             if (selectedTowerIndices.length === 1 && towerInfoPanelBounds?.repairButton) {
@@ -1185,9 +1199,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             // Clear selection first
             clearSelection(gameState);
 
-            // Check each ship
+            // Check each ship (skip pirate ships)
             for (let i = 0; i < gameState.ships.length; i++) {
                 const ship = gameState.ships[i];
+                if (ship.type === 'pirate') continue;
                 const pos = getShipVisualPosLocal(ship);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;

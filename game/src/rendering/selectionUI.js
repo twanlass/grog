@@ -180,6 +180,8 @@ function drawDashedPath(ctx, path, startScreenX, startScreenY) {
 export function drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLocal) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
 
+    let pathDrawn = false; // Only show path for first selected ship
+
     for (let i = 0; i < gameState.ships.length; i++) {
         if (!isSelected(gameState, 'ship', i)) continue;
         const ship = gameState.ships[i];
@@ -189,24 +191,28 @@ export function drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLoca
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
-        // Draw attack target indicator (red hex outline)
-        if (ship.attackTarget && ship.attackTarget.type === 'ship') {
-            const target = gameState.ships[ship.attackTarget.index];
-            if (target) {
-                const targetIsMoving = target.path && target.path.length > 0;
-
-                // Only show hex outline when target is stationary
-                if (!targetIsMoving) {
-                    const attackColor = k.rgb(220, 50, 50);
-                    drawSelectionHexOutline(ctx, target.q, target.r, attackColor);
-                }
-            }
-        }
-
         // Draw A* path from ship to waypoint (dashed orange line)
         // Note: Waypoint marker itself is drawn earlier by drawWaypointsAndRallyPoints
-        if (ship.waypoint && ship.path && ship.path.length > 0) {
+        // Only draw for the first selected ship when multiple are selected
+        // TODO: Re-enable via settings/options menu
+        const showPathLine = false;
+        if (showPathLine && !pathDrawn && ship.waypoint && ship.path && ship.path.length > 0) {
             drawDashedPath(ctx, ship.path, screenX, screenY);
+            pathDrawn = true;
+        }
+    }
+
+    // Draw red hex outline for globally tracked attack target
+    // This persists until a new player unit is selected or new attack target chosen
+    if (gameState.attackTargetShipIndex !== null) {
+        const target = gameState.ships[gameState.attackTargetShipIndex];
+        if (target && target.type === 'pirate') {
+            const targetIsMoving = target.path && target.path.length > 0;
+            // Only show hex outline when target is stationary
+            if (!targetIsMoving) {
+                const attackColor = k.rgb(220, 50, 50);
+                drawSelectionHexOutline(ctx, target.q, target.r, attackColor);
+            }
         }
     }
 }
