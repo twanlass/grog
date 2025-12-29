@@ -1,6 +1,19 @@
 CAPTAIN'S LOG
 =============
 
+2025-12-29 | new watchtower assets; fog of war updated to be dynamic; settlements can be repaired.
+--------------------------------------------------------------------------------------------------
+### New
+- New watchtower sprite assets (tower.png, watchtower.png)
+- Settlement repair functionality - damaged settlements can now be repaired
+
+### Improved
+- Fog of war system now updates dynamically as units move
+- Enhanced tile rendering with fog of war integration
+- Combat system refinements
+- Unit and effects rendering improvements
+
+
 2025-12-28 | hide pathfinding trails; fix enemy selection; make settlements attackable
 ---------------------------------------------------------------------------------------
 ### New

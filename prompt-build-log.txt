@@ -961,3 +961,12 @@ when clicked pause the game and show a panel center center w/ that lists out the
 
 ## 210. User prompt
 > is there any check in place to ensure it doesnt' try to re-document a previously documented commit? 
+
+## 211. User prompt
+> how do i run the slash command? 
+
+## 212. User prompt
+> says "Unknown slash command: captains-log"
+
+## 213. User prompt
+> run /captains-log 

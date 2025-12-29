@@ -27,7 +27,9 @@
       "Bash(git -C /Users/tylerwanlass/code/grog show:*)",
       "Bash(git -C /Users/tylerwanlass/code/grog diff 39c36f8^..39c36f8 -- game/src/systems/combat.js game/src/scenes/gameScene.js game/src/systems/inputHandler.js)",
       "Bash(git -C /Users/tylerwanlass/code/grog diff 75216e2^..75216e2 -- game/src/rendering/uiPanels.js)",
-      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline --reverse)"
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline --reverse)",
+      "Skill(captains-log)",
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline -n 1)"
     ]
   },
   "enableAllProjectMcpServers": true,
