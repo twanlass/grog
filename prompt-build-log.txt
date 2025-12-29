@@ -5,380 +5,381 @@ This documents the prompts used to build this project with Claude.
 ---
 
 ## 1. User prompt
-> we're building a simple sim game using Kaplay as our game engine (https://kaplayjs.com/docs/guides/). I've put together a game design doc (game-design-doc.md). Review that first. Lets then make a plan. I'd suggest creating a todo.md file to track our progress. Suggest first steps: get Kaplay setup and render hello world on the screen. Next, maybe we start working on the hex map generation. 
+> let's iterate on the hex map
+1. it should be dynamic each time 
+2. Can we do an overall square shape? 
 
 ## 2. User prompt
-> lets refactor sprites.js into files for ships and ports. Do whatever Kaplay docs suggest is best practice
+> huh still not a square. here's the shape: 
 
 ## 3. User prompt
-> let's implement a fog of war mechanic. Here's how it should work: 
-1. At game start, shroud the entire map in blackness (fog)
-2. Expose (hide fog) a 1 hex radius around every ship and port
-3. As ships sail, expose 1 hex radius of fog around the ship 
-4. Fog should remain exposed
+> can we investigate too why panning around is slow? zooming in and panning is faster; zooming out and panning is slower. 
 
 ## 4. User prompt
-> update the visuals for the path rendered to be a dashed orange line isntead of solid red
+> we can remove the outlines 
 
 ## 5. User prompt
-> can we experiment with having the ships rotate to face the direction they are heading? 
+> Much smoother! Okay, next let's designate potential port sites
 
 ## 6. User prompt
-> let's document features so that future coding work is faster for our LLM. To start: 
-1. create a new directory in our project
-2. document our fog of war feature. keep it short and sweet. include paths to relevant files. write it in markdown so an LLM (claude code) can read it. 
-3. update or create our .claude file for this project to include a reference to our new directory and markdown feature files
+> now let's create some of our units, ships and ports. Let's add a separate page to work on these accessed from the main menu. Can you create pixel versions of our 4 ship types to start? 
 
 ## 7. User prompt
-> let make the the background pitch black (the part beyond the hexes) so the end of the world is visually obvious
+> let's draw the ships from a side view so that we can make out the silouette better 
 
 ## 8. User prompt
-> let's work on a new feature: building ships! We'll start simple: 
-1. when a port is selected, we should show a simple UI that lists the type of boats that port can build (see #### Port Progression in game-design-doc.md)
-2. when clicking on the UI for a specific ship, show a progress bar above the port (progress bar should use the `build_time` specfied in game/src/sprites/ships.js
-3. when progress bar is complete, add a ship in the ocean near the port on an availble free hex
-4. don't worry about ecnomoy / resources yet. 
+> now let's create our port units 
 
 ## 9. User prompt
-> how big is the map?
+> now let's add a single outpost and cutter to the map as the player's starting position 
 
 ## 10. User prompt
-> can we make it 60x60? 
+> now let's start working on the main game loop
 
 ## 11. User prompt
-> replace our starting port with a Stronghold
+> let's implement the basic economic units (wood, steel, food, grog). Let's add simple UI to show the units and current value. Read the design doc for more details. 
 
 ## 12. User prompt
-> let's update our fog of war mechanic to take into account the ship and it's specific `sight_distance` for uncovering fog/map. Read about the mechanic in docs/features/fog-of-war.md first. Then update the feature to expose more of the fog based on the ship. 
+> error when refreshing: kaplay.js?v=8270b6e8:5276 Error: Styled text error: unclosed tags Drag,Scroll
+    at Object.<anonymous> (gameScene.js:229:15)
+xn    @    kaplay.js?v=8270b6e8:5276
 
 ## 13. User prompt
-> lets experiment with updating our controls: 
-Instead of command + left click to set a waypoint, lets use just left cilck _when_ a ship unit(s) is selected. This should make basic nav easier.   
+> let's work on basic navigation & ship movement. Things to do: 
+1. ship selection; click to select a ship. Maybe render a cricle around it to show it's selected. Should work for selecting all units like ports etc. 
+2. with a ship selected, shift+left click should place a point on the map (a future navigation destination). Maybe show a red block to indicate the selected location. 
 
 ## 14. User prompt
-> one more logic change: 
-after a way point has been set, the next left click should clear the selection instead of setting another waypoint
+> clicking on the ship does nothing; no circle appears 
 
 ## 15. User prompt
-> update the waypoint visual marker from a red square to a chunky red x (like an x marks the spot on a pirate map!)
+> now lets work on navigation. When a waypoint is set, the ship should auto-navigate to the waypoint. Things to consider: 
+1. It should navigate around land, only passing through deep and shallow water tiles. 
+2. a ships speed is based on the specific unit 
+3. we should implement or use Kaplay's global time tick rate so we can globally adjust a play rate multiplier 
 
 ## 16. User prompt
-> one more logic update to waypoints; if a ship is selected and it's reached its waypoint, the next left click should set a new waypoint, not unselect the ship
+> let's make some improvements to waypoints:
+1. Allow land to be selected as a waypoint. Ship can then navigate to the nearest coast of that island/land
+2. Don't deselect a unit on drag; only on left click. This allows the player to select a unit, drag explore the map, then place a waypoint. 
 
 ## 17. User prompt
-> can we add a little texture to the tiles? I'm thinking for each tile type, choose 3 similar colors (so for deep water, pick 3 deep blues) and then use that to stiple the hex tile. 
+> still seeing the ship be deselected on drag. Are we implementing custom click handlers or using Kaplay's built in ones?
 
 ## 18. User prompt
-> rendering is much much slower. Shoudl we pre-calc the stiple and use components? Just render instances? 
+>  let's improve the rendering of the waypoint line from ship to waypoint:
+  instead of straight light, let's render the A* path so you can see the route the ship would actually take
 
 ## 19. User prompt
-> let's document our ship construction feature in docs/features
+> let's add a second ship to our start of the game
 
 ## 20. User prompt
-> let's implement a port building feature. 
-1. Ports can be built when a ship is "docked" (on a shore hex, water adjacent to land)
-2. When a ship is docked and selected, show a build menu (bottom left)
-3. Build menu should only show the first port type in the tech tree
-4. Once a menu item is chosen, we want to activate a selection mode: allow the user to hover over hexs of the docked landmass; on hover, highlight the hovered hex; 
-5. On click (ports can only be built on shore line hex), place the port sprite and show a progress bar indicating it's `buildTime`. 
-6. Once complete, the port can be selected and ships may be built from it. 
+> when pathfinding, ensure a ship doesn't occupy the same hex as another ship 
 
 ## 21. User prompt
-> lets update the port selection to only allow hexs within 5 of the boat to be selected (so that a boat can't build a port across the map lol)
+> instead of blocky hex by hex ship moving, can we explore smooth ship movement? 
 
 ## 22. User prompt
-> one more update – don't clear any fog of war until the port has successfully been completed / built 
+> how is game speed working at the moment? I think the ships move too fast. So I'm wondering if I should edit ship speeds or overall game speed
 
 ## 23. User prompt
-> let's document port building in /docs/features. Focus on behavior, key files, key functions. Don't
-  worry about documenting variable values (like buildTime etc) as those change.  
+> yea, update ship speeds 
 
 ## 24. User prompt
-> next, lets add support for upgrading your port: 
-1. When a user selects a port (must be complete, not in a building state), show an upgrade menu (bottom left)
-2. Options should include only the next available port type in the tech tree
-3. Once selected, show the build progress bar and use the `buildTime` of the upgraded port
+> let's fix a bug: when a ship tries to navigate to hex already occupied by another ship it gets stuck (keeps tring to move there there). Can we have it pick a nearest availble hex instead? 
 
 ## 25. User prompt
-> a few small tweaks: 
-1. while first construction a port, don't allow the ship that initiated it to move
-2. Don't allow the ship that initiated to build another port (only one at a time)
+> the ship still tries to occupy the occupied hex. Could we check other ship waypoints or do a check before moving to the next hex? 
 
 ## 26. User prompt
-> cool. update the port building docs
+> let's work on multiple ship selection and navigation: 
+1. Implement a drag select box
+2. On release ^, select all units within the box 
+3. On shift + left click, set a waypoint for all selected units 
+4. All units should navigate to waypoint 
 
 ## 27. User prompt
-> let's implement a new unit type: farm. 
-1. Read up on how ports work: docs/features/port-building.md
-2. Farms can be built from Ports. Much like building a port from a ship: 
-2a. select a port
-2b. show it's menu (today has options to build ships or upgrade)
-2c. add a new option to build a farm
-3. when farm is selected, intialize the hex selection mode (green)
-4. Allow the player to select any contiguous land hex within 10 hex of the port
-5. when chosen, build a farm on the selected hex
+> something is buggy w/ the selection box; it appears as soon as I move the mouse, not on drag 
 
 ## 28. User prompt
-> make sure that building farms and ships and outputs uses the same progress bar 
+> let's have the map scroll when the mouse reaches the edges of the screen (like classic RTSs)
 
 ## 29. User prompt
-> make sure that building farms and ships and outputs uses the same progress bar ui / visual  
+> lets update some hotkeys: 
+- setting a destination should use ctrl + left click
+- selecting multiple units should use shift + left click
 
 ## 30. User prompt
-> let's tidy up units a bit: 
-1. rename outpost to dock
-2. rename sloop to schooner
+> let's work on the collision detection a bit: when a ship is already occupying a waypoint, the incoming ship will collide w/ the occupying ship then snap out to another hex and navigate elsewhere. Can we check before the ship moves to it's next hex if it's occupied and if so, navigate to another near avaiilabe hex instead 
 
 ## 31. User prompt
-> update our starting state to: 
-1. a port instead of a stronghold
-2. place 2 farms near by
-3. give us just one cutter 
+> let's init a git repo (connect to https://github.com/twanlass/grog.git) and save our work. 
 
 ## 32. User prompt
-> let's add a new economoy feature. To start, let's add some build costs to our units: 
-1. Ships and ports should require wood to be built. Stub in some values and I'll tweak them code
+> lets update our starting wood and food to 25 each 
 
 ## 33. User prompt
-> let's introduce a new mechanic: collecting resources from foreign ports
-1. Foreign ports already collect resources from thier nearby settlements
-2. Let's allow for a foreign port to be a waypoint selection; with a ship selected, left click a foriegn port to target it. 
-2a. the selected ship will navigate to the foriegn port
-2b. the selected ship will load up wood and food 
-2c. loading wood and food should take 0.25 seconds per wood and food unit loaded, up to the maximum `cargo` of the selected ship
-2d. show a loading progress bar above the ship
-3. once loaded, the selected ship will navigate back to the home port and unload.
-4. once unloaded, the ship will wait for it's next orders   
+> ive updated the ships cost to include food. can you update code to reflect that? 
 
 ## 34. User prompt
-> confirm that the resources loaded are deducted from the foreign port and when unloaded are added to the global store. Also increase load/unload time to 1s per resource 
+> lets rename the "farm" unit to "settlement" 
 
 ## 35. User prompt
-> update the default home port to have no settlements intially 
+> let's add some logic to our settlements: 
+1. When created, they should contain a reference to the port they were built from
+2. If the settlement is from the home port (initial port), it should generate 5 wood and 5 food every 30 seconds and be added to the global wood and food store
+3. if the settlement is from a built port (a new island discoverd by a ship and built there), it should also generate 5 wood and 5 food. But rather than be added to the global store, it should be added to the built port where a ship must collect it later and return it home (we'll build this shipping feature later)
+4. When a settlement generates wood and food, let's spawn a number above it and animate it up and fade it out. Use the color of the resource to indicate what was generated (brown = wood, green = food). 
 
 ## 36. User prompt
-> two small updates: 
-1. when selecting a boat, show a menu bottom right that lists it's name and any cargo it's carrying (wood or food count) 
-2. if a ship is carrying cargo and the user clicks on the home port, navigate the ship to the home port and unload it (right now if the auto route is interupted, the ship can't be unloaded)
+> lets double the size of the floating +5's and reduce the animation time by half 
 
 ## 37. User prompt
-> how might we support some sort of waiting retry system for ships that are trying to load/unload by find their waypoint busy / in use by another ship? 
+> lets double the horizontal gap/space between them too 
 
 ## 38. User prompt
-> option b! 
+> `sight_distance` added to farms; use that to update fog of war
 
 ## 39. User prompt
-> let's make a plan to refactor game/src/scenes/gameScene.js – it's getting quite large. 
+> only allow a port to build a single settlement at a time
 
 ## 40. User prompt
-> I think we need to fix our git repo; it looks like just the game directory is included/tracked but we need /Users/tylerwanlass/code/grog to be tracked included. What should we do? 
+> when clicking on a built port, let's display how much wood and food it's collected from it's settlements 
 
 ## 41. User prompt
-> git push 
+> lets make it so that ports can only build one thing at a time; a settlement, ships, etc. 
 
 ## 42. User prompt
-> ls
+> update our docs/features as needed 
 
 ## 43. User prompt
-> can you create a simple readme.md in the root? Quick summary of the project, list out docs/features, and a quick how to run 
+> lets add an icon to the selected ship card to indicate when it's in an auto loop mode. This will help debug as well. 
 
 ## 44. User prompt
-> yes
+> there appears to be a bug. It looks like when a ship is in auto-loop mode and the foriegn port if occupied, it pasues, but never resumes, even after the port is vacated by another ship
 
 ## 45. User prompt
-> update all copy, comments, code, to replace references to "farms" with " settlements"
+> still seeing the bug: see selected ship in screenshot. It's in auto-loop mode, not attempting to dock at foreign port; not in waiting mode either. 
 
 ## 46. User prompt
-> let's update our sea bird: 
-1. Increase it's path radious around the home port
-2. Have it point / rotate to follow the path direction. By default, the sprite is draw at a 45 degree angle with the nose of the bird pointed top right
-3. spawn 3 birds with thier size variying up to 305% smaller than default size. Have them spread out 
+> document (docs/features) the trade route feature
 
 ## 47. User prompt
-> almost there; the individual bird though isn't rotating locally to face forward and follow it's path
+> how do we decide what resources a ship loads? wood vs food etc? 
 
 ## 48. User prompt
-> the angle may be off; the sprite for the bird is drawn at a 45 degreen angle 
+> let's do ratio based! 
 
 ## 49. User prompt
-> here's a visual: 
-1. Red circle is the current path (orbit)
-2. blue arrow is the direction the bird is currently facing (wrong)
-3. yellow arrow is the direction the bird _should_ be facing
+> small adjustment to the unloading: let's reverse the loading bar so it goes from full to empty (to visulize the ship _unloading_)
 
 ## 50. User prompt
-> still not right: heres the bird for reference (yellow arrow is current facing direction) 
+> unit selection is getting tricky. Let's update it: 
+1. left click to select a unit (ship, port, settlement)
+2. command + left click with a _ship_ selected to set a waypoint or target port
+3. left click anywhere else to unselect all units 
 
 ## 51. User prompt
-> try 150 degree offset
+> update docs/features if needed then prep a commit 
 
 ## 52. User prompt
-> that's perfect 
+> commit everythign please 
 
 ## 53. User prompt
-> we're going to implement a new feature + mechanic: pirate ships! We'll start simple: 
-1. Create a new ship type, "pirate"; use the Schooner as a template to start. 
-2. Modify the ships sails to be black w/ a white dot in the middel (simple pirate skull flag)
-3. spawn the ship in the ocean near the home port
+> git push
 
 ## 54. User prompt
-> Now let's start turning the pirate ship into an AI player: 
-1. Don't allow the user to select it (user can't control it)
-2. Have the pirate ship generate a simple path around the home port and auto-navigate
+> let's add a fun little trail behind the ships as they sail. Should look like a water trail and have some ombre to it. 
 
 ## 55. User prompt
-> lets expand it's patrol distance by 3x 
+> could we animate the water stipling, just toggle between two states, to make it appear like the water is twinkling in the sun?
 
 ## 56. User prompt
-> document our pirate in docs/features
+> can you document the feature type / where to add as a general docs/feature doc?
 
 ## 57. User prompt
-> let's improve our pirate ship AI a bit: 
-1. 4 possible states: patrol, chase, attack, retreat
-1a. patrol - what it does today (wanders around)
-1b. chase - when a player ship or port comes within a distance of 8 hex, it should pick it as a waypoint target. Make `enemySightDistance` a ship const for tweaking later. 
-1c. attack - once the pirate ship is within `attackDistance`, it should stop and begin firing. For now do nothing; we'll implement attack feature next. 
-1d. retreat - the pirate ship should navigate away from the waypoint target, and then after a cooldown, start patrol again. Make `retreatCooldown` a const for tweaking later. 
-2. let's make pirate ships selectable again so that the player can see their current state (patrol, chase, etc). Use the same bottom right UI we show for when selecting any other ship. 
+> can you check on the controls: with a ship selected, control + left click on a port isn't working (can't sent boat to collect from the forieng port and start the auto route)
 
 ## 58. User prompt
-> because the pirate ship spawns so close to the home port its in attack mode right away. can we spawn it farther away? 
+> for the larger boats, the water wake behind them isn't visible. We might need to scale up the wake based on the size of the boat 
 
 ## 59. User prompt
-> a few improvements: 
-1. Let's add a `maxChaseDistance`; something like 20 hexs to avoid a pirate following a ship across the world lol 
+> let's stage a commit for all our changes (big refactor, control changes, etc)
 
 ## 60. User prompt
-> let's change how maxChaseDistance works – treat this as a chanse distance value, as in, if the pirate ship has chased the player for 20 hex and still not entered attack mode, revert to patrol mode
+> option 1 
 
 ## 61. User prompt
-> it looks like once the pirate ship reaches a max chase distance it stops moving but remains in chase mode, and does not return to patrol mode
+> let's add our first animated sprite to the game – sea birds!
+1. i've added a new sprite sheet to grog/game/src/sprites/assets/bird.png
+1a. it's 64x32; two frames
+1b. it should animate from frame 1 to 2
+1c. use Kaplay loadSprite() and play()
+2. once the created, add a bird above the home port at game start. 
+3. it can be stationary for now, just flapping in place. We'll animate a path later
 
 ## 62. User prompt
-> to prep for attack battles, let's add a health const to all ships and ports.
+> Should we be using Kaplay's camera system for everything? Or how might we have the bird occupy game space instead of world space so that the bird can exist independent of camera movement? 
 
 ## 63. User prompt
-> update docs
+> let's improve our bird: 
+1. reduce scale by half (it's huge)
+2. can we put it on a basic path to slowly circle our home port 
 
 ## 64. User prompt
-> update ship `sight_distance` const to be `sightDistance` (fix case) 
+> make sure the bird is drawn above all other units (its rendering below our port right now lol)
 
 ## 65. User prompt
-> let's prep a commit 
+> document the bird in docs/features
 
 ## 66. User prompt
-> we're going to add our attack mechanic for pirate ships. While in the attack state: 
-1. ships should shoot a cannon ball towards their waypoint target
-2. there should be a simple ~5 second cooldown between shots
-3. no ammo constraints for now
-4. each cannon ball, when hitting it's target, should deduct 5 health
-5. all ships and ports will need a destroyed state (when health <= 0)
-5a. destroyed state should destroy the instance of the item. 
-5b. todo: we'll need to solve for the edge case where a port is destroyed - what should happen to it's settlements? 
+> commit our bird changes
 
 ## 67. User prompt
-> in ports.js, let's rename "port" to "shipyard". update any refs in code if needed. 
+> can we update the cannon balls a bit? 
+1. slow them down by half 
+2. add a little arc to their travel 
 
 ## 68. User prompt
-> lets spawn a few more pirates at game start (3 total)
+> next, let's add some health bars above the pirate ship and it's attack target. Health bars should only be visible during attack. 
 
 ## 69. User prompt
-> lets spawn just 2 pirates. make this configurable. 
+> sometimes a pirate ship fails to spawn at start 
 
 ## 70. User prompt
-> after a pirate is destroyed, respwan one after a 30 second cooldown 
+> bug fix: continue to allow the pirate ship to be selected (easier to debug it's current state) but _dont_ allow the user to control it 
 
 ## 71. User prompt
-> let's make a simple end state: 
-if all player ships and all ports have been destroyed restart the game
+> next bug: pirate ships don't seem to attack ports 
 
 ## 72. User prompt
-> let's add a 60 second wait before we first spawn pirates 
+> last bug: after destroying it's target, the pirate boat moves back to patrol state but isn't moving. 
 
 ## 73. User prompt
-> let's make combat a little more interesting. When a unit is hit with a cannon ball, have it quickly flash to indicate it's been hit
+> hmm still seeing the bug. Repro steps: 
+1. pirate destroys a port
+2. transitions to patrol state
+3. remains in same hex was in during attack
+4. there is a nearby player boat, but it doesnt' seem to notice
 
 ## 74. User prompt
-> let's add a const to ships to control their fire speed. Larger ships should fire more frequently. 
+> let's now add the ability for player ships to attack. With a ship selected, control + left click on a pirate ship should: 
+1. navigate the player ship to within attack range of target 
+2. begin firing their canon
+3. continuing firing their cannon (with cooldown) until either: 
+3a. a new waypoint is set (player moves their ship)
+3b. target is destroyed
 
 ## 75. User prompt
-> let's replace our cutter with an actual sprite. I've added a sprite asset (one frame): game/src/sprites/assets/cutter.png. The sprite ship is facing up / north. 
+> update the controls to use command + left click for attack (keep it consistent with trade routes, etc)
 
 ## 76. User prompt
-> next, let's have the ship rotate and face the direction it's headed. Since this is a hex based game, we'll have 6 possible directions. 
+> when selecting a port or ship, show it's health bar 
 
 ## 77. User prompt
-> it's close. let's use 45 degree angles for the hex directions
+> let's have player ships return fire (attack) automatically when being attacked. In case a ship is left idle at least it will defend itself 
 
 ## 78. User prompt
-> the ship is quite large. Can we adjust it's size? where is that constant so I can edit it? 
+> let's show the towers health bar when selected 
 
 ## 79. User prompt
-> can we refactor things and consolidate a single scale in the ship const metadata? have flash use that etc? 
+> let's add a little fun flourish to cannonballs: add a firery trail to them 
 
 ## 80. User prompt
-> the cutter isn't flashing when hit by a cannonball. Can we add that back?
+> document towers in docs/features
 
 ## 81. User prompt
-> hmmm. can I add a flash state to the sprite instead? that way it matches the ship outline etc?
+> can you update CLAUDE.md to note that it should read relevant feature docs before updating a sepcific feature? 
 
 ## 82. User prompt
-> okay, I added a second frame for the flashing state
+> can you update the unit gallery scene to include our tower? 
 
 ## 83. User prompt
-> last bit of flourish: cannonballs have a nice arc. When they reach their peak of the arc, let's increase the cannonball size by 1.2x (so it appears to come closer to the camera)
+> can you polish up the build menus to make them easier to read etc? full write out wood and food isntead of using abbreviations etc? Could be really cool to show a little thumbnanil fo the sprite/asset too (i.e. render a little tower next to the menu item to make it visual that's what you're going to build) 
 
 ## 84. User prompt
-> have them scale/start from 0.8
+> let's add some hotkeys for building stuff! 
+1. When a port build menu is open, pressing 's' should trigger the settlement build selection mode
+2. When the ship build menu is open, pressing 't' should trigger the tower build selection mode
 
 ## 85. User prompt
-> for land units (ports, settlements) let's update the selection state: instead of a yellow circle around the unit, let's outline the hex it's placed on (yellow outline around the hex). Similar to the selection mode for placing a settlement or port (hex outline in green)
+> one small refactor – instead of duplicating all the logic to see if the hotkey can be used etc, just gate that behind the existing menu logic (which already checks is the thing can built)
 
 ## 86. User prompt
-> lets update the other units to use the same selection style (hex outline)
+> error when selecting a unit: Selected port: shipyard
+kaplay.js?v=8270b6e8:5276 Error: Styled text error: unclosed tags S
+    at $n (kaplay.js?v=8270b6e8:3031:27)
+    at Ue (kaplay.js?v=8270b6e8:3039:38)
+    at Object.Zr [as drawText] (kaplay.js?v=8270b6e8:3232:6)
+    at Object.<anonymous> (gameScene.js:1854:31)
+    at n (kaplay.js?v=8270b6e8:1281:29)
+    at kaplay.js?v=8270b6e8:1297:15
+    at rn.forEach (<anonymous>)
+    at re.trigger (kaplay.js?v=8270b6e8:1296:19)
+    at ze.trigger (kaplay.js?v=8270b6e8:1328:42)
+    at Object.trigger (kaplay.js?v=8270b6e8:3863:7)
+xn @ kaplay.js?v=8270b6e8:5276
 
 ## 87. User prompt
-> for ships (units that move), only show the hex outline when stationary. 
+> lets polish the red waypoint 'x': 
+- reduce size to 75%
+- rotate clockwise 6 degrees (give it a little tilt!)
 
 ## 88. User prompt
-> something happened w/ the waypoint line; when selecting a destination for a ship, it now draws a line waaaaay off the map as as well as to the desination 
+> update combat logic to prevent player ships from attacking while building (only allow them to do one thing at a time!) 
 
 ## 89. User prompt
-> when targeting a pirate ship, instead of showing the x waypoint, let's highlight the pirate ship by using the same hex outline, but in red (to indicate we're attacking)
+> let's update the combat logic so that ships fire a cannonball right away once in position (no initial cooldown)
 
 ## 90. User prompt
-> apply the same logic to the pirate ship hex outline – only show it when the pirate ship comes to rest
+> let's make some improvements to our towers: when placing a new tower or when selecting one after built, let's visual its `attackRange` by rendering a hex outline around the outer boundaries. 
+1. when placing a location for a new tower, render the range as you hover hexs
+2. when selecting a built tower, render the range 
 
 ## 91. User prompt
-> clear
+> we're almost there. the outer boundary isn't quite rendering correctly (see screenshot). Maybe an easier alternative is to just fill the hexes with a transparent blue (match the mouse  drag select box) 
 
 ## 92. User prompt
-> we're going to add a new unit type: towers! 
-1. Towers can be built by ships much like ports 
-2. Towers can be placed like settlements (selection mode, etc)
-3. Towers can be attacked by pirates (this should already be generalized in that pirates attack any player units
-4. Towers once built, should attack pirate ships automatically.
+> how might we outline the hexes, using the same blue outline as our selection box? We'd only want to outline the outer edges of the combined larger hex shape
 
 ## 93. User prompt
-> clear
+> update settlements.js w/ consts for how much wood + food is farmed and how often 
 
 ## 94. User prompt
-> let's find some refactoring opportunities for gameScene.js, it's getting quite large 
+> error: 
+kaplay.js?v=8270b6e8:5276 TypeError: Cannot read properties of undefined (reading 'generationInterval')
+    at updateResourceGeneration (resourceGeneration.js:18:41)
+    at Object.<anonymous> (gameScene.js:220:13)
+xn    @    kaplay.js?v=8270b6e8:5276
 
 ## 95. User prompt
-> when selecting a tower, render a bottom right panel that shows it's current cooldown. Update ship selection panel to also show cooldown. 
+> interesting bug: 
+pirate is stuck navigating because waypoint is a lake lol: 
 
 ## 96. User prompt
-> should we refactor panels to be more generic? 
+> update the player start to begin with just a dock port
 
 ## 97. User prompt
-> lets finish the refactor 
+> let's allow towers to be built from ports as well as as ships
 
 ## 98. User prompt
-> crash on unit selection: 
+> let's add some visual flare to ships as they are destoyed: 
+1. add a little fire / wood explosion to a ship when it's killed
+2. leave some wood on the water (floating debirs, planks,etc) for a few seconds after a ship is destroyed, then fade it out 
+
+## 99. User prompt
+> Looks great. Can we / should we use Kaplay particles() for performance? Docs are here: https://kaplayjs.com/docs/guides/particles/
+
+## 100. User prompt
+> let's leave as is for. Let's make the current ship explosion more dramatic though. Make the explosion bigger and a little slower. Let's also add a tiny bit of camera shake. 
+
+## 101. User prompt
+> error: 
 Selected port: dock
-kaplay.js?v=8270b6e8:5276 ReferenceError: renderCtx is not defined
-    at Object.<anonymous> (gameScene.js:414:55)
+gameScene.js:2674 Tower placement mode from port (hotkey T)
+kaplay.js?v=8270b6e8:5276 ReferenceError: effectiveCameraX is not defined
+    at drawHexRangeFilled (gameScene.js:38:38)
+    at Object.<anonymous> (gameScene.js:1517:21)
     at n (kaplay.js?v=8270b6e8:1281:29)
     at kaplay.js?v=8270b6e8:1297:15
     at rn.forEach (<anonymous>)
@@ -387,328 +388,504 @@ kaplay.js?v=8270b6e8:5276 ReferenceError: renderCtx is not defined
     at Object.trigger (kaplay.js?v=8270b6e8:3863:7)
     at Object.draw (kaplay.js?v=8270b6e8:3763:17)
     at kaplay.js?v=8270b6e8:3763:53
-    at Array.forEach (<anonymous>)
-xn @ kaplay.js?v=8270b6e8:5276
-
-## 99. User prompt
-> let's fix a ship cooldown bug: it appears that a player ship cooldown only only counts down while attacking another ship. If you leave a battle early, the cooldown pauses.
-
-## 100. User prompt
-> let's update our port unit. When building ships, don't block the building of other units (like settlements, towers, etc). This should work like building a tower or settelement does – it does not occupy the port. 
-
-## 101. User prompt
-> next, let's remove the WASD hotkeys for moving the camera. 
 
 ## 102. User prompt
-> small bug: when building a settlement from a port, I can now see the option to build a ship but its disabled and shows I don't have enough resrouces but I actually do. See screenshot for context: 
+> small improvement: only add camera shake if the explosiion is visible on screen (ignore if happening off screen)
 
 ## 103. User prompt
-> in gameScene.js I see an unused import on line 6: import { findPath, findNearestWater, findNearestAvailable } from "../pathfinding.js";
+> double the size of debris when ships explode (so resulting wood planks / debris on the ocean are more visible). Let's also add some water rings around the ship explosion site (to simulate the idea that the ship has sunk)
 
 ## 104. User prompt
-> instead of removing it, shoudl we use it? That might allow us to remove / refactor code in gameScene.js
+> the rings look great but are too uniform (evenly spaced) add some randomness to the spacing and size 
 
 ## 105. User prompt
-> check pirate spawning – it appears after the first 2 pirate ships are destroyed more don't respawn (maybe)?
+> let's think about an update to our combat system: 
+right now, a ship is hit if it's within distance when the cannon ball is fired. How might we instead make it more accurate by only registering a hit if the ship is present in the targeted hex at time of impact? 
 
 ## 106. User prompt
-> let's update build logic: if a ship or port is destroyed while building something (settlement, tower) cancel the build and return the resources used
+> let's update the ship explosion / debris / water rings to be contained within the hex where the ship was destoroyed (to prevent debris etc on shore)
 
 ## 107. User prompt
-> I just added a cost to settlemenets. update code. 
+> interesting bug: a cutter can fire two cannonballs back to back if a shot is fired and the player then quickly moves hexes and fires again
 
 ## 108. User prompt
-> let's update the settlement selection mode to ensure only hexes on the current island can be selected (don't allow player to place settlements on adjacent islands or hexes not connected by land to the current port
+> let's refactor the ship explosions, screenshakes, etc to apply it to other unit types. Namely, we'll want a similar effect for buildilngs like ports and towers 
 
 ## 109. User prompt
-> can we add a little hover effect to ships? Specfically, highlight the hex they are under while hovering? this should make selection feel better 
+> inspect combat and the logc for when a ship fires. What I see right now: a ship comes to a stop, then waits some amount of time before firing it's first cannonball. Instead, assuming the cooldown is not active, it should fire right waway
 
 ## 110. User prompt
-> sweet! add the same hover highlight to all units!
-
-## 111. User prompt
 > clear
 
+## 111. User prompt
+> we're going to make some quick improvments to pirates and our fog of war. First, read these feature docs: 
+1. docs/features/fog-of-war.md
+2. docs/features/pirates.md
+
+Next, let's make this change: 
+Pirates should not affect fog of war; they should not reveal it as they navigate around. This will make it harder to players to spot pirates coming and will instead require them to send out scout ships. 
+
 ## 112. User prompt
-> let's fix a few edge cases with our ports. Right now, settlements are associated with ports. But when a port is destroyed, what happens to the settlements? Maybe a simple change is to have settlements check for a land-connected near by port. If none, exists, they should stop producing wood/food. If a port is re-built, the nearby settlements should start producing again. 
+> one bug: pirates (i presume all ships) are rendered above the fog, not below it
 
 ## 113. User prompt
-> lets update the home port logic. Disignate the _island_ where the first port spawns as the home island. The most recent port built on that island should be the home port. This should ensure that if the home port is destroyed and rebuilt later, trade routes continue to work etc
+> almost working – the pirate ships water trail is still being rendered lol
 
 ## 114. User prompt
-> let's implement a new unit type: lighthouse
-1. can be built by ships and ports
-2. primary value is clearing fog of war; should clear twice as much as towers
-3. cost, build time, and health should be same as towers
+> yes. let's go one by one. 
 
 ## 115. User prompt
-> i want to add a nice little wave effect. A simple line that animates towards the shore of an island. we could maybe render this on each shore tile (find the edge that faces the ocean then render a light blue line animating in toward the hex edge). Or we could render an outline of the island, oversized, and shrink it / scale it down to the size of the island. Maybe have a look at game/src/rendering/tileRenderer.js to start 
+> on game start, I see this console error: 
+kaplay.js?v=8270b6e8:5276 ReferenceError: drawAllSelectionUI is not defined
+    at Object.<anonymous> (gameScene.js:395:13)
+xn    @    kaplay.js?v=8270b6e8:5276
+(anonymous)    @    kaplay.js?v=8270b6e8:5310
+te    @    kaplay.js?v=8270b6e8:1665
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
+requestAnimationFrame        
+te    @    kaplay.js?v=8270b6e8:1667
 
 ## 116. User prompt
-> let's try phase 2 
+> amazing refactor. Let's update docs/features/_adding-features.md 
 
 ## 117. User prompt
-> I'm not seeing a unified wave for phase 2; you can see a lot of gaps and overlaps rather than a nice unified ring: 
+> what happens to pirates patrol when there is no home port? 
 
 ## 118. User prompt
-> so close! it looks great but the waves are on the shore, not in the ocean (blue tiles): 
+> 1 roam randomly 
 
 ## 119. User prompt
-> can we have the waves pulse inward and opacity fade to 0; then start again out from the shore in a loop? like waves comeing in, going flat, then starting again? 
+> lets add a simple hotkey: when escape is pressed, deselect all units
 
 ## 120. User prompt
-> when first starting, the wave ring should be opacity 0, then animate / fade in (so that it doesn't visually pop in). Let's also have the wave start out a little farther from shore 
+> Can we implement a custom cursor? I've included a new sprite to use: 
 
 ## 121. User prompt
-> can we slow down the waves? what about trying solid waves, not just lines?
+> the cursor is now kind of laggy / slow 
 
 ## 122. User prompt
-> the solid wave bands look buggy: 
+> let's avoid initially spawning the player on a single hex island. Try to spawn them on an island with both sand and grass 
 
 ## 123. User prompt
-> let's increase the thickness so there's no space between the waves. let's also reduce the opacity a bit 
+> let's only allow settlements to be built on grass (green) hex tiles 
 
 ## 124. User prompt
-> how might we fix this overlap? 
+> let's add a little visual flourish lol: for the stockpile UI in the top right: 
+1. Add a wood icon left of "Wood" (log with wood rings)
+2. Add a food icon left of "Food" (a tbone steak) 
 
 ## 125. User prompt
-> sweet. okay, cleanup / remove phase 1 code 
+> update feature docs 
 
 ## 126. User prompt
-> a litte rule update: when upgrading a unit (port, tower), once complete, restore it's healt to 100% (as if it's being repaired when upgraded)
+> update the lighthouse panel when selected to not show a cooldown or cannon (it can't attack)
 
 ## 127. User prompt
-> let's render unit health bars 8px above the hex so that it doesn't overlap w/ the selection highlight 
+> let's refactor towers to turn it into a single unit w/ an upgrade path. Replace the lighthouse with tier 1 (watch tower):
+| Tier | Name | Attack | Targets | Range | Notes |
+|------|------|--------|---------|-------|-------|
+| 1 | Watchtower | None | — | Vision only | Reveals fog of war |
+| 2 | Mortar Tower | Single cannon | 1 | Medium | Upgrade from Watchtower |
+| 3 | Cannon Battery | Two cannons | 1–2 | Medium | Smart focus: hits two ships if available, otherwise doubles up on one | 
 
 ## 128. User prompt
-> how might we render a single outline for selected units when multiple units are adjacent to each other in hexes (removing these lines marked in red for example): 
+> error building a watchtower: Selected port: dock
+gameScene.js:601 Watchtower placement mode from port (hotkey T)
+kaplay.js?v=8270b6e8:5276 TypeError: Cannot read properties of undefined (reading 'attackRange')
+    at drawTowerPlacementMode (placementUI.js:229:42)
+    at drawAllPlacementUI (placementUI.js:246:5)
+    at Object.<anonymous> (gameScene.js:407:13)
+    at n (kaplay.js?v=8270b6e8:1281:29)
+    at kaplay.js?v=8270b6e8:1297:15
+    at rn.forEach (<anonymous>)
+    at re.trigger (kaplay.js?v=8270b6e8:1296:19)
+    at ze.trigger (kaplay.js?v=8270b6e8:1328:42)
+    at Object.trigger (kaplay.js?v=8270b6e8:3863:7)
+    at Object.draw (kaplay.js?v=8270b6e8:3763:17)
+xn @ kaplay.js?v=8270b6e8:5276
 
 ## 129. User prompt
-> one more improvement (new task type): with a unit selected, if the the waypoint is changed mid route, the ship will snap positions. Maybe it should comlete it current hex to hex movement before changing? 
+> lets update panning camera control: instead of right click pan, lets do spacebar + left click drag 
 
 ## 130. User prompt
-> I'm still seeing ships jump location when changing their waypoint mid navigation. Here's a short video showing it: /Users/tylerwanlass/Library/Application\ Support/CleanShot/media/media_jcmsdyKvnX/CleanShot\ 2025-12-26\ at\ 23.44.27.mp4
+> update pause to use "p" as hotkey instead of spacebar 
 
 ## 131. User prompt
-> hmmm now I'm unable to change the ships waypoint during navigation. attempting to set a new waypoint deselects the ship. 
+> lets update the schooner. Take a look at how the cutter is rendered (uses a sprite, animates its direction). Apply the same to the schooner. 
 
 ## 132. User prompt
-> we're going to implement a new game mode, Defend, where the player must survive waves of enemy pirate ships. Before we do this, is our gameScene setup to support different levels or scenarios? Ideally we could select scenarios from the main menu. 
+> update the pirate ship as well 
 
 ## 133. User prompt
-> can you check the UI panel for towers? It looks like the upgrade costs 75 wood, but in towers.js the upgrade cost is only 25. Maybe the fonts just too small to read or maybe the panel doesn't read from the tower metadata and is hard coded. See screenshot: 
+> update the cannonBattery to stagger its shots. projectileCount is 2, but because they fire at the same time it looks like one cannon ball 
 
 ## 134. User prompt
-> 1. clear cache, restart dev server 
-2. yea, lets bump font size to 10 for all panels
+> let's add a little visual flare to the land hexs. For green hexes, let's randomly render grass and trees. When a settlement is built on one, remove the grass or trees. 
 
 ## 135. User prompt
-> let's replace the sprite for the dock port for the home island with the newly added home-port.png. We should render it like we the cutter and other units w/ sprite images  
+> double the size of trees. increase the numbers of grass
 
 ## 136. User prompt
-> home-port is a two image sprite; left image is default state, right image is flash attacked state (just like the pirate ship and cutter sprites)
+> let's add a state to our cursor. When holding control over a pirate show cursor-attack.png to indicate visually that you can attack 
 
 ## 137. User prompt
-> little visual improvment: when a unit is building something: 
-1. Remove / don't render the "builing" text above it
-2. Render the building loading bar (blue bar) below the unit so that it doesn't overlap w/ the health bar; the same distance below as the health bar is above
-3. Update the building loading bar to be the same thickness/height as the health bar
+> whoops! that should command key, not control key
 
 ## 138. User prompt
-> let's update the Defend game mode: if the home port is destroyed the game is over (player loses)
+> let's increase the tree size further to 150%; also increase chances that 2-5 will spawn on a hex so forrests feel more dense
 
 ## 139. User prompt
-> let's add hotkey for building Cutters (C)
+> can you expose this in a const somewhere so I can tweak the sizes? 
 
 ## 140. User prompt
-> add the hotkey to build panel like it is for other units (settlements, watchtower): 
+> add palm trees to tropical hexes
 
 ## 141. User prompt
-> re-arange the port panel items order: 
-1. Settlement
-2. Ships
-3. Watchtower
-4. Upgrades 
+> how do I configure tree size? 
 
 ## 142. User prompt
-> Let's introduce a repair mechanic for units: 
-1. with a unit selected, show a Repair option in the panel; "R" is the hotkey
-2. Use the units built time for how long a repair takes (build in reverse essentially)
-3. Repair stops when health is back to 100%
-4. While a unit is repairing it can't navigate or fire. So ships are stuck in place and can't attack; towers can't fire, etc. 
+> bug w/ the palm trees: the palm frond isn't connected to the trunk (floats above it)
 
 ## 143. User prompt
-> can we replace the health bar w/ the repair bar while repairing?
+> can we scale up the cursor to 1.25x
 
 ## 144. User prompt
-> crash: Set rally point at (16, 20) for 1 port(s)
-2inputHandler.js:447 Selected ship: cutter
-gameScene.js:1043 Double-click: selected 3 cutter(s) in view
-construction.js:54 Ship built: cutter at (19, 21)
-inputHandler.js:447 Selected ship: cutter
-inputHandler.js:601 4 ship(s) attacking pirate at (20, 21)
-inputHandler.js:447 Selected ship: pirate
-kaplay.js?v=c855e41f:5276 TypeError: Cannot read properties of undefined (reading 'wood')
-    at getRepairCost (repair.js:71:40)
-    at drawShipInfoPanel (uiPanels.js:437:28)
-    at Object.<anonymous> (gameScene.js:552:39)
-    at n (kaplay.js?v=c855e41f:1281:29)
-    at kaplay.js?v=c855e41f:1297:15
-    at rn.forEach (<anonymous>)
-    at re.trigger (kaplay.js?v=c855e41f:1296:19)
-    at ze.trigger (kaplay.js?v=c855e41f:1328:42)
-    at Object.trigger (kaplay.js?v=c855e41f:3863:7)
-    at Object.draw (kaplay.js?v=c855e41f:3763:17)
+> yes, check out canvas based so we can scale it
 
 ## 145. User prompt
-> now that the repair bar replaces the health bar while repairing, we can remove the duplicate repair bar in the panel bottom right 
+> hmmm I can't see the cursor now 
 
 ## 146. User prompt
-> let's also 2x the repair time. makes it valuable but not easy and more of a last resort. 
+> I cant see the cursor on the title screen 
 
 ## 147. User prompt
-> ive added a custom sprite for the port rally point icon called game/src/sprites/assets/rally-point.png 
+> add  .DS_Store files to gitignore
 
 ## 148. User prompt
-> what's the cost to repair a unit? 
+> yes
 
 ## 149. User prompt
-> make sure that units can still take damange, even while repairing 
+> still not working. When changing the waypoint (command + left click) during a ships navigation, the ship is unselected. See this gif: 
 
 ## 150. User prompt
-> document the repair feature in docs
+> heres the debug log: [Click] isCommandHeld=false, isShiftHeld=false, selectedUnits=0
+inputHandler.js:386 Selected ship: cutter
+gameScene.js:772 [Click] handleUnitSelection returned true
+gameScene.js:788 [Click] End - selectedUnits=1
+gameScene.js:749 [Click] isCommandHeld=true, isShiftHeld=false, selectedUnits=1
+gameScene.js:772 [Click] handleUnitSelection returned false
+gameScene.js:779 [Click] Setting waypoint, selectedUnits before=1
+inputHandler.js:494 Set waypoint at (27, 33) for 1 ship(s)
+gameScene.js:781 [Click] After waypoint, selectedUnits=1
+gameScene.js:788 [Click] End - selectedUnits=1
+gameScene.js:749 [Click] isCommandHeld=true, isShiftHeld=false, selectedUnits=1
+gameScene.js:772 [Click] handleUnitSelection returned false
+gameScene.js:779 [Click] Setting waypoint, selectedUnits before=1
+inputHandler.js:494 Set waypoint at (33, 31) for 1 ship(s)
+gameScene.js:781 [Click] After waypoint, selectedUnits=1
+gameScene.js:788 [Click] End - selectedUnits=1
 
 ## 151. User prompt
-> how does the cannonBattery targeting work? Does it target a single unit at a time? 
+> okay, so the ship stays visually selected, but I"m unable to set a new waypoint / trigger the ship to change it's path while a current waypoitn is set
 
 ## 152. User prompt
-> Let's plan out a random loot drop mechanic. The idea is that when a pirate ship is destroyed it can leave behind a food or wood drop that can then be touched by a player ship to collect and add to the global store. It should be a % chance that a drop occurs. 
+> let's implement a new feature: for ports, allow a waypoint to be set for newly built ships. 
+1. When selecting a port, allow user to command + left click to set a waypoint (just like ships)
+2. When a new ship is built, spawn it like normal, but have it navigate to the chosen waypoint then stop
+
+This feature allows a player to choose where newly spawned ships should collect 
 
 ## 153. User prompt
-> Lets simplfy. just drop barrels; each barrel should be worth 20 wood. Increase drop chance to 33%.  
+> one update – for the rally point, instead of rendering a red x, coudl we render a red flag? 
 
 ## 154. User prompt
-> quick update to our repair mechanic: don't allow structures (ports) to do anything else while repairing (can't creat ships or settlements, etc)
+> one more update: when selecting both a port and ship, when a user command + left clicks, set a waypoitn for the selected ships, don't modify the port rally point. Only allow a port rally point to be set if just the port is selected. 
 
 ## 155. User prompt
-> hmmm. If I click a port, press "R", it starts repairing, I'm still seeing it's panel and can still press "C" to create a cutter
+> let's add a 4x and 5x speed mode to existing 1,2 and 3x modes
 
 ## 156. User prompt
-> let's swap out the loot barrel sprite for the newly added barrel.png
+> let's add a simple pirate kill counter to the bottom center of the screen: show the number of pirate ships the player has sunk 
 
 ## 157. User prompt
-> one more update to repair mode – the port panel still shows menu items for build things as active. Can make them inactive (since you can't click them anyway?
+> let's add a little UX improvment: when double clicking a ship, select all of that ship kind within view. For example, double click on a cutter, and we'd auto select all cutters in view. 
 
 ## 158. User prompt
-> let's reduce the size of cannonballs by 15% overall. 
+> i _think_ there's a bug w/ tower upgrades. Note how I have less wood than required for the upgrade but that the upgrade is not disabled: 
 
 ## 159. User prompt
-> can we add a sightDistance const to ports.js so that we can configure how much fog of war they reveal when built
+> document scenarios 
 
 ## 160. User prompt
-> for the lootdrop barrels, remove the glow circle underneath; slow down the bob animation by half
+> clear
 
 ## 161. User prompt
-> quick edits to the end game defeat screen: 
-1. don't allow anything to be clicked on (treat the mask as a click trap; player can only press space to continue)
+> <bash-notification>
+<shell-id>b83676d</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b83676d.output</output-file>
+<status>killed</status>
+<summary>Background command "Start dev server with Vite 5" was killed.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bf8d250</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bf8d250.output</output-file>
+<status>failed</status>
+<summary>Background command "Verify refactor works" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b06d4b7</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b06d4b7.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to test fog of war" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b39c677</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b39c677.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to test game" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b07d6b8</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b07d6b8.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server in background" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b1301cb</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b1301cb.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to verify changes" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bd8407b</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bd8407b.output</output-file>
+<status>failed</status>
+<summary>Background command "cd /Users/tylerwanlass/code/grog/game && npm run dev 2>&1 | head -20" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b70e23d</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b70e23d.output</output-file>
+<status>failed</status>
+<summary>Background command "cd /Users/tylerwanlass/code/grog/game && npm run dev" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b832c3b</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b832c3b.output</output-file>
+<status>failed</status>
+<summary>Background command "Test game dev server" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bcd82a0</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bcd82a0.output</output-file>
+<status>failed</status>
+<summary>Background command "Restart dev server and test" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b1d43a4</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b1d43a4.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to test pirate ship" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>ba9fac5</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/ba9fac5.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server for testing" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>b4df450</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b4df450.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server to verify game runs" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>bb6cefb</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/bb6cefb.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server for testing" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>be12c40</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/be12c40.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server and check if running" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+<bash-notification>
+<shell-id>be20c9f</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/be20c9f.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server and check" failed with exit code 137.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
 
 ## 162. User prompt
-> update the settlement sprite w/ the newly added settlement.png
+> let's update the title screen: 
+- rename "gallery" to "unit gallery" 
+- Add a copyright line to the bottom center: "(c) 2026 Tyler Wanlass / https://tyler.cv"
+- Update the mode cards (Sandbox, Defend) by removing the green "sandbox" and orange "defend" text at the bottom of the cards 
 
 ## 163. User prompt
-> let's update the lootdrop mechanic a bit: 
-1. leave barrels until collected; they dont' vanish
-2. remove the +20 text above the barrel 
-3. increase the sprite size to 1.25
-4. add a yellow sparkle particle effect when collected to make it more obvious 
+> can't access the title on http://localhost:3001/
 
 ## 164. User prompt
-> we're going to refactor our economy. First things first, let's remove food: 
-- remove from the UI (top right)
-- remove from build panels
-- settlements now only generate wood
-- ships only cost wood
-- etc 
+> lets update the zindex of a few things (or however Kaplay handles render layers): 
+1. Make sure that waypoints and rallypoints render under units (so that ships appear on top etc)
+2. make sure that all health, build, and repair bars render on top of units 
 
 ## 165. User prompt
-> let's update the controls to allow for right clicking as an alternative to command + left click. This will allow players to right click on pirates with ships selected to attack, etc 
+> lets make some UI updates to the main game scene:  
+1. remove the controls text top left
+2. remove "grog" from top left
+3. remove the "stockpile" text; leave just the wood and crew stuff
+4. move the wood and crew UI to the top left
+5. top right, add a pause button and menu button
 
 ## 166. User prompt
-> crash: Selected port: dock
-inputHandler.js:165 Started building: cutter
-construction.js:54 Ship built: cutter at (29, 24)
-inputHandler.js:449 Selected ship: cutter
-inputHandler.js:603 1 ship(s) attacking pirate at (31, 24)
-inputHandler.js:468 Selected port: dock
-inputHandler.js:200 Entering settlement placement mode from port 0
-kaplay.js?v=c855e41f:5276 TypeError: Cannot read properties of undefined (reading 'q')
-    at drawSettlementPlacementMode (placementUI.js:128:51)
-    at drawAllPlacementUI (placementUI.js:245:5)
-    at Object.<anonymous> (gameScene.js:532:13)
-    at n (kaplay.js?v=c855e41f:1281:29)
-    at kaplay.js?v=c855e41f:1297:15
-    at rn.forEach (<anonymous>)
-    at re.trigger (kaplay.js?v=c855e41f:1296:19)
-    at ze.trigger (kaplay.js?v=c855e41f:1328:42)
-    at Object.trigger (kaplay.js?v=c855e41f:3863:7)
-    at Object.draw (kaplay.js?v=c855e41f:3763:17)
-xn @ kaplay.js?v=c855e41f:5276
+> update the resources UI background to black; add even padding around it: 
 
 ## 167. User prompt
-> one more control update - right click drag should pan the camera 
+> next, update the speed UI to use white text with a black outline; one click, show a menu with with 1x - 5x options; on click, set the speed. Show the 1-5 hotkeys in the menu items. 
 
 ## 168. User prompt
-> lets add a hotkey: when "H" is pressed, snapped the camera back to the home port (centered)
+> vertically align center the wood and crew sprites w/ the numbers in the resource UI: 
 
 ## 169. User prompt
-> in sandbox mode, how long until the pirates first spawn?
+> crash when selecting the speed selector UI: kaplay.js?v=c855e41f:5276 Error: Styled text error: unclosed tags 1
+    at drawTimeIndicator (uiPanels.js:283:15)
+    at drawSimpleUIPanels (uiPanels.js:1383:25)
+    at Object.<anonymous> (gameScene.js:545:31)
+xn    @    kaplay.js?v=c855e41f:5276
 
 ## 170. User prompt
-> small bug with ports: only the very first port built (or initially spawned) should use the the home-port.png sprite 
+> vertically align the speed and hotkey in speed selector panel 
 
 ## 171. User prompt
-> let's add a new resource to our economy: Crew. It's a simple cap that limits how many ships can be built. Here's how it works: 
-1. Ports and settlements contribute to the Crew cap. 1 port adds 40 to the crew cap. 1 settlement adds 5 to the crew cap. 
-2. Ships deduct from the crew cap. When a ship, like a Cutter, is built, it deducts 5 from the cap. It not enough crew is available a ship can't be built. 
-3. When a ship is destroyed, it frees up crew cap. For example, when a cutter is destroyed, crew cap is incremented by 5
-4. when ports or settlements are destroyed, the crew cap is reduced. 
-5. Towers for now should also require 5 crew. 
-6. Show crew in the top right next to wood. Show it as a fraction: total crew used over available like 5/40  
- 
+> update the wave UI to have a black background; update the pause and menu button UI to have a black background on hover 
 
 ## 172. User prompt
-> sweet! Let's update the stockpile UI to use some new sprites for wood and crew respectivly: 
-- resource-wood.png and resource-crew.png
+> let's update the menu button top right: 
+when clicked pause the game and show a panel center center w/ that lists out the basic controls fo the game: left click to select units; right click to navigate or attack; right click drag to pan camera 
 
 ## 173. User prompt
-> lets update the settlement generation +number that appears above them on each iteration: 
-- have the number full opacity rise up above the settlement
-- pause for 2 seconds
-- then fade out
-
-
-This should make it easier to read / see 
+> sweet. Next, let's update the "Pirates sunk"; move to bottom right of the screen and show the pirate ship sprite w/ the number next to it. 
 
 ## 174. User prompt
-> set the font size to 12px; can we do white text w/ black outline? Can we show our resource-wood sprite to the right of it? So it reads "[sprite] +5"
+> have the pirate ship face north west for visual interest
 
 ## 175. User prompt
-> have it rise 8 px above the settlement (its too high right now). Let's also bump the font to 12px 
+> when collecting barrels / loot drops, show the wood sprite and a + number above it just like settlements show as they produce wood (animates up, then fades out etc). Turn this into a component / resuable code if needed
 
 ## 176. User prompt
-> bump the fontsize to 14px. Set the rise to be same distnace from the unit as we do for healthbars on units 
+> update the wave UI to be the same distanced from the top fo the scren as the resrouce UI 
 
 ## 177. User prompt
-> update the fontsize to 16px
+> put the pirate kill counter UI in a black box like the resource UI; render the priate ship sprite at full size: 
 
 ## 178. User prompt
-> let's also show a similar thing when a settlement or port is first built "[resource-crew-sprite] +5"
+> replace the menu icon with a "?" 
 
 ## 179. User prompt
-> don't scale the sprite; render it at 1x; also add a little more spacing between the sprite and the floating number
+> lets make some updates to the port build menu: 
 
 ## 180. User prompt
-> can we animate it up with an ease-out function (not linear)?
+> Great. Remove the section headings "build settlement", "build ship" etc. Remove the time to build ("60s"). Make the hotkey text match that of the speed selection menu hotkeys (slightly off white)
 
 ## 181. User prompt
-> can you prep this to be deployed via netlify? 
+> add some even padding around the menu 
+
+## 182. User prompt
+> make sure the menu items are each the same height and then evenly spaced out vertically. Cutter and Watchtower nearly overlap: 
+
+## 183. User prompt
+> make sure the padding is the same all around; bottom has more padding than sides; incresae the sides tomatch. 
+
+## 184. User prompt
+> make the "?" hokey just default "/" 
+
+## 185. User prompt
+> get rid of the "building" UI that gets added to the port build panel when building a ship etc (we already show the blue build bar) 
+
+## 186. User prompt
+> remove the horizontal rules between menu items and make the menu wider (upgrade to shipyard is almost cutoff) 
+
+## 187. User prompt
+> move the selected unit UI panel to bottom center of the screen (so it doesn't overlap the pirate kill counter) 
+
+## 188. User prompt
+> set the background of that ui panel to black like the others too
