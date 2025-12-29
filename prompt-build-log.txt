@@ -1002,3 +1002,21 @@ When fog is revealed, reveal the first immedidate "ring" of hexes, then the next
 
 ## 223. User prompt
 > git add 
+
+## 224. User prompt
+> run captains log
+
+## 225. User prompt
+> git commit -m "Add tooltips and animated fog of war"
+
+## 226. User prompt
+> can we wrap this up into a claude skill? 
+1. git add . > add all files 
+2. run /captains-log to generate the change log
+3. add captains-log.txt
+4. generate a simple 1-line commit message based on changes
+5. git commit -m ${geneated commit message}
+6. ask user if okay to git push 
+
+## 227. User prompt
+> omit  .claude/settings.local.json from git 
