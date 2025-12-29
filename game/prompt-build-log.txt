@@ -880,3 +880,12 @@ when clicked pause the game and show a panel center center w/ that lists out the
 
 ## 185. User prompt
 > get rid of the "building" UI that gets added to the port build panel when building a ship etc (we already show the blue build bar) 
+
+## 186. User prompt
+> remove the horizontal rules between menu items and make the menu wider (upgrade to shipyard is almost cutoff) 
+
+## 187. User prompt
+> move the selected unit UI panel to bottom center of the screen (so it doesn't overlap the pirate kill counter) 
+
+## 188. User prompt
+> set the background of that ui panel to black like the others too

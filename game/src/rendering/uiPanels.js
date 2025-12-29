@@ -435,8 +435,8 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
     const repairSectionHeight = (canRepair && isDamaged && !isRepairing) ? 50 : 0;
     const infoPanelWidth = 140;
     const infoPanelHeight = 130 + repairSectionHeight;
-    const infoPanelX = screenWidth - infoPanelWidth - 15;
-    const infoPanelY = screenHeight - infoPanelHeight - 50;
+    const infoPanelX = screenWidth / 2 - infoPanelWidth / 2;
+    const infoPanelY = screenHeight - infoPanelHeight - 15;
 
     const bounds = {
         x: infoPanelX,
@@ -451,9 +451,9 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
         pos: k.vec2(infoPanelX, infoPanelY),
         width: infoPanelWidth,
         height: infoPanelHeight,
-        color: k.rgb(20, 30, 40),
+        color: k.rgb(0, 0, 0),
         radius: 6,
-        opacity: 0.9,
+        opacity: 0.85,
     });
 
     // Ship name
@@ -1206,10 +1206,10 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const hasStorage = portIndex > 0 && port.storage && port.storage.wood > 0;
     const storageHeight = hasStorage ? 45 : 0;
 
-    const bpWidth = 200;
+    const bpWidth = 240;
     const bpRowHeight = 44;
     const bpPadding = 10;
-    const sectionGap = 8; // Gap between sections (for separator line)
+    const sectionGap = 4; // Gap between sections
     const shipButtonsHeight = buildableShips.length * bpRowHeight;
     // Hide ship buttons when building (progress shown via bar above port)
     const shipSectionHeight = port.buildQueue ? 0 : shipButtonsHeight;
@@ -1286,7 +1286,6 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     if (!port.buildQueue && buildableShips.length > 0) {
         if (hasPreviousSection) {
             currentY += sectionGap;
-            drawPanelSeparator(ctx, bpX, bpWidth, currentY - sectionGap / 2);
         }
 
         // Ship buttons
@@ -1321,7 +1320,6 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
         if (hasPreviousSection) {
             currentY += sectionGap;
-            drawPanelSeparator(ctx, bpX, bpWidth, currentY - sectionGap / 2);
         }
 
         const towerBtnY = currentY;
@@ -1345,7 +1343,6 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
         if (hasPreviousSection) {
             currentY += sectionGap;
-            drawPanelSeparator(ctx, bpX, bpWidth, currentY - sectionGap / 2);
         }
 
         const upgradeBtnY = currentY;
@@ -1370,7 +1367,6 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
         if (hasPreviousSection) {
             currentY += sectionGap;
-            drawPanelSeparator(ctx, bpX, bpWidth, currentY - sectionGap / 2);
         }
 
         const btnY = currentY;
