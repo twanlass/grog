@@ -3,6 +3,7 @@ import { hexToPixel, hexCorners, hexNeighbors, HEX_SIZE } from "../hex.js";
 import { isSelected } from "../gameState.js";
 import { TOWERS } from "../sprites/index.js";
 import { drawHexRangeFilled, drawHexRangeOutline } from "./renderHelpers.js";
+import { findPath } from "../pathfinding.js";
 
 /**
  * Draw selection indicator for a single unit (hex outline)
@@ -196,7 +197,7 @@ export function drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLoca
         // Only draw for the first selected ship when multiple are selected
         // TODO: Re-enable via settings/options menu
         const showPathLine = false;
-        if (showPathLine && !pathDrawn && ship.waypoint && ship.path && ship.path.length > 0) {
+        if (showPathLine && !pathDrawn && ship.waypoints.length > 0 && ship.path && ship.path.length > 0) {
             drawDashedPath(ctx, ship.path, screenX, screenY);
             pathDrawn = true;
         }
@@ -380,17 +381,129 @@ export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selecti
 }
 
 /**
+ * Draw dashed route line from ship through all waypoints using A* paths
+ */
+function drawWaypointRoute(ctx, ship, getShipVisualPos, map) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
+
+    if (ship.waypoints.length === 0) return;
+
+    const dashLength = 8 * zoom;
+    const gapLength = 6 * zoom;
+    const pathColor = k.rgb(255, 165, 0);
+
+    // Helper to draw dashed line between two screen points
+    function drawDashedSegment(fromX, fromY, toX, toY) {
+        const dx = toX - fromX;
+        const dy = toY - fromY;
+        const segmentLength = Math.sqrt(dx * dx + dy * dy);
+
+        if (segmentLength > 0) {
+            const nx = dx / segmentLength;
+            const ny = dy / segmentLength;
+
+            let traveled = 0;
+            while (traveled < segmentLength) {
+                const dashStart = traveled;
+                const dashEnd = Math.min(traveled + dashLength, segmentLength);
+
+                k.drawLine({
+                    p1: k.vec2(fromX + nx * dashStart, fromY + ny * dashStart),
+                    p2: k.vec2(fromX + nx * dashEnd, fromY + ny * dashEnd),
+                    width: 2,
+                    color: pathColor,
+                    opacity: 0.8,
+                });
+
+                traveled += dashLength + gapLength;
+            }
+        }
+    }
+
+    // Helper to draw A* path as dashed line
+    function drawPathSegments(path, startX, startY) {
+        let prevX = startX;
+        let prevY = startY;
+
+        for (const node of path) {
+            const nodePos = hexToPixel(node.q, node.r);
+            const nodeScreenX = (nodePos.x - cameraX) * zoom + halfWidth;
+            const nodeScreenY = (nodePos.y - cameraY) * zoom + halfHeight;
+
+            drawDashedSegment(prevX, prevY, nodeScreenX, nodeScreenY);
+
+            prevX = nodeScreenX;
+            prevY = nodeScreenY;
+        }
+
+        return { x: prevX, y: prevY };
+    }
+
+    // Start from ship's visual position
+    const shipPos = getShipVisualPos ? getShipVisualPos(ship) : hexToPixel(ship.q, ship.r);
+    let currentX = (shipPos.x - cameraX) * zoom + halfWidth;
+    let currentY = (shipPos.y - cameraY) * zoom + halfHeight;
+    let currentQ = ship.q;
+    let currentR = ship.r;
+
+    // For the first waypoint, use ship's existing path if available
+    if (ship.path && ship.path.length > 0) {
+        const endPos = drawPathSegments(ship.path, currentX, currentY);
+        currentX = endPos.x;
+        currentY = endPos.y;
+        // Update current position to end of path (should be first waypoint)
+        const lastNode = ship.path[ship.path.length - 1];
+        currentQ = lastNode.q;
+        currentR = lastNode.r;
+    }
+
+    // For subsequent waypoints, calculate A* paths between them
+    for (let i = 1; i < ship.waypoints.length; i++) {
+        const prevWp = ship.waypoints[i - 1];
+        const wp = ship.waypoints[i];
+
+        // Calculate A* path from previous waypoint to this one
+        const path = findPath(map, prevWp.q, prevWp.r, wp.q, wp.r, new Set());
+
+        if (path && path.length > 0) {
+            // Start from previous waypoint position
+            const prevWpPos = hexToPixel(prevWp.q, prevWp.r);
+            const startX = (prevWpPos.x - cameraX) * zoom + halfWidth;
+            const startY = (prevWpPos.y - cameraY) * zoom + halfHeight;
+
+            drawPathSegments(path, startX, startY);
+        } else {
+            // Fallback to straight line if no path found
+            const prevWpPos = hexToPixel(prevWp.q, prevWp.r);
+            const wpPos = hexToPixel(wp.q, wp.r);
+            const startX = (prevWpPos.x - cameraX) * zoom + halfWidth;
+            const startY = (prevWpPos.y - cameraY) * zoom + halfHeight;
+            const endX = (wpPos.x - cameraX) * zoom + halfWidth;
+            const endY = (wpPos.y - cameraY) * zoom + halfHeight;
+
+            drawDashedSegment(startX, startY, endX, endY);
+        }
+    }
+}
+
+/**
  * Draw waypoints and rally points (should be called BEFORE units to render underneath)
  */
-export function drawWaypointsAndRallyPoints(ctx, gameState) {
+export function drawWaypointsAndRallyPoints(ctx, gameState, getShipVisualPos, map) {
     // Draw ship waypoints
     for (let i = 0; i < gameState.ships.length; i++) {
         if (!isSelected(gameState, 'ship', i)) continue;
         const ship = gameState.ships[i];
 
-        // Only draw waypoint if not attacking (attack has its own indicator)
-        if (ship.waypoint && !ship.attackTarget) {
-            drawWaypointMarker(ctx, ship.waypoint.q, ship.waypoint.r);
+        // Only draw waypoints if not attacking (attack has its own indicator)
+        if (ship.waypoints.length > 0 && !ship.attackTarget) {
+            // Draw route line through all waypoints using A* paths
+            drawWaypointRoute(ctx, ship, getShipVisualPos, map);
+
+            // Draw X markers at each waypoint
+            for (const wp of ship.waypoints) {
+                drawWaypointMarker(ctx, wp.q, wp.r);
+            }
         }
     }
 

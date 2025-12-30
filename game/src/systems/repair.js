@@ -172,7 +172,7 @@ export function startRepair(unitType, unit, resources) {
 
     // Clear movement/attack targets for ships
     if (unitType === 'ship') {
-        unit.waypoint = null;
+        unit.waypoints = [];
         unit.path = null;
         unit.attackTarget = null;
     }

@@ -46,7 +46,7 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
 
                 // If port has rally point, set ship's waypoint
                 if (port.rallyPoint) {
-                    ship.waypoint = { q: port.rallyPoint.q, r: port.rallyPoint.r };
+                    ship.waypoints = [{ q: port.rallyPoint.q, r: port.rallyPoint.r }];
                 }
 
                 // Mark fog dirty - new ship will be included in visibility recalculation

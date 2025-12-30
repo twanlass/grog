@@ -1,6 +1,17 @@
 CAPTAIN'S LOG
 =============
 
+2025-12-29 | Add multiple waypoint navigation
+---------------------------------------------
+### New
+- Multiple waypoint navigation - Shift + right-click queues additional waypoints
+- Ships follow waypoints in order, treating the last as final destination
+- Orange dashed A* route line shows full path through all queued waypoints
+
+### Improved
+- Waypoint markers now display for all queued waypoints when ship is selected
+
+
 2025-12-29 | Add tooltips and animated fog of war
 -------------------------------------------------
 ### New

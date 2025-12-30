@@ -1020,3 +1020,15 @@ When fog is revealed, reveal the first immedidate "ring" of hexes, then the next
 
 ## 227. User prompt
 > omit  .claude/settings.local.json from git 
+
+## 228. User prompt
+> <bash-notification>
+<shell-id>b0c0b46</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b0c0b46.output</output-file>
+<status>killed</status>
+<summary>Background command "Start dev server for testing" was killed.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+
+## 229. User prompt
+> We're going to extend our ship navigation feature to allow for multiple waypoints to be set. The ship will then follow through each waypoint in order, treating the last waypoint as it's destination. To set multiple waypoints, the user will need to hold down shift + right click.  

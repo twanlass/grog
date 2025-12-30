@@ -109,7 +109,7 @@ export function createShip(type, q, r) {
         type,
         q,
         r,
-        waypoint: null,     // { q, r } destination
+        waypoints: [],      // Array of { q, r } destinations (queue)
         path: null,         // Array of { q, r } to follow
         moveProgress: 0,    // Progress toward next hex (0-1)
         heading: 0,         // Direction ship is facing (radians, 0 = right/east)

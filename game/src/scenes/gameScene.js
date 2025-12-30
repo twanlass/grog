@@ -458,7 +458,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         // Check if a ship is docked (on water adjacent to land, and stationary)
         function isShipDocked(ship) {
             // Must not have a waypoint (stationary)
-            if (ship.waypoint !== null) return false;
+            if (ship.waypoints.length > 0) return false;
 
             // Check if any neighbor is land
             const neighbors = hexNeighbors(ship.q, ship.r);
@@ -525,7 +525,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             drawUnitHoverHighlight(ctx, gameState, getShipVisualPosLocal, SELECTION_RADIUS);
 
             // Draw waypoints and rally points (before units so they appear underneath)
-            drawWaypointsAndRallyPoints(ctx, gameState);
+            drawWaypointsAndRallyPoints(ctx, gameState, getShipVisualPosLocal, map);
 
             // Draw ships (migrated to rendering module)
             drawShips(ctx, gameState, fogState, getShipVisualPosLocal);

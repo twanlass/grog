@@ -68,12 +68,15 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                 const attackDistance = 2;  // Same as pirate attack range
                 if (dist <= attackDistance) {
                     // In range - stop moving, combat system will handle firing
-                    ship.waypoint = null;
+                    ship.waypoints = [];
                     ship.path = null;
-                } else if (!ship.waypoint || (ship.waypoint.q !== target.q || ship.waypoint.r !== target.r)) {
-                    // Update waypoint to track moving target
-                    ship.waypoint = { q: target.q, r: target.r };
-                    ship.path = null;
+                } else {
+                    const currentWaypoint = ship.waypoints[0];
+                    if (!currentWaypoint || (currentWaypoint.q !== target.q || currentWaypoint.r !== target.r)) {
+                        // Update waypoint to track moving target
+                        ship.waypoints = [{ q: target.q, r: target.r }];
+                        ship.path = null;
+                    }
                 }
             } else {
                 // Target destroyed
@@ -81,7 +84,7 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
             }
         }
 
-        if (!ship.waypoint) continue;
+        if (ship.waypoints.length === 0) continue;
 
         // Build blocked hexes (other ships, not this one)
         const blockedHexes = new Set(occupiedHexes);
@@ -97,28 +100,29 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                 ship.movingToward = null;  // Clear it, will be set again below
             } else {
                 // Check if destination is blocked by another ship
-                const destKey = hexKey(ship.waypoint.q, ship.waypoint.r);
-                let targetQ = ship.waypoint.q;
-                let targetR = ship.waypoint.r;
+                const currentWaypoint = ship.waypoints[0];
+                const destKey = hexKey(currentWaypoint.q, currentWaypoint.r);
+                let targetQ = currentWaypoint.q;
+                let targetR = currentWaypoint.r;
 
                 if (blockedHexes.has(destKey)) {
                     // Find nearest available hex to the destination
-                    const alt = findNearestAvailable(map, ship.waypoint.q, ship.waypoint.r, blockedHexes);
+                    const alt = findNearestAvailable(map, currentWaypoint.q, currentWaypoint.r, blockedHexes);
                     if (alt) {
                         targetQ = alt.q;
                         targetR = alt.r;
                     } else {
-                        // No available hex nearby - clear waypoint
-                        ship.waypoint = null;
+                        // No available hex nearby - clear current waypoint, try next
+                        ship.waypoints.shift();
                         continue;
                     }
                 }
 
                 ship.path = findPath(map, ship.q, ship.r, targetQ, targetR, blockedHexes);
 
-                // No valid path - clear waypoint
+                // No valid path - clear current waypoint, try next
                 if (!ship.path) {
-                    ship.waypoint = null;
+                    ship.waypoints.shift();
                     continue;
                 }
             }
@@ -143,8 +147,9 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
             ship.heading = snapToHexDirection(rawAngle);
 
             if (occupiedHexes.has(nextKey) && nextKey !== currentKey) {
-                // Next hex is blocked - find alternative destination near waypoint
-                const alt = findNearestAvailable(map, ship.waypoint.q, ship.waypoint.r, blockedHexes);
+                // Next hex is blocked - find alternative destination near current waypoint
+                const currentWaypoint = ship.waypoints[0];
+                const alt = findNearestAvailable(map, currentWaypoint.q, currentWaypoint.r, blockedHexes);
                 if (alt && (alt.q !== ship.q || alt.r !== ship.r)) {
                     // Recalculate path to alternative destination
                     const newPath = findPath(map, ship.q, ship.r, alt.q, alt.r, blockedHexes);
@@ -158,8 +163,8 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                         ship.movingToward = null;
                     }
                 } else {
-                    // Already at or near destination - stop
-                    ship.waypoint = null;
+                    // Already at or near destination - advance to next waypoint
+                    ship.waypoints.shift();
                     ship.path = null;
                     ship.moveProgress = 0;
                     ship.movingToward = null;
@@ -204,9 +209,10 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                 }
             }
 
-            // Path exhausted - check if we actually reached the waypoint
+            // Path exhausted - check if we actually reached the current waypoint
             if (ship.path && ship.path.length === 0) {
-                if (ship.waypoint && (ship.q !== ship.waypoint.q || ship.r !== ship.waypoint.r)) {
+                const currentWaypoint = ship.waypoints[0];
+                if (currentWaypoint && (ship.q !== currentWaypoint.q || ship.r !== currentWaypoint.r)) {
                     // Haven't reached waypoint yet - need to recalculate path
                     // This happens when waypoint was changed mid-movement
                     ship.path = null;
@@ -214,11 +220,12 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                     ship.moveProgress = 0;
                     ship.movingToward = null;
                 } else {
-                    // Actually arrived at destination
-                    ship.waypoint = null;
+                    // Arrived at current waypoint - remove from queue and proceed to next
+                    ship.waypoints.shift();
                     ship.path = null;
                     ship.moveProgress = 0;
                     ship.movingToward = null;
+                    // Movement continues next frame if more waypoints exist
                 }
             }
         }
@@ -347,7 +354,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                     if (nearestTarget.type === 'port' || nearestTarget.type === 'tower' || nearestTarget.type === 'settlement') {
                         const nearWater = findNearestWater(map, nearestTarget.q, nearestTarget.r, ship.q, ship.r);
                         if (nearWater) {
-                            ship.waypoint = { q: nearWater.q, r: nearWater.r };
+                            ship.waypoints = [{ q: nearWater.q, r: nearWater.r }];
                         } else {
                             // Can't reach target (e.g., target near unreachable lake) - ignore it
                             ship.aiState = 'patrol';
@@ -355,10 +362,10 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                             break;
                         }
                     } else {
-                        ship.waypoint = { q: nearestTarget.q, r: nearestTarget.r };
+                        ship.waypoints = [{ q: nearestTarget.q, r: nearestTarget.r }];
                     }
                     ship.path = null;
-                } else if (!ship.waypoint) {
+                } else if (ship.waypoints.length === 0) {
                     // Generate random patrol point - try multiple angles to find water
                     // Use home port as patrol center, or roam around current position if none
                     const center = patrolCenter || { q: ship.q, r: ship.r };
@@ -373,7 +380,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                         const targetR = center.r + dr;
                         const tile = map.tiles.get(hexKey(targetQ, targetR));
                         if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
-                            ship.waypoint = { q: targetQ, r: targetR };
+                            ship.waypoints = [{ q: targetQ, r: targetR }];
                             ship.path = null;
                             break;
                         }
@@ -387,7 +394,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                     // Chased for too long, give up and cooldown before re-engaging
                     ship.aiState = 'retreat';
                     ship.aiRetreatTimer = retreatCooldown;
-                    ship.waypoint = null;
+                    ship.waypoints = [];
                     ship.path = null;
                     break;
                 }
@@ -413,21 +420,21 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                             // Close enough to attack
                             ship.aiState = 'attack';
                             ship.attackCooldown = 0;  // Fire immediately
-                            ship.waypoint = null;
+                            ship.waypoints = [];
                             ship.path = null;
                         } else {
                             // Keep chasing - for land-based targets (ports, towers, settlements), find nearest water tile
                             if (ship.aiTarget.type === 'port' || ship.aiTarget.type === 'tower' || ship.aiTarget.type === 'settlement') {
                                 const nearWater = findNearestWater(map, target.q, target.r, ship.q, ship.r);
                                 if (nearWater) {
-                                    ship.waypoint = { q: nearWater.q, r: nearWater.r };
+                                    ship.waypoints = [{ q: nearWater.q, r: nearWater.r }];
                                 } else {
                                     // Can't reach target - give up
                                     ship.aiState = 'patrol';
                                     ship.aiTarget = null;
                                 }
                             } else {
-                                ship.waypoint = { q: target.q, r: target.r };
+                                ship.waypoints = [{ q: target.q, r: target.r }];
                             }
                         }
                     } else {
@@ -441,7 +448,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
             case 'attack':
                 // Stay in place - attack logic will be added later
                 // For now, just keep targeting
-                ship.waypoint = null;
+                ship.waypoints = [];
                 ship.path = null;
 
                 // Re-check distance in case target moved away
@@ -476,7 +483,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                     ship.aiState = 'patrol';
                     ship.aiTarget = null;
                     ship.aiRetreatTimer = 0;
-                } else if (!ship.waypoint) {
+                } else if (ship.waypoints.length === 0) {
                     // Navigate away from target
                     if (ship.aiTarget) {
                         const awayAngle = Math.atan2(
@@ -488,7 +495,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                         const targetR = ship.r + Math.round(Math.sin(awayAngle) * retreatDist);
                         const tile = map.tiles.get(hexKey(targetQ, targetR));
                         if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
-                            ship.waypoint = { q: targetQ, r: targetR };
+                            ship.waypoints = [{ q: targetQ, r: targetR }];
                             ship.path = null;
                         }
                     }

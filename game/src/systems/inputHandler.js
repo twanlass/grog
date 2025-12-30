@@ -393,12 +393,12 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
                 ship.waitingForDock = null;
 
                 if (adjacentWater) {
-                    ship.waypoint = { q: adjacentWater.q, r: adjacentWater.r };
+                    ship.waypoints = [{ q: adjacentWater.q, r: adjacentWater.r }];
                     ship.path = null;
                 } else {
                     const waitingSpot = findNearbyWaitingHex(map, port.q, port.r, gameState.ships);
                     if (waitingSpot) {
-                        ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                        ship.waypoints = [{ q: waitingSpot.q, r: waitingSpot.r }];
                         ship.path = null;
                         ship.waitingForDock = { portIndex: i, retryTimer: 0 };
                     }
@@ -451,12 +451,12 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
         ship.waitingForDock = null;
 
         if (adjacentWater) {
-            ship.waypoint = { q: adjacentWater.q, r: adjacentWater.r };
+            ship.waypoints = [{ q: adjacentWater.q, r: adjacentWater.r }];
             ship.path = null;
         } else {
             const waitingSpot = findNearbyWaitingHex(map, homePort.q, homePort.r, gameState.ships);
             if (waitingSpot) {
-                ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                ship.waypoints = [{ q: waitingSpot.q, r: waitingSpot.r }];
                 ship.path = null;
                 ship.waitingForDock = { portIndex: homePortIndex, retryTimer: 0 };
             }
@@ -590,9 +590,15 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
             cancelTradeRoute(ship);
         }
         ship.attackTarget = null;  // Clear attack target when manually moving
-        ship.waypoint = { q: targetQ, r: targetR };
-        ship.path = null;
-        // Don't reset moveProgress - let ship complete current movement smoothly
+
+        if (isShiftHeld && ship.waypoints.length > 0) {
+            // Shift+click: append to queue (don't clear path - continue current movement)
+            ship.waypoints.push({ q: targetQ, r: targetR });
+        } else {
+            // Regular click: clear and set single destination
+            ship.waypoints = [{ q: targetQ, r: targetR }];
+            ship.path = null;
+        }
         movedCount++;
     }
 
@@ -638,7 +644,7 @@ export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTI
                 if (ship.tradeRoute) {
                     cancelTradeRoute(ship);
                 }
-                ship.waypoint = { q: target.q, r: target.r };
+                ship.waypoints = [{ q: target.q, r: target.r }];
                 ship.path = null;
                 attackCount++;
             }

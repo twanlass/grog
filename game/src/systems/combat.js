@@ -108,7 +108,7 @@ function handleAutoReturnFire(gameState) {
         if (isShipBuilding(targetShipIndex, gameState)) continue;
 
         // If target ship has no attack target and is idle, auto-target the attacker
-        if (!targetShip.attackTarget && !targetShip.waypoint && !targetShip.tradeRoute) {
+        if (!targetShip.attackTarget && targetShip.waypoints.length === 0 && !targetShip.tradeRoute) {
             const dist = hexDistance(targetShip.q, targetShip.r, pirate.q, pirate.r);
             if (dist <= attackDistance) {
                 // Close enough to return fire immediately
@@ -580,8 +580,8 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
             if (ship.aiTarget.index === removedIndex) {
                 ship.aiTarget = null;
                 ship.aiState = 'patrol';
-                ship.waypoint = null;  // Clear waypoint so patrol generates a new one
-                ship.path = null;      // Clear path to force recalculation
+                ship.waypoints = [];  // Clear waypoints so patrol generates a new one
+                ship.path = null;     // Clear path to force recalculation
             } else if (ship.aiTarget.index > removedIndex) {
                 ship.aiTarget.index--;
             }
@@ -627,7 +627,7 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
                     ship.tradeRoute.homePortIndex === removedIndex) {
                     // Clear the trade route if it references the destroyed port
                     ship.tradeRoute = null;
-                    ship.waypoint = null;
+                    ship.waypoints = [];
                     ship.path = null;
                     ship.dockingState = null;
                     ship.waitingForDock = null;

@@ -33,8 +33,8 @@ export function updateTradeRoutes(gameState, map, dt) {
         // Initialize cargo if not present (for ships created before this feature)
         if (!ship.cargo) ship.cargo = { wood: 0 };
 
-        const isAtForeignPort = isShipAdjacentToPort(ship, foreignPort) && !ship.waypoint;
-        const isAtHomePort = isShipAdjacentToPort(ship, homePort) && !ship.waypoint;
+        const isAtForeignPort = isShipAdjacentToPort(ship, foreignPort) && ship.waypoints.length === 0;
+        const isAtHomePort = isShipAdjacentToPort(ship, homePort) && ship.waypoints.length === 0;
 
         // Handle LOADING state
         if (ship.dockingState?.action === 'loading') {
@@ -67,14 +67,14 @@ export function updateTradeRoutes(gameState, map, dt) {
                 // Navigate to home port
                 const homeWater = findFreeAdjacentWater(map, homePort.q, homePort.r, gameState.ships);
                 if (homeWater) {
-                    ship.waypoint = { q: homeWater.q, r: homeWater.r };
+                    ship.waypoints = [{ q: homeWater.q, r: homeWater.r }];
                     ship.path = null;
                     ship.waitingForDock = null;
                 } else {
                     // Dock busy - wait nearby or in place
                     const waitingSpot = findNearbyWaitingHex(map, homePort.q, homePort.r, gameState.ships);
                     if (waitingSpot) {
-                        ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                        ship.waypoints = [{ q: waitingSpot.q, r: waitingSpot.r }];
                         ship.path = null;
                     }
                     // Always set waiting state
@@ -110,14 +110,14 @@ export function updateTradeRoutes(gameState, map, dt) {
                 // Return to foreign port (auto-loop)
                 const foreignWater = findFreeAdjacentWater(map, foreignPort.q, foreignPort.r, gameState.ships);
                 if (foreignWater) {
-                    ship.waypoint = { q: foreignWater.q, r: foreignWater.r };
+                    ship.waypoints = [{ q: foreignWater.q, r: foreignWater.r }];
                     ship.path = null;
                     ship.waitingForDock = null;
                 } else {
                     // Dock busy - wait nearby or in place
                     const waitingSpot = findNearbyWaitingHex(map, foreignPort.q, foreignPort.r, gameState.ships);
                     if (waitingSpot) {
-                        ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                        ship.waypoints = [{ q: waitingSpot.q, r: waitingSpot.r }];
                         ship.path = null;
                     }
                     // Always set waiting state (wait in place if no spot found)
@@ -164,14 +164,14 @@ export function updateTradeRoutes(gameState, map, dt) {
                 // No cargo - go back to foreign port
                 const foreignWater = findFreeAdjacentWater(map, foreignPort.q, foreignPort.r, gameState.ships);
                 if (foreignWater) {
-                    ship.waypoint = { q: foreignWater.q, r: foreignWater.r };
+                    ship.waypoints = [{ q: foreignWater.q, r: foreignWater.r }];
                     ship.path = null;
                     ship.waitingForDock = null;
                 } else {
                     // Dock busy - wait nearby or in place
                     const waitingSpot = findNearbyWaitingHex(map, foreignPort.q, foreignPort.r, gameState.ships);
                     if (waitingSpot) {
-                        ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                        ship.waypoints = [{ q: waitingSpot.q, r: waitingSpot.r }];
                         ship.path = null;
                     }
                     // Always set waiting state
@@ -183,7 +183,7 @@ export function updateTradeRoutes(gameState, map, dt) {
 
         // Catch-all: ship has trade route but is stuck (no waypoint, not at either port, not waiting)
         // This can happen if pathfinding failed - try to navigate again
-        if (!ship.waypoint && !ship.dockingState && !ship.waitingForDock) {
+        if (ship.waypoints.length === 0 && !ship.dockingState && !ship.waitingForDock) {
             const cargoTotal = ship.cargo.wood;
             // Decide where to go based on cargo
             const targetPort = cargoTotal > 0 ? homePort : foreignPort;
@@ -191,14 +191,14 @@ export function updateTradeRoutes(gameState, map, dt) {
 
             const adjacentWater = findFreeAdjacentWater(map, targetPort.q, targetPort.r, gameState.ships);
             if (adjacentWater) {
-                ship.waypoint = { q: adjacentWater.q, r: adjacentWater.r };
+                ship.waypoints = [{ q: adjacentWater.q, r: adjacentWater.r }];
                 ship.path = null;
                 ship.waitingForDock = null;
             } else {
                 // Dock busy - wait nearby or in place
                 const waitingSpot = findNearbyWaitingHex(map, targetPort.q, targetPort.r, gameState.ships);
                 if (waitingSpot) {
-                    ship.waypoint = { q: waitingSpot.q, r: waitingSpot.r };
+                    ship.waypoints = [{ q: waitingSpot.q, r: waitingSpot.r }];
                     ship.path = null;
                 }
                 ship.waitingForDock = { portIndex: targetPortIndex, retryTimer: 0 };
@@ -228,7 +228,7 @@ function updatePendingUnloads(gameState, map, dt) {
         // Initialize cargo if not present
         if (!ship.cargo) ship.cargo = { wood: 0 };
 
-        const isAtHomePort = isShipAdjacentToPort(ship, homePort) && !ship.waypoint;
+        const isAtHomePort = isShipAdjacentToPort(ship, homePort) && ship.waypoints.length === 0;
 
         // Handle UNLOADING state for pendingUnload ships
         if (ship.dockingState?.action === 'unloading') {
@@ -285,7 +285,7 @@ function updateDockWaiting(gameState, map, dt) {
     for (const ship of gameState.ships) {
         if (!ship.waitingForDock) continue;
         // Only check when ship has arrived at waiting spot (or is waiting in place with no waypoint)
-        if (ship.waypoint && ship.path && ship.path.length > 0) continue;
+        if (ship.waypoints.length > 0 && ship.path && ship.path.length > 0) continue;
 
         ship.waitingForDock.retryTimer += dt;
 
@@ -304,7 +304,7 @@ function updateDockWaiting(gameState, map, dt) {
             const adjacentWater = findFreeAdjacentWater(map, port.q, port.r, gameState.ships);
             if (adjacentWater) {
                 // Dock is free! Navigate to it
-                ship.waypoint = { q: adjacentWater.q, r: adjacentWater.r };
+                ship.waypoints = [{ q: adjacentWater.q, r: adjacentWater.r }];
                 ship.path = null;
                 ship.moveProgress = 0;
                 ship.waitingForDock = null;

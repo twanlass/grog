@@ -89,3 +89,15 @@ Read the output file to retrieve the output.
 <summary>Background command "Start dev server and test" failed with exit code 137.</summary>
 Read the output file to retrieve the output.
 </bash-notification>
+
+## 19. User prompt
+> can you start the server so we can test 
+
+## 20. User prompt
+> quick update: when multiple waypoints are set, lets render the orange route line
+
+## 21. User prompt
+> the dashed line should be he A* route between waypoints, not just connecting the waypoints 
+
+## 22. User prompt
+> claude, run the ship-it skill 
