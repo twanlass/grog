@@ -1032,3 +1032,74 @@ Read the output file to retrieve the output.
 
 ## 229. User prompt
 > We're going to extend our ship navigation feature to allow for multiple waypoints to be set. The ship will then follow through each waypoint in order, treating the last waypoint as it's destination. To set multiple waypoints, the user will need to hold down shift + right click.  
+
+## 230. User prompt
+> let's update the Defend mode. Specifically, let's adjust how pirates are spawned each wave: 1. for waves 1-4, spawn all pirates together so that they attack from a single angle
+2. for waves 5-9 spawn pirates from two opposite sides so they flank 
+3. for waves 10+ spawn pirates in random locations so they attack from all sides
+
+Let's also ensure that pirates spawn under fog of war. This way they don't just appear on the map but come from the fog edges
+
+## 231. User prompt
+> bug: when a tower is being upgraded, it's fog of war reveal is hidden until the upgrde is complete. have fog of war persist while units are upgraded. 
+
+## 232. User prompt
+> bug: only show A* path (orange line) when waypoints is > 1
+
+## 233. User prompt
+> update the line to be red (same red as our X)
+
+## 234. User prompt
+> small bug: the last waypiont in a multipoint path doesn't render a line (presumablly because it's now the last and only waypoint). 
+
+## 235. User prompt
+> small bug: each time the ship comes to a waypoint, the route line flashes (hidden, redrawn)
+
+## 236. User prompt
+> let's build on this multi waypoint system to create a new feature: Patrols
+
+Patrols allow a player to set multiple waypoints and then have the ship rotate through those in a loop. To create a patrol: 
+1. Have one or more ships selected
+2. Press the patrol "P" hotkey
+3. Right click to add 2 or more waypoints
+
+Selecting another unit or pressing escape ends the waypoint selection mode. 
+
+As soon as a single waypoint is created, the ship(s) should begin navigating toward it. 
+
+## 237. User prompt
+> let's make a few updates:
+1. render the route line solid (not dashed) for patrol routes
+2. don't hide the route lines – show them always so that all points are visually connected
+3. instead of X for waypoint markers, render dots
+4. When P is pressed, use our notification UI to show text that says "Right click to add waypoints for a patrol route" 
+
+## 238. User prompt
+> update our ? controls UI to include the new P hotkey 
+
+## 239. User prompt
+> text is now running off the bottom of the controls menu: 
+
+## 240. User prompt
+> make sure that the controls UI panel renders above the birds
+
+## 241. User prompt
+> document the patrol feature in docs/features
+
+## 242. User prompt
+> one more update: can we use the selected ships current location as waypoint 1 for a patrol route? This will make creating a loop patrol much faster. 
+
+## 243. User prompt
+> crash when pressing P: Selected port: dock
+gameScene.js:983 Started building: cutter (hotkey C)
+inputHandler.js:772 Set rally point at (31, 30) for 1 port(s)
+construction.js:55 Ship built: cutter at (35, 27)
+gameScene.js:1330 Selected 1 unit(s)
+kaplay.js?v=9a8bb7fb:5276 TypeError: Cannot read properties of undefined (reading 'type')
+    at gameScene.js:866:30
+
+## 244. User prompt
+> one more small bug: while in patrol mode, I have to press escape twice before the unit is unselected 
+
+## 245. User prompt
+> How might we have ships on patrol stop and auto-attack any pirate ship they come across? 

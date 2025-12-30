@@ -222,10 +222,21 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                 } else {
                     // Arrived at current waypoint - remove from queue and proceed to next
                     ship.waypoints.shift();
-                    ship.path = null;
                     ship.moveProgress = 0;
                     ship.movingToward = null;
-                    // Movement continues next frame if more waypoints exist
+
+                    // Calculate path to next waypoint immediately to avoid visual flash
+                    if (ship.waypoints.length > 0) {
+                        const nextWp = ship.waypoints[0];
+                        ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, blockedHexes);
+                    } else if (ship.isPatrolling && ship.patrolRoute.length > 0) {
+                        // Patrol loop - restore waypoints from patrol route
+                        ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+                        const nextWp = ship.waypoints[0];
+                        ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, blockedHexes);
+                    } else {
+                        ship.path = null;
+                    }
                 }
             }
         }

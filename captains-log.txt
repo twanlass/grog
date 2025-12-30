@@ -1,6 +1,25 @@
 CAPTAIN'S LOG
 =============
 
+2025-12-30 | Add patrol routes with auto-attack
+-----------------------------------------------
+### New
+- Patrol routes - press P to enter patrol mode, right-click to add waypoints
+- Ships loop through patrol waypoints continuously
+- Auto-attack for patrolling ships - detect pirates within sightDistance, engage, then resume patrol
+- Patrol documentation (docs/features/patrol.md)
+
+### Improved
+- Wave spawner only spawns pirates under fog of war
+- Controls menu updated with P (patrol) and "." (pause) hotkeys
+- Route lines changed from orange to red for visual consistency
+- Menu panel now renders above birds
+
+### Fixed
+- Fog of war visibility persists during tower/port upgrades
+- Changed pause hotkey from P to "." to free up P for patrol
+
+
 2025-12-29 | Add multiple waypoint navigation
 ---------------------------------------------
 ### New

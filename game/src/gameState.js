@@ -61,6 +61,11 @@ export function createGameState(config = {}) {
             hoveredHex: null,
         },
 
+        // Patrol waypoint setting mode
+        patrolMode: {
+            active: false,
+        },
+
         // Pirate respawn queue: [{ timer }]
         pirateRespawnQueue: [],
 
@@ -130,6 +135,9 @@ export function createShip(type, q, r) {
         attackTarget: null,          // { type: 'ship', index } for player ships attacking pirates
         // Repair state
         repair: null,  // { progress, totalTime, healthToRestore } | null
+        // Patrol state
+        patrolRoute: [],      // Array of { q, r } - saved patrol waypoints for looping
+        isPatrolling: false,  // Whether ship is in patrol loop mode
     };
 }
 
@@ -590,6 +598,16 @@ export function exitTowerBuildMode(gameState) {
         builderPortIndex: null,
         hoveredHex: null,
     };
+}
+
+// Enter patrol waypoint setting mode
+export function enterPatrolMode(gameState) {
+    gameState.patrolMode.active = true;
+}
+
+// Exit patrol waypoint setting mode
+export function exitPatrolMode(gameState) {
+    gameState.patrolMode.active = false;
 }
 
 // Get the next tower type in the upgrade tree

@@ -119,9 +119,9 @@ export function recalculateVisibility(fogState, gameState, currentTime = 0) {
         visionSources.push({ q: ship.q, r: ship.r });
     }
 
-    // Completed ports
+    // Completed ports (ports being upgraded still grant vision)
     for (const port of gameState.ports) {
-        if (port.construction) continue;  // Under construction
+        if (port.construction && !port.construction.upgradeTo) continue;  // Skip new construction, not upgrades
         const sightDistance = PORTS[port.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, port.q, port.r, sightDistance);
         visionSources.push({ q: port.q, r: port.r });
@@ -135,9 +135,9 @@ export function recalculateVisibility(fogState, gameState, currentTime = 0) {
         visionSources.push({ q: settlement.q, r: settlement.r });
     }
 
-    // Completed towers
+    // Completed towers (towers being upgraded still grant vision)
     for (const tower of gameState.towers) {
-        if (tower.construction) continue;
+        if (tower.construction && !tower.construction.upgradeTo) continue;  // Skip new construction, not upgrades
         const sightDistance = TOWERS[tower.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, tower.q, tower.r, sightDistance);
         visionSources.push({ q: tower.q, r: tower.r });

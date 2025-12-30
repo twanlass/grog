@@ -1510,7 +1510,7 @@ export function drawMenuPanel(ctx) {
     const { k, screenWidth, screenHeight } = ctx;
 
     const panelWidth = 320;
-    const panelHeight = 332;
+    const panelHeight = 385;
     const panelX = screenWidth / 2 - panelWidth / 2;
     const panelY = screenHeight / 2 - panelHeight / 2;
 
@@ -1549,8 +1549,10 @@ export function drawMenuPanel(ctx) {
         { key: "Right Click", action: "Move / Attack" },
         { key: "Right Drag", action: "Pan camera" },
         { key: "Scroll", action: "Zoom in/out" },
+        { key: "P", action: "Set patrol route" },
         { key: "H", action: "Return to home port" },
         { key: "1-5", action: "Set game speed" },
+        { key: ".", action: "Pause / Resume" },
         { key: "/", action: "Toggle this menu" },
     ];
 
@@ -1598,19 +1600,14 @@ export function drawMenuPanel(ctx) {
  * Draw all simple UI panels (resource, buttons, time, pirate kills, wave status)
  * Returns bounds for button click detection
  */
-export function drawSimpleUIPanels(ctx, gameState, waveStatus = null, speedMenuOpen = false, menuPanelOpen = false) {
+export function drawSimpleUIPanels(ctx, gameState, waveStatus = null, speedMenuOpen = false) {
     drawResourcePanel(ctx, gameState);
     const buttonBounds = drawTopRightButtons(ctx, gameState);
     const speedBounds = drawTimeIndicator(ctx, gameState.timeScale, speedMenuOpen);
     drawPirateKillCounter(ctx, gameState.pirateKills);
     drawWaveStatus(ctx, waveStatus);
 
-    let menuPanelBounds = null;
-    if (menuPanelOpen) {
-        menuPanelBounds = drawMenuPanel(ctx);
-    }
-
-    return { ...buttonBounds, speedIndicator: speedBounds, menuPanel: menuPanelBounds };
+    return { ...buttonBounds, speedIndicator: speedBounds };
 }
 
 /**

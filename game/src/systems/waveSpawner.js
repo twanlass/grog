@@ -2,6 +2,7 @@
 // Handles wave timing, spawning, and progression
 
 import { getHomePortIndex } from "../gameState.js";
+import { isHexVisible } from "../fogOfWar.js";
 
 /**
  * Update wave spawner state for defend mode
@@ -10,8 +11,9 @@ import { getHomePortIndex } from "../gameState.js";
  * @param {Function} createShip - Ship creation function
  * @param {Function} hexKey - Hex key function
  * @param {number} dt - Delta time (already scaled by timeScale)
+ * @param {Object} fogState - Fog of war state for visibility checks
  */
-export function updateWaveSpawner(gameState, map, createShip, hexKey, dt) {
+export function updateWaveSpawner(gameState, map, createShip, hexKey, dt, fogState) {
     if (dt === 0) return; // Paused
 
     const scenario = gameState.scenario;
@@ -29,7 +31,7 @@ export function updateWaveSpawner(gameState, map, createShip, hexKey, dt) {
         if (waveState.initialTimer <= 0) {
             waveState.waveStarted = true;
             waveState.currentWave = 1;
-            spawnWave(gameState, map, createShip, hexKey, waveConfig, 1);
+            spawnWave(gameState, map, createShip, hexKey, waveConfig, 1, fogState);
             waveState.waveActive = true;
         }
         return;
@@ -47,7 +49,7 @@ export function updateWaveSpawner(gameState, map, createShip, hexKey, dt) {
         if (waveState.rebuildTimer <= 0) {
             // Start next wave
             waveState.currentWave++;
-            spawnWave(gameState, map, createShip, hexKey, waveConfig, waveState.currentWave);
+            spawnWave(gameState, map, createShip, hexKey, waveConfig, waveState.currentWave, fogState);
             waveState.waveActive = true;
         }
     }
@@ -55,8 +57,9 @@ export function updateWaveSpawner(gameState, map, createShip, hexKey, dt) {
 
 /**
  * Spawn a wave of pirates
+ * @param {Object} fogState - Fog of war state for visibility checks
  */
-function spawnWave(gameState, map, createShip, hexKey, waveConfig, waveNumber) {
+function spawnWave(gameState, map, createShip, hexKey, waveConfig, waveNumber, fogState) {
     // Get wave definition (or extrapolate for waves beyond defined)
     const waveIndex = Math.min(waveNumber - 1, waveConfig.waves.length - 1);
     const waveDef = waveConfig.waves[waveIndex];
@@ -72,26 +75,46 @@ function spawnWave(gameState, map, createShip, hexKey, waveConfig, waveNumber) {
     if (!homePort) return; // No home port to defend
 
     let spawned = 0;
-    const startAngle = Math.random() * Math.PI * 2;
 
-    // Spawn pirates in a spread pattern around the home port
+    // Determine spawn pattern based on wave number
+    let getAngleForPirate;
+    const baseAngle = Math.random() * Math.PI * 2;
+
+    if (waveNumber <= 4) {
+        // Waves 1-4: Single angle attack - all pirates from one direction
+        getAngleForPirate = (i) => baseAngle + (Math.random() - 0.5) * 0.5;
+    } else if (waveNumber <= 9) {
+        // Waves 5-9: Flanking attack - pirates from two opposite sides
+        getAngleForPirate = (i) => {
+            const side = i % 2 === 0 ? 0 : Math.PI;
+            return baseAngle + side + (Math.random() - 0.5) * 0.5;
+        };
+    } else {
+        // Waves 10+: Random all-sides attack
+        getAngleForPirate = (i) => Math.random() * Math.PI * 2;
+    }
+
+    // Spawn pirates
     for (let i = 0; i < pirateCount; i++) {
-        // Vary distance and angle for each pirate
-        const dist = 10 + Math.floor(i / 4) * 2; // Spread out at different distances
-        const angleOffset = (i % 8) * (Math.PI / 4) + (Math.random() - 0.5) * 0.3;
-        const angle = startAngle + angleOffset;
+        // Increase base distance to ensure spawning in fog (12-15+ tiles out)
+        const dist = 13 + Math.floor(i / 4) * 2;
+        const angle = getAngleForPirate(i);
 
-        // Try to find a valid spawn location
-        for (let attempt = 0; attempt < 12; attempt++) {
-            const tryAngle = angle + attempt * (Math.PI / 6);
-            const pirateQ = homePort.q + Math.round(Math.cos(tryAngle) * dist);
-            const pirateR = homePort.r + Math.round(Math.sin(tryAngle) * dist);
+        // Try to find a valid spawn location in fog
+        for (let attempt = 0; attempt < 20; attempt++) {
+            // Vary angle and distance on each attempt
+            const tryAngle = angle + attempt * (Math.PI / 10);
+            const tryDist = dist + Math.floor(attempt / 4) * 2;
+            const pirateQ = homePort.q + Math.round(Math.cos(tryAngle) * tryDist);
+            const pirateR = homePort.r + Math.round(Math.sin(tryAngle) * tryDist);
             const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
 
             if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
                 // Check not occupied by another ship
                 const occupied = gameState.ships.some(s => s.q === pirateQ && s.r === pirateR);
-                if (!occupied) {
+                // Check that spawn location is in fog (not visible)
+                const inFog = !isHexVisible(fogState, pirateQ, pirateR);
+                if (!occupied && inFog) {
                     gameState.ships.push(createShip('pirate', pirateQ, pirateR));
                     spawned++;
                     break;

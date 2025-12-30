@@ -110,6 +110,25 @@ function drawWaypointMarker(ctx, q, r) {
 }
 
 /**
+ * Draw patrol waypoint marker (dot)
+ */
+function drawPatrolWaypointMarker(ctx, q, r) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
+    const wpPos = hexToPixel(q, r);
+    const wpScreenX = (wpPos.x - cameraX) * zoom + halfWidth;
+    const wpScreenY = (wpPos.y - cameraY) * zoom + halfHeight;
+
+    const dotRadius = 5 * zoom;
+    const dotColor = k.rgb(180, 40, 40);
+
+    k.drawCircle({
+        pos: k.vec2(wpScreenX, wpScreenY),
+        radius: dotRadius,
+        color: dotColor,
+    });
+}
+
+/**
  * Draw rally point flag marker (for port spawn destinations)
  */
 function drawRallyPointFlag(ctx, q, r) {
@@ -390,7 +409,7 @@ function drawWaypointRoute(ctx, ship, getShipVisualPos, map) {
 
     const dashLength = 8 * zoom;
     const gapLength = 6 * zoom;
-    const pathColor = k.rgb(255, 165, 0);
+    const pathColor = k.rgb(180, 40, 40);  // Same red as waypoint X marker
 
     // Helper to draw dashed line between two screen points
     function drawDashedSegment(fromX, fromY, toX, toY) {
@@ -487,6 +506,79 @@ function drawWaypointRoute(ctx, ship, getShipVisualPos, map) {
 }
 
 /**
+ * Draw solid patrol route line connecting all patrol waypoints in a loop
+ */
+function drawPatrolRoute(ctx, ship, getShipVisualPos, map) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
+
+    if (ship.patrolRoute.length === 0) return;
+
+    const pathColor = k.rgb(180, 40, 40);
+    const lineWidth = 2;
+
+    // Helper to draw solid line between two screen points
+    function drawSolidSegment(fromX, fromY, toX, toY) {
+        k.drawLine({
+            p1: k.vec2(fromX, fromY),
+            p2: k.vec2(toX, toY),
+            width: lineWidth,
+            color: pathColor,
+            opacity: 0.8,
+        });
+    }
+
+    // Helper to draw A* path as solid line
+    function drawPathSegments(path, startX, startY) {
+        let prevX = startX;
+        let prevY = startY;
+
+        for (const node of path) {
+            const nodePos = hexToPixel(node.q, node.r);
+            const nodeScreenX = (nodePos.x - cameraX) * zoom + halfWidth;
+            const nodeScreenY = (nodePos.y - cameraY) * zoom + halfHeight;
+
+            drawSolidSegment(prevX, prevY, nodeScreenX, nodeScreenY);
+
+            prevX = nodeScreenX;
+            prevY = nodeScreenY;
+        }
+
+        return { x: prevX, y: prevY };
+    }
+
+    // Draw from ship to first waypoint (current path)
+    const shipPos = getShipVisualPos ? getShipVisualPos(ship) : hexToPixel(ship.q, ship.r);
+    let currentX = (shipPos.x - cameraX) * zoom + halfWidth;
+    let currentY = (shipPos.y - cameraY) * zoom + halfHeight;
+
+    if (ship.path && ship.path.length > 0) {
+        drawPathSegments(ship.path, currentX, currentY);
+    }
+
+    // Draw connections between all patrol waypoints
+    for (let i = 0; i < ship.patrolRoute.length; i++) {
+        const wp = ship.patrolRoute[i];
+        const nextWp = ship.patrolRoute[(i + 1) % ship.patrolRoute.length];
+
+        const path = findPath(map, wp.q, wp.r, nextWp.q, nextWp.r, new Set());
+
+        const wpPos = hexToPixel(wp.q, wp.r);
+        const startX = (wpPos.x - cameraX) * zoom + halfWidth;
+        const startY = (wpPos.y - cameraY) * zoom + halfHeight;
+
+        if (path && path.length > 0) {
+            drawPathSegments(path, startX, startY);
+        } else {
+            // Fallback to straight line
+            const nextWpPos = hexToPixel(nextWp.q, nextWp.r);
+            const endX = (nextWpPos.x - cameraX) * zoom + halfWidth;
+            const endY = (nextWpPos.y - cameraY) * zoom + halfHeight;
+            drawSolidSegment(startX, startY, endX, endY);
+        }
+    }
+}
+
+/**
  * Draw waypoints and rally points (should be called BEFORE units to render underneath)
  */
 export function drawWaypointsAndRallyPoints(ctx, gameState, getShipVisualPos, map) {
@@ -496,13 +588,21 @@ export function drawWaypointsAndRallyPoints(ctx, gameState, getShipVisualPos, ma
         const ship = gameState.ships[i];
 
         // Only draw waypoints if not attacking (attack has its own indicator)
-        if (ship.waypoints.length > 0 && !ship.attackTarget) {
-            // Draw route line through all waypoints using A* paths
-            drawWaypointRoute(ctx, ship, getShipVisualPos, map);
-
-            // Draw X markers at each waypoint
-            for (const wp of ship.waypoints) {
-                drawWaypointMarker(ctx, wp.q, wp.r);
+        if (!ship.attackTarget) {
+            if (ship.isPatrolling && ship.patrolRoute.length > 0) {
+                // Patrol mode: solid lines, dots for markers, always show full loop
+                drawPatrolRoute(ctx, ship, getShipVisualPos, map);
+                for (const wp of ship.patrolRoute) {
+                    drawPatrolWaypointMarker(ctx, wp.q, wp.r);
+                }
+            } else if (ship.waypoints.length > 0) {
+                // Regular waypoints: dashed lines, X markers
+                if (ship.showRouteLine || ship.waypoints.length > 1) {
+                    drawWaypointRoute(ctx, ship, getShipVisualPos, map);
+                }
+                for (const wp of ship.waypoints) {
+                    drawWaypointMarker(ctx, wp.q, wp.r);
+                }
             }
         }
     }

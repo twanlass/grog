@@ -6,7 +6,7 @@ import {
     createTower, exitTowerBuildMode, enterTowerBuildMode,
     startBuilding, startPortUpgrade, startTowerUpgrade, isPortBuildingSettlement,
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
-    clearSelection, cancelTradeRoute,
+    clearSelection, cancelTradeRoute, exitPatrolMode,
     findFreeAdjacentWater, findNearbyWaitingHex, getHomePortIndex,
     canAffordCrew, showNotification
 } from "../gameState.js";
@@ -472,6 +472,11 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
  * @returns {{ type: string, index: number } | null} clicked unit info, or null if nothing clicked
  */
 export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPos) {
+    // Exit patrol mode when clicking to select units (not shift-selecting)
+    if (!isShiftHeld && gameState.patrolMode.active) {
+        exitPatrolMode(gameState);
+    }
+
     // Check ships first - use visual position for hit detection during movement
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
@@ -594,16 +599,81 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         if (isShiftHeld && ship.waypoints.length > 0) {
             // Shift+click: append to queue (don't clear path - continue current movement)
             ship.waypoints.push({ q: targetQ, r: targetR });
+            ship.showRouteLine = true;  // Show route line for multi-waypoint paths
         } else {
             // Regular click: clear and set single destination
             ship.waypoints = [{ q: targetQ, r: targetR }];
             ship.path = null;
+            ship.showRouteLine = false;  // Hide route line for single destinations
+            // Clear patrol state
+            ship.patrolRoute = [];
+            ship.isPatrolling = false;
         }
         movedCount++;
     }
 
     if (movedCount > 0) {
         console.log(`Set waypoint at (${targetQ}, ${targetR}) for ${movedCount} ship(s)`);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Handle patrol waypoint click - adds waypoints to patrol route
+ * @returns {boolean} true if waypoint was added
+ */
+export function handlePatrolWaypointClick(gameState, map, clickedHex) {
+    const selectedShips = getSelectedShips(gameState);
+    if (selectedShips.length === 0) return false;
+
+    const tile = map.tiles.get(hexKey(clickedHex.q, clickedHex.r));
+
+    let targetQ = clickedHex.q;
+    let targetR = clickedHex.r;
+
+    // If land, find nearest coast
+    if (tile && tile.type === 'land') {
+        const coast = findNearestWater(map, clickedHex.q, clickedHex.r);
+        if (coast) {
+            targetQ = coast.q;
+            targetR = coast.r;
+        } else {
+            return false; // No water found
+        }
+    }
+
+    let addedCount = 0;
+    for (const sel of gameState.selectedUnits) {
+        if (sel.type !== 'ship') continue;
+        if (isShipBuildingPort(sel.index, gameState.ports)) continue;
+        if (isShipBuildingTower(sel.index, gameState.towers)) continue;
+
+        const ship = gameState.ships[sel.index];
+        if (ship.type === 'pirate') continue; // Can't control enemy ships
+
+        // Cancel any existing trade route
+        if (ship.tradeRoute) {
+            cancelTradeRoute(ship);
+        }
+        ship.attackTarget = null;
+
+        // Add waypoint to both active waypoints and patrol route
+        ship.waypoints.push({ q: targetQ, r: targetR });
+        ship.patrolRoute.push({ q: targetQ, r: targetR });
+        ship.isPatrolling = true;
+        ship.showRouteLine = true;
+
+        // Clear path on first waypoint to start moving immediately
+        if (ship.waypoints.length === 1) {
+            ship.path = null;
+        }
+
+        addedCount++;
+    }
+
+    if (addedCount > 0) {
+        console.log(`Added patrol waypoint at (${targetQ}, ${targetR}) for ${addedCount} ship(s)`);
         return true;
     }
     return false;

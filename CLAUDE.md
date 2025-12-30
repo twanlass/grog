@@ -43,6 +43,7 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [Settlement Building](docs/features/settlement-building.md)
 - [Tower Building](docs/features/tower-building.md)
 - [Trade Routes](docs/features/trade-routes.md)
+- [Patrol Routes](docs/features/patrol.md)
 - [Repair](docs/features/repair.md)
 - [Tooltips](docs/features/tooltips.md)
 

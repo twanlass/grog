@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations } from "../fogOfWar.js";
 
@@ -20,14 +20,14 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel } from "../rendering/uiPanels.js";
 
 // Game systems
 import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems/shipMovement.js";
 import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
-import { updateCombat, updatePirateRespawns } from "../systems/combat.js";
+import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack } from "../systems/combat.js";
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
 import { startRepair } from "../systems/repair.js";
@@ -35,7 +35,8 @@ import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
-    handleUnitSelection, handleWaypointClick, handleAttackClick, handlePortRallyPointClick
+    handleUnitSelection, handleWaypointClick, handleAttackClick, handlePortRallyPointClick,
+    handlePatrolWaypointClick
 } from "../systems/inputHandler.js";
 
 // Default scenario config (used if none provided)
@@ -338,13 +339,14 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             const homePortIdx = getHomePortIndex(gameState, map);
             const homePort = homePortIdx !== null ? gameState.ports[homePortIdx] : null;
             updatePirateAI(gameState, map, homePort, dt); // Pirates patrol near home port
+            handlePatrolAutoAttack(gameState);  // Patrolling ships detect and target pirates
             updateTradeRoutes(gameState, map, dt);
             updateConstruction(gameState, map, fogState, dt, floatingNumbers);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
             updateCombat(hexToPixel, gameState, dt, fogState);
             updateRepair(gameState, dt);
             updatePirateRespawns(gameState, map, createShip, hexKey, dt);
-            updateWaveSpawner(gameState, map, createShip, hexKey, dt);
+            updateWaveSpawner(gameState, map, createShip, hexKey, dt, fogState);
 
             // Recalculate fog visibility if any vision source changed
             if (isVisibilityDirty(fogState)) {
@@ -560,7 +562,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
             // Draw simple UI panels (migrated to rendering module)
             const waveStatus = getWaveStatus(gameState);
-            topButtonBounds = drawSimpleUIPanels(ctx, gameState, waveStatus, speedMenuOpen, menuPanelOpen);
+            topButtonBounds = drawSimpleUIPanels(ctx, gameState, waveStatus, speedMenuOpen);
 
             // Build panel UI (when exactly one port is selected)
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
@@ -661,6 +663,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
             // Draw birds at the very top (above all UI)
             drawBirds(ctx, birdStates);
+
+            // Draw menu panel last (above birds) when open
+            if (menuPanelOpen) {
+                topButtonBounds.menuPanel = drawMenuPanel(ctx);
+            }
         });
 
         // Left-click/drag for selection or panning (spacebar + left-click)
@@ -844,9 +851,26 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         k.onKeyPress("3", () => { gameState.timeScale = 3; speedMenuOpen = false; });
         k.onKeyPress("4", () => { gameState.timeScale = 4; speedMenuOpen = false; });
         k.onKeyPress("5", () => { gameState.timeScale = 5; speedMenuOpen = false; });
-        k.onKeyPress("p", () => {
+        k.onKeyPress(".", () => {
             gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
             speedMenuOpen = false;
+        });
+
+        // P to enter patrol mode (when ships selected)
+        k.onKeyPress("p", () => {
+            const selectedShips = getSelectedShips(gameState);
+            if (selectedShips.length > 0) {
+                enterPatrolMode(gameState);
+                // Add each ship's current location as first patrol waypoint
+                for (const ship of selectedShips) {
+                    if (ship && ship.type !== 'pirate') {
+                        ship.patrolRoute = [{ q: ship.q, r: ship.r }];
+                        ship.isPatrolling = true;
+                        ship.showRouteLine = true;
+                    }
+                }
+                showNotification(gameState, "Right click to add waypoints for a patrol route");
+            }
         });
 
         // H to center camera on home port
@@ -883,6 +907,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             } else if (gameState.towerBuildMode.active) {
                 exitTowerBuildMode(gameState);
                 console.log("Tower placement cancelled");
+            } else if (gameState.patrolMode.active) {
+                exitPatrolMode(gameState);
+                clearSelection(gameState);
+                console.log("Patrol mode cancelled");
             } else if (gameState.selectedUnits.length > 0) {
                 clearSelection(gameState);
             }
@@ -1225,6 +1253,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
             // Unload at home port
             if (handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
+                return;
+            }
+
+            // Patrol mode - add waypoints to patrol route
+            if (gameState.patrolMode.active) {
+                handlePatrolWaypointClick(gameState, map, clickedHex);
                 return;
             }
 

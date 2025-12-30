@@ -30,6 +30,7 @@ export function updateCombat(hexToPixel, gameState, dt, fogState) {
 
     handlePirateAttacks(gameState, dt);
     handleAutoReturnFire(gameState);  // Player ships automatically defend themselves
+    handlePatrolChase(gameState);     // Patrolling ships chase their attack targets
     handlePlayerAttacks(gameState, dt);
     handleTowerAttacks(gameState, dt);  // Towers auto-attack pirates
     updateProjectiles(gameState, dt, fogState);
@@ -123,6 +124,77 @@ function handleAutoReturnFire(gameState) {
 }
 
 /**
+ * Patrolling ships automatically detect and attack nearby pirates
+ * Uses each ship's sightDistance for detection range
+ */
+export function handlePatrolAutoAttack(gameState) {
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const ship = gameState.ships[i];
+        if (ship.type === 'pirate') continue;
+        if (!ship.isPatrolling) continue;
+        if (ship.attackTarget) continue;  // Already has a target
+
+        // Use ship's sightDistance for detection range
+        const detectRange = SHIPS[ship.type].sightDistance;
+
+        // Find nearest pirate within detection range
+        let nearestPirate = null;
+        let nearestDist = Infinity;
+
+        for (let j = 0; j < gameState.ships.length; j++) {
+            const target = gameState.ships[j];
+            if (target.type !== 'pirate') continue;
+            const dist = hexDistance(ship.q, ship.r, target.q, target.r);
+            if (dist <= detectRange && dist < nearestDist) {
+                nearestDist = dist;
+                nearestPirate = { index: j };
+            }
+        }
+
+        if (nearestPirate) {
+            ship.attackTarget = { type: 'ship', index: nearestPirate.index };
+            // Clear waypoints to stop patrol movement - we'll chase the target
+            ship.waypoints = [];
+            ship.path = null;
+        }
+    }
+}
+
+/**
+ * Patrolling ships with attack targets navigate toward the target
+ * Updates waypoint to target's current position each frame
+ */
+function handlePatrolChase(gameState) {
+    const attackDistance = 2;
+
+    for (const ship of gameState.ships) {
+        if (ship.type === 'pirate') continue;
+        if (!ship.isPatrolling) continue;
+        if (!ship.attackTarget) continue;
+
+        const target = gameState.ships[ship.attackTarget.index];
+        if (!target) continue;  // Target gone, will be handled in handlePlayerAttacks
+
+        const dist = hexDistance(ship.q, ship.r, target.q, target.r);
+
+        // If not in attack range, set waypoint to chase
+        if (dist > attackDistance) {
+            // Set a single waypoint to chase the target
+            if (ship.waypoints.length === 0 ||
+                ship.waypoints[0].q !== target.q ||
+                ship.waypoints[0].r !== target.r) {
+                ship.waypoints = [{ q: target.q, r: target.r }];
+                ship.path = null;  // Force path recalculation
+            }
+        } else {
+            // In range, stop moving to fire
+            ship.waypoints = [];
+            ship.path = null;
+        }
+    }
+}
+
+/**
  * Player ships with attack targets fire at pirates when in range
  * Also decrements cooldowns for ALL player ships (even when not attacking)
  */
@@ -146,6 +218,10 @@ function handlePlayerAttacks(gameState, dt) {
         const target = gameState.ships[ship.attackTarget.index];
         if (!target) {
             ship.attackTarget = null;  // Target destroyed
+            // Resume patrol if ship was patrolling
+            if (ship.isPatrolling && ship.patrolRoute.length > 0) {
+                ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+            }
             continue;
         }
 
@@ -594,6 +670,10 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
             if (ship.attackTarget && ship.attackTarget.type === 'ship') {
                 if (ship.attackTarget.index === removedIndex) {
                     ship.attackTarget = null;
+                    // Resume patrol if ship was patrolling
+                    if (ship.isPatrolling && ship.patrolRoute.length > 0) {
+                        ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+                    }
                 } else if (ship.attackTarget.index > removedIndex) {
                     ship.attackTarget.index--;
                 }

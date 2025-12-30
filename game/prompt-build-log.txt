@@ -101,3 +101,12 @@ Read the output file to retrieve the output.
 
 ## 22. User prompt
 > claude, run the ship-it skill 
+
+## 23. User prompt
+> i see a patrolling ship spot and attack a pirate. once the pirate was destroyed though the ship did not return to patrol route. why? 
+
+## 24. User prompt
+> update the features/doc for patrols
+
+## 25. User prompt
+> Alright, this feature looks great. Let's ship it. 
