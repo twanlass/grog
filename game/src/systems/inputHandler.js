@@ -597,7 +597,10 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         if (ship.tradeRoute) {
             cancelTradeRoute(ship);
         }
-        ship.attackTarget = null;  // Clear attack target when manually moving
+        // Clear attack and patrol state when manually moving
+        ship.attackTarget = null;
+        ship.patrolRoute = [];
+        ship.isPatrolling = false;
 
         if (isShiftHeld && ship.waypoints.length > 0) {
             // Shift+click: append to queue (don't clear path - continue current movement)
@@ -608,9 +611,6 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
             ship.waypoints = [{ q: targetQ, r: targetR }];
             ship.path = null;
             ship.showRouteLine = false;  // Hide route line for single destinations
-            // Clear patrol state
-            ship.patrolRoute = [];
-            ship.isPatrolling = false;
         }
         movedCount++;
     }
@@ -719,6 +719,9 @@ export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTI
                 }
                 ship.waypoints = [{ q: target.q, r: target.r }];
                 ship.path = null;
+                // Clear patrol state - manual attack takes priority over patrol
+                ship.patrolRoute = [];
+                ship.isPatrolling = false;
                 attackCount++;
             }
             if (attackCount > 0) {
