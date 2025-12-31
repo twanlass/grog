@@ -28,6 +28,7 @@ Ships can construct defensive towers on nearby land. Towers automatically attack
 
 ## Restrictions
 - Ship can only build one thing at a time (port or tower)
+- Port can only build one tower at a time
 - Must be placed on land hex within 5 hexes of ship
 - Cannot place on hex already occupied by port, settlement, or tower
 - Requires 25 wood
@@ -47,11 +48,12 @@ Ships can construct defensive towers on nearby land. Towers automatically attack
 ## Key Functions
 
 ### gameState.js
-- `createTower(type, q, r, isConstructing, builderShipIndex)` - Creates tower with health and cooldown
+- `createTower(type, q, r, isConstructing, builderShipIndex, builderPortIndex)` - Creates tower with health and cooldown
 - `enterTowerBuildMode(gameState, shipIndex)` - Activates placement mode
 - `exitTowerBuildMode(gameState)` - Cancels/exits placement mode
 - `isValidTowerSite(map, q, r, towers, ports, settlements)` - Checks if hex is valid
 - `isShipBuildingTower(shipIndex, towers)` - Returns true if ship is building a tower
+- `isPortBuildingTower(portIndex, towers)` - Returns true if port is building a tower
 
 ### combat.js
 - `handleTowerAttacks(gameState, dt)` - Towers auto-fire at nearest pirate in range
@@ -73,7 +75,8 @@ tower = {
     construction: {
         progress: 0,
         buildTime: 15,
-        builderShipIndex: 0,
+        builderShipIndex: 0,     // Ship building this tower (null if port)
+        builderPortIndex: null,  // Port building this tower (null if ship)
     } | null,
 }
 ```
@@ -116,6 +119,7 @@ TOWERS = {
 
 ## Edge Cases
 - **Ship already building port/tower**: Build panel hidden
+- **Port already building tower**: Tower button disabled
 - **Can't afford (< 25 wood)**: Button greyed out, red cost text
 - **Builder ship destroyed**: Construction cancelled, tower removed
 - **Tower destroyed**: Cleaned up from arrays, pirate AI retargets
