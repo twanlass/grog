@@ -867,6 +867,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                         ship.patrolRoute = [{ q: ship.q, r: ship.r }];
                         ship.isPatrolling = true;
                         ship.showRouteLine = true;
+                        // Clear any existing movement so all ships start fresh
+                        ship.waypoints = [];
+                        ship.path = null;
                     }
                 }
                 showNotification(gameState, "Right click to add waypoints for a patrol route");
