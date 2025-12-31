@@ -800,8 +800,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             if (k.isKeyDown("left")) cameraX -= panSpeed * k.dt();
             if (k.isKeyDown("right")) cameraX += panSpeed * k.dt();
 
-            // Edge scrolling (only when not dragging selection box)
-            if (!isSelecting) {
+            // Edge scrolling (disabled when selecting, paused, menu open, or game over)
+            if (!isSelecting && gameState.timeScale !== 0 && !menuPanelOpen && !gameState.gameOver) {
                 if (mouse.x < EDGE_SCROLL_MARGIN) cameraX -= panSpeed * k.dt();
                 if (mouse.x > k.width() - EDGE_SCROLL_MARGIN) cameraX += panSpeed * k.dt();
                 if (mouse.y < EDGE_SCROLL_MARGIN) cameraY -= panSpeed * k.dt();

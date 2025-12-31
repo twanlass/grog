@@ -1103,3 +1103,6 @@ kaplay.js?v=9a8bb7fb:5276 TypeError: Cannot read properties of undefined (readin
 
 ## 245. User prompt
 > How might we have ships on patrol stop and auto-attack any pirate ship they come across? 
+
+## 246. User prompt
+> small improvement: disable screen edge scrolling (mousing near edge to pan camera) when game is paused, when controls menu is open, or on defeat / game over screen 

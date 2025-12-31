@@ -23,6 +23,9 @@
 ### Bugs
 - [ ] buildings that take damange while repairing should just deduct the damage from repair progress (right now they will repair but not all the way lol)
 - [ ]  dont allow ports to build more than 1 tower at at time
+- [ ] Patrol: 
+- - [ ] can't multi-unit set patrol route
+- - [ ] can't select a ship and break it from attack while on patrol route (should become player owned again)
 
 
 ### Defend Mode notes 
