@@ -4,7 +4,7 @@ import {
     canAfford, deductCost, createPort, exitPortBuildMode,
     createSettlement, exitSettlementBuildMode, enterPortBuildMode, enterSettlementBuildMode,
     createTower, exitTowerBuildMode, enterTowerBuildMode,
-    startBuilding, startPortUpgrade, startTowerUpgrade, isPortBuildingSettlement,
+    startBuilding, startPortUpgrade, startTowerUpgrade, isPortBuildingSettlement, isPortBuildingTower,
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute, exitPatrolMode,
     findFreeAdjacentWater, findNearbyWaitingHex, getHomePortIndex,
@@ -81,6 +81,7 @@ export function handleTowerPlacementClick(gameState) {
     if (gameState.towerBuildMode.hoveredHex) {
         const hex = gameState.towerBuildMode.hoveredHex;
         const builderShipIndex = gameState.towerBuildMode.builderShipIndex;
+        const builderPortIndex = gameState.towerBuildMode.builderPortIndex;
         const watchtowerData = TOWERS.watchtower;
 
         if (!canAfford(gameState.resources, watchtowerData.cost)) {
@@ -95,10 +96,11 @@ export function handleTowerPlacementClick(gameState) {
         }
         deductCost(gameState.resources, watchtowerData.cost);
 
-        const newTower = createTower('watchtower', hex.q, hex.r, true, builderShipIndex);
+        const newTower = createTower('watchtower', hex.q, hex.r, true, builderShipIndex, builderPortIndex);
         gameState.towers.push(newTower);
 
-        console.log(`Started building ${watchtowerData.name} at (${hex.q}, ${hex.r}) by ship ${builderShipIndex}`);
+        const builderType = builderShipIndex !== null ? `ship ${builderShipIndex}` : `port ${builderPortIndex}`;
+        console.log(`Started building ${watchtowerData.name} at (${hex.q}, ${hex.r}) by ${builderType}`);
         exitTowerBuildMode(gameState);
     }
     return true;
@@ -223,7 +225,8 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
             const watchtowerData = TOWERS.watchtower;
             const port = gameState.ports[bp.portIndex];
-            if (!port.repair && canAfford(gameState.resources, watchtowerData.cost)) {
+            const portBusy = port.repair || isPortBuildingTower(bp.portIndex, gameState.towers);
+            if (!portBusy && canAfford(gameState.resources, watchtowerData.cost)) {
                 if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
                     showNotification(gameState, "Max crew reached. Build more settlements.");
                 } else {
@@ -594,7 +597,10 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         if (ship.tradeRoute) {
             cancelTradeRoute(ship);
         }
-        ship.attackTarget = null;  // Clear attack target when manually moving
+        // Clear attack and patrol state when manually moving
+        ship.attackTarget = null;
+        ship.patrolRoute = [];
+        ship.isPatrolling = false;
 
         if (isShiftHeld && ship.waypoints.length > 0) {
             // Shift+click: append to queue (don't clear path - continue current movement)
@@ -605,9 +611,6 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
             ship.waypoints = [{ q: targetQ, r: targetR }];
             ship.path = null;
             ship.showRouteLine = false;  // Hide route line for single destinations
-            // Clear patrol state
-            ship.patrolRoute = [];
-            ship.isPatrolling = false;
         }
         movedCount++;
     }
@@ -716,6 +719,9 @@ export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTI
                 }
                 ship.waypoints = [{ q: target.q, r: target.r }];
                 ship.path = null;
+                // Clear patrol state - manual attack takes priority over patrol
+                ship.patrolRoute = [];
+                ship.isPatrolling = false;
                 attackCount++;
             }
             if (attackCount > 0) {

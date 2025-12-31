@@ -562,7 +562,7 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
 }
 
 // Create a new tower (optionally under construction)
-export function createTower(type, q, r, isConstructing = false, builderShipIndex = null) {
+export function createTower(type, q, r, isConstructing = false, builderShipIndex = null, builderPortIndex = null) {
     return {
         type,
         q,
@@ -573,6 +573,7 @@ export function createTower(type, q, r, isConstructing = false, builderShipIndex
             progress: 0,
             buildTime: TOWERS[type].buildTime,
             builderShipIndex: builderShipIndex,
+            builderPortIndex: builderPortIndex,
         } : null,
         // Repair state
         repair: null,  // { progress, totalTime, healthToRestore } | null
@@ -660,6 +661,14 @@ export function isShipBuildingTower(shipIndex, towers) {
     return towers.some(tower =>
         tower.construction &&
         tower.construction.builderShipIndex === shipIndex
+    );
+}
+
+// Check if a port is currently building a tower
+export function isPortBuildingTower(portIndex, towers) {
+    return towers.some(tower =>
+        tower.construction &&
+        tower.construction.builderPortIndex === portIndex
     );
 }
 
