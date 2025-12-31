@@ -94,6 +94,12 @@ export function createGameState(config = {}) {
         // Used to determine which port is the "home port" (most recent port on this island)
         homeIslandHex: null,  // { q, r } - a reference hex on the home island
 
+        // AI home island (for versus mode)
+        aiHomeIslandHex: null,  // { q, r } - AI's home island reference
+
+        // AI player state (for versus mode)
+        aiPlayer: null,  // Initialized in versus mode only
+
         // Game over state (for defend mode)
         gameOver: null,  // null = playing, 'win' = victory, 'lose' = defeated
 
@@ -109,8 +115,9 @@ export function createGameState(config = {}) {
 }
 
 // Create a new ship with navigation support
-export function createShip(type, q, r) {
+export function createShip(type, q, r, owner = 'player') {
     return {
+        owner,  // 'player' | 'ai'
         type,
         q,
         r,
@@ -142,8 +149,9 @@ export function createShip(type, q, r) {
 }
 
 // Create a new port (optionally under construction)
-export function createPort(type, q, r, isConstructing = false, builderShipIndex = null) {
+export function createPort(type, q, r, isConstructing = false, builderShipIndex = null, owner = 'player') {
     return {
+        owner,  // 'player' | 'ai'
         type,
         q,
         r,
@@ -312,6 +320,124 @@ export function findStartingPosition(map) {
     return candidates[0]?.tile || null;
 }
 
+// Find starting positions on opposite sides of the map (for versus mode)
+// Returns { player: {q, r}, ai: {q, r} } or null if not possible
+export function findOppositeStartingPositions(map) {
+    const { tiles, width, height } = map;
+    const centerQ = Math.floor(width / 2);
+    const centerR = Math.floor(height / 2);
+
+    // Collect all valid port sites with their island info
+    const candidates = [];
+    const analyzedIslands = new Set();
+
+    for (const tile of tiles.values()) {
+        if (!tile.isPortSite) continue;
+
+        const tileKey = hexKey(tile.q, tile.r);
+        if (analyzedIslands.has(tileKey)) continue;
+
+        const islandTiles = getIslandTiles(map, tile.q, tile.r);
+
+        for (const t of islandTiles) {
+            analyzedIslands.add(hexKey(t.q, t.r));
+        }
+
+        const portSites = islandTiles.filter(t => t.isPortSite);
+        const inlandTiles = islandTiles.filter(t => !t.isPortSite);
+        const hasBothTerrains = portSites.length > 0 && inlandTiles.length > 0;
+
+        // Only consider islands with both terrains (can build settlements)
+        if (!hasBothTerrains) continue;
+
+        // Find the port site on this island closest to center
+        let bestPortSite = null;
+        let bestDist = Infinity;
+        for (const ps of portSites) {
+            const dq = ps.q - centerQ;
+            const dr = ps.r - centerR;
+            const dist = Math.abs(dq) + Math.abs(dr);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestPortSite = ps;
+            }
+        }
+
+        if (bestPortSite) {
+            candidates.push({
+                tile: bestPortSite,
+                distanceToCenter: bestDist,
+                totalSize: islandTiles.length,
+            });
+        }
+    }
+
+    // Sort by island size (prefer larger islands)
+    candidates.sort((a, b) => b.totalSize - a.totalSize);
+
+    // Find two candidates that are far enough apart (at least 25 hexes)
+    const MIN_DISTANCE = 25;
+    for (let i = 0; i < candidates.length; i++) {
+        const pos1 = candidates[i];
+        for (let j = i + 1; j < candidates.length; j++) {
+            const pos2 = candidates[j];
+
+            const dist = hexDistance(pos1.tile.q, pos1.tile.r, pos2.tile.q, pos2.tile.r);
+            if (dist >= MIN_DISTANCE) {
+                // Assign player to the one closer to center, AI to the farther one
+                if (pos1.distanceToCenter <= pos2.distanceToCenter) {
+                    return {
+                        player: { q: pos1.tile.q, r: pos1.tile.r },
+                        ai: { q: pos2.tile.q, r: pos2.tile.r },
+                    };
+                } else {
+                    return {
+                        player: { q: pos2.tile.q, r: pos2.tile.r },
+                        ai: { q: pos1.tile.q, r: pos1.tile.r },
+                    };
+                }
+            }
+        }
+    }
+
+    // Fallback: use first and last candidates if available
+    if (candidates.length >= 2) {
+        return {
+            player: { q: candidates[0].tile.q, r: candidates[0].tile.r },
+            ai: { q: candidates[candidates.length - 1].tile.q, r: candidates[candidates.length - 1].tile.r },
+        };
+    }
+
+    return null;
+}
+
+// Create AI player state (for versus mode)
+export function createAIPlayerState(config = {}) {
+    const startingResources = config.startingResources || { wood: 25 };
+
+    return {
+        // AI resources (separate from player)
+        resources: {
+            wood: startingResources.wood,
+        },
+
+        // Decision timers
+        decisionCooldown: 0,      // Time until next strategic decision
+        buildDecisionCooldown: 0, // Time until next build evaluation
+
+        // Strategic priorities (weights 0-1, adjusted dynamically)
+        priorities: {
+            expansion: 0.5,   // Build more ports/settlements
+            economy: 0.5,     // Focus on trade ships
+            military: 0.5,    // Build combat ships/towers
+            defense: 0.5,     // Repair and protect existing assets
+        },
+
+        // Threat tracking
+        threatLevel: 0,  // 0-1, increases when attacked
+    };
+}
+
 // Find an adjacent water tile for ship placement
 export function findAdjacentWater(map, q, r) {
     const { tiles } = map;
@@ -329,6 +455,52 @@ export function findAdjacentWater(map, q, r) {
         const tile = tiles.get(key);
         if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
             return tile;
+        }
+    }
+
+    return null;
+}
+
+// Find the nearest water tile within a given range (for attacking inland structures)
+// Uses BFS to find the closest water tile
+export function findNearestWaterInRange(map, q, r, maxRange = 2) {
+    const { tiles } = map;
+    const visited = new Set();
+    const queue = [{ q, r, dist: 0 }];
+    visited.add(`${q},${r}`);
+
+    const directions = [
+        { q: 1, r: 0 },
+        { q: 1, r: -1 },
+        { q: 0, r: -1 },
+        { q: -1, r: 0 },
+        { q: -1, r: 1 },
+        { q: 0, r: 1 },
+    ];
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+
+        // Check if this tile is water
+        const key = `${current.q},${current.r}`;
+        const tile = tiles.get(key);
+        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+            return tile;
+        }
+
+        // Don't expand beyond max range
+        if (current.dist >= maxRange) continue;
+
+        // Add neighbors to queue
+        for (const dir of directions) {
+            const nq = current.q + dir.q;
+            const nr = current.r + dir.r;
+            const nkey = `${nq},${nr}`;
+
+            if (!visited.has(nkey)) {
+                visited.add(nkey);
+                queue.push({ q: nq, r: nr, dist: current.dist + 1 });
+            }
         }
     }
 
@@ -433,8 +605,9 @@ export function startPortUpgrade(port) {
 }
 
 // Create a new settlement (optionally under construction)
-export function createSettlement(q, r, isConstructing = false, builderPortIndex = null) {
+export function createSettlement(q, r, isConstructing = false, builderPortIndex = null, owner = 'player') {
     return {
+        owner,  // 'player' | 'ai'
         q,
         r,
         parentPortIndex: builderPortIndex,  // Track which port owns this settlement
@@ -515,6 +688,28 @@ export function findNearestLandConnectedPort(map, settlementQ, settlementR, port
     return nearestPort;
 }
 
+// Find the nearest port that is land-connected to a settlement AND owned by the specified owner
+// Returns port index or null if no connected port exists
+export function findNearestLandConnectedPortForOwner(map, settlementQ, settlementR, ports, owner) {
+    let nearestPort = null;
+    let nearestDistance = Infinity;
+
+    for (let i = 0; i < ports.length; i++) {
+        const port = ports[i];
+        if (port.construction) continue; // Skip ports under construction
+        if ((port.owner || 'player') !== owner) continue; // Skip ports of different owner
+
+        if (isLandConnected(map, port.q, port.r, settlementQ, settlementR)) {
+            const dist = hexDistance(port.q, port.r, settlementQ, settlementR);
+            if (dist < nearestDistance) {
+                nearestDistance = dist;
+                nearestPort = i;
+            }
+        }
+    }
+    return nearestPort;
+}
+
 // Get the home port index (first completed port on the home island)
 // Returns null if no home port exists
 export function getHomePortIndex(gameState, map) {
@@ -562,8 +757,9 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
 }
 
 // Create a new tower (optionally under construction)
-export function createTower(type, q, r, isConstructing = false, builderShipIndex = null, builderPortIndex = null) {
+export function createTower(type, q, r, isConstructing = false, builderShipIndex = null, builderPortIndex = null, owner = 'player') {
     return {
+        owner,  // 'player' | 'ai'
         type,
         q,
         r,
@@ -836,4 +1032,75 @@ export function updateNotification(gameState, dt) {
             gameState.notification = null;
         }
     }
+}
+
+// ============================================================
+// Ownership Helper Functions (for AI opponent support)
+// ============================================================
+
+// Get all ships owned by a specific faction
+export function getShipsByOwner(gameState, owner) {
+    return gameState.ships.filter(s => s.owner === owner);
+}
+
+// Get all ports owned by a specific faction
+export function getPortsByOwner(gameState, owner) {
+    return gameState.ports.filter(p => p.owner === owner);
+}
+
+// Get all settlements owned by a specific faction
+export function getSettlementsByOwner(gameState, owner) {
+    return gameState.settlements.filter(s => s.owner === owner);
+}
+
+// Get all towers owned by a specific faction
+export function getTowersByOwner(gameState, owner) {
+    return gameState.towers.filter(t => t.owner === owner);
+}
+
+// Get ship indices for a specific owner
+export function getShipIndicesByOwner(gameState, owner) {
+    const indices = [];
+    for (let i = 0; i < gameState.ships.length; i++) {
+        if (gameState.ships[i].owner === owner) {
+            indices.push(i);
+        }
+    }
+    return indices;
+}
+
+// Get port indices for a specific owner
+export function getPortIndicesByOwner(gameState, owner) {
+    const indices = [];
+    for (let i = 0; i < gameState.ports.length; i++) {
+        if (gameState.ports[i].owner === owner) {
+            indices.push(i);
+        }
+    }
+    return indices;
+}
+
+// Get home port index for a specific owner
+export function getHomePortIndexForOwner(gameState, map, owner) {
+    const homeHex = owner === 'player' ? gameState.homeIslandHex : gameState.aiHomeIslandHex;
+    if (!homeHex) return null;
+
+    for (let i = 0; i < gameState.ports.length; i++) {
+        const port = gameState.ports[i];
+        if (port.owner !== owner) continue;
+        if (port.construction && !port.construction.upgradeTo) continue;
+        if (isLandConnected(map, homeHex.q, homeHex.r, port.q, port.r)) {
+            return i;
+        }
+    }
+    return null;
+}
+
+// Count total entities for an owner (for win condition checking)
+export function countEntitiesForOwner(gameState, owner) {
+    const ships = getShipsByOwner(gameState, owner).length;
+    const ports = getPortsByOwner(gameState, owner).length;
+    const settlements = getSettlementsByOwner(gameState, owner).length;
+    const towers = getTowersByOwner(gameState, owner).length;
+    return { ships, ports, settlements, towers, total: ships + ports + settlements + towers };
 }

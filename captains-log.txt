@@ -1,6 +1,26 @@
 CAPTAIN'S LOG
 =============
 
+2025-12-31 | Add AI opponent for versus mode
+--------------------------------------------
+### New
+- AI opponent system - builds ships, ports, settlements, towers like a player
+- "Versus AI" game mode with mirror start and total elimination win condition
+- Entity ownership system (`owner` field distinguishes player vs AI units)
+- AI decision engine with strategic priorities, build evaluation, and ship commands
+- AI documentation (docs/features/ai-opponent.md)
+
+### Improved
+- Combat system is now owner-aware (no friendly fire, faction-based targeting)
+- Ships can attack AI structures (ports, settlements, towers) using `attackDistance`
+- Added `attackDistance` property to all ships for data-driven attack range
+- `findNearestWaterInRange()` enables targeting structures up to 2 hexes inland
+- Red visual indicators distinguish AI-owned units
+
+### Fixed
+- Ships now properly navigate to water tiles when attacking inland structures
+
+
 2025-12-30 | Add patrol routes with auto-attack
 -----------------------------------------------
 ### New

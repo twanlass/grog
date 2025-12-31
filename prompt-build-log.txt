@@ -1106,3 +1106,8 @@ kaplay.js?v=9a8bb7fb:5276 TypeError: Cannot read properties of undefined (readin
 
 ## 246. User prompt
 > small improvement: disable screen edge scrolling (mousing near edge to pan camera) when game is paused, when controls menu is open, or on defeat / game over screen 
+
+## 247. User prompt
+> okay, we're going to implement a new major feature: we want to introduce AI opponents. Currently, we have simple AI pirates that attack. We want to now introduce a new AI opponent that can do everything a player can like build ports, towers, ships, upgrade and repair units, place settlements, etc. We'll also want to create a new game mode for this (we have sandbox and defend today; maybe we call this mode mode multiplayer). 
+
+Figure out where to start and make a plan. 

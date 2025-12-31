@@ -28,6 +28,16 @@ export function drawPorts(ctx, gameState, map) {
         const isConstructing = port.construction !== null;
         const isHomePort = (i === homePortIndex);
 
+        // Draw red indicator circle for AI ports (enemy faction marker)
+        if (port.owner === 'ai') {
+            k.drawCircle({
+                pos: k.vec2(screenX, screenY),
+                radius: 22 * zoom,
+                color: k.rgb(200, 60, 60),
+                opacity: 0.4,
+            });
+        }
+
         // Use PNG sprite for home port dock, otherwise pixel art
         if (isHomePort && portData.imageSprite) {
             const spriteScale = zoom * (portData.spriteScale || 1);
@@ -94,6 +104,16 @@ export function drawSettlements(ctx, gameState) {
         const settlementData = SETTLEMENTS.settlement;
         const isConstructing = settlement.construction !== null;
 
+        // Draw red indicator circle for AI settlements (enemy faction marker)
+        if (settlement.owner === 'ai') {
+            k.drawCircle({
+                pos: k.vec2(screenX, screenY),
+                radius: 16 * zoom,
+                color: k.rgb(200, 60, 60),
+                opacity: 0.4,
+            });
+        }
+
         // Use image sprite if available, otherwise fall back to pixel art
         if (settlementData.imageSprite) {
             const spriteScale = zoom * 1.0;
@@ -142,6 +162,16 @@ export function drawTowers(ctx, gameState) {
 
         const towerData = TOWERS[tower.type];
         const isConstructing = tower.construction !== null;
+
+        // Draw red indicator circle for AI towers (enemy faction marker)
+        if (tower.owner === 'ai') {
+            k.drawCircle({
+                pos: k.vec2(screenX, screenY),
+                radius: 18 * zoom,
+                color: k.rgb(200, 60, 60),
+                opacity: 0.4,
+            });
+        }
 
         // Use image sprite if available, otherwise fall back to pixel art
         if (towerData.imageSprite) {
@@ -193,6 +223,8 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
         // Hide pirates in non-visible areas (player ships always visible)
         // Pirates only show in currently visible hexes, not just explored ones
         if (ship.type === 'pirate' && !isHexVisible(fogState, ship.q, ship.r)) continue;
+        // Also hide AI ships in non-visible areas
+        if (ship.owner === 'ai' && !isHexVisible(fogState, ship.q, ship.r)) continue;
 
         const pos = getShipVisualPosLocal(ship);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -203,6 +235,16 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             screenY < -100 || screenY > ctx.screenHeight + 100) continue;
 
         const shipData = SHIPS[ship.type];
+
+        // Draw red indicator circle for AI ships (enemy faction marker)
+        if (ship.owner === 'ai') {
+            k.drawCircle({
+                pos: k.vec2(screenX, screenY),
+                radius: 18 * zoom,
+                color: k.rgb(200, 60, 60),
+                opacity: 0.4,
+            });
+        }
 
         // Use image sprite if available, otherwise fall back to pixel art
         if (shipData.imageSprite) {

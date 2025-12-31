@@ -14,6 +14,7 @@ src/
 │   ├── construction.js      - Building progress for ports/settlements/towers
 │   ├── resourceGeneration.js - Settlement resource production
 │   ├── combat.js            - Combat, projectiles, damage, respawns
+│   ├── aiPlayer.js          - AI opponent decisions (versus mode)
 │   └── inputHandler.js      - Click interaction handlers
 │
 ├── rendering/            # Visual rendering (runs in draw loop)
@@ -88,6 +89,23 @@ The `updateCombat()` function handles:
 - Projectile movement and hit detection
 - Damage application and unit destruction
 - Pirate respawn timers
+
+### AI Opponent
+**File:** `src/systems/aiPlayer.js`
+
+Examples: AI strategy improvements, new AI behaviors, difficulty levels
+
+The `updateAIPlayer()` function handles:
+- Strategic priority adjustments (every 5s)
+- Build decisions: ships, settlements, towers (every 3s)
+- Ship commands: patrol, chase, attack (every 2s)
+- Threat response when attacked
+
+Key helper functions:
+- `updateStrategicPriorities()` - Adjusts AI priorities based on power ratio
+- `evaluateBuildOptions()` - Decides what to build next
+- `updateShipCommands()` - Commands AI ships to patrol/attack
+- `findNearestEnemy()` - Finds closest player entity
 
 ### Click Interactions
 **File:** `src/systems/inputHandler.js`

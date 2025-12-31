@@ -41,7 +41,9 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
             // Find free water hex to spawn ship
             const waterTile = findFreeAdjacentWater(map, port.q, port.r, gameState.ships);
             if (waterTile) {
-                const ship = createShip(port.buildQueue.shipType, waterTile.q, waterTile.r);
+                // Ships inherit owner from the port that built them
+                const portOwner = port.owner || 'player';
+                const ship = createShip(port.buildQueue.shipType, waterTile.q, waterTile.r, portOwner);
                 gameState.ships.push(ship);
 
                 // If port has rally point, set ship's waypoint

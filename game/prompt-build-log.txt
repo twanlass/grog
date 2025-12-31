@@ -110,3 +110,33 @@ Read the output file to retrieve the output.
 
 ## 25. User prompt
 > Alright, this feature looks great. Let's ship it. 
+
+## 26. User prompt
+> can you pull latest and merge changes / fix conflicts? 
+
+## 27. User prompt
+> ship it
+
+## 28. User prompt
+> error starting versus mode: 
+kaplay.js?v=9a8bb7fb:5276 ReferenceError: startTile is not defined
+    at Object.gameScene [as game] (gameScene.js:249:28)
+xn    @    kaplay.js?v=9a8bb7fb:5276
+
+## 29. User prompt
+> Sick! Okay, I'm noticing that I can't attack the AI in versus mode. With ships selected and targeting the ai ships or structures my ship won't fire
+
+## 30. User prompt
+> I'm also noticing that I can't attack AI strutures with my ships (i.e. attacking their ports, towsers, settlements)
+
+## 31. User prompt
+> getting better. Okay, I'm unable to attack this settlement with my ship (see screenshot). Why? 
+
+## 32. User prompt
+> lets update ships.js to include `attackDistance` for all ships. Then use `attackDistance` to determine if the player can attack inland AI structures like settlements 
+
+## 33. User prompt
+> document the player AI in docs/features; also update the _adding feature doc as neccesary 
+
+## 34. User prompt
+> ship it

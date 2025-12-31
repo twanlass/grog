@@ -22,6 +22,8 @@ game/
       tradeRoutes.js       # Cargo loading/unloading logic
       construction.js      # Port/settlement building progress
       resourceGeneration.js # Settlement resource production
+      combat.js            # Combat, projectiles, damage
+      aiPlayer.js          # AI opponent decisions (versus mode)
       inputHandler.js      # Click interaction handlers
     scenes/
       gameScene.js    # Main game loop and rendering
@@ -37,6 +39,7 @@ game/
 See `docs/features/` for detailed feature docs. **Read the relevant feature doc before modifying a feature** to understand the data structures, key functions, and edge cases.
 
 - [Adding Features](docs/features/adding-features.md) - Where to add new game features
+- [AI Opponent](docs/features/ai-opponent.md) - Versus mode AI
 - [Fog of War](docs/features/fog-of-war.md)
 - [Ship Building](docs/features/ship-building.md)
 - [Port Building](docs/features/port-building.md)

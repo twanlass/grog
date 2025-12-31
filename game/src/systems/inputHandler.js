@@ -7,7 +7,7 @@ import {
     startBuilding, startPortUpgrade, startTowerUpgrade, isPortBuildingSettlement, isPortBuildingTower,
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute, exitPatrolMode,
-    findFreeAdjacentWater, findNearbyWaitingHex, getHomePortIndex,
+    findFreeAdjacentWater, findNearestWaterInRange, findNearbyWaitingHex, getHomePortIndex,
     canAffordCrew, showNotification
 } from "../gameState.js";
 import { hexKey } from "../hex.js";
@@ -485,6 +485,8 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
         const ship = gameState.ships[i];
         // Don't allow selecting pirate ships like player units
         if (ship.type === 'pirate') continue;
+        // Don't allow selecting AI-owned ships
+        if (ship.owner === 'ai') continue;
         // Use visual position if available (smooth movement), fallback to hex position
         const shipPos = getShipVisualPos ? getShipVisualPos(ship) : hexToPixel(ship.q, ship.r);
         const dx = worldX - shipPos.x;
@@ -505,6 +507,8 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     // Check ports
     for (let i = 0; i < gameState.ports.length; i++) {
         const port = gameState.ports[i];
+        // Don't allow selecting AI-owned ports
+        if (port.owner === 'ai') continue;
         const portPos = hexToPixel(port.q, port.r);
         const dx = worldX - portPos.x;
         const dy = worldY - portPos.y;
@@ -524,6 +528,8 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     // Check settlements
     for (let i = 0; i < gameState.settlements.length; i++) {
         const settlement = gameState.settlements[i];
+        // Don't allow selecting AI-owned settlements
+        if (settlement.owner === 'ai') continue;
         const settlementPos = hexToPixel(settlement.q, settlement.r);
         const dx = worldX - settlementPos.x;
         const dy = worldY - settlementPos.y;
@@ -543,6 +549,8 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     // Check towers
     for (let i = 0; i < gameState.towers.length; i++) {
         const tower = gameState.towers[i];
+        // Don't allow selecting AI-owned towers
+        if (tower.owner === 'ai') continue;
         const towerPos = hexToPixel(tower.q, tower.r);
         const dx = worldX - towerPos.x;
         const dy = worldY - towerPos.y;
@@ -683,54 +691,136 @@ export function handlePatrolWaypointClick(gameState, map, clickedHex) {
 }
 
 /**
- * Handle Ctrl+click to attack a pirate ship
+ * Handle Ctrl+click to attack an enemy unit (pirate or AI-owned)
+ * @param {Object} map - The game map (for finding water tiles near structures)
  * @param {function} getShipVisualPos - Function to get ship visual position for smooth hit detection
  * @returns {boolean} true if attack target was set
  */
-export function handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPos) {
+export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPos) {
     const selectedShips = getSelectedShips(gameState);
     if (selectedShips.length === 0) return false;
 
-    // Find clicked pirate ship - use visual position for hit detection during movement
+    // Get max attack distance from selected ships (for targeting inland structures)
+    let maxAttackDistance = 2;  // default
+    for (const ship of selectedShips) {
+        const shipData = SHIPS[ship.type];
+        if (shipData && shipData.attackDistance) {
+            maxAttackDistance = Math.max(maxAttackDistance, shipData.attackDistance);
+        }
+    }
+
+    // Helper to set attack target for all selected player ships
+    // waypointQ/waypointR can differ from targetQ/targetR for land structures
+    function setAttackTargetForSelected(targetType, targetIndex, targetQ, targetR, waypointQ, waypointR) {
+        let attackCount = 0;
+        for (const sel of gameState.selectedUnits) {
+            if (sel.type !== 'ship') continue;
+            if (isShipBuildingPort(sel.index, gameState.ports)) continue;
+            if (isShipBuildingTower(sel.index, gameState.towers)) continue;
+            const ship = gameState.ships[sel.index];
+            if (ship.type === 'pirate') continue;  // Can't control pirate ships
+            if (ship.owner === 'ai') continue;  // Can't control AI ships
+
+            ship.attackTarget = { type: targetType, index: targetIndex };
+            // Only allow immediate fire if not on active cooldown (prevents rapid fire exploit)
+            if (!ship.attackCooldown || ship.attackCooldown <= 0) {
+                ship.attackCooldown = 0;
+            }
+            if (ship.tradeRoute) {
+                cancelTradeRoute(ship);
+            }
+            // Navigate to waypoint (water tile near target for structures)
+            ship.waypoints = [{ q: waypointQ, r: waypointR }];
+            ship.path = null;
+            // Clear patrol state - manual attack takes priority over patrol
+            ship.patrolRoute = [];
+            ship.isPatrolling = false;
+            attackCount++;
+        }
+        return attackCount;
+    }
+
+    // Find clicked enemy ship (pirate or AI-owned)
     for (let i = 0; i < gameState.ships.length; i++) {
         const target = gameState.ships[i];
-        if (target.type !== 'pirate') continue;
+        // Target must be an enemy: pirate or AI-owned
+        const isEnemy = target.type === 'pirate' || target.owner === 'ai';
+        if (!isEnemy) continue;
 
         const pos = getShipVisualPos ? getShipVisualPos(target) : hexToPixel(target.q, target.r);
         const dx = worldX - pos.x;
         const dy = worldY - pos.y;
         if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
-            // Set attack target for all selected player ships
-            let attackCount = 0;
-            for (const sel of gameState.selectedUnits) {
-                if (sel.type !== 'ship') continue;
-                if (isShipBuildingPort(sel.index, gameState.ports)) continue;
-                if (isShipBuildingTower(sel.index, gameState.towers)) continue;
-                const ship = gameState.ships[sel.index];
-                if (ship.type === 'pirate') continue;  // Can't control enemy ships
-
-                ship.attackTarget = { type: 'ship', index: i };
-                // Only allow immediate fire if not on active cooldown (prevents rapid fire exploit)
-                if (!ship.attackCooldown || ship.attackCooldown <= 0) {
-                    ship.attackCooldown = 0;
-                }
-                if (ship.tradeRoute) {
-                    cancelTradeRoute(ship);
-                }
-                ship.waypoints = [{ q: target.q, r: target.r }];
-                ship.path = null;
-                // Clear patrol state - manual attack takes priority over patrol
-                ship.patrolRoute = [];
-                ship.isPatrolling = false;
-                attackCount++;
-            }
+            // Ships are on water, so waypoint = target position
+            const attackCount = setAttackTargetForSelected('ship', i, target.q, target.r, target.q, target.r);
             if (attackCount > 0) {
                 gameState.attackTargetShipIndex = i; // Track for red border visualization
-                console.log(`${attackCount} ship(s) attacking pirate at (${target.q}, ${target.r})`);
+                console.log(`${attackCount} ship(s) attacking enemy ship at (${target.q}, ${target.r})`);
                 return true;
             }
         }
     }
+
+    // Find clicked enemy port (AI-owned)
+    for (let i = 0; i < gameState.ports.length; i++) {
+        const target = gameState.ports[i];
+        if (target.owner !== 'ai') continue;
+
+        const pos = hexToPixel(target.q, target.r);
+        const dx = worldX - pos.x;
+        const dy = worldY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+            // Ports are on land - find water tile within attack range
+            const waterTile = findNearestWaterInRange(map, target.q, target.r, maxAttackDistance);
+            if (!waterTile) continue;  // No accessible water within range
+            const attackCount = setAttackTargetForSelected('port', i, target.q, target.r, waterTile.q, waterTile.r);
+            if (attackCount > 0) {
+                console.log(`${attackCount} ship(s) attacking enemy port at (${target.q}, ${target.r})`);
+                return true;
+            }
+        }
+    }
+
+    // Find clicked enemy settlement (AI-owned)
+    for (let i = 0; i < gameState.settlements.length; i++) {
+        const target = gameState.settlements[i];
+        if (target.owner !== 'ai') continue;
+
+        const pos = hexToPixel(target.q, target.r);
+        const dx = worldX - pos.x;
+        const dy = worldY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+            // Settlements are on land - find water tile within attack range
+            const waterTile = findNearestWaterInRange(map, target.q, target.r, maxAttackDistance);
+            if (!waterTile) continue;  // No accessible water within range
+            const attackCount = setAttackTargetForSelected('settlement', i, target.q, target.r, waterTile.q, waterTile.r);
+            if (attackCount > 0) {
+                console.log(`${attackCount} ship(s) attacking enemy settlement at (${target.q}, ${target.r})`);
+                return true;
+            }
+        }
+    }
+
+    // Find clicked enemy tower (AI-owned)
+    for (let i = 0; i < gameState.towers.length; i++) {
+        const target = gameState.towers[i];
+        if (target.owner !== 'ai') continue;
+
+        const pos = hexToPixel(target.q, target.r);
+        const dx = worldX - pos.x;
+        const dy = worldY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+            // Towers are on land - find water tile within attack range
+            const waterTile = findNearestWaterInRange(map, target.q, target.r, maxAttackDistance);
+            if (!waterTile) continue;  // No accessible water within range
+            const attackCount = setAttackTargetForSelected('tower', i, target.q, target.r, waterTile.q, waterTile.r);
+            if (attackCount > 0) {
+                console.log(`${attackCount} ship(s) attacking enemy tower at (${target.q}, ${target.r})`);
+                return true;
+            }
+        }
+    }
+
     return false;
 }
 

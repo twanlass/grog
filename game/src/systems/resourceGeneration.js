@@ -1,6 +1,6 @@
 // Resource generation system - handles settlement resource production and floating numbers
 import { SETTLEMENTS } from "../sprites/settlements.js";
-import { findNearestLandConnectedPort, getHomePortIndex } from "../gameState.js";
+import { findNearestLandConnectedPort, findNearestLandConnectedPortForOwner, getHomePortIndex, getHomePortIndexForOwner } from "../gameState.js";
 
 /**
  * Updates resource generation from settlements and floating number animations
@@ -16,10 +16,12 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt, map) {
     for (const settlement of gameState.settlements) {
         if (settlement.construction) continue;  // Skip settlements under construction
 
-        // Check if settlement has a land-connected port
-        const connectedPortIndex = findNearestLandConnectedPort(map, settlement.q, settlement.r, gameState.ports);
+        const settlementOwner = settlement.owner || 'player';
+
+        // Check if settlement has a land-connected port owned by the same faction
+        const connectedPortIndex = findNearestLandConnectedPortForOwner(map, settlement.q, settlement.r, gameState.ports, settlementOwner);
         if (connectedPortIndex === null) {
-            // No connected port - settlement is inactive, don't produce resources
+            // No connected port of same owner - settlement is inactive, don't produce resources
             continue;
         }
 
@@ -32,12 +34,16 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt, map) {
         if (settlement.generationTimer >= interval) {
             settlement.generationTimer = 0;
 
-            const homePortIndex = getHomePortIndex(gameState, map);
+            const homePortIndex = getHomePortIndexForOwner(gameState, map, settlementOwner);
             const isHomePort = connectedPortIndex === homePortIndex;
 
             if (isHomePort) {
-                // Add to global resources
-                gameState.resources.wood += woodAmount;
+                // Add to the owner's global resources
+                if (settlementOwner === 'ai' && gameState.aiPlayer) {
+                    gameState.aiPlayer.resources.wood += woodAmount;
+                } else {
+                    gameState.resources.wood += woodAmount;
+                }
             } else {
                 // Add to port's local storage
                 const port = gameState.ports[connectedPortIndex];
@@ -46,15 +52,17 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt, map) {
                 }
             }
 
-            // Spawn floating number
-            floatingNumbers.push({
-                q: settlement.q, r: settlement.r,
-                text: `+${woodAmount}`,
-                type: 'wood',
-                age: 0,
-                duration: 3.0,  // Total: 0.5s rise + 2s pause + 0.5s fade
-                offsetX: 0,
-            });
+            // Spawn floating number (only for player settlements for now)
+            if (settlementOwner === 'player') {
+                floatingNumbers.push({
+                    q: settlement.q, r: settlement.r,
+                    text: `+${woodAmount}`,
+                    type: 'wood',
+                    age: 0,
+                    duration: 3.0,  // Total: 0.5s rise + 2s pause + 0.5s fade
+                    offsetX: 0,
+                });
+            }
         }
     }
 

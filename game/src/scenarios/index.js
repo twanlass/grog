@@ -40,6 +40,22 @@ export const SCENARIOS = [
             ],
         },
     },
+    {
+        id: 'versus',
+        name: 'Versus AI',
+        description: 'Eliminate the enemy',
+        gameMode: 'versus',
+        mapSize: { width: 60, height: 60 },
+        startingResources: { wood: 25 },
+        pirateConfig: {
+            startingCount: 0,  // No neutral pirates in versus mode
+            initialDelay: 0,
+        },
+        aiConfig: {
+            enabled: true,
+            startingResources: { wood: 25 },  // Mirror player starting resources
+        },
+    },
 ];
 
 // Get scenario by ID

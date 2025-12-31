@@ -4,7 +4,7 @@ import { SHIPS } from "../sprites/ships.js";
 import { TOWERS } from "../sprites/towers.js";
 import { PORTS } from "../sprites/ports.js";
 import { SETTLEMENTS } from "../sprites/settlements.js";
-import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex } from "../gameState.js";
+import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex, findNearestWaterInRange } from "../gameState.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
 
 // Combat constants
@@ -22,15 +22,16 @@ const LOOT_DURATION = 30;         // seconds before loot expires
  * Updates combat: pirate attacks and projectile movement
  * @param {Function} hexToPixel - Coordinate conversion function
  * @param {Object} gameState - The game state
+ * @param {Object} map - The game map (for finding water tiles)
  * @param {number} dt - Delta time (already scaled by timeScale)
  * @param {Object} fogState - Fog of war state (for marking dirty on destruction)
  */
-export function updateCombat(hexToPixel, gameState, dt, fogState) {
+export function updateCombat(hexToPixel, gameState, map, dt, fogState) {
     if (dt === 0) return; // Paused
 
     handlePirateAttacks(gameState, dt);
     handleAutoReturnFire(gameState);  // Player ships automatically defend themselves
-    handlePatrolChase(gameState);     // Patrolling ships chase their attack targets
+    handlePatrolChase(gameState, map);     // Patrolling ships chase their attack targets
     handlePlayerAttacks(gameState, dt);
     handleTowerAttacks(gameState, dt);  // Towers auto-attack pirates
     updateProjectiles(gameState, dt, fogState);
@@ -93,8 +94,6 @@ function isShipBuilding(shipIndex, gameState) {
  * Player ships automatically return fire when attacked by pirates
  */
 function handleAutoReturnFire(gameState) {
-    const attackDistance = 2;
-
     // Find all pirates that are attacking player ships
     for (let pirateIndex = 0; pirateIndex < gameState.ships.length; pirateIndex++) {
         const pirate = gameState.ships[pirateIndex];
@@ -110,6 +109,8 @@ function handleAutoReturnFire(gameState) {
 
         // If target ship has no attack target and is idle, auto-target the attacker
         if (!targetShip.attackTarget && targetShip.waypoints.length === 0 && !targetShip.tradeRoute) {
+            const shipData = SHIPS[targetShip.type];
+            const attackDistance = shipData.attackDistance || 2;
             const dist = hexDistance(targetShip.q, targetShip.r, pirate.q, pirate.r);
             if (dist <= attackDistance) {
                 // Close enough to return fire immediately
@@ -124,35 +125,47 @@ function handleAutoReturnFire(gameState) {
 }
 
 /**
- * Patrolling ships automatically detect and attack nearby pirates
+ * Patrolling ships automatically detect and attack nearby enemies
  * Uses each ship's sightDistance for detection range
+ * Now owner-aware: player ships attack pirates and AI ships, AI ships attack player ships
  */
 export function handlePatrolAutoAttack(gameState) {
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
-        if (ship.type === 'pirate') continue;
+        if (ship.type === 'pirate') continue;  // Pirates use their own AI
         if (!ship.isPatrolling) continue;
         if (ship.attackTarget) continue;  // Already has a target
 
         // Use ship's sightDistance for detection range
         const detectRange = SHIPS[ship.type].sightDistance;
+        const shipOwner = ship.owner || 'player';
 
-        // Find nearest pirate within detection range
-        let nearestPirate = null;
+        // Find nearest enemy within detection range
+        let nearestEnemy = null;
         let nearestDist = Infinity;
 
         for (let j = 0; j < gameState.ships.length; j++) {
             const target = gameState.ships[j];
-            if (target.type !== 'pirate') continue;
+            // Skip friendly ships
+            if (target.owner === shipOwner) continue;
+            // Pirates are always enemies to player ships
+            if (target.type === 'pirate' && shipOwner === 'player') {
+                // Target pirate
+            } else if (target.owner && target.owner !== shipOwner) {
+                // Target enemy-owned ship
+            } else {
+                continue;  // Not an enemy
+            }
+
             const dist = hexDistance(ship.q, ship.r, target.q, target.r);
             if (dist <= detectRange && dist < nearestDist) {
                 nearestDist = dist;
-                nearestPirate = { index: j };
+                nearestEnemy = { index: j };
             }
         }
 
-        if (nearestPirate) {
-            ship.attackTarget = { type: 'ship', index: nearestPirate.index };
+        if (nearestEnemy) {
+            ship.attackTarget = { type: 'ship', index: nearestEnemy.index };
             // Clear waypoints to stop patrol movement - we'll chase the target
             ship.waypoints = [];
             ship.path = null;
@@ -163,27 +176,52 @@ export function handlePatrolAutoAttack(gameState) {
 /**
  * Patrolling ships with attack targets navigate toward the target
  * Updates waypoint to target's current position each frame
+ * Supports chasing ships, ports, settlements, and towers
  */
-function handlePatrolChase(gameState) {
-    const attackDistance = 2;
-
+function handlePatrolChase(gameState, map) {
     for (const ship of gameState.ships) {
         if (ship.type === 'pirate') continue;
         if (!ship.isPatrolling) continue;
         if (!ship.attackTarget) continue;
 
-        const target = gameState.ships[ship.attackTarget.index];
+        const shipData = SHIPS[ship.type];
+        const attackDistance = shipData.attackDistance || 2;
+
+        // Look up target based on type
+        let target;
+        const targetType = ship.attackTarget.type || 'ship';
+        if (targetType === 'ship') {
+            target = gameState.ships[ship.attackTarget.index];
+        } else if (targetType === 'port') {
+            target = gameState.ports[ship.attackTarget.index];
+        } else if (targetType === 'tower') {
+            target = gameState.towers[ship.attackTarget.index];
+        } else if (targetType === 'settlement') {
+            target = gameState.settlements[ship.attackTarget.index];
+        }
+
         if (!target) continue;  // Target gone, will be handled in handlePlayerAttacks
 
         const dist = hexDistance(ship.q, ship.r, target.q, target.r);
 
         // If not in attack range, set waypoint to chase
         if (dist > attackDistance) {
+            // Determine waypoint - for structures on land, find water within attack range
+            let waypointQ = target.q;
+            let waypointR = target.r;
+            if (targetType !== 'ship') {
+                const waterTile = findNearestWaterInRange(map, target.q, target.r, attackDistance);
+                if (waterTile) {
+                    waypointQ = waterTile.q;
+                    waypointR = waterTile.r;
+                }
+            }
+
             // Set a single waypoint to chase the target
             if (ship.waypoints.length === 0 ||
-                ship.waypoints[0].q !== target.q ||
-                ship.waypoints[0].r !== target.r) {
-                ship.waypoints = [{ q: target.q, r: target.r }];
+                ship.waypoints[0].q !== waypointQ ||
+                ship.waypoints[0].r !== waypointR) {
+                ship.waypoints = [{ q: waypointQ, r: waypointR }];
                 ship.path = null;  // Force path recalculation
             }
         } else {
@@ -195,17 +233,19 @@ function handlePatrolChase(gameState) {
 }
 
 /**
- * Player ships with attack targets fire at pirates when in range
+ * Player ships with attack targets fire at enemies when in range
  * Also decrements cooldowns for ALL player ships (even when not attacking)
+ * Supports targeting ships, ports, settlements, and towers
  */
 function handlePlayerAttacks(gameState, dt) {
-    const attackDistance = 2;
-
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
         if (ship.type === 'pirate') continue;  // Skip pirates (handled by handlePirateAttacks)
         if (isShipBuilding(i, gameState)) continue;  // Can't attack while building
         if (ship.repair) continue;  // Can't attack while repairing
+
+        const shipData = SHIPS[ship.type];
+        const attackDistance = shipData.attackDistance || 2;
 
         // Always decrement cooldown for player ships (even when not in combat)
         if (ship.attackCooldown > 0) {
@@ -215,7 +255,19 @@ function handlePlayerAttacks(gameState, dt) {
         // Skip firing logic if not attacking
         if (!ship.attackTarget) continue;
 
-        const target = gameState.ships[ship.attackTarget.index];
+        // Look up target based on type
+        let target;
+        const targetType = ship.attackTarget.type || 'ship';
+        if (targetType === 'ship') {
+            target = gameState.ships[ship.attackTarget.index];
+        } else if (targetType === 'port') {
+            target = gameState.ports[ship.attackTarget.index];
+        } else if (targetType === 'tower') {
+            target = gameState.towers[ship.attackTarget.index];
+        } else if (targetType === 'settlement') {
+            target = gameState.settlements[ship.attackTarget.index];
+        }
+
         if (!target) {
             ship.attackTarget = null;  // Target destroyed
             // Resume patrol if ship was patrolling
@@ -232,7 +284,7 @@ function handlePlayerAttacks(gameState, dt) {
             // Fire!
             gameState.projectiles.push({
                 sourceShipIndex: i,
-                targetType: 'ship',
+                targetType: targetType,
                 targetIndex: ship.attackTarget.index,
                 fromQ: ship.q,
                 fromR: ship.r,
@@ -296,25 +348,36 @@ function handleTowerAttacks(gameState, dt) {
             }
         }
 
-        // Find all pirates in range, sorted by distance
-        const piratesInRange = [];
+        // Find all enemies in range, sorted by distance
+        // Tower owner determines who is an enemy
+        const towerOwner = tower.owner || 'player';
+        const enemiesInRange = [];
         for (let j = 0; j < gameState.ships.length; j++) {
             const ship = gameState.ships[j];
-            if (ship.type !== 'pirate') continue;
+            // Skip friendly ships
+            if (ship.owner === towerOwner) continue;
+            // Pirates are enemies to player towers
+            if (ship.type === 'pirate' && towerOwner === 'player') {
+                // Target pirate
+            } else if (ship.owner && ship.owner !== towerOwner) {
+                // Target enemy-owned ship
+            } else {
+                continue;  // Not an enemy
+            }
 
             const dist = hexDistance(tower.q, tower.r, ship.q, ship.r);
             if (dist <= attackRange) {
-                piratesInRange.push({ index: j, ship, dist });
+                enemiesInRange.push({ index: j, ship, dist });
             }
         }
-        piratesInRange.sort((a, b) => a.dist - b.dist);
+        enemiesInRange.sort((a, b) => a.dist - b.dist);
 
         // Fire projectiles if ready (smart targeting for multi-shot towers)
-        if (piratesInRange.length > 0 && tower.attackCooldown <= 0) {
+        if (enemiesInRange.length > 0 && tower.attackCooldown <= 0) {
             for (let p = 0; p < projectileCount; p++) {
-                // Target different pirates if available, otherwise double up on nearest
-                const targetIdx = Math.min(p, piratesInRange.length - 1);
-                const target = piratesInRange[targetIdx];
+                // Target different enemies if available, otherwise double up on nearest
+                const targetIdx = Math.min(p, enemiesInRange.length - 1);
+                const target = enemiesInRange[targetIdx];
 
                 if (p === 0) {
                     // First shot fires immediately
@@ -348,6 +411,7 @@ function handleTowerAttacks(gameState, dt) {
 /**
  * Move projectiles and apply damage when they hit
  * Uses position-based hit detection: only hits if a valid target is at destination hex
+ * Now owner-aware: projectiles only hit entities owned by enemies
  */
 function updateProjectiles(gameState, dt, fogState) {
     for (let i = gameState.projectiles.length - 1; i >= 0; i--) {
@@ -357,7 +421,19 @@ function updateProjectiles(gameState, dt, fogState) {
         if (proj.progress >= 1) {
             // Determine what faction fired this projectile
             const sourceShip = proj.sourceShipIndex !== undefined ? gameState.ships[proj.sourceShipIndex] : null;
-            const isPirateShot = sourceShip?.type === 'pirate';
+            const sourceTower = proj.sourceTowerIndex !== undefined ? gameState.towers[proj.sourceTowerIndex] : null;
+
+            // Determine source owner
+            let sourceOwner = 'player';  // Default
+            if (sourceShip) {
+                if (sourceShip.type === 'pirate') {
+                    sourceOwner = 'pirate';  // Pirates are their own faction
+                } else {
+                    sourceOwner = sourceShip.owner || 'player';
+                }
+            } else if (sourceTower) {
+                sourceOwner = sourceTower.owner || 'player';
+            }
 
             // Find any valid target at the destination hex
             let hitType = null;
@@ -367,12 +443,9 @@ function updateProjectiles(gameState, dt, fogState) {
             for (let j = 0; j < gameState.ships.length; j++) {
                 const ship = gameState.ships[j];
                 if (ship.q === proj.toQ && ship.r === proj.toR) {
-                    // Pirates hit player ships, players/towers hit pirates
-                    if (isPirateShot && ship.type !== 'pirate') {
-                        hitType = 'ship';
-                        hitIndex = j;
-                        break;
-                    } else if (!isPirateShot && ship.type === 'pirate') {
+                    const targetOwner = ship.type === 'pirate' ? 'pirate' : (ship.owner || 'player');
+                    // Can only hit enemies (different owner)
+                    if (targetOwner !== sourceOwner) {
                         hitType = 'ship';
                         hitIndex = j;
                         break;
@@ -380,30 +453,39 @@ function updateProjectiles(gameState, dt, fogState) {
                 }
             }
 
-            // Pirates can also hit ports/towers at destination
-            if (hitIndex === -1 && isPirateShot) {
+            // Also check ports/towers/settlements at destination (enemies can hit these)
+            if (hitIndex === -1) {
                 for (let j = 0; j < gameState.ports.length; j++) {
                     const port = gameState.ports[j];
                     if (port.q === proj.toQ && port.r === proj.toR) {
-                        hitType = 'port';
-                        hitIndex = j;
-                        break;
+                        const targetOwner = port.owner || 'player';
+                        if (targetOwner !== sourceOwner) {
+                            hitType = 'port';
+                            hitIndex = j;
+                            break;
+                        }
                     }
                 }
-                if (hitIndex === -1) {
-                    for (let j = 0; j < gameState.towers.length; j++) {
-                        const tower = gameState.towers[j];
-                        if (tower.q === proj.toQ && tower.r === proj.toR) {
+            }
+            if (hitIndex === -1) {
+                for (let j = 0; j < gameState.towers.length; j++) {
+                    const tower = gameState.towers[j];
+                    if (tower.q === proj.toQ && tower.r === proj.toR) {
+                        const targetOwner = tower.owner || 'player';
+                        if (targetOwner !== sourceOwner) {
                             hitType = 'tower';
                             hitIndex = j;
                             break;
                         }
                     }
                 }
-                if (hitIndex === -1) {
-                    for (let j = 0; j < gameState.settlements.length; j++) {
-                        const settlement = gameState.settlements[j];
-                        if (settlement.q === proj.toQ && settlement.r === proj.toR) {
+            }
+            if (hitIndex === -1) {
+                for (let j = 0; j < gameState.settlements.length; j++) {
+                    const settlement = gameState.settlements[j];
+                    if (settlement.q === proj.toQ && settlement.r === proj.toR) {
+                        const targetOwner = settlement.owner || 'player';
+                        if (targetOwner !== sourceOwner) {
                             hitType = 'settlement';
                             hitIndex = j;
                             break;
@@ -664,19 +746,17 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
         }
     }
 
-    // Fix player ship attackTarget references
-    if (removedType === 'ship') {
-        for (const ship of gameState.ships) {
-            if (ship.attackTarget && ship.attackTarget.type === 'ship') {
-                if (ship.attackTarget.index === removedIndex) {
-                    ship.attackTarget = null;
-                    // Resume patrol if ship was patrolling
-                    if (ship.isPatrolling && ship.patrolRoute.length > 0) {
-                        ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
-                    }
-                } else if (ship.attackTarget.index > removedIndex) {
-                    ship.attackTarget.index--;
+    // Fix player ship attackTarget references (for any removed entity type)
+    for (const ship of gameState.ships) {
+        if (ship.attackTarget && ship.attackTarget.type === removedType) {
+            if (ship.attackTarget.index === removedIndex) {
+                ship.attackTarget = null;
+                // Resume patrol if ship was patrolling
+                if (ship.isPatrolling && ship.patrolRoute.length > 0) {
+                    ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
                 }
+            } else if (ship.attackTarget.index > removedIndex) {
+                ship.attackTarget.index--;
             }
         }
     }

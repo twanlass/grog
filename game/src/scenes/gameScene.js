@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, countEntitiesForOwner } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations } from "../fogOfWar.js";
 
@@ -31,6 +31,7 @@ import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack } from "../s
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
 import { startRepair } from "../systems/repair.js";
+import { updateAIPlayer } from "../systems/aiPlayer.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
@@ -135,24 +136,50 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         // Store scenario reference for wave system
         gameState.scenario = scenario;
 
-        // Find starting position and place initial units
-        const startTile = findStartingPosition(map);
-        if (startTile) {
-            // Place starting dock port (player must build ships)
-            gameState.ports.push(createPort('dock', startTile.q, startTile.r));
+        // Handle initialization based on game mode
+        if (scenario.gameMode === 'versus') {
+            // Versus mode: find two starting positions on opposite sides
+            const positions = findOppositeStartingPositions(map);
+            if (positions) {
+                // Player start
+                gameState.ports.push(createPort('dock', positions.player.q, positions.player.r, false, null, 'player'));
+                gameState.homeIslandHex = { q: positions.player.q, r: positions.player.r };
 
-            // Set home island - the landmass where the first port was placed
-            gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
+                // AI start
+                gameState.ports.push(createPort('dock', positions.ai.q, positions.ai.r, false, null, 'ai'));
+                gameState.aiHomeIslandHex = { q: positions.ai.q, r: positions.ai.r };
 
-            // Handle initial pirate spawning based on game mode
-            if (scenario.gameMode === 'sandbox') {
-                // Sandbox mode: queue initial pirates after delay
-                for (let p = 0; p < scenario.pirateConfig.startingCount; p++) {
-                    gameState.pirateRespawnQueue.push({ timer: scenario.pirateConfig.initialDelay });
+                // Initialize AI player state
+                gameState.aiPlayer = createAIPlayerState(scenario.aiConfig);
+            } else {
+                // Fallback: single player start if opposite positions not found
+                const startTile = findStartingPosition(map);
+                if (startTile) {
+                    gameState.ports.push(createPort('dock', startTile.q, startTile.r, false, null, 'player'));
+                    gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
                 }
-            } else if (scenario.gameMode === 'defend') {
-                // Defend mode: initialize wave timer
-                gameState.waveState.initialTimer = scenario.pirateConfig.initialDelay;
+                console.warn('Could not find opposite starting positions for versus mode');
+            }
+        } else {
+            // Sandbox and Defend modes: single player start
+            const startTile = findStartingPosition(map);
+            if (startTile) {
+                // Place starting dock port (player must build ships)
+                gameState.ports.push(createPort('dock', startTile.q, startTile.r, false, null, 'player'));
+
+                // Set home island - the landmass where the first port was placed
+                gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
+
+                // Handle initial pirate spawning based on game mode
+                if (scenario.gameMode === 'sandbox') {
+                    // Sandbox mode: queue initial pirates after delay
+                    for (let p = 0; p < scenario.pirateConfig.startingCount; p++) {
+                        gameState.pirateRespawnQueue.push({ timer: scenario.pirateConfig.initialDelay });
+                    }
+                } else if (scenario.gameMode === 'defend') {
+                    // Defend mode: initialize wave timer
+                    gameState.waveState.initialTimer = scenario.pirateConfig.initialDelay;
+                }
             }
         }
 
@@ -219,10 +246,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         let gameTime = 0;
 
         // Bird states (3 birds orbiting home port with varying sizes and staggered starts)
-        const birdStates = startTile ? [
-            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0, angle: 0, orbitRadius: 140, orbitSpeed: 0.3, scale: 1.0 },
-            { q: startTile.q, r: startTile.r, frame: 1, frameTimer: 0.12, angle: 2.5, orbitRadius: 160, orbitSpeed: 0.26, scale: 0.85 },
-            { q: startTile.q, r: startTile.r, frame: 0, frameTimer: 0.06, angle: 4.8, orbitRadius: 180, orbitSpeed: 0.22, scale: 0.70 },
+        const homeHex = gameState.homeIslandHex;
+        const birdStates = homeHex ? [
+            { q: homeHex.q, r: homeHex.r, frame: 0, frameTimer: 0, angle: 0, orbitRadius: 140, orbitSpeed: 0.3, scale: 1.0 },
+            { q: homeHex.q, r: homeHex.r, frame: 1, frameTimer: 0.12, angle: 2.5, orbitRadius: 160, orbitSpeed: 0.26, scale: 0.85 },
+            { q: homeHex.q, r: homeHex.r, frame: 0, frameTimer: 0.06, angle: 4.8, orbitRadius: 180, orbitSpeed: 0.22, scale: 0.70 },
         ] : [];
 
         // Pre-calculate world positions for all tiles (once at load)
@@ -339,11 +367,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             const homePortIdx = getHomePortIndex(gameState, map);
             const homePort = homePortIdx !== null ? gameState.ports[homePortIdx] : null;
             updatePirateAI(gameState, map, homePort, dt); // Pirates patrol near home port
+            updateAIPlayer(gameState, map, fogState, dt); // AI opponent decisions (versus mode)
             handlePatrolAutoAttack(gameState);  // Patrolling ships detect and target pirates
             updateTradeRoutes(gameState, map, dt);
             updateConstruction(gameState, map, fogState, dt, floatingNumbers);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
-            updateCombat(hexToPixel, gameState, dt, fogState);
+            updateCombat(hexToPixel, gameState, map, dt, fogState);
             updateRepair(gameState, dt);
             updatePirateRespawns(gameState, map, createShip, hexKey, dt);
             updateWaveSpawner(gameState, map, createShip, hexKey, dt, fogState);
@@ -440,8 +469,23 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 }
             }
 
-            // Generic game over: all player ships and ports destroyed
-            if (playerShips.length === 0 && gameState.ports.length === 0) {
+            // Versus mode: total elimination win condition
+            if (scenario && scenario.gameMode === 'versus' && !gameState.gameOver) {
+                const playerCounts = countEntitiesForOwner(gameState, 'player');
+                const aiCounts = countEntitiesForOwner(gameState, 'ai');
+
+                // Player wins if AI has no entities left
+                if (aiCounts.total === 0) {
+                    gameState.gameOver = 'win';
+                }
+                // Player loses if they have no entities left
+                if (playerCounts.total === 0) {
+                    gameState.gameOver = 'lose';
+                }
+            }
+
+            // Generic game over: all player ships and ports destroyed (for non-versus modes)
+            if (scenario && scenario.gameMode !== 'versus' && playerShips.length === 0 && gameState.ports.length === 0) {
                 gameState.gameOver = 'lose';
             }
 
@@ -633,7 +677,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 // Game over text
                 const isLose = gameState.gameOver === 'lose';
                 const title = isLose ? "DEFEATED" : "VICTORY";
-                const subtitle = isLose ? "Your home port was destroyed" : "You survived!";
+                let subtitle;
+                if (scenario && scenario.gameMode === 'versus') {
+                    subtitle = isLose ? "Your forces were eliminated" : "Enemy forces eliminated!";
+                } else {
+                    subtitle = isLose ? "Your home port was destroyed" : "You survived!";
+                }
                 const titleColor = isLose ? k.rgb(200, 60, 60) : k.rgb(60, 200, 60);
 
                 k.drawText({
@@ -1163,7 +1212,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             // When Command is held, check special interactions BEFORE unit selection
             if (isCommandHeld) {
                 // Attack pirate ship
-                if (handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
+                if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
                     return;  // Attack command handled
                 }
                 // Trade route to foreign port
@@ -1245,7 +1294,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             const isShiftHeld = k.isKeyDown("shift");
 
             // Attack pirate ship
-            if (handleAttackClick(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
+            if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
                 return;
             }
 
@@ -1411,8 +1460,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         }
 
         // Center camera on starting position (or map center if no start)
-        if (startTile) {
-            const startPos = hexToPixel(startTile.q, startTile.r);
+        if (gameState.homeIslandHex) {
+            const startPos = hexToPixel(gameState.homeIslandHex.q, gameState.homeIslandHex.r);
             cameraX = startPos.x;
             cameraY = startPos.y;
         } else {
