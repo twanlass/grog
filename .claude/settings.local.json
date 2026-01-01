@@ -1,0 +1,59 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline -10)",
+      "Bash(git -C /Users/tylerwanlass/code/grog status)",
+      "WebFetch(domain:kaplayjs.com)",
+      "Bash(npx create-kaplay:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(npx vite build)",
+      "Bash(cat:*)",
+      "Bash(node:*)",
+      "Bash(lsof:*)",
+      "Bash(npm run build:*)",
+      "Bash(git checkout:*)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff --stat game/src/scenes/gameScene.js)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff --stat)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(kill:*)",
+      "Bash(xargs kill:*)",
+      "Bash(timeout 5 npm run dev:*)",
+      "Bash(git -C /Users/tylerwanlass/code/grog show --stat --format=\"%H%n%s%n%b\" ec2ba83)",
+      "Bash(git -C /Users/tylerwanlass/code/grog show --stat --format=\"%H%n%s%n%b\" 75216e2)",
+      "Bash(git -C /Users/tylerwanlass/code/grog show:*)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff 39c36f8^..39c36f8 -- game/src/systems/combat.js game/src/scenes/gameScene.js game/src/systems/inputHandler.js)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff 75216e2^..75216e2 -- game/src/rendering/uiPanels.js)",
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline --reverse)",
+      "Skill(captains-log)",
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline -n 1)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff --staged --stat)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff --staged -- game/src/)",
+      "Bash(git -C /Users/tylerwanlass/code/grog add captains-log.txt)",
+      "Bash(git -C /Users/tylerwanlass/code/grog ls-files:*)",
+      "Bash(git -C /Users/tylerwanlass/code/grog rm:*)",
+      "Bash(git add:*)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff --staged)",
+      "Skill(ship-it)",
+      "Bash(git -C /Users/tylerwanlass/code/grog add .)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff --staged -- game/src/rendering/minimap.js game/src/scenes/gameScene.js)",
+      "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Add circular minimap with click-to-navigate\")",
+      "Bash(git -C /Users/tylerwanlass/code/grog pull --no-rebase origin main)",
+      "Bash(git -C /Users/tylerwanlass/code/grog push origin main)",
+      "Bash(git -C /Users/tylerwanlass/code/grog status .claude/skills/)",
+      "Bash(git -C /Users/tylerwanlass/code/grog check-ignore:*)",
+      "Bash(git -C /Users/tylerwanlass/code/grog add .gitignore .claude/)",
+      "Bash(git -C /Users/tylerwanlass/code/grog status --short)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "bear-notes"
+  ],
+  "disabledMcpjsonServers": [
+    "bear-notes"
+  ]
+}
