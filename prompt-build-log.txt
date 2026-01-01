@@ -1111,3 +1111,6 @@ kaplay.js?v=9a8bb7fb:5276 TypeError: Cannot read properties of undefined (readin
 > okay, we're going to implement a new major feature: we want to introduce AI opponents. Currently, we have simple AI pirates that attack. We want to now introduce a new AI opponent that can do everything a player can like build ports, towers, ships, upgrade and repair units, place settlements, etc. We'll also want to create a new game mode for this (we have sandbox and defend today; maybe we call this mode mode multiplayer). 
 
 Figure out where to start and make a plan. 
+
+## 248. User prompt
+> run captains log on the last 2 commits
