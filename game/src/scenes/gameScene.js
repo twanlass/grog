@@ -910,15 +910,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             const selectedShips = getSelectedShips(gameState);
             if (selectedShips.length > 0) {
                 enterPatrolMode(gameState);
-                // Add each ship's current location as first patrol waypoint
+                // Add first patrol waypoint for each ship
                 for (const ship of selectedShips) {
                     if (ship && ship.type !== 'pirate') {
-                        ship.patrolRoute = [{ q: ship.q, r: ship.r }];
+                        // Use current waypoint destination if moving, otherwise current position
+                        const firstWaypoint = ship.waypoints && ship.waypoints.length > 0
+                            ? { q: ship.waypoints[0].q, r: ship.waypoints[0].r }
+                            : { q: ship.q, r: ship.r };
+                        ship.patrolRoute = [firstWaypoint];
                         ship.isPatrolling = true;
                         ship.showRouteLine = true;
-                        // Clear any existing movement so all ships start fresh
-                        ship.waypoints = [];
-                        ship.path = null;
+                        // Don't clear waypoints/path - let ship continue to current destination
                     }
                 }
                 showNotification(gameState, "Right click to add waypoints for a patrol route");

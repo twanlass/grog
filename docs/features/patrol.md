@@ -6,7 +6,8 @@ Ships can be assigned patrol routes to continuously loop through a series of way
 
 1. Select one or more ships
 2. Press **P** to enter patrol mode (notification appears)
-   - Ship's current location is automatically added as waypoint 1
+   - If the ship is moving, its current destination becomes waypoint 1 (ship keeps moving)
+   - If the ship is stationary, its current location becomes waypoint 1
 3. Right-click to add additional waypoints (ships start moving immediately)
 4. Press **Escape** or select another unit to exit patrol mode
 5. Ships will loop through waypoints continuously, returning to their starting position
@@ -120,8 +121,9 @@ ship = {
 Press P with ships selected
     ↓
 PATROL_MODE_ACTIVE (notification shown)
-ship.patrolRoute = [{ q: ship.q, r: ship.r }]  (current location as waypoint 1)
+ship.patrolRoute = [ship.waypoints[0] || currentLocation]  (destination or current location)
 ship.isPatrolling = true
+(ship continues moving if it was already moving)
     ↓
 Right-click to add waypoints
     ↓
