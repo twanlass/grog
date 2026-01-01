@@ -323,7 +323,7 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
 
         healthBarUnits.add(`ship:${i}`);
         if (ship.attackTarget.index >= 0) {
-            healthBarUnits.add(`ship:${ship.attackTarget.index}`);
+            healthBarUnits.add(`${ship.attackTarget.type}:${ship.attackTarget.index}`);
         }
     }
 
