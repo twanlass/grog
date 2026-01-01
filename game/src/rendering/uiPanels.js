@@ -19,10 +19,35 @@ export function drawResourcePanel(ctx, gameState) {
     const { k } = ctx;
 
     const padding = 12;
-    const panelWidth = 200;
-    const panelHeight = 56;
     const panelX = 15;
     const panelY = 15;
+    const panelHeight = 56;
+    const iconSize = 16;
+    const iconOffset = iconSize + 8;
+    const valueFontSize = 18;
+    const sectionGap = 16; // Gap between wood and crew sections
+
+    // Resource values
+    const res = gameState.resources;
+    const crewStatus = computeCrewStatus(gameState);
+
+    // Estimate text widths (approximate character width for the font)
+    const charWidth = valueFontSize * 0.6;
+    const woodValueText = `${res.wood}`;
+    const crewValueText = `${crewStatus.used}/${crewStatus.cap}`;
+
+    // Calculate section widths
+    const woodSectionWidth = iconSize + 8 + Math.max(
+        4 * 6, // "Wood" label width (4 chars * ~6px)
+        woodValueText.length * charWidth
+    );
+    const crewSectionWidth = iconSize + 8 + Math.max(
+        4 * 6, // "Crew" label width (4 chars * ~6px)
+        crewValueText.length * charWidth
+    );
+
+    // Calculate total panel width dynamically
+    const panelWidth = padding + woodSectionWidth + sectionGap + crewSectionWidth + padding;
 
     // Panel background (black)
     k.drawRect({
@@ -34,13 +59,8 @@ export function drawResourcePanel(ctx, gameState) {
         opacity: 0.85,
     });
 
-    // Resource values
-    const res = gameState.resources;
     const contentY = panelY + padding;
-    const iconSize = 16;
-    const iconOffset = iconSize + 8;
     const valueY = contentY + 16;  // Y position of the value text
-    const valueFontSize = 18;
 
     // Wood section
     const woodIconX = panelX + padding;
@@ -63,15 +83,14 @@ export function drawResourcePanel(ctx, gameState) {
         color: k.rgb(139, 90, 43),
     });
     k.drawText({
-        text: `${res.wood}`,
+        text: woodValueText,
         pos: k.vec2(woodIconX + iconOffset, valueY),
         size: valueFontSize,
         color: k.rgb(200, 150, 100),
     });
 
-    // Crew section (right side of panel)
-    const crewStatus = computeCrewStatus(gameState);
-    const crewIconX = panelX + 108;
+    // Crew section (right side of panel, positioned dynamically)
+    const crewIconX = panelX + padding + woodSectionWidth + sectionGap;
     const crewIconY = valueY + (valueFontSize / 2) - (iconSize / 2);
 
     // Crew sprite icon
@@ -94,7 +113,7 @@ export function drawResourcePanel(ctx, gameState) {
     const isAtOrOverCap = crewStatus.used >= crewStatus.cap;
     const crewColor = isAtOrOverCap ? k.rgb(255, 100, 100) : k.rgb(180, 200, 220);
     k.drawText({
-        text: `${crewStatus.used}/${crewStatus.cap}`,
+        text: crewValueText,
         pos: k.vec2(crewIconX + iconOffset, valueY),
         size: valueFontSize,
         color: crewColor,
