@@ -1,6 +1,13 @@
 CAPTAIN'S LOG
 =============
 
+2025-12-31 | Fix health bars and patrol route behavior
+------------------------------------------------------
+### Fixed
+- Health bars now show correctly on attacked towers, ports, and settlements
+- Patrol route uses ship's current destination as first waypoint instead of current position
+
+
 2025-12-31 | Add AI opponent for versus mode
 --------------------------------------------
 ### New
