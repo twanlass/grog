@@ -21,6 +21,7 @@ import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes,
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
 import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel } from "../rendering/uiPanels.js";
+import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
 import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems/shipMovement.js";
@@ -187,6 +188,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         const fogState = createFogState();
         initializeFog(fogState, gameState);
 
+        // Initialize minimap
+        const minimapState = createMinimapState(map);
+
         // Selection hit detection radius (in world units)
         const SELECTION_RADIUS = HEX_SIZE * 1.2;
 
@@ -230,6 +234,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         let settlementInfoPanelBounds = null;  // For settlement repair button
         let shipInfoPanelBounds = null;  // For ship repair button
         let topButtonBounds = null;  // For pause/menu buttons
+        let minimapBounds = null;  // For minimap click-to-navigate
         let speedMenuOpen = false;  // Speed selector menu state
         let menuPanelOpen = false;  // Controls menu panel state
         let timeScaleBeforeMenu = 1;  // Store time scale before opening menu
@@ -608,6 +613,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             const waveStatus = getWaveStatus(gameState);
             topButtonBounds = drawSimpleUIPanels(ctx, gameState, waveStatus, speedMenuOpen);
 
+            // Draw minimap (pass camera position for viewport indicator)
+            minimapBounds = drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, zoom);
+
             // Build panel UI (when exactly one port is selected)
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
             buildPanelBounds = null;
@@ -742,6 +750,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
         k.onMouseRelease("left", () => {
             if (gameState.gameOver) return; // Block clicks when game over
+
+            // Check for minimap click first (navigate camera)
+            const mousePos = k.mousePos();
+            const minimapClick = minimapClickToWorld(mousePos.x, mousePos.y, minimapBounds, minimapState);
+            if (minimapClick.hit) {
+                cameraX = minimapClick.worldX;
+                cameraY = minimapClick.worldY;
+                isLeftMouseDown = false;
+                isSelecting = false;
+                return;
+            }
+
             if (isPanning) {
                 // End panning
                 isPanning = false;
@@ -1402,7 +1422,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 for (let i = 0; i < gameState.ships.length; i++) {
                     const ship = gameState.ships[i];
                     if (ship.type !== subType) continue;
-                    if (ship.type === 'pirate') continue;  // Don't select enemy ships
+                    if (ship.type === 'pirate') continue;  // Don't select pirate ships
+                    if (ship.owner === 'ai') continue;     // Don't select AI ships
                     // Exclude ships that are currently building something
                     if (isShipBuildingPort(i, gameState.ports)) continue;
                     if (isShipBuildingTower(i, gameState.towers)) continue;

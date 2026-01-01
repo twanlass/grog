@@ -121,6 +121,7 @@ export const SHIPS = {
         health: 20,
         fireCooldown: 6,        // seconds between shots
         attackDistance: 2,      // range to attack targets
+        enemySightDistance: 3,  // detection range when AI-controlled
         sightDistance: 1,
         cost: { wood: 10 },
         crewCost: 5,
@@ -138,6 +139,7 @@ export const SHIPS = {
         health: 30,
         fireCooldown: 3,        // seconds between shots
         attackDistance: 2,      // range to attack targets
+        enemySightDistance: 6,  // detection range when AI-controlled
         sightDistance: 1,
         cost: { wood: 25 },
         crewCost: 8,
@@ -153,6 +155,7 @@ export const SHIPS = {
         health: 30,
         fireCooldown: 4,        // seconds between shots
         attackDistance: 2,      // range to attack targets
+        enemySightDistance: 7,  // detection range when AI-controlled
         sightDistance: 2,
         cost: { wood: 50 },
         crewCost: 12,
@@ -168,6 +171,7 @@ export const SHIPS = {
         health: 50,
         fireCooldown: 3,        // seconds between shots
         attackDistance: 2,      // range to attack targets
+        enemySightDistance: 8,  // detection range when AI-controlled
         sightDistance: 3,
         cost: { wood: 100 },
         crewCost: 20,

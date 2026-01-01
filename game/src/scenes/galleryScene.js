@@ -6,7 +6,7 @@ export function createGalleryScene(k) {
         const ships = Object.values(SHIPS);
         const ports = Object.values(PORTS);
         const towers = Object.values(TOWERS);
-        const scale = 3; // Scale for gallery view
+        const scale = 1; // Actual size (no scaling)
         const cardWidth = 180;
         const shipCardHeight = 180;
         const portCardHeight = 160;

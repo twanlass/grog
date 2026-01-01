@@ -364,10 +364,14 @@ function updateShipCommands(gameState, map) {
         if (ship.owner !== 'ai') continue;
         if (ship.repair) continue; // Don't command ships being repaired
 
+        // Get ship's detection range
+        const shipData = SHIPS[ship.type];
+        const enemySightDistance = shipData.enemySightDistance || 5;
+
         // Find nearest enemy target
         const nearestEnemy = findNearestEnemy(ship, gameState);
 
-        if (nearestEnemy && nearestEnemy.dist <= 8) {
+        if (nearestEnemy && nearestEnemy.dist <= enemySightDistance) {
             // Chase and attack nearby enemies
             ship.attackTarget = { type: nearestEnemy.type, index: nearestEnemy.index };
 

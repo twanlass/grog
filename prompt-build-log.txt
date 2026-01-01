@@ -1114,3 +1114,28 @@ Figure out where to start and make a plan.
 
 ## 248. User prompt
 > run captains log on the last 2 commits
+
+## 249. User prompt
+> update the unit gallery: render the sprites at actual size 
+
+## 250. User prompt
+> bug: double clicking on a cutter selects player _and_ AI controlled ships. It should only select player controlled ships. 
+
+## 251. User prompt
+> what size is the home-port sprite rendered at? 
+
+## 252. User prompt
+> let's add `enemySightDistance` to all ships and use it when they are controlled by AI. 
+
+## 253. User prompt
+> what value is used to determine how much fog of war is revealed? 
+
+## 254. User prompt
+> Should we combine `sightDistance` and `enemySightDistance`? Any reason not to simplify? 
+
+## 255. User prompt
+> let's add a mini-map feature: 
+- super simple, should show fogged / explored areas as fog of war
+- don't render units to start
+- show it bottom right of the screen 
+- make it round

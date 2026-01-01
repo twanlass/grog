@@ -140,3 +140,24 @@ xn    @    kaplay.js?v=9a8bb7fb:5276
 
 ## 34. User prompt
 > ship it
+
+## 35. User prompt
+> let's simplify the minimap even further: 
+- unexplored: pure black 
+
+## 36. User prompt
+> there's some rendering artifacts w/ the minimap (see the black lines). Can this be smooth colors? 
+
+## 37. User prompt
+> performance is now much worse (entire game is much slower). 
+
+## 38. User prompt
+> what about also not updating it every frame? 
+
+## 39. User prompt
+> now let's add some features: 
+1. draw a red square on the mini map around the area where the camera is currently positioned (shows where the player is currently looking on the map)
+2. allow the player to click on the mini map to snap the camera to that approx location (make it easy for the player to click on their home port area and jump back there)
+
+## 40. User prompt
+> ship it

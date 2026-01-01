@@ -1,6 +1,18 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-01 | Add circular minimap with click-to-navigate
+--------------------------------------------------------
+### New
+- Circular minimap in bottom-right corner showing fog of war state
+- Red viewport indicator shows current camera position on minimap
+- Click-to-navigate - click anywhere on minimap to snap camera to that location
+
+### Improved
+- Minimap only renders explored tiles for performance (unexplored = black background)
+- Color caching reduces per-frame computation when fog state unchanged
+
+
 2025-12-31 | Fix health bars and patrol route behavior
 ------------------------------------------------------
 ### Fixed
