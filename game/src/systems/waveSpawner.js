@@ -115,7 +115,7 @@ function spawnWave(gameState, map, createShip, hexKey, waveConfig, waveNumber, f
                 // Check that spawn location is in fog (not visible)
                 const inFog = !isHexVisible(fogState, pirateQ, pirateR);
                 if (!occupied && inFog) {
-                    gameState.ships.push(createShip('pirate', pirateQ, pirateR));
+                    gameState.ships.push(createShip('pirate', pirateQ, pirateR, 'pirate'));
                     spawned++;
                     break;
                 }
