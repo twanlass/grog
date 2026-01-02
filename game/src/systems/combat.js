@@ -19,6 +19,51 @@ const LOOT_AMOUNT = 20;           // wood per barrel
 const LOOT_DURATION = 30;         // seconds before loot expires
 
 /**
+ * Spawn cannon smoke puff at a location
+ */
+function spawnCannonSmoke(gameState, q, r) {
+    const particles = [];
+    for (let i = 0; i < 5; i++) {
+        particles.push({
+            dx: (Math.random() - 0.5) * 2,
+            dy: -Math.random(),  // Drift upward
+            size: 0.5 + Math.random() * 0.5,
+        });
+    }
+    gameState.cannonSmoke.push({
+        q,
+        r,
+        particles,
+        age: 0,
+        duration: 0.6,
+    });
+}
+
+/**
+ * Spawn wood splinter particles at hit location
+ */
+function spawnWoodSplinters(gameState, q, r) {
+    const particles = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.5 + Math.random() * 1.5;
+        particles.push({
+            dx: Math.cos(angle) * speed,
+            dy: Math.sin(angle) * speed - 0.5,  // Slight upward bias
+            size: 0.3 + Math.random() * 0.4,
+            rotation: Math.random() * Math.PI * 2,
+        });
+    }
+    gameState.woodSplinters.push({
+        q,
+        r,
+        particles,
+        age: 0,
+        duration: 0.5,
+    });
+}
+
+/**
  * Updates combat: pirate attacks and projectile movement
  * @param {Function} hexToPixel - Coordinate conversion function
  * @param {Object} gameState - The game state

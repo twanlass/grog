@@ -111,6 +111,12 @@ export function createGameState(config = {}) {
 
         // Loot collection sparkle effects
         lootSparkles: [],
+
+        // Wood splinter effects from cannonball hits
+        woodSplinters: [],
+
+        // Cannon smoke puffs when firing
+        cannonSmoke: [],
     };
 }
 

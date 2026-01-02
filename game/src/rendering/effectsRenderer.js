@@ -4,6 +4,21 @@ import { SHIPS, PORTS, TOWERS, SETTLEMENTS } from "../sprites/index.js";
 import { isHexVisible } from "../fogOfWar.js";
 
 /**
+ * Generate hexagon vertices centered at origin
+ */
+function getHexPoints(k, radius) {
+    const points = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i - Math.PI / 2; // Start at top
+        points.push(k.vec2(
+            Math.cos(angle) * radius,
+            Math.sin(angle) * radius
+        ));
+    }
+    return points;
+}
+
+/**
  * Draw ship water trails (behind ships)
  */
 export function drawShipTrails(ctx, gameState, fogState) {
@@ -37,10 +52,12 @@ export function drawShipTrails(ctx, gameState, fogState) {
             if (screenX < -50 || screenX > screenWidth + 50 ||
                 screenY < -50 || screenY > screenHeight + 50) continue;
 
-            // Draw water splash circle
-            k.drawCircle({
+            // Draw water splash square (retro style)
+            k.drawRect({
                 pos: k.vec2(screenX, screenY),
-                radius: size,
+                width: size * 2,
+                height: size * 2,
+                anchor: "center",
                 color: k.rgb(200, 220, 255),
                 opacity: opacity,
             });
@@ -75,10 +92,12 @@ export function drawFloatingDebris(ctx, floatingDebris) {
                     const ringRadius = (ring.baseRadius + ringProgress * ring.growthRadius) * zoom;
                     const ringOpacity = (1 - ringProgress) * 0.5;
 
-                    // Dust cloud (filled tan circle)
-                    k.drawCircle({
+                    // Dust cloud (filled tan square - retro style)
+                    k.drawRect({
                         pos: k.vec2(screenX, screenY),
-                        radius: ringRadius,
+                        width: ringRadius * 2,
+                        height: ringRadius * 2,
+                        anchor: "center",
                         color: k.rgb(180, 160, 130),  // Dusty tan
                         opacity: ringOpacity * 0.4,
                     });
@@ -93,9 +112,10 @@ export function drawFloatingDebris(ctx, floatingDebris) {
                 if (ringProgress > 0 && ringProgress < 1) {
                     const ringRadius = (ring.baseRadius + ringProgress * ring.growthRadius) * zoom;
                     const ringOpacity = (1 - ringProgress) * 0.4;
-                    k.drawCircle({
+                    // Water ring (hexagonal - matches hex grid)
+                    k.drawPolygon({
                         pos: k.vec2(screenX, screenY),
-                        radius: ringRadius,
+                        pts: getHexPoints(k, ringRadius),
                         outline: { color: k.rgb(180, 210, 240), width: 2 * zoom },
                         fill: false,
                         opacity: ringOpacity,
@@ -180,15 +200,18 @@ export function drawProjectiles(ctx, gameState) {
             const g = Math.floor(100 + 80 * fadeRatio);
             const b = Math.floor(30 * fadeRatio);
 
-            k.drawCircle({
+            // Fiery trail square (retro style)
+            k.drawRect({
                 pos: k.vec2(trailScreenX, trailScreenY),
-                radius: trailSize,
+                width: trailSize * 2,
+                height: trailSize * 2,
+                anchor: "center",
                 color: k.rgb(r, g, b),
                 opacity: trailOpacity,
             });
         }
 
-        // Draw cannon ball (dark circle)
+        // Draw cannon ball (keep round)
         k.drawCircle({
             pos: k.vec2(screenX, screenY),
             radius: 3.4 * zoom * sizeScale,
@@ -216,20 +239,21 @@ export function drawWaterSplashes(ctx, gameState) {
         const radius = (8 + progress * 15) * zoom;
         const opacity = (1 - progress) * 0.6;
 
-        // Expanding ring
-        k.drawCircle({
+        // Expanding hexagonal ring
+        k.drawPolygon({
             pos: k.vec2(screenX, screenY),
-            radius: radius,
+            pts: getHexPoints(k, radius),
             outline: { color: k.rgb(200, 220, 255), width: 2 * zoom },
             fill: false,
             opacity: opacity,
         });
 
-        // Center splash (only in first 30% of animation)
+        // Center splash hexagon (only in first 30% of animation)
         if (progress < 0.3) {
-            k.drawCircle({
+            const splashRadius = (5 - progress * 10) * zoom;
+            k.drawPolygon({
                 pos: k.vec2(screenX, screenY),
-                radius: (5 - progress * 10) * zoom,
+                pts: getHexPoints(k, splashRadius),
                 color: k.rgb(220, 235, 255),
                 opacity: (0.3 - progress) * 2,
             });
@@ -268,18 +292,25 @@ export function drawExplosions(ctx, gameState) {
             const g = Math.floor(200 * (1 - progress));
             const b = Math.floor(50 * (1 - progress));
 
-            k.drawCircle({
+            // Fire particle square (retro style)
+            const particleSize = Math.max(size, 1) * 2;
+            k.drawRect({
                 pos: k.vec2(px, py),
-                radius: Math.max(size, 1),
+                width: particleSize,
+                height: particleSize,
+                anchor: "center",
                 color: k.rgb(r, g, b),
                 opacity: 1 - progress,
             });
         }
 
-        // Center flash
-        k.drawCircle({
+        // Center flash (retro style)
+        const flashSize = (15 - progress * 10) * zoom * 2;
+        k.drawRect({
             pos: k.vec2(screenX, screenY),
-            radius: (15 - progress * 10) * zoom,
+            width: flashSize,
+            height: flashSize,
+            anchor: "center",
             color: k.rgb(255, 255, 200),
             opacity: (1 - progress) * 0.8,
         });
@@ -469,10 +500,12 @@ export function drawLootSparkles(ctx, lootSparkles) {
             const py = screenY + particle.dy * progress * 30 * zoom - progress * 20 * zoom;
             const size = (3 + particle.size * 2) * zoom * (1 - progress * 0.5);
 
-            // Yellow sparkle
-            k.drawCircle({
+            // Yellow sparkle (retro style)
+            k.drawRect({
                 pos: k.vec2(px, py),
-                radius: size,
+                width: size * 2,
+                height: size * 2,
+                anchor: "center",
                 color: k.rgb(255, 220, 80),
                 opacity: opacity,
             });

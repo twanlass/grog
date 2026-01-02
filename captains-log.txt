@@ -1,6 +1,15 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-01 | Add retro square particles and hexagonal water effects
+-------------------------------------------------------------------
+### Improved
+- Particle effects now use squares for retro aesthetic (trails, explosions, sparkles, debris)
+- Water splashes (miss effects) render as expanding hexagons matching the hex grid
+- Water rings (sinking ships) render as expanding hexagons
+- Cannon balls remain circular for visual contrast
+
+
 2026-01-01 | Improve UI consistency and panel positioning
 ---------------------------------------------------------
 ### Improved

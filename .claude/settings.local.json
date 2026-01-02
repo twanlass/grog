@@ -47,7 +47,9 @@
       "Bash(git -C /Users/tylerwanlass/code/grog check-ignore:*)",
       "Bash(git -C /Users/tylerwanlass/code/grog add .gitignore .claude/)",
       "Bash(git -C /Users/tylerwanlass/code/grog status --short)",
-      "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Add Claude skills to source control\")"
+      "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Add Claude skills to source control\")",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff --staged -- game/src/rendering/uiPanels.js game/src/rendering/unitRenderer.js game/src/scenes/gameScene.js)",
+      "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Improve UI consistency and panel positioning\")"
     ]
   },
   "enableAllProjectMcpServers": true,

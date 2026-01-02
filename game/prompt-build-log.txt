@@ -207,3 +207,29 @@ xn    @    kaplay.js?v=9a8bb7fb:5276
 
 ## 54. User prompt
 > oh and add a little padding to the right (so it matches the left). Width should be dyanamic too in case the player kills lots of priates 
+
+## 55. User prompt
+> clear 
+
+## 56. User prompt
+> let's make the particle effects more on brand, retro, by rendering them with squares intead of circles
+
+## 57. User prompt
+> Let's keep the cannon balls round :-)
+
+## 58. User prompt
+> let's add some new fx: 
+- show some wood particulate when a cannonball hits a ship or structure 
+- show some smoke from a ship or tower when a cannonball is fired 
+
+## 59. User prompt
+> Let's keep the cannon balls round :-)
+
+## 60. User prompt
+> can we make the water splahes (miss effects) hexagonal? 
+
+## 61. User prompt
+> also make the water rings hexagonal (when a ship is destroyed)
+
+## 62. User prompt
+> ship it
