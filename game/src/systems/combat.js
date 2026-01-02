@@ -15,7 +15,8 @@ const SHOT_STAGGER_DELAY = 0.3;   // seconds between multi-shot tower shots
 
 // Loot drop constants
 const LOOT_DROP_CHANCE = 0.33;    // 33% chance to drop loot
-const LOOT_AMOUNT = 20;           // wood per barrel
+const LOOT_MIN_AMOUNT = 10;       // minimum wood per barrel
+const LOOT_MAX_AMOUNT = 50;       // maximum wood per barrel
 const LOOT_DURATION = 30;         // seconds before loot expires
 
 /**
@@ -613,10 +614,13 @@ function spawnDestructionEffects(gameState, q, r, unitType, buildingType = null)
 function spawnLootDrop(gameState, q, r) {
     if (Math.random() > LOOT_DROP_CHANCE) return;
 
+    // Random amount between min and max (inclusive)
+    const amount = Math.floor(Math.random() * (LOOT_MAX_AMOUNT - LOOT_MIN_AMOUNT + 1)) + LOOT_MIN_AMOUNT;
+
     gameState.lootDrops.push({
         q,
         r,
-        amount: LOOT_AMOUNT,
+        amount,
         age: 0,
         duration: LOOT_DURATION,
     });
