@@ -8,12 +8,12 @@ import { SETTLEMENTS } from "../sprites/settlements.js";
 import { TOWERS } from "../sprites/towers.js";
 import {
     createShip, createPort, createSettlement, createTower,
-    findFreeAdjacentWater, findAdjacentWater,
+    findFreeAdjacentWater, findAdjacentWater, findNearestWaterInRange,
     isValidPortSite, isValidSettlementSite, isValidTowerSite,
     canAfford, deductCost, startBuilding, getBuildableShips,
     getPortsByOwner, getShipsByOwner, getSettlementsByOwner, getTowersByOwner,
     getHomePortIndexForOwner, isLandConnected, canAffordCrew,
-    getPortIndicesByOwner
+    getPortIndicesByOwner, getNextTowerType, startTowerUpgrade
 } from "../gameState.js";
 import { findPath } from "../pathfinding.js";
 
@@ -21,6 +21,132 @@ import { findPath } from "../pathfinding.js";
 const STRATEGIC_DECISION_INTERVAL = 5;    // Major priority adjustments
 const BUILD_DECISION_INTERVAL = 3;        // Building evaluation
 const SHIP_COMMAND_INTERVAL = 2;          // Ship command updates
+const TACTICS_DECISION_INTERVAL = 4;      // Tactical decisions (scout, attack groups, defend)
+
+// AI Strategy Definitions
+// Each strategy has different priorities, build configs, and ship behaviors
+export const AI_STRATEGIES = {
+    aggressive: {
+        name: "Aggressive",
+        description: "Early military rush, attack before player establishes",
+
+        // Base priority weights (before situational adjustments)
+        basePriorities: {
+            expansion: 0.3,
+            economy: 0.3,
+            military: 0.9,
+            defense: 0.2,
+        },
+
+        // Build order preferences
+        buildConfig: {
+            minShips: 3,              // Maintain more ships before other builds
+            maxSettlements: 2,        // Build fewer settlements (less eco focus)
+            maxTowers: 1,             // Minimal tower investment
+            preferredShipType: 'schooner',  // Prefer combat-capable ships
+            shipCap: 8,               // Allow more ships for aggression
+            settlementWoodThreshold: 10,  // Higher threshold (deprioritize settlements)
+            towerDefenseThreshold: 0.7,   // Only build towers if defense very high
+            towerUpgradePriority: 0.2,    // Rarely upgrade towers (focused on ships)
+            attackGroupSize: 2,           // Attack with fewer ships (aggressive)
+        },
+
+        // Ship behavior
+        shipBehavior: {
+            patrolRadiusMin: 10,      // Patrol farther from home
+            patrolRadiusMax: 20,      // Aggressive patrolling into enemy territory
+            engagementRange: 10,      // Detect and chase enemies from farther
+            pursuitPersistence: 0.9,  // High chance to continue pursuit
+            retreatHealthThreshold: 0.2,  // Only retreat when very damaged
+        },
+
+        // Priority modifiers per game phase
+        phaseModifiers: {
+            early: { military: 1.2, economy: 0.8 },   // Rush early
+            mid: { military: 1.1, expansion: 0.9 },
+            late: { military: 1.0, defense: 1.1 },
+        },
+    },
+
+    defensive: {
+        name: "Defensive",
+        description: "Heavy tower investment, turtle, counterattack",
+
+        basePriorities: {
+            expansion: 0.4,
+            economy: 0.5,
+            military: 0.4,
+            defense: 0.9,
+        },
+
+        buildConfig: {
+            minShips: 2,              // Standard minimum
+            maxSettlements: 3,        // Moderate economy
+            maxTowers: 4,             // Heavy tower investment
+            preferredShipType: 'cutter',  // Cheaper ships for defense
+            shipCap: 5,               // Fewer ships (rely on towers)
+            settlementWoodThreshold: 5,
+            towerDefenseThreshold: 0.3,   // Build towers even with low defense priority
+            towerUpgradePriority: 0.8,    // Aggressively upgrade towers
+            attackGroupSize: 3,           // Wait for more ships before attacking
+        },
+
+        shipBehavior: {
+            patrolRadiusMin: 4,       // Stay close to home
+            patrolRadiusMax: 8,       // Tight patrol radius
+            engagementRange: 6,       // Only engage when close
+            pursuitPersistence: 0.4,  // Often break off pursuit
+            retreatHealthThreshold: 0.5,  // Retreat early to preserve forces
+        },
+
+        phaseModifiers: {
+            early: { defense: 1.2, military: 0.8 },
+            mid: { defense: 1.1, economy: 1.1 },
+            late: { military: 1.2, defense: 1.0 },  // Counterattack late
+        },
+    },
+
+    economic: {
+        name: "Economic",
+        description: "Max settlements early, boom before striking",
+
+        basePriorities: {
+            expansion: 0.8,
+            economy: 0.9,
+            military: 0.3,
+            defense: 0.4,
+        },
+
+        buildConfig: {
+            minShips: 2,              // Standard minimum
+            maxSettlements: 6,        // Maximum settlement investment
+            maxTowers: 2,             // Some defense
+            preferredShipType: 'schooner',  // Balanced ships
+            shipCap: 6,               // Moderate ship count
+            settlementWoodThreshold: 3,    // Very low threshold (prioritize settlements)
+            towerDefenseThreshold: 0.5,
+            towerUpgradePriority: 0.4,    // Sometimes upgrade towers
+            attackGroupSize: 4,           // Wait for large force before attacking
+        },
+
+        shipBehavior: {
+            patrolRadiusMin: 5,       // Moderate patrol
+            patrolRadiusMax: 10,
+            engagementRange: 5,       // Avoid engagement early
+            pursuitPersistence: 0.5,  // Sometimes pursue
+            retreatHealthThreshold: 0.4,
+        },
+
+        phaseModifiers: {
+            early: { economy: 1.3, military: 0.6 },   // Boom hard early
+            mid: { economy: 1.1, military: 0.9 },
+            late: { military: 1.4, economy: 0.8 },     // Convert eco to military late
+        },
+    },
+};
+
+// Available strategy keys for random selection
+export const STRATEGY_KEYS = ['aggressive', 'defensive', 'economic'];
 
 /**
  * Main AI update function - called every frame in versus mode
@@ -31,10 +157,14 @@ export function updateAIPlayer(gameState, map, fogState, dt) {
 
     const ai = gameState.aiPlayer;
 
+    // Track total game time for phase determination
+    ai.gameTime = (ai.gameTime || 0) + dt;
+
     // Update decision cooldowns
     ai.decisionCooldown = Math.max(0, (ai.decisionCooldown || 0) - dt);
     ai.buildDecisionCooldown = Math.max(0, (ai.buildDecisionCooldown || 0) - dt);
     ai.shipCommandCooldown = Math.max(0, (ai.shipCommandCooldown || 0) - dt);
+    ai.tacticsCooldown = Math.max(0, (ai.tacticsCooldown || 0) - dt);
 
     // Strategic decisions (every 5 seconds)
     if (ai.decisionCooldown <= 0) {
@@ -48,6 +178,12 @@ export function updateAIPlayer(gameState, map, fogState, dt) {
         ai.buildDecisionCooldown = BUILD_DECISION_INTERVAL;
     }
 
+    // Tactical decisions (every 4 seconds)
+    if (ai.tacticsCooldown <= 0) {
+        updateTactics(gameState, map);
+        ai.tacticsCooldown = TACTICS_DECISION_INTERVAL;
+    }
+
     // Ship commands (every 2 seconds)
     if (ai.shipCommandCooldown <= 0) {
         updateShipCommands(gameState, map);
@@ -59,13 +195,38 @@ export function updateAIPlayer(gameState, map, fogState, dt) {
 }
 
 /**
+ * Determine game phase based on time and game state
+ */
+function determineGamePhase(gameTime, gameState) {
+    const totalSettlements = gameState.settlements.length;
+
+    // Early: first 90 seconds or < 3 total settlements
+    if (gameTime < 90 || totalSettlements < 3) {
+        return 'early';
+    }
+    // Late: after 300 seconds or > 8 total settlements
+    if (gameTime > 300 || totalSettlements > 8) {
+        return 'late';
+    }
+    return 'mid';
+}
+
+/**
  * Evaluate current game state and adjust strategic priorities
+ * Now uses strategy-based priorities with phase modifiers
  */
 function updateStrategicPriorities(gameState, map) {
     const ai = gameState.aiPlayer;
+    const strategy = AI_STRATEGIES[ai.strategy];
+
+    // Update game phase
+    ai.gamePhase = determineGamePhase(ai.gameTime, gameState);
+
+    // Get phase modifiers for current phase
+    const phaseModifiers = strategy.phaseModifiers[ai.gamePhase] || {};
+
     const aiShips = getShipsByOwner(gameState, 'ai');
     const aiPorts = getPortsByOwner(gameState, 'ai');
-    const aiSettlements = getSettlementsByOwner(gameState, 'ai');
     const aiTowers = getTowersByOwner(gameState, 'ai');
 
     const playerShips = getShipsByOwner(gameState, 'player');
@@ -77,39 +238,319 @@ function updateStrategicPriorities(gameState, map) {
     const playerPower = playerShips.length * 2 + playerPorts.length * 3 + playerTowers.length * 2;
     const powerRatio = playerPower > 0 ? aiPower / playerPower : 2;
 
-    // Adjust priorities based on situation
+    // Start with strategy base priorities
+    ai.priorities.economy = strategy.basePriorities.economy;
+    ai.priorities.military = strategy.basePriorities.military;
+    ai.priorities.defense = strategy.basePriorities.defense;
+    ai.priorities.expansion = strategy.basePriorities.expansion;
+
+    // Apply phase modifiers
+    ai.priorities.economy *= (phaseModifiers.economy || 1.0);
+    ai.priorities.military *= (phaseModifiers.military || 1.0);
+    ai.priorities.defense *= (phaseModifiers.defense || 1.0);
+    ai.priorities.expansion *= (phaseModifiers.expansion || 1.0);
+
+    // Apply situational adjustments (scaled down to not override strategy)
     if (powerRatio < 0.5) {
-        // Behind - focus on economy and defense
-        ai.priorities.economy = 0.8;
-        ai.priorities.defense = 0.7;
-        ai.priorities.military = 0.3;
-        ai.priorities.expansion = 0.3;
+        // Behind - boost eco/defense moderately
+        ai.priorities.economy = Math.min(1.0, ai.priorities.economy + 0.2);
+        ai.priorities.defense = Math.min(1.0, ai.priorities.defense + 0.2);
+        ai.priorities.military = Math.max(0.2, ai.priorities.military - 0.1);
     } else if (powerRatio > 1.5) {
-        // Ahead - be aggressive
-        ai.priorities.military = 0.8;
-        ai.priorities.expansion = 0.6;
-        ai.priorities.economy = 0.4;
-        ai.priorities.defense = 0.3;
-    } else {
-        // Even - balanced approach
-        ai.priorities.economy = 0.5;
-        ai.priorities.military = 0.5;
-        ai.priorities.expansion = 0.5;
-        ai.priorities.defense = 0.4;
+        // Ahead - boost aggression moderately
+        ai.priorities.military = Math.min(1.0, ai.priorities.military + 0.2);
+        ai.priorities.expansion = Math.min(1.0, ai.priorities.expansion + 0.1);
     }
 
-    // If recently attacked, boost defense
+    // Threat response (all strategies respond, but aggressive less so)
     if (ai.threatLevel > 0.5) {
-        ai.priorities.defense = Math.max(ai.priorities.defense, 0.8);
-        ai.priorities.military = Math.max(ai.priorities.military, 0.6);
+        const threatResponse = ai.strategy === 'aggressive' ? 0.2 : 0.4;
+        ai.priorities.defense = Math.min(1.0, ai.priorities.defense + threatResponse);
+        ai.priorities.military = Math.min(1.0, ai.priorities.military + threatResponse * 0.5);
+    }
+
+    // Clamp all priorities to 0-1
+    for (const key of Object.keys(ai.priorities)) {
+        ai.priorities[key] = Math.max(0, Math.min(1, ai.priorities[key]));
+    }
+}
+
+// ============================================================
+// TACTICS SYSTEM
+// ============================================================
+
+/**
+ * Main tactics update - manages scout, attack groups, and defend mode
+ */
+function updateTactics(gameState, map) {
+    const ai = gameState.aiPlayer;
+    if (!ai.tactics) return;
+
+    // Priority 1: Check if we need to enter/exit defend mode
+    checkDefendMode(gameState, map);
+
+    // If defending, skip other tactics
+    if (ai.tactics.isDefending) return;
+
+    // Priority 2: Manage scout ship
+    manageScout(gameState, map);
+
+    // Priority 3: Manage group attacks
+    manageGroupAttack(gameState, map);
+}
+
+/**
+ * Check if we should enter or exit defend mode based on threat level
+ */
+function checkDefendMode(gameState, map) {
+    const ai = gameState.aiPlayer;
+    const tactics = ai.tactics;
+
+    // Enter defend mode at high threat (0.7+)
+    if (!tactics.isDefending && ai.threatLevel >= 0.7) {
+        tactics.isDefending = true;
+        tactics.attackGroup = [];  // Cancel attack group
+        tactics.attackTarget = null;
+
+        // Recall all ships to home port
+        executeDefend(gameState, map);
+    }
+
+    // Exit defend mode when threat drops below 0.3
+    if (tactics.isDefending && ai.threatLevel < 0.3) {
+        tactics.isDefending = false;
+    }
+}
+
+/**
+ * Recall all AI ships to defend home port
+ */
+function executeDefend(gameState, map) {
+    const aiShips = getShipsByOwner(gameState, 'ai');
+    const aiHomePort = gameState.ports.find(p => p.owner === 'ai');
+
+    if (!aiHomePort) return;
+
+    // Find water near home port for ships to gather
+    const rallyPoint = findAdjacentWater(map, aiHomePort.q, aiHomePort.r);
+    if (!rallyPoint) return;
+
+    // Send all ships back to defend
+    for (const ship of aiShips) {
+        if (ship.repair) continue;  // Don't interrupt repairs
+
+        ship.attackTarget = null;
+        ship.waypoints = [{ q: rallyPoint.q, r: rallyPoint.r }];
+        ship.path = null;
+    }
+}
+
+/**
+ * Manage the scout ship - assign one ship to explore far from home
+ */
+function manageScout(gameState, map) {
+    const ai = gameState.aiPlayer;
+    const tactics = ai.tactics;
+    const aiShips = getShipsByOwner(gameState, 'ai');
+
+    // Need at least 2 ships to have a scout (keep one for defense)
+    if (aiShips.length < 2) {
+        tactics.scoutShipIndex = null;
+        return;
+    }
+
+    // Check if current scout is still valid
+    if (tactics.scoutShipIndex !== null) {
+        const scout = gameState.ships[tactics.scoutShipIndex];
+        if (!scout || scout.owner !== 'ai') {
+            tactics.scoutShipIndex = null;
+        }
+    }
+
+    // Assign a new scout if needed
+    if (tactics.scoutShipIndex === null) {
+        // Pick a ship that's not in the attack group
+        for (let i = 0; i < gameState.ships.length; i++) {
+            const ship = gameState.ships[i];
+            if (ship.owner !== 'ai') continue;
+            if (ship.repair) continue;
+            if (tactics.attackGroup.includes(i)) continue;
+
+            tactics.scoutShipIndex = i;
+            break;
+        }
+    }
+
+    // Control scout behavior
+    if (tactics.scoutShipIndex !== null) {
+        const scout = gameState.ships[tactics.scoutShipIndex];
+        if (scout && scout.waypoints.length === 0) {
+            // Generate a far patrol point for scouting
+            const scoutTarget = generateScoutTarget(gameState, map, tactics);
+            if (scoutTarget) {
+                scout.waypoints = [scoutTarget];
+                scout.path = null;
+            }
+        }
+
+        // Check if scout found enemy base
+        if (!tactics.enemyBaseLocation) {
+            const playerPorts = getPortsByOwner(gameState, 'player');
+            for (const port of playerPorts) {
+                const dist = hexDistance(scout.q, scout.r, port.q, port.r);
+                if (dist <= 8) {  // Scout is close enough to "see" enemy base
+                    tactics.enemyBaseLocation = { q: port.q, r: port.r };
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Generate a target location for the scout to explore
+ */
+function generateScoutTarget(gameState, map, tactics) {
+    const aiHomePort = gameState.ports.find(p => p.owner === 'ai');
+    if (!aiHomePort) return null;
+
+    // If enemy base is known, scout around it (harassing)
+    if (tactics.enemyBaseLocation) {
+        const enemyQ = tactics.enemyBaseLocation.q;
+        const enemyR = tactics.enemyBaseLocation.r;
+
+        // Patrol in a circle around enemy base (10-15 hex radius)
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.floor(Math.random() * 6);
+        const dq = Math.round(Math.cos(angle) * radius * 0.866);
+        const dr = Math.round(Math.sin(angle) * radius);
+
+        const targetQ = enemyQ + dq;
+        const targetR = enemyR + dr;
+
+        const tile = map.tiles.get(hexKey(targetQ, targetR));
+        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+            return { q: targetQ, r: targetR };
+        }
+    }
+
+    // Otherwise, explore far from home (20-30 hex radius)
+    const angle = Math.random() * Math.PI * 2;
+    const radius = 20 + Math.floor(Math.random() * 15);
+    const dq = Math.round(Math.cos(angle) * radius * 0.866);
+    const dr = Math.round(Math.sin(angle) * radius);
+
+    const targetQ = aiHomePort.q + dq;
+    const targetR = aiHomePort.r + dr;
+
+    const tile = map.tiles.get(hexKey(targetQ, targetR));
+    if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+        return { q: targetQ, r: targetR };
+    }
+
+    // Fallback: random direction
+    for (let attempts = 0; attempts < 10; attempts++) {
+        const randAngle = Math.random() * Math.PI * 2;
+        const randRadius = 15 + Math.floor(Math.random() * 20);
+        const rq = aiHomePort.q + Math.round(Math.cos(randAngle) * randRadius * 0.866);
+        const rr = aiHomePort.r + Math.round(Math.sin(randAngle) * randRadius);
+
+        const t = map.tiles.get(hexKey(rq, rr));
+        if (t && (t.type === 'shallow' || t.type === 'deep_ocean')) {
+            return { q: rq, r: rr };
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Manage coordinated group attacks
+ */
+function manageGroupAttack(gameState, map) {
+    const ai = gameState.aiPlayer;
+    const tactics = ai.tactics;
+    const strategy = AI_STRATEGIES[ai.strategy];
+    const requiredGroupSize = strategy.buildConfig.attackGroupSize;
+
+    const aiShips = getShipsByOwner(gameState, 'ai');
+
+    // Clean up attack group - remove dead/invalid ships
+    tactics.attackGroup = tactics.attackGroup.filter(idx => {
+        const ship = gameState.ships[idx];
+        return ship && ship.owner === 'ai' && !ship.repair;
+    });
+
+    // If we have an active attack, coordinate the group
+    if (tactics.attackTarget && tactics.attackGroup.length > 0) {
+        // Check if we've reached the target (any ship close enough)
+        let targetReached = false;
+        for (const idx of tactics.attackGroup) {
+            const ship = gameState.ships[idx];
+            if (ship) {
+                const dist = hexDistance(ship.q, ship.r, tactics.attackTarget.q, tactics.attackTarget.r);
+                if (dist <= 3) {
+                    targetReached = true;
+                    break;
+                }
+            }
+        }
+
+        // If target reached or all ships destroyed, clear attack
+        if (targetReached || tactics.attackGroup.length === 0) {
+            tactics.attackTarget = null;
+            tactics.attackGroup = [];
+        }
+        return;
+    }
+
+    // No active attack - try to form a new attack group
+    // Only attack if we know where enemy is
+    if (!tactics.enemyBaseLocation) return;
+
+    // Count available ships (not scout, not repairing)
+    const availableShips = [];
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const ship = gameState.ships[i];
+        if (ship.owner !== 'ai') continue;
+        if (ship.repair) continue;
+        if (i === tactics.scoutShipIndex) continue;  // Don't use scout
+
+        availableShips.push(i);
+    }
+
+    // If we have enough ships, form attack group
+    if (availableShips.length >= requiredGroupSize) {
+        // Take required number of ships for the attack
+        tactics.attackGroup = availableShips.slice(0, requiredGroupSize);
+        tactics.attackTarget = { ...tactics.enemyBaseLocation };
+
+        // Find water near enemy base to attack
+        const attackPoint = findAdjacentWater(map, tactics.attackTarget.q, tactics.attackTarget.r);
+        if (attackPoint) {
+            tactics.attackTarget = attackPoint;
+        }
+
+        // Send attack group to target
+        for (const idx of tactics.attackGroup) {
+            const ship = gameState.ships[idx];
+            if (ship) {
+                ship.waypoints = [{ q: tactics.attackTarget.q, r: tactics.attackTarget.r }];
+                ship.path = null;
+            }
+        }
     }
 }
 
 /**
  * Evaluate what to build next
+ * Now uses strategy-based build config
  */
 function evaluateBuildOptions(gameState, map, fogState) {
     const ai = gameState.aiPlayer;
+    const strategy = AI_STRATEGIES[ai.strategy];
+    const buildConfig = strategy.buildConfig;
+
     const aiPorts = getPortsByOwner(gameState, 'ai');
     const aiShips = getShipsByOwner(gameState, 'ai');
     const aiSettlements = getSettlementsByOwner(gameState, 'ai');
@@ -118,34 +559,52 @@ function evaluateBuildOptions(gameState, map, fogState) {
     // Skip if no ports
     if (aiPorts.length === 0) return;
 
-    // Priority 1: Always maintain at least 2 ships
-    if (aiShips.length < 2) {
+    // Priority 1: Maintain minimum ships (strategy-defined)
+    if (aiShips.length < buildConfig.minShips) {
         if (tryBuildShip(gameState, map, 'cutter', fogState)) return;
     }
 
-    // Priority 2: Build settlements for resources (max 4)
+    // Priority 2: Build settlements (strategy-defined limits and thresholds)
     const completedSettlements = aiSettlements.filter(s => !s.construction).length;
-    if (completedSettlements < 4 && ai.resources.wood >= 5) {
+    if (completedSettlements < buildConfig.maxSettlements &&
+        ai.resources.wood >= buildConfig.settlementWoodThreshold) {
         if (tryBuildSettlement(gameState, map)) return;
     }
 
-    // Priority 3: Build ships based on priorities
-    if (ai.priorities.military > 0.5 && aiShips.length < 6) {
-        // Build combat ships
-        if (ai.resources.wood >= 25) {
-            if (tryBuildShip(gameState, map, 'schooner', fogState)) return;
-        } else if (ai.resources.wood >= 10) {
+    // Priority 3: Build ships based on priorities and strategy
+    if (ai.priorities.military > 0.5 && aiShips.length < buildConfig.shipCap) {
+        // Try preferred ship type first
+        const preferredCost = SHIPS[buildConfig.preferredShipType]?.cost?.wood || 25;
+        if (ai.resources.wood >= preferredCost) {
+            if (tryBuildShip(gameState, map, buildConfig.preferredShipType, fogState)) return;
+        }
+        // Fallback to cutter
+        if (ai.resources.wood >= 10) {
             if (tryBuildShip(gameState, map, 'cutter', fogState)) return;
         }
-    } else if (ai.priorities.economy > 0.5 && aiShips.length < 4) {
+    } else if (ai.priorities.economy > 0.5 && aiShips.length < Math.min(4, buildConfig.shipCap)) {
         // Build cargo ships for trading
         if (tryBuildShip(gameState, map, 'schooner', fogState)) return;
         if (tryBuildShip(gameState, map, 'cutter', fogState)) return;
     }
 
-    // Priority 4: Build defensive towers near home port
-    if (ai.priorities.defense > 0.5 && aiTowers.length < 2 && ai.resources.wood >= 15) {
+    // Priority 4: Build towers (strategy-defined limits and threshold)
+    if (ai.priorities.defense > buildConfig.towerDefenseThreshold &&
+        aiTowers.length < buildConfig.maxTowers &&
+        ai.resources.wood >= 25) {
         if (tryBuildTower(gameState, map)) return;
+    }
+
+    // Priority 5: Upgrade existing towers (strategy-aware)
+    // Defensive AI upgrades aggressively, others rarely
+    if (ai.priorities.defense > buildConfig.towerUpgradePriority && aiTowers.length > 0) {
+        if (tryUpgradeTower(gameState)) return;
+    }
+
+    // Priority 6 (Economic strategy bonus): Aggressive expansion when rich
+    if (ai.strategy === 'economic' && ai.resources.wood > 50 &&
+        aiShips.length >= 3 && completedSettlements < buildConfig.maxSettlements) {
+        if (tryBuildSettlement(gameState, map)) return;
     }
 }
 
@@ -350,48 +809,117 @@ function tryBuildTower(gameState, map) {
 }
 
 /**
+ * Try to upgrade an existing AI tower to the next tier
+ */
+function tryUpgradeTower(gameState) {
+    const ai = gameState.aiPlayer;
+    const aiTowers = getTowersByOwner(gameState, 'ai');
+
+    // Find towers that can be upgraded (not under construction)
+    for (const tower of aiTowers) {
+        if (tower.construction) continue;  // Already upgrading or building
+
+        const nextType = getNextTowerType(tower.type);
+        if (!nextType) continue;  // Already max tier
+
+        const nextTowerData = TOWERS[nextType];
+        if (!nextTowerData) continue;
+
+        // Check if we can afford the upgrade
+        if (!canAfford(ai.resources, nextTowerData.cost)) continue;
+
+        // Check crew cost (upgrade costs additional crew)
+        const currentTowerData = TOWERS[tower.type];
+        const additionalCrew = (nextTowerData.crewCost || 0) - (currentTowerData.crewCost || 0);
+        if (additionalCrew > 0 && !canAffordCrewForOwner(gameState, additionalCrew, 'ai')) continue;
+
+        // Upgrade the tower
+        deductCost(ai.resources, nextTowerData.cost);
+        startTowerUpgrade(tower);
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Update AI ship commands - patrol, attack, etc.
+ * Now uses strategy-based ship behavior
  */
 function updateShipCommands(gameState, map) {
-    const aiShips = getShipsByOwner(gameState, 'ai');
-    const playerShips = getShipsByOwner(gameState, 'player');
-    const playerPorts = getPortsByOwner(gameState, 'player');
-    const playerSettlements = getSettlementsByOwner(gameState, 'player');
-    const playerTowers = getTowersByOwner(gameState, 'player');
+    const ai = gameState.aiPlayer;
+    const strategy = AI_STRATEGIES[ai.strategy];
+    const shipBehavior = strategy.shipBehavior;
+    const tactics = ai.tactics;
 
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
         if (ship.owner !== 'ai') continue;
         if (ship.repair) continue; // Don't command ships being repaired
 
-        // Get ship's detection range
+        // Skip ships managed by tactics system (scout, attack group, defending)
+        // They get their waypoints from updateTactics instead
+        if (tactics) {
+            if (tactics.isDefending) continue;  // All ships recalled
+            if (i === tactics.scoutShipIndex) continue;  // Scout has own behavior
+            if (tactics.attackGroup.includes(i)) continue;  // In attack group
+        }
+
         const shipData = SHIPS[ship.type];
-        const enemySightDistance = shipData.enemySightDistance || 5;
+
+        // Use strategy-defined engagement range
+        const engagementRange = shipBehavior.engagementRange;
+
+        // Check ship health for retreat behavior
+        const healthPercent = ship.health / shipData.health;
+        const shouldRetreat = healthPercent < shipBehavior.retreatHealthThreshold;
+
+        if (shouldRetreat) {
+            // Retreat to home port
+            ship.attackTarget = null;
+            const aiHomePort = gameState.ports.find(p => p.owner === 'ai');
+            if (aiHomePort && ship.waypoints.length === 0) {
+                const retreatPoint = findAdjacentWater(map, aiHomePort.q, aiHomePort.r);
+                if (retreatPoint) {
+                    ship.waypoints = [{ q: retreatPoint.q, r: retreatPoint.r }];
+                    ship.path = null;
+                }
+            }
+            continue;
+        }
 
         // Find nearest enemy target
         const nearestEnemy = findNearestEnemy(ship, gameState);
 
-        if (nearestEnemy && nearestEnemy.dist <= enemySightDistance) {
-            // Chase and attack nearby enemies
-            ship.attackTarget = { type: nearestEnemy.type, index: nearestEnemy.index };
+        if (nearestEnemy && nearestEnemy.dist <= engagementRange) {
+            // Decide whether to pursue based on strategy
+            const shouldPursue = Math.random() < shipBehavior.pursuitPersistence || nearestEnemy.dist <= 3;
 
-            // Set waypoint to target
-            const targetPos = getTargetPosition(nearestEnemy, gameState, map);
-            if (targetPos && (ship.waypoints.length === 0 ||
-                ship.waypoints[0].q !== targetPos.q ||
-                ship.waypoints[0].r !== targetPos.r)) {
-                ship.waypoints = [{ q: targetPos.q, r: targetPos.r }];
-                ship.path = null;
+            if (shouldPursue) {
+                // Chase and attack
+                ship.attackTarget = { type: nearestEnemy.type, index: nearestEnemy.index };
+
+                // Set waypoint to target
+                const targetPos = getTargetPosition(nearestEnemy, gameState, map);
+                if (targetPos && (ship.waypoints.length === 0 ||
+                    ship.waypoints[0].q !== targetPos.q ||
+                    ship.waypoints[0].r !== targetPos.r)) {
+                    ship.waypoints = [{ q: targetPos.q, r: targetPos.r }];
+                    ship.path = null;
+                }
+            } else {
+                // Break off pursuit, clear target
+                ship.attackTarget = null;
             }
         } else {
             // Clear attack target if enemy is far
             ship.attackTarget = null;
 
-            // Patrol: If idle, patrol around home port
+            // Patrol: If idle, patrol around home port with strategy-defined radius
             if (ship.waypoints.length === 0) {
                 const aiHomePort = gameState.ports.find(p => p.owner === 'ai');
                 if (aiHomePort) {
-                    const patrolPoint = generatePatrolPoint(aiHomePort, map, gameState);
+                    const patrolPoint = generatePatrolPointWithStrategy(aiHomePort, map, gameState, shipBehavior);
                     if (patrolPoint) {
                         ship.waypoints = [patrolPoint];
                         ship.path = null;
@@ -546,6 +1074,48 @@ function generatePatrolPoint(port, map, gameState) {
     for (let attempts = 0; attempts < 10; attempts++) {
         const randAngle = Math.random() * Math.PI * 2;
         const randRadius = 4 + Math.floor(Math.random() * 10);
+        const rq = port.q + Math.round(Math.cos(randAngle) * randRadius * 0.866);
+        const rr = port.r + Math.round(Math.sin(randAngle) * randRadius);
+
+        const t = map.tiles.get(hexKey(rq, rr));
+        if (t && (t.type === 'shallow' || t.type === 'deep_ocean')) {
+            const occ = gameState.ships.some(s => s.q === rq && s.r === rr);
+            if (!occ) {
+                return { q: rq, r: rr };
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Generate a patrol point using strategy-defined radius
+ */
+function generatePatrolPointWithStrategy(port, map, gameState, shipBehavior) {
+    const { patrolRadiusMin, patrolRadiusMax } = shipBehavior;
+    const patrolRadius = patrolRadiusMin + Math.floor(Math.random() * (patrolRadiusMax - patrolRadiusMin + 1));
+    const angle = Math.random() * Math.PI * 2;
+
+    // Hex offset approximation
+    const dq = Math.round(Math.cos(angle) * patrolRadius * 0.866);
+    const dr = Math.round(Math.sin(angle) * patrolRadius);
+
+    const targetQ = port.q + dq;
+    const targetR = port.r + dr;
+
+    const tile = map.tiles.get(hexKey(targetQ, targetR));
+    if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+        const occupied = gameState.ships.some(s => s.q === targetQ && s.r === targetR);
+        if (!occupied) {
+            return { q: targetQ, r: targetR };
+        }
+    }
+
+    // Fallback attempts with strategy parameters
+    for (let attempts = 0; attempts < 10; attempts++) {
+        const randAngle = Math.random() * Math.PI * 2;
+        const randRadius = patrolRadiusMin + Math.floor(Math.random() * (patrolRadiusMax - patrolRadiusMin + 1));
         const rq = port.q + Math.round(Math.cos(randAngle) * randRadius * 0.866);
         const rr = port.r + Math.round(Math.sin(randAngle) * randRadius);
 

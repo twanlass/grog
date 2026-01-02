@@ -1139,3 +1139,6 @@ Figure out where to start and make a plan.
 - don't render units to start
 - show it bottom right of the screen 
 - make it round
+
+## 256. User prompt
+> Let's improve our AI a bit for the vs mode. I want to give the AI a few different strategies to pick from to make the game more dynamic. How might we craft a system for this? 

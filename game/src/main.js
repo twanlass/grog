@@ -10,6 +10,9 @@ const k = kaplay({
 // Selected scenario ID (persists between title screen visits)
 let selectedScenarioId = DEFAULT_SCENARIO_ID;
 
+// Selected AI strategy for versus mode (null = random)
+let selectedAIStrategy = null;
+
 // Custom cursor (CSS-based for smooth performance)
 k.setCursor("url('sprites/assets/cursor.png'), auto");
 
@@ -129,6 +132,9 @@ k.scene("title", () => {
         });
     });
 
+    // Track strategy button entities
+    let strategyButtons = [];
+
     // Function to update card selection visuals
     function updateCardSelection() {
         cardBackgrounds.forEach(({ entity, scenarioId }) => {
@@ -137,10 +143,60 @@ k.scene("title", () => {
             entity.outline.color = isSelected ? k.rgb(150, 200, 255) : k.rgb(80, 100, 120);
             entity.outline.width = isSelected ? 3 : 1;
         });
+
+        // Show/hide strategy buttons based on versus selection
+        updateStrategyButtons();
     }
 
+    // Create or update strategy debug buttons for versus mode
+    function updateStrategyButtons() {
+        // Remove existing strategy buttons
+        strategyButtons.forEach(btn => k.destroy(btn));
+        strategyButtons = [];
+
+        // Only show for versus mode
+        if (selectedScenarioId !== 'versus') return;
+
+        const strategies = ['aggressive', 'defensive', 'economic'];
+        const btnY = cardY + cardHeight / 2 + 25;
+        const btnSpacing = 100;
+        const totalBtnWidth = strategies.length * btnSpacing;
+        const btnStartX = k.center().x - totalBtnWidth / 2 + btnSpacing / 2;
+
+        // Label
+        const label = k.add([
+            k.text("Debug: Start with strategy", { size: 11 }),
+            k.pos(k.center().x, btnY - 12),
+            k.anchor("center"),
+            k.color(100, 120, 140),
+        ]);
+        strategyButtons.push(label);
+
+        strategies.forEach((strategy, i) => {
+            const btnX = btnStartX + i * btnSpacing;
+
+            const btn = k.add([
+                k.text(`< ${strategy} >`, { size: 12 }),
+                k.pos(btnX, btnY + 5),
+                k.anchor("center"),
+                k.color(180, 150, 100),
+                k.area(),
+                `strategyBtn-${strategy}`,
+            ]);
+            strategyButtons.push(btn);
+
+            k.onClick(`strategyBtn-${strategy}`, () => {
+                selectedAIStrategy = strategy;
+                k.go("game");
+            });
+        });
+    }
+
+    // Initial strategy buttons setup
+    updateStrategyButtons();
+
     // Play button
-    const playY = cardY + cardHeight / 2 + 50;
+    const playY = cardY + cardHeight / 2 + 70;
     k.add([
         k.text("[ Play ]", { size: 22 }),
         k.pos(k.center().x, playY),
@@ -170,6 +226,7 @@ k.scene("title", () => {
 
     // Button interactions
     k.onClick("playBtn", () => {
+        selectedAIStrategy = null;  // Reset to random when using Play button
         k.go("game");
     });
 
@@ -197,8 +254,8 @@ k.scene("title", () => {
     k.onKeyPress("g", () => k.go("gallery"));
 });
 
-// Pass selected scenario to game scene
-k.scene("game", createGameScene(k, () => selectedScenarioId));
+// Pass selected scenario and AI strategy to game scene
+k.scene("game", createGameScene(k, () => selectedScenarioId, () => selectedAIStrategy));
 k.scene("gallery", createGalleryScene(k));
 
 // Start with title screen

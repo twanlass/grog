@@ -421,17 +421,29 @@ export function findOppositeStartingPositions(map) {
 export function createAIPlayerState(config = {}) {
     const startingResources = config.startingResources || { wood: 25 };
 
+    // Random strategy selection at game start
+    const strategyKeys = ['aggressive', 'defensive', 'economic'];
+    const selectedStrategy = config.strategy || strategyKeys[Math.floor(Math.random() * strategyKeys.length)];
+
     return {
         // AI resources (separate from player)
         resources: {
             wood: startingResources.wood,
         },
 
+        // Strategy (selected once at game start, never changes)
+        strategy: selectedStrategy,
+
+        // Game phase tracking (for phase modifiers)
+        gamePhase: 'early',  // 'early' | 'mid' | 'late'
+        gameTime: 0,         // Total elapsed game time in seconds
+
         // Decision timers
         decisionCooldown: 0,      // Time until next strategic decision
         buildDecisionCooldown: 0, // Time until next build evaluation
+        shipCommandCooldown: 0,   // Time until next ship command update
 
-        // Strategic priorities (weights 0-1, adjusted dynamically)
+        // Strategic priorities (weights 0-1, adjusted dynamically based on strategy)
         priorities: {
             expansion: 0.5,   // Build more ports/settlements
             economy: 0.5,     // Focus on trade ships
@@ -441,6 +453,16 @@ export function createAIPlayerState(config = {}) {
 
         // Threat tracking
         threatLevel: 0,  // 0-1, increases when attacked
+
+        // Tactical state
+        tactics: {
+            scoutShipIndex: null,       // Index of designated scout ship
+            enemyBaseLocation: null,    // { q, r } once discovered
+            attackGroup: [],            // Ship indices in coordinated attack group
+            attackTarget: null,         // { q, r } current group attack target
+            isDefending: false,         // Recall/defend mode active
+        },
+        tacticsCooldown: 0,             // Time until next tactics evaluation
     };
 }
 

@@ -254,3 +254,30 @@ xn    @    kaplay.js?v=9a8bb7fb:5276
 
 ## 66. User prompt
 > pull remote and merge 
+
+## 67. User prompt
+> for debug, on the title screen in the vs mode card, add a button to start a vs mode round w/ each specific strategy (so I can play against each and test each)
+
+## 68. User prompt
+> not seeing the debug buttons; error is thrown: 
+kaplay.js?v=9a8bb7fb:5276 Error: Styled text error: unclosed tags A
+    at main.js:179:19
+    at Array.forEach (<anonymous>)
+    at updateStrategyButtons (main.js:175:20)
+    at updateCardSelection (main.js:148:9)
+    at main.js:131:13
+
+## 69. User prompt
+> for the defensive strategy, why doesn't the AI upgrade towers? 
+
+## 70. User prompt
+> yes, add AI upgrading; make it strategy-aware 
+
+## 71. User prompt
+> can we add some tactics that any strategy can use?  
+- scout: send a single ship far and wide to try and find other players / AI bases? 
+- attack: send a group of ships to attack (vs a single ships)
+- recall / defend: recall all ships to defend the home port when under attack
+
+## 72. User prompt
+> ship it

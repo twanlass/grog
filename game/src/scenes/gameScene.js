@@ -114,7 +114,7 @@ function drawHexRangeOutline(k, centerQ, centerR, range, cameraX, cameraY, zoom,
     }
 }
 
-export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
+export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, getAIStrategy = () => null) {
     return function gameScene() {
         // Prevent browser context menu on right-click
         k.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -122,6 +122,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         // Get scenario configuration
         const scenarioId = getScenarioId();
         const scenario = getScenario(scenarioId);
+
+        // Get AI strategy override (null = random)
+        const aiStrategyOverride = getAIStrategy();
 
         // Generate the map (random each time)
         const map = generateMap({
@@ -150,8 +153,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 gameState.ports.push(createPort('dock', positions.ai.q, positions.ai.r, false, null, 'ai'));
                 gameState.aiHomeIslandHex = { q: positions.ai.q, r: positions.ai.r };
 
-                // Initialize AI player state
-                gameState.aiPlayer = createAIPlayerState(scenario.aiConfig);
+                // Initialize AI player state (with optional strategy override)
+                const aiConfig = { ...scenario.aiConfig };
+                if (aiStrategyOverride) {
+                    aiConfig.strategy = aiStrategyOverride;
+                }
+                gameState.aiPlayer = createAIPlayerState(aiConfig);
             } else {
                 // Fallback: single player start if opposite positions not found
                 const startTile = findStartingPosition(map);

@@ -1,6 +1,22 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-02 | Add AI strategy system with tactics
+------------------------------------------------
+### New
+- Three AI strategies: Aggressive (early rush), Defensive (tower fortress), Economic (boom then strike)
+- Strategy randomly selected at game start for varied gameplay
+- Game phase tracking (early/mid/late) with phase-specific modifiers
+- Tactics system: Scout (explore and harass), Group Attack (coordinate ships), Defend (recall when threatened)
+- AI tower upgrading with strategy-aware priority
+- Debug buttons on versus mode card to test specific AI strategies
+
+### Improved
+- Strategy-specific build priorities (towers, settlements, ships)
+- Strategy-specific ship behavior (patrol radius, aggression)
+- AI decisions now evolve based on game phase
+
+
 2026-01-01 | Add retro square particles and hexagonal water effects
 -------------------------------------------------------------------
 ### Improved
