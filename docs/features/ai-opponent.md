@@ -10,9 +10,77 @@ Select "Versus AI" from the scenario menu to play against the AI.
 - **Mirror start**: Player and AI each get a home port on opposite sides of the map (~25+ hexes apart)
 - **Same resources**: Both start with 25 wood
 - **No pirates**: Pirates are disabled in versus mode
+- **Random strategy**: AI randomly selects one of three strategies (see below)
 
 ### Win Condition
 **Total elimination**: Destroy all enemy ships, ports, settlements, and towers.
+
+## AI Strategies
+
+The AI uses one of three strategies, randomly selected at game start. Each strategy has different priorities, build preferences, and ship behaviors.
+
+### Aggressive
+Early military rush - attacks before player establishes.
+
+| Aspect | Configuration |
+|--------|---------------|
+| Focus | High military (0.9), low defense (0.2) |
+| Min ships | 3 |
+| Max settlements | 2 |
+| Max towers | 1 |
+| Preferred ship | Schooner |
+| Ship cap | 8 |
+| Patrol radius | 10-20 hexes (far from home) |
+| Engagement range | 10 hexes |
+| Retreat threshold | 20% health |
+| Attack group size | 2 ships |
+
+### Defensive
+Heavy tower investment - turtles and counterattacks.
+
+| Aspect | Configuration |
+|--------|---------------|
+| Focus | High defense (0.9), moderate economy (0.5) |
+| Min ships | 2 |
+| Max settlements | 3 |
+| Max towers | 4 |
+| Preferred ship | Cutter |
+| Ship cap | 5 |
+| Patrol radius | 4-8 hexes (close to home) |
+| Engagement range | 6 hexes |
+| Retreat threshold | 50% health |
+| Attack group size | 3 ships |
+
+### Economic
+Max settlements early - booms before striking.
+
+| Aspect | Configuration |
+|--------|---------------|
+| Focus | High economy (0.9), high expansion (0.8) |
+| Min ships | 2 |
+| Max settlements | 6 |
+| Max towers | 2 |
+| Preferred ship | Schooner |
+| Ship cap | 6 |
+| Patrol radius | 5-10 hexes |
+| Engagement range | 5 hexes |
+| Retreat threshold | 40% health |
+| Attack group size | 4 ships |
+
+## Game Phases
+
+The AI adjusts priorities based on game phase:
+
+| Phase | Condition |
+|-------|-----------|
+| Early | First 90 seconds OR < 3 total settlements |
+| Mid | Between early and late |
+| Late | After 300 seconds OR > 8 total settlements |
+
+Each strategy has phase modifiers that adjust priorities. For example:
+- **Aggressive**: Boosts military in early game (rush)
+- **Defensive**: Boosts defense early, military late (counterattack)
+- **Economic**: Boosts economy early, military late (boom then attack)
 
 ## Ownership System
 
@@ -40,9 +108,13 @@ Stored in `gameState.aiPlayer`:
 ```js
 {
     resources: { wood: 25 },           // AI's resource pool
+    strategy: 'aggressive',            // One of: aggressive, defensive, economic
+    gameTime: 0,                       // Total game time in seconds
+    gamePhase: 'early',                // Current phase: early, mid, late
     decisionCooldown: 0,               // Timer for strategic decisions
     buildDecisionCooldown: 0,          // Timer for build decisions
     shipCommandCooldown: 0,            // Timer for ship commands
+    tacticsCooldown: 0,                // Timer for tactical decisions
     priorities: {
         expansion: 0.5,                // Weight for expansion actions
         economy: 0.5,                  // Weight for economic actions
@@ -50,43 +122,76 @@ Stored in `gameState.aiPlayer`:
         defense: 0.5,                  // Weight for defensive actions
     },
     threatLevel: 0,                    // 0-1, increases when attacked
+    tactics: {
+        scoutShipIndex: null,          // Ship assigned to scouting
+        attackGroup: [],               // Ship indices in attack group
+        attackTarget: null,            // Current group attack target {q, r}
+        enemyBaseLocation: null,       // Discovered enemy base {q, r}
+        isDefending: false,            // Whether in defend mode
+    },
 }
 ```
 
 ## Decision System
 
-The AI runs three decision loops at different intervals:
+The AI runs four decision loops at different intervals:
 
 | Decision Type | Interval | Function |
 |---------------|----------|----------|
 | Strategic | 5 seconds | `updateStrategicPriorities()` |
+| Tactics | 4 seconds | `updateTactics()` |
 | Build | 3 seconds | `evaluateBuildOptions()` |
 | Ship Commands | 2 seconds | `updateShipCommands()` |
 
 ### Strategic Priorities
 
-Priorities adjust based on power ratio (AI power vs player power):
+Priorities start from the strategy's base values, then:
 
-| Situation | Economy | Military | Defense | Expansion |
-|-----------|---------|----------|---------|-----------|
-| Behind (ratio < 0.5) | 0.8 | 0.3 | 0.7 | 0.3 |
-| Even (0.5-1.5) | 0.5 | 0.5 | 0.4 | 0.5 |
-| Ahead (ratio > 1.5) | 0.4 | 0.8 | 0.3 | 0.6 |
-
-Threat level (when attacked) boosts defense and military priorities.
+1. **Phase modifiers** are applied based on game phase
+2. **Situational adjustments** based on power ratio (AI power vs player power):
+   - Behind (ratio < 0.5): Boost economy/defense, reduce military
+   - Ahead (ratio > 1.5): Boost military/expansion
+3. **Threat response**: High threat (>0.5) boosts defense and military
 
 ### Build Priority Order
 
-1. **Minimum ships**: Always maintain at least 2 ships
-2. **Settlements**: Build up to 4 settlements for resource generation
-3. **Military ships**: Build schooners/cutters when military priority > 0.5
-4. **Defensive towers**: Build watchtowers when defense priority > 0.5 (max 2)
+1. **Minimum ships**: Maintain strategy-defined minimum (2-3 ships)
+2. **Settlements**: Build up to strategy max (2-6) when above wood threshold
+3. **Military ships**: When military priority > 0.5, build preferred ship type up to ship cap
+4. **Defensive towers**: When defense priority > threshold, build up to strategy max
+5. **Tower upgrades**: When defense priority > upgrade threshold
+6. **Economic bonus**: Economic strategy builds extra settlements when rich (50+ wood)
 
-### Ship Commands
+## Tactics System
 
-AI ships follow this logic:
-1. **Attack**: If enemy within 8 hexes, set attack target and pursue
-2. **Patrol**: If idle, patrol 6-14 hexes around home port
+The tactics system manages coordinated behaviors beyond individual ship commands.
+
+### Scout Ship
+- One ship is assigned as scout (requires 2+ ships)
+- Explores 20-30 hexes from home to find enemy base
+- Once enemy found, patrols 10-15 hexes around enemy base (harassing)
+- Updates `enemyBaseLocation` when enemy port discovered
+
+### Group Attacks
+- Waits until enough ships are available (strategy-defined: 2-4 ships)
+- Forms attack group and sends them to enemy base location
+- Only launches attack once enemy base is discovered by scout
+- Attack group moves together toward target
+- Attack completes when any ship reaches within 3 hexes of target
+
+### Defend Mode
+- **Triggered** when threat level reaches 0.7+
+- **All ships** recalled to home port
+- **Attack group** disbanded
+- **Exits** when threat drops below 0.3
+
+### Ship Commands (Individual)
+
+Ships not managed by tactics (not scout, not in attack group, not defending):
+
+1. **Retreat**: If health below strategy threshold, retreat to home port
+2. **Attack**: If enemy within engagement range, decide to pursue based on `pursuitPersistence`
+3. **Patrol**: If idle, patrol within strategy-defined radius around home port
 
 ## Combat Integration
 
@@ -125,11 +230,19 @@ AI-owned entities are marked with a red indicator circle:
 
 ### aiPlayer.js
 - `updateAIPlayer(gameState, map, fogState, dt)` - Main update (called every frame)
-- `updateStrategicPriorities(gameState, map)` - Adjust priorities based on game state
+- `updateStrategicPriorities(gameState, map)` - Adjust priorities based on strategy/phase
+- `updateTactics(gameState, map)` - Manage scout, group attacks, defend mode
 - `evaluateBuildOptions(gameState, map, fogState)` - Decide what to build
 - `updateShipCommands(gameState, map)` - Command AI ships
 - `findNearestEnemy(ship, gameState)` - Find closest player entity
 - `notifyAIAttacked(gameState)` - Called when AI is attacked (increases threat)
+
+### Tactics Functions
+- `checkDefendMode(gameState, map)` - Enter/exit defend mode
+- `executeDefend(gameState, map)` - Recall all ships to home
+- `manageScout(gameState, map)` - Assign and control scout ship
+- `generateScoutTarget(gameState, map, tactics)` - Generate exploration waypoints
+- `manageGroupAttack(gameState, map)` - Coordinate group attacks
 
 ### gameState.js
 - `findOppositeStartingPositions(map)` - Find two home port locations ~25+ hexes apart
@@ -145,10 +258,17 @@ AI-owned entities are marked with a red indicator circle:
 | Constant | Value | Description |
 |----------|-------|-------------|
 | STRATEGIC_DECISION_INTERVAL | 5s | How often to recalculate priorities |
+| TACTICS_DECISION_INTERVAL | 4s | How often to update tactics |
 | BUILD_DECISION_INTERVAL | 3s | How often to evaluate builds |
 | SHIP_COMMAND_INTERVAL | 2s | How often to update ship commands |
-| Enemy detection range | 8 hexes | Distance to detect and chase enemies |
-| Patrol radius | 6-14 hexes | Random patrol distance from home port |
+
+### Strategy-Specific Values
+
+| Strategy | Patrol Radius | Engagement Range | Attack Group Size |
+|----------|---------------|------------------|-------------------|
+| Aggressive | 10-20 hexes | 10 hexes | 2 ships |
+| Defensive | 4-8 hexes | 6 hexes | 3 ships |
+| Economic | 5-10 hexes | 5 hexes | 4 ships |
 
 ## Future Expansion Ideas
 - Difficulty levels (easy/medium/hard)
