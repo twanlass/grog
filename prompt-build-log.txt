@@ -1142,3 +1142,24 @@ Figure out where to start and make a plan.
 
 ## 256. User prompt
 > Let's improve our AI a bit for the vs mode. I want to give the AI a few different strategies to pick from to make the game more dynamic. How might we craft a system for this? 
+
+## 257. User prompt
+> on victory or defeat screen, instead of pressing space to restart, space should return the player to the title screen 
+
+## 258. User prompt
+> let's update fog of war: AI players should not reveal fog of war, much like pirates
+
+## 259. User prompt
+> almost there; ai units sprites are still visible. See screenshot: 
+
+## 260. User prompt
+> almost there: can still floating numbers from settlements, ship trails, etc. Can we make this more generic, as in, don't render anything from AI units at all when under fog of war? 
+
+## 261. User prompt
+> will this apply to all new units etc we add? 
+
+## 262. User prompt
+> yes
+
+## 263. User prompt
+> ship it

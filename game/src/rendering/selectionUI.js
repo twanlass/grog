@@ -4,6 +4,7 @@ import { isSelected } from "../gameState.js";
 import { TOWERS } from "../sprites/index.js";
 import { drawHexRangeFilled, drawHexRangeOutline } from "./renderHelpers.js";
 import { findPath } from "../pathfinding.js";
+import { shouldRenderEntity } from "../fogOfWar.js";
 
 /**
  * Draw selection indicator for a single unit (hex outline)
@@ -320,7 +321,7 @@ export function drawSelectionBox(ctx, isSelecting, selectStartX, selectStartY, s
 /**
  * Draw hover highlight for any unit under the mouse cursor
  */
-export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selectionRadius) {
+export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selectionRadius, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
 
     const mouseX = k.mousePos().x;
@@ -356,6 +357,8 @@ export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selecti
 
     // Check ships (use visual position for smooth movement)
     for (const ship of gameState.ships) {
+        // Skip non-player units in fog
+        if (!shouldRenderEntity(fogState, ship)) continue;
         const { x: shipX, y: shipY } = getShipVisualPos(ship);
         const dx = worldMX - shipX;
         const dy = worldMY - shipY;
@@ -367,6 +370,8 @@ export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selecti
 
     // Check ports
     for (const port of gameState.ports) {
+        // Skip non-player units in fog
+        if (!shouldRenderEntity(fogState, port)) continue;
         const pos = hexToPixel(port.q, port.r);
         const dx = worldMX - pos.x;
         const dy = worldMY - pos.y;
@@ -378,6 +383,8 @@ export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selecti
 
     // Check settlements
     for (const settlement of gameState.settlements) {
+        // Skip non-player units in fog
+        if (!shouldRenderEntity(fogState, settlement)) continue;
         const pos = hexToPixel(settlement.q, settlement.r);
         const dx = worldMX - pos.x;
         const dy = worldMY - pos.y;
@@ -389,6 +396,8 @@ export function drawUnitHoverHighlight(ctx, gameState, getShipVisualPos, selecti
 
     // Check towers
     for (const tower of gameState.towers) {
+        // Skip non-player units in fog
+        if (!shouldRenderEntity(fogState, tower)) continue;
         const pos = hexToPixel(tower.q, tower.r);
         const dx = worldMX - pos.x;
         const dy = worldMY - pos.y;

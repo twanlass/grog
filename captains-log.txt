@@ -1,6 +1,19 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-02 | Hide AI units in fog of war
+----------------------------------------
+### New
+- `shouldRenderEntity()` helper for automatic fog visibility on new unit types
+- AI units (ships, ports, settlements, towers) no longer reveal fog of war
+
+### Improved
+- All rendering functions now use centralized fog visibility check
+- Effects hidden in fog: trails, projectiles, explosions, splashes, debris, loot, health bars
+- Hover highlights skip hidden units in fog
+- Victory/defeat screen returns to title instead of restarting
+
+
 2026-01-02 | Add AI strategy system with tactics
 ------------------------------------------------
 ### New

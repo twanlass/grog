@@ -1,7 +1,7 @@
 // Effects rendering: projectiles, explosions, debris, trails, health bars
 import { hexToPixel, HEX_SIZE } from "../hex.js";
 import { SHIPS, PORTS, TOWERS, SETTLEMENTS } from "../sprites/index.js";
-import { isHexVisible } from "../fogOfWar.js";
+import { isHexVisible, shouldRenderEntity } from "../fogOfWar.js";
 
 /**
  * Generate hexagon vertices centered at origin
@@ -30,8 +30,8 @@ export function drawShipTrails(ctx, gameState, fogState) {
     for (const ship of gameState.ships) {
         if (!ship.trail || ship.trail.length < 2) continue;
 
-        // Hide pirate trails in non-visible areas
-        if (ship.type === 'pirate' && !isHexVisible(fogState, ship.q, ship.r)) continue;
+        // Hide non-player ship trails in fog
+        if (!shouldRenderEntity(fogState, ship)) continue;
 
         // Scale wake size based on ship size (using cargo as proxy)
         const shipData = SHIPS[ship.type];
@@ -68,10 +68,13 @@ export function drawShipTrails(ctx, gameState, fogState) {
 /**
  * Draw floating debris from destroyed units (ships, ports, towers)
  */
-export function drawFloatingDebris(ctx, floatingDebris) {
+export function drawFloatingDebris(ctx, floatingDebris, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
     for (const debris of floatingDebris) {
+        // Hide debris in fog
+        if (!isHexVisible(fogState, debris.q, debris.r)) continue;
+
         const pos = hexToPixel(debris.q, debris.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
@@ -150,10 +153,20 @@ export function drawFloatingDebris(ctx, floatingDebris) {
 /**
  * Draw projectiles (cannon balls) with fiery trails
  */
-export function drawProjectiles(ctx, gameState) {
+export function drawProjectiles(ctx, gameState, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
     for (const proj of gameState.projectiles) {
+        // Hide projectiles from non-player units in fog
+        if (proj.sourceShipIndex !== undefined) {
+            const sourceShip = gameState.ships[proj.sourceShipIndex];
+            if (sourceShip && !shouldRenderEntity(fogState, sourceShip)) continue;
+        }
+        if (proj.sourceTowerIndex !== undefined) {
+            const sourceTower = gameState.towers[proj.sourceTowerIndex];
+            if (sourceTower && !shouldRenderEntity(fogState, sourceTower)) continue;
+        }
+
         // Interpolate position based on progress
         const fromPos = hexToPixel(proj.fromQ, proj.fromR);
         const toPos = hexToPixel(proj.toQ, proj.toR);
@@ -223,10 +236,13 @@ export function drawProjectiles(ctx, gameState) {
 /**
  * Draw water splashes (from missed projectiles)
  */
-export function drawWaterSplashes(ctx, gameState) {
+export function drawWaterSplashes(ctx, gameState, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
     for (const splash of gameState.waterSplashes) {
+        // Hide splashes in fog
+        if (!isHexVisible(fogState, splash.q, splash.r)) continue;
+
         const pos = hexToPixel(splash.q, splash.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
@@ -264,10 +280,13 @@ export function drawWaterSplashes(ctx, gameState) {
 /**
  * Draw ship explosions (constrained to hex bounds)
  */
-export function drawExplosions(ctx, gameState) {
+export function drawExplosions(ctx, gameState, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
     for (const explosion of gameState.shipExplosions) {
+        // Hide explosions in fog
+        if (!isHexVisible(fogState, explosion.q, explosion.r)) continue;
+
         const pos = hexToPixel(explosion.q, explosion.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
@@ -320,8 +339,9 @@ export function drawExplosions(ctx, gameState) {
 /**
  * Draw health bars for units in combat
  * @param {function} getShipVisualPosLocal - Function to get ship visual position
+ * @param {Object} fogState - Fog of war state for visibility checks
  */
-export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
+export function drawHealthBars(ctx, gameState, getShipVisualPosLocal, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
     // Track entities to avoid duplicate health bars
@@ -367,21 +387,25 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
         if (type === 'ship') {
             entity = gameState.ships[index];
             if (!entity) continue;
+            if (!shouldRenderEntity(fogState, entity)) continue;
             maxHealth = SHIPS[entity.type].health;
             pos = getShipVisualPosLocal(entity);
         } else if (type === 'port') {
             entity = gameState.ports[index];
             if (!entity) continue;
+            if (!shouldRenderEntity(fogState, entity)) continue;
             maxHealth = PORTS[entity.type].health;
             pos = hexToPixel(entity.q, entity.r);
         } else if (type === 'tower') {
             entity = gameState.towers[index];
             if (!entity) continue;
+            if (!shouldRenderEntity(fogState, entity)) continue;
             maxHealth = TOWERS[entity.type].health;
             pos = hexToPixel(entity.q, entity.r);
         } else if (type === 'settlement') {
             entity = gameState.settlements[index];
             if (!entity) continue;
+            if (!shouldRenderEntity(fogState, entity)) continue;
             maxHealth = SETTLEMENTS.settlement.health;
             pos = hexToPixel(entity.q, entity.r);
         } else {
@@ -451,10 +475,13 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal) {
 /**
  * Draw loot drops floating on the water
  */
-export function drawLootDrops(ctx, lootDrops) {
+export function drawLootDrops(ctx, lootDrops, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
     for (const loot of lootDrops) {
+        // Hide loot in fog
+        if (!isHexVisible(fogState, loot.q, loot.r)) continue;
+
         const pos = hexToPixel(loot.q, loot.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;

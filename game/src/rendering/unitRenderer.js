@@ -1,19 +1,23 @@
 // Unit rendering: ships, ports, settlements, towers
 import { hexToPixel, HEX_SIZE } from "../hex.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { isHexVisible } from "../fogOfWar.js";
+import { isHexVisible, shouldRenderEntity } from "../fogOfWar.js";
 import { getShipVisualPos } from "../systems/shipMovement.js";
 import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js";
 
 /**
  * Draw all ports
  */
-export function drawPorts(ctx, gameState, map) {
+export function drawPorts(ctx, gameState, map, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
     const unitScale = zoom * 1.5;
 
     for (let i = 0; i < gameState.ports.length; i++) {
         const port = gameState.ports[i];
+
+        // Hide non-player units in fog
+        if (!shouldRenderEntity(fogState, port)) continue;
+
         const pos = hexToPixel(port.q, port.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
@@ -85,11 +89,14 @@ export function drawPorts(ctx, gameState, map) {
 /**
  * Draw all settlements
  */
-export function drawSettlements(ctx, gameState) {
+export function drawSettlements(ctx, gameState, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
     const unitScale = zoom * 1.5;
 
     for (const settlement of gameState.settlements) {
+        // Hide non-player units in fog
+        if (!shouldRenderEntity(fogState, settlement)) continue;
+
         const pos = hexToPixel(settlement.q, settlement.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
@@ -144,11 +151,14 @@ export function drawSettlements(ctx, gameState) {
 /**
  * Draw all towers
  */
-export function drawTowers(ctx, gameState) {
+export function drawTowers(ctx, gameState, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
     const unitScale = zoom * 1.5;
 
     for (const tower of gameState.towers) {
+        // Hide non-player units in fog
+        if (!shouldRenderEntity(fogState, tower)) continue;
+
         const pos = hexToPixel(tower.q, tower.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
@@ -217,11 +227,8 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
     const unitScale = zoom * 1.5;
 
     for (const ship of gameState.ships) {
-        // Hide pirates in non-visible areas (player ships always visible)
-        // Pirates only show in currently visible hexes, not just explored ones
-        if (ship.type === 'pirate' && !isHexVisible(fogState, ship.q, ship.r)) continue;
-        // Also hide AI ships in non-visible areas
-        if (ship.owner === 'ai' && !isHexVisible(fogState, ship.q, ship.r)) continue;
+        // Hide non-player units in fog
+        if (!shouldRenderEntity(fogState, ship)) continue;
 
         const pos = getShipVisualPosLocal(ship);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -398,12 +405,15 @@ export function drawBirds(ctx, birdStates) {
 /**
  * Draw loading/unloading progress bars for ships
  */
-export function drawDockingProgress(ctx, gameState, getShipVisualPosLocal) {
+export function drawDockingProgress(ctx, gameState, getShipVisualPosLocal, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
     const unitScale = zoom * 1.5;
 
     for (const ship of gameState.ships) {
         if (!ship.dockingState) continue;
+
+        // Hide non-player units in fog
+        if (!shouldRenderEntity(fogState, ship)) continue;
 
         const pos = getShipVisualPosLocal(ship);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;

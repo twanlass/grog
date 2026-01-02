@@ -67,6 +67,24 @@ export function isHexRevealed(fogState, q, r) {
     return fogState.exploredHexes.has(hexKey(q, r));
 }
 
+/**
+ * Check if an entity should be rendered based on fog of war.
+ * Player units are always visible. AI/pirate units only visible if their hex is visible.
+ * @param {Object} fogState - Fog of war state
+ * @param {Object} entity - Entity with owner, q, r properties (and optionally type for ships)
+ * @returns {boolean} - True if entity should be rendered
+ */
+export function shouldRenderEntity(fogState, entity) {
+    // Player units always visible
+    if (!entity.owner || entity.owner === 'player') return true;
+    // Pirates (type check for ships)
+    if (entity.type === 'pirate') return isHexVisible(fogState, entity.q, entity.r);
+    // AI units only visible if hex is visible
+    if (entity.owner === 'ai') return isHexVisible(fogState, entity.q, entity.r);
+    // Default: render
+    return true;
+}
+
 // Mark fog as needing recalculation
 export function markVisibilityDirty(fogState) {
     fogState.isDirty = true;
@@ -111,33 +129,36 @@ export function recalculateVisibility(fogState, gameState, currentTime = 0) {
     // Collect all vision sources for animation calculations
     const visionSources = [];
 
-    // Player ships (pirates don't grant vision)
+    // Player ships (pirates and AI don't grant vision)
     for (const ship of gameState.ships) {
-        if (ship.type === 'pirate') continue;
+        if (ship.type === 'pirate' || ship.owner === 'ai') continue;
         const sightDistance = SHIPS[ship.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, ship.q, ship.r, sightDistance);
         visionSources.push({ q: ship.q, r: ship.r });
     }
 
-    // Completed ports (ports being upgraded still grant vision)
+    // Completed player ports (ports being upgraded still grant vision)
     for (const port of gameState.ports) {
         if (port.construction && !port.construction.upgradeTo) continue;  // Skip new construction, not upgrades
+        if (port.owner === 'ai') continue;
         const sightDistance = PORTS[port.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, port.q, port.r, sightDistance);
         visionSources.push({ q: port.q, r: port.r });
     }
 
-    // Completed settlements
+    // Completed player settlements
     for (const settlement of gameState.settlements) {
         if (settlement.construction) continue;
+        if (settlement.owner === 'ai') continue;
         const sightDistance = SETTLEMENTS.settlement.sightDistance;
         addRadiusToSet(fogState.visibleHexes, settlement.q, settlement.r, sightDistance);
         visionSources.push({ q: settlement.q, r: settlement.r });
     }
 
-    // Completed towers (towers being upgraded still grant vision)
+    // Completed player towers (towers being upgraded still grant vision)
     for (const tower of gameState.towers) {
         if (tower.construction && !tower.construction.upgradeTo) continue;  // Skip new construction, not upgrades
+        if (tower.owner === 'ai') continue;
         const sightDistance = TOWERS[tower.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, tower.q, tower.r, sightDistance);
         visionSources.push({ q: tower.q, r: tower.r });

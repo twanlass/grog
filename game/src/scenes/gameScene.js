@@ -559,31 +559,31 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             drawFogOfWar(ctx, map, tilePositions, fogState, gameTime);
 
             // Draw ports (migrated to rendering module)
-            drawPorts(ctx, gameState, map);
+            drawPorts(ctx, gameState, map, fogState);
 
             // Draw settlements (migrated to rendering module)
-            drawSettlements(ctx, gameState);
+            drawSettlements(ctx, gameState, fogState);
 
             // Keep unitScale for remaining inline code
             const unitScale = zoom * 1.5;
 
             // Draw towers (migrated to rendering module)
-            drawTowers(ctx, gameState);
+            drawTowers(ctx, gameState, fogState);
 
             // Draw ship water trails (migrated to rendering module)
             drawShipTrails(ctx, gameState, fogState);
 
             // Draw floating debris (migrated to rendering module)
-            drawFloatingDebris(ctx, gameState.floatingDebris);
+            drawFloatingDebris(ctx, gameState.floatingDebris, fogState);
 
             // Draw loot drops
-            drawLootDrops(ctx, gameState.lootDrops);
+            drawLootDrops(ctx, gameState.lootDrops, fogState);
 
             // Draw loot collection sparkles
             drawLootSparkles(ctx, gameState.lootSparkles);
 
             // Draw unit hover highlight (before units so it appears underneath)
-            drawUnitHoverHighlight(ctx, gameState, getShipVisualPosLocal, SELECTION_RADIUS);
+            drawUnitHoverHighlight(ctx, gameState, getShipVisualPosLocal, SELECTION_RADIUS, fogState);
 
             // Draw waypoints and rally points (before units so they appear underneath)
             drawWaypointsAndRallyPoints(ctx, gameState, getShipVisualPosLocal, map);
@@ -592,19 +592,19 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             drawShips(ctx, gameState, fogState, getShipVisualPosLocal);
 
             // Draw projectiles (migrated to rendering module)
-            drawProjectiles(ctx, gameState);
+            drawProjectiles(ctx, gameState, fogState);
 
             // Draw water splashes (migrated to rendering module)
-            drawWaterSplashes(ctx, gameState);
+            drawWaterSplashes(ctx, gameState, fogState);
 
             // Draw ship explosions (migrated to rendering module)
-            drawExplosions(ctx, gameState);
+            drawExplosions(ctx, gameState, fogState);
 
             // Draw health bars (migrated to rendering module)
-            drawHealthBars(ctx, gameState, getShipVisualPosLocal);
+            drawHealthBars(ctx, gameState, getShipVisualPosLocal, fogState);
 
             // Draw loading/unloading progress bars (migrated to rendering module)
-            drawDockingProgress(ctx, gameState, getShipVisualPosLocal);
+            drawDockingProgress(ctx, gameState, getShipVisualPosLocal, fogState);
 
             // Draw all selection indicators (migrated to rendering module)
             drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, null);
@@ -755,7 +755,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 });
 
                 k.drawText({
-                    text: "Press SPACE to restart",
+                    text: "Press SPACE to continue",
                     pos: k.vec2(screenWidth / 2, screenHeight / 2 + 60),
                     size: 14,
                     anchor: "center",
@@ -1009,10 +1009,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // Space to restart when game over
+        // Space to return to title when game over
         k.onKeyPress("space", () => {
             if (gameState.gameOver) {
-                k.go("game", { scenarioId });
+                k.go("title");
             }
         });
 
