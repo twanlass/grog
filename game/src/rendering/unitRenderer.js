@@ -3,7 +3,6 @@ import { hexToPixel, HEX_SIZE } from "../hex.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { isHexVisible } from "../fogOfWar.js";
 import { getShipVisualPos } from "../systems/shipMovement.js";
-import { getHomePortIndex } from "../gameState.js";
 import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js";
 
 /**
@@ -12,7 +11,6 @@ import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js
 export function drawPorts(ctx, gameState, map) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
     const unitScale = zoom * 1.5;
-    const homePortIndex = getHomePortIndex(gameState, map);
 
     for (let i = 0; i < gameState.ports.length; i++) {
         const port = gameState.ports[i];
@@ -26,7 +24,6 @@ export function drawPorts(ctx, gameState, map) {
 
         const portData = PORTS[port.type];
         const isConstructing = port.construction !== null;
-        const isHomePort = (i === homePortIndex);
 
         // Draw red indicator circle for AI ports (enemy faction marker)
         if (port.owner === 'ai') {
@@ -38,8 +35,8 @@ export function drawPorts(ctx, gameState, map) {
             });
         }
 
-        // Use PNG sprite for home port dock, otherwise pixel art
-        if (isHomePort && portData.imageSprite) {
+        // Use PNG sprite for docks (if available), otherwise pixel art
+        if (portData.imageSprite) {
             const spriteScale = zoom * (portData.spriteScale || 1);
             // Frame 0 = normal, Frame 1 = flash (white silhouette)
             const frame = port.hitFlash > 0 ? 1 : 0;

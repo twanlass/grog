@@ -161,3 +161,49 @@ xn    @    kaplay.js?v=9a8bb7fb:5276
 
 ## 40. User prompt
 > ship it
+
+## 41. User prompt
+> update our ship-it command to include documenting any new major features in docs/features 
+
+## 42. User prompt
+> is my skill tracked in git / source control? 
+
+## 43. User prompt
+> 1 
+
+## 44. User prompt
+> make the port > dock always render w/ the home-port sprite, regardless if it's the first, home island, etc. Use it regardless if human or AI player. 
+
+## 45. User prompt
+> in vs mode, don't show the pirate kill counter in the bottom right 
+
+## 46. User prompt
+> let's move the speed control (1x, 2x, etc) to the top right of the screen next to the left of the pause button 
+
+## 47. User prompt
+> in sandbox mode, don't show the pirate kill counter in the bottom right 
+
+## 48. User prompt
+> > move all selected unit UI pansl to the same place in bottom left of the screen for consistency:
+  - build menu for ports
+  - stats for selected ship
+  - stats for selected tower
+  - upgrade menu for tower, ports 
+
+## 49. User prompt
+> small bug: when a ship is selected and it's at a shore, both the unit menu (stats) and it's build menu are shown in the same location, overlapping: 
+
+## 50. User prompt
+> in defend mode, move the pirate kill counter to the top, right of the wave UI: 
+
+## 51. User prompt
+> how big is the pirate ship sprite? 
+
+## 52. User prompt
+> how big is the pirate ship sprite in the pirate kill count ui? 
+
+## 53. User prompt
+> let's render it at .75; remove the rotation on it. also add a "x" to the count so it reads like "[sprite] x 8"
+
+## 54. User prompt
+> oh and add a little padding to the right (so it matches the left). Width should be dyanamic too in case the player kills lots of priates 

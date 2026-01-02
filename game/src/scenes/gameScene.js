@@ -658,9 +658,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
                 settlementInfoPanelBounds = drawSettlementInfoPanel(ctx, settlement, gameState);
             }
 
-            // Ship info panel (bottom right, when ship is selected)
+            // Ship info panel (bottom left, when ship is selected and NOT showing build panel)
             shipInfoPanelBounds = null;
-            if (selectedShipIndices.length === 1 && selectedTowerIndices.length === 0 && selectedSettlementIndices.length === 0) {
+            if (selectedShipIndices.length === 1 && selectedTowerIndices.length === 0 && selectedSettlementIndices.length === 0 && !shipBuildPanelBounds) {
                 const ship = gameState.ships[selectedShipIndices[0].index];
                 shipInfoPanelBounds = drawShipInfoPanel(ctx, ship, gameState);
             }

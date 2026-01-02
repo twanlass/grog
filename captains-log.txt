@@ -1,6 +1,19 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-01 | Improve UI consistency and panel positioning
+---------------------------------------------------------
+### Improved
+- Moved speed control to top right next to pause button, styled as matching button
+- Moved all selected unit panels (ship, tower, settlement) to bottom left for consistency
+- Pirate kill counter only shows in defend mode, repositioned to right of wave status
+- Pirate kill counter styling: smaller sprite (0.75x), "x N" format, dynamic width
+- All docks now render with the home-port PNG sprite
+
+### Fixed
+- Fixed panel overlap when ship is docked (build panel vs info panel no longer conflict)
+
+
 2026-01-01 | Add circular minimap with click-to-navigate
 --------------------------------------------------------
 ### New

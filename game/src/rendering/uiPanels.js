@@ -213,52 +213,62 @@ export function drawTopRightButtons(ctx, gameState) {
 }
 
 /**
- * Draw time scale indicator (bottom left) with clickable speed selector
+ * Draw time scale indicator (top right, left of pause button) with clickable speed selector
  * Returns bounds for click detection
  */
 export function drawTimeIndicator(ctx, timeScale, speedMenuOpen = false) {
-    const { k, screenHeight } = ctx;
+    const { k, screenWidth } = ctx;
 
-    const timeLabel = timeScale === 0 ? "PAUSED" : `${timeScale}x`;
-    const x = 20;
-    const y = screenHeight - 30;
-    const fontSize = 18;
+    // Position constants (matching top right buttons)
+    const buttonWidth = 36;
+    const buttonHeight = 36;
+    const buttonSpacing = 8;
+    const buttonY = 15;
 
-    // Draw text with black outline (white fill)
-    const outlineOffset = 1;
-    const outlineColor = k.rgb(0, 0, 0);
+    // Calculate position: left of pause button
+    const menuBtnX = screenWidth - buttonWidth - 15;
+    const pauseX = menuBtnX - buttonWidth - buttonSpacing;
+    const indicatorWidth = 44;
+    const x = pauseX - indicatorWidth - buttonSpacing;
+    const y = buttonY;
 
-    // Draw outline in 4 directions
-    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-        k.drawText({
-            text: timeLabel,
-            pos: k.vec2(x + ox * outlineOffset, y + oy * outlineOffset),
-            size: fontSize,
-            color: outlineColor,
-        });
-    }
+    const timeLabel = timeScale === 0 ? "||" : `${timeScale}x`;
+    const mousePos = k.mousePos();
+    const isHovered = mousePos.x >= x && mousePos.x <= x + indicatorWidth &&
+                      mousePos.y >= y && mousePos.y <= y + buttonHeight;
 
-    // White text on top
+    // Draw button background
+    k.drawRect({
+        pos: k.vec2(x, y),
+        width: indicatorWidth,
+        height: buttonHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 6,
+        opacity: isHovered ? 1.0 : 0.85,
+    });
+
+    // Draw speed text centered
+    const textColor = isHovered ? k.rgb(200, 210, 220) : k.rgb(150, 160, 170);
     k.drawText({
         text: timeLabel,
-        pos: k.vec2(x, y),
-        size: fontSize,
-        color: k.rgb(255, 255, 255),
+        pos: k.vec2(x + indicatorWidth / 2, y + buttonHeight / 2),
+        size: 16,
+        anchor: "center",
+        color: textColor,
     });
 
     // Calculate bounds for click detection
-    const textWidth = timeLabel.length * 10;  // Approximate
     const bounds = {
-        x: x - 5,
-        y: y - 5,
-        width: textWidth + 10,
-        height: fontSize + 10,
+        x: x,
+        y: y,
+        width: indicatorWidth,
+        height: buttonHeight,
     };
 
-    // Draw speed menu if open
+    // Draw speed menu if open (dropdown below)
     if (speedMenuOpen) {
         const menuX = x;
-        const menuY = y - 160;  // Above the indicator
+        const menuY = y + buttonHeight + 4;  // Below the indicator
         const menuWidth = 80;
         const itemHeight = 28;
         const menuHeight = 5 * itemHeight + 8;  // 5 options + padding
@@ -273,14 +283,13 @@ export function drawTimeIndicator(ctx, timeScale, speedMenuOpen = false) {
             opacity: 0.9,
         });
 
-        const mousePos = k.mousePos();
         bounds.menuItems = [];
 
         // Speed options 1x - 5x
         for (let i = 1; i <= 5; i++) {
             const itemY = menuY + 4 + (i - 1) * itemHeight;
             const isCurrentSpeed = timeScale === i;
-            const isHovered = mousePos.x >= menuX && mousePos.x <= menuX + menuWidth &&
+            const isItemHovered = mousePos.x >= menuX && mousePos.x <= menuX + menuWidth &&
                              mousePos.y >= itemY && mousePos.y <= itemY + itemHeight;
 
             bounds.menuItems.push({
@@ -290,7 +299,7 @@ export function drawTimeIndicator(ctx, timeScale, speedMenuOpen = false) {
             });
 
             // Highlight on hover
-            if (isHovered) {
+            if (isItemHovered) {
                 k.drawRect({
                     pos: k.vec2(menuX + 4, itemY),
                     width: menuWidth - 8,
@@ -333,19 +342,27 @@ export function drawTimeIndicator(ctx, timeScale, speedMenuOpen = false) {
 }
 
 /**
- * Draw pirate kill counter at bottom right of screen
+ * Draw pirate kill counter (top, right of wave status panel in defend mode)
  */
 export function drawPirateKillCounter(ctx, pirateKills) {
-    const { k, screenWidth, screenHeight } = ctx;
+    const { k, screenWidth } = ctx;
 
-    const padding = 12;
-    const spriteSize = 32;
-    const fontSize = 18;
-    const spacing = 8;
-    const panelWidth = spriteSize + spacing + 30 + padding * 2;
-    const panelHeight = spriteSize + padding * 2;
-    const panelX = screenWidth - 15 - panelWidth;
-    const panelY = screenHeight - 15 - panelHeight;
+    const padding = 10;
+    const fontSize = 16;
+    const spacing = 6;
+    const spriteScale = 0.75;
+    const spriteWidth = 48 * spriteScale;
+
+    // Calculate dynamic width based on text length
+    const text = `x ${pirateKills}`;
+    const textWidth = text.length * 10;  // Approximate width
+    const panelWidth = padding + spriteWidth + spacing + textWidth + padding;
+    const panelHeight = 50;  // Match wave status height
+
+    // Position to the right of wave status panel (200px wide, centered)
+    const waveStatusRight = screenWidth / 2 + 100;
+    const panelX = waveStatusRight + 8;
+    const panelY = 15;  // Match wave status Y position
 
     // Panel background (black)
     k.drawRect({
@@ -357,22 +374,21 @@ export function drawPirateKillCounter(ctx, pirateKills) {
         opacity: 0.85,
     });
 
-    // Draw pirate ship sprite at full size (facing northwest)
-    const spriteX = panelX + padding + spriteSize / 2;
+    // Draw pirate ship sprite
+    const spriteX = panelX + padding + spriteWidth / 2;
     const spriteY = panelY + panelHeight / 2;
     k.drawSprite({
         sprite: "pirate",
         pos: k.vec2(spriteX, spriteY),
         anchor: "center",
-        scale: 1.0,
-        angle: -45,
+        scale: spriteScale,
     });
 
-    // Draw kill count (white text)
-    const textX = spriteX + spriteSize / 2 + spacing;
+    // Draw kill count with "x" prefix
+    const textX = spriteX + spriteWidth / 2 + spacing;
     const textY = spriteY;
     k.drawText({
-        text: `${pirateKills}`,
+        text: text,
         pos: k.vec2(textX, textY),
         size: fontSize,
         anchor: "left",
@@ -437,13 +453,13 @@ export function drawWaveStatus(ctx, waveStatus) {
 }
 
 /**
- * Draw ship info panel (bottom right, when single ship is selected)
+ * Draw ship info panel (bottom left, when single ship is selected)
  * Returns bounds for repair button click detection
  */
 export function drawShipInfoPanel(ctx, ship, gameState) {
     if (!ship) return null;
 
-    const { k, screenWidth, screenHeight } = ctx;
+    const { k, screenHeight } = ctx;
     const shipData = SHIPS[ship.type];
     const maxHealth = shipData.health;
     const isDamaged = ship.health < maxHealth;
@@ -451,10 +467,10 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
 
     // Ships cannot repair themselves - only ports and towers can be repaired
     const repairSectionHeight = 0;
-    const infoPanelWidth = 140;
+    const infoPanelWidth = 160;
     const infoPanelHeight = 85 + repairSectionHeight;  // Reduced: removed cooldown bar
-    const infoPanelX = screenWidth / 2 - infoPanelWidth / 2;
-    const infoPanelY = screenHeight - infoPanelHeight - 15;
+    const infoPanelX = 15;  // Bottom left
+    const infoPanelY = screenHeight - infoPanelHeight - 50;
 
     const bounds = {
         x: infoPanelX,
@@ -588,13 +604,13 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
 }
 
 /**
- * Draw tower info panel (bottom right, when tower is selected)
+ * Draw tower info panel (bottom left, when tower is selected)
  * Returns bounds for upgrade button click detection
  */
 export function drawTowerInfoPanel(ctx, tower, gameState) {
     if (!tower) return null;
 
-    const { k, screenWidth, screenHeight } = ctx;
+    const { k, screenHeight } = ctx;
     const towerData = TOWERS[tower.type];
     const nextTowerType = getNextTowerType(tower.type);
     const canUpgrade = nextTowerType && !tower.construction && !tower.repair;
@@ -607,7 +623,7 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
     // Only show repair button when damaged and not already repairing (repair bar shows above unit)
     const repairHeight = (isDamaged && !isRepairing) && !tower.construction ? 50 : 0;
     const infoPanelHeight = 100 + upgradeHeight + repairHeight;
-    const infoPanelX = screenWidth - infoPanelWidth - 15;
+    const infoPanelX = 15;  // Bottom left
     const infoPanelY = screenHeight - infoPanelHeight - 50;
 
     const bounds = {
@@ -815,12 +831,12 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
 }
 
 /**
- * Draw the settlement info panel (bottom right, when settlement is selected)
+ * Draw the settlement info panel (bottom left, when settlement is selected)
  */
 export function drawSettlementInfoPanel(ctx, settlement, gameState) {
     if (!settlement) return null;
 
-    const { k, screenWidth, screenHeight } = ctx;
+    const { k, screenHeight } = ctx;
     const settlementData = SETTLEMENTS.settlement;
     const maxHealth = settlementData.health;
     const isDamaged = settlement.health < maxHealth;
@@ -831,7 +847,7 @@ export function drawSettlementInfoPanel(ctx, settlement, gameState) {
     // Only show repair button when damaged and not already repairing
     const repairHeight = (isDamaged && !isRepairing && !isConstructing) ? 50 : 0;
     const infoPanelHeight = 80 + repairHeight;
-    const infoPanelX = screenWidth - infoPanelWidth - 15;
+    const infoPanelX = 15;  // Bottom left
     const infoPanelY = screenHeight - infoPanelHeight - 50;
 
     const bounds = {
@@ -1623,7 +1639,10 @@ export function drawSimpleUIPanels(ctx, gameState, waveStatus = null, speedMenuO
     drawResourcePanel(ctx, gameState);
     const buttonBounds = drawTopRightButtons(ctx, gameState);
     const speedBounds = drawTimeIndicator(ctx, gameState.timeScale, speedMenuOpen);
-    drawPirateKillCounter(ctx, gameState.pirateKills);
+    // Only show pirate kill counter in defend mode
+    if (gameState.scenario && gameState.scenario.gameMode === 'defend') {
+        drawPirateKillCounter(ctx, gameState.pirateKills);
+    }
     drawWaveStatus(ctx, waveStatus);
 
     return { ...buttonBounds, speedIndicator: speedBounds };

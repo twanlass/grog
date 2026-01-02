@@ -32,6 +32,8 @@
 - show a 
 
 ### Multiplayer Mode notes 
+- when attacking one ship, AI should be alerted and send ships to rescue
+- end game: when all AI ports and ships are destroyed, have them surrender 
 - 
 
 ## Big Ideas
