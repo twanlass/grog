@@ -1420,10 +1420,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Clear selection first
             clearSelection(gameState);
 
-            // Check each ship (skip pirate ships)
+            // Check each ship (skip pirate and AI-owned ships)
             for (let i = 0; i < gameState.ships.length; i++) {
                 const ship = gameState.ships[i];
                 if (ship.type === 'pirate') continue;
+                if (ship.owner === 'ai') continue;
                 const pos = getShipVisualPosLocal(ship);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
@@ -1434,9 +1435,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Check each port
+            // Check each port (skip AI-owned ports)
             for (let i = 0; i < gameState.ports.length; i++) {
                 const port = gameState.ports[i];
+                if (port.owner === 'ai') continue;
                 const pos = hexToPixel(port.q, port.r);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
@@ -1447,9 +1449,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Check each settlement
+            // Check each settlement (skip AI-owned settlements)
             for (let i = 0; i < gameState.settlements.length; i++) {
                 const settlement = gameState.settlements[i];
+                if (settlement.owner === 'ai') continue;
                 const pos = hexToPixel(settlement.q, settlement.r);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
@@ -1500,6 +1503,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (let i = 0; i < gameState.ports.length; i++) {
                     const port = gameState.ports[i];
                     if (port.type !== subType) continue;
+                    if (port.owner === 'ai') continue;     // Don't select AI ports
 
                     const pos = hexToPixel(port.q, port.r);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -1513,6 +1517,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (let i = 0; i < gameState.towers.length; i++) {
                     const tower = gameState.towers[i];
                     if (tower.type !== subType) continue;
+                    if (tower.owner === 'ai') continue;     // Don't select AI towers
 
                     const pos = hexToPixel(tower.q, tower.r);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -1525,6 +1530,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             } else if (unitType === 'settlement') {
                 for (let i = 0; i < gameState.settlements.length; i++) {
                     const settlement = gameState.settlements[i];
+                    if (settlement.owner === 'ai') continue;  // Don't select AI settlements
 
                     const pos = hexToPixel(settlement.q, settlement.r);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;
