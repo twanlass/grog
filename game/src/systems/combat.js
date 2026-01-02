@@ -5,7 +5,7 @@ import { TOWERS } from "../sprites/towers.js";
 import { PORTS } from "../sprites/ports.js";
 import { SETTLEMENTS } from "../sprites/settlements.js";
 import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex, findNearestWaterInRange } from "../gameState.js";
-import { markVisibilityDirty } from "../fogOfWar.js";
+import { markVisibilityDirty, revealRadius } from "../fogOfWar.js";
 
 // Combat constants
 export const CANNON_DAMAGE = 5;
@@ -75,10 +75,10 @@ function spawnWoodSplinters(gameState, q, r) {
 export function updateCombat(hexToPixel, gameState, map, dt, fogState) {
     if (dt === 0) return; // Paused
 
-    handlePirateAttacks(gameState, dt);
+    handlePirateAttacks(gameState, dt, fogState);
     handleAutoReturnFire(gameState);  // Player ships automatically defend themselves
     handlePatrolChase(gameState, map);     // Patrolling ships chase their attack targets
-    handlePlayerAttacks(gameState, dt);
+    handlePlayerAttacks(gameState, dt, fogState);
     handleTowerAttacks(gameState, dt);  // Towers auto-attack pirates
     updateProjectiles(gameState, dt, fogState);
 }
@@ -86,7 +86,7 @@ export function updateCombat(hexToPixel, gameState, map, dt, fogState) {
 /**
  * Pirates in ATTACK state fire projectiles at their targets
  */
-function handlePirateAttacks(gameState, dt) {
+function handlePirateAttacks(gameState, dt, fogState) {
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
         if (ship.type !== 'pirate' || ship.aiState !== 'attack') continue;
@@ -121,6 +121,10 @@ function handlePirateAttacks(gameState, dt) {
                     damage: CANNON_DAMAGE,
                     speed: PROJECTILE_SPEED,
                 });
+
+                // Firing reveals the ship's position (no shooting from fog cover)
+                revealRadius(fogState, ship.q, ship.r, 1);
+                markVisibilityDirty(fogState);
 
                 // Reset cooldown using ship's fire rate
                 ship.attackCooldown = SHIPS[ship.type].fireCooldown;
@@ -283,7 +287,7 @@ function handlePatrolChase(gameState, map) {
  * Also decrements cooldowns for ALL player ships (even when not attacking)
  * Supports targeting ships, ports, settlements, and towers
  */
-function handlePlayerAttacks(gameState, dt) {
+function handlePlayerAttacks(gameState, dt, fogState) {
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
         if (ship.type === 'pirate') continue;  // Skip pirates (handled by handlePirateAttacks)
@@ -340,6 +344,13 @@ function handlePlayerAttacks(gameState, dt) {
                 damage: CANNON_DAMAGE,
                 speed: PROJECTILE_SPEED,
             });
+
+            // AI ships reveal themselves when firing (no shooting from fog cover)
+            if (ship.owner === 'ai') {
+                revealRadius(fogState, ship.q, ship.r, 1);
+                markVisibilityDirty(fogState);
+            }
+
             ship.attackCooldown = SHIPS[ship.type].fireCooldown;
         }
     }

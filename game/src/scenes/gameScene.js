@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
@@ -235,9 +235,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         let shipInfoPanelBounds = null;  // For ship repair button
         let topButtonBounds = null;  // For pause/menu buttons
         let minimapBounds = null;  // For minimap click-to-navigate
-        let speedMenuOpen = false;  // Speed selector menu state
+        let gameMenuOpen = false;  // Game menu dropdown state
+        let speedSubmenuOpen = false;  // Speed submenu state
+        let gameMenuBounds = null;  // For game menu click detection
         let menuPanelOpen = false;  // Controls menu panel state
         let timeScaleBeforeMenu = 1;  // Store time scale before opening menu
+        let lastNonZeroSpeed = 1;  // Track speed before pausing
 
         // Floating numbers for resource generation animation
         const floatingNumbers = [];
@@ -611,7 +614,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
             // Draw simple UI panels (migrated to rendering module)
             const waveStatus = getWaveStatus(gameState);
-            topButtonBounds = drawSimpleUIPanels(ctx, gameState, waveStatus, speedMenuOpen);
+            topButtonBounds = drawSimpleUIPanels(ctx, gameState, waveStatus);
+
+            // Draw game menu dropdown
+            gameMenuBounds = drawGameMenu(ctx, gameState, { open: gameMenuOpen, speedSubmenuOpen });
 
             // Draw minimap (pass camera position for viewport indicator)
             minimapBounds = drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, zoom);
@@ -669,6 +675,38 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             drawNotification(ctx, gameState.notification);
 
             // Game over overlay
+            // Draw pause overlay (when paused and not in menus or game over)
+            if (gameState.timeScale === 0 && !menuPanelOpen && !gameMenuOpen && !gameState.gameOver) {
+                const screenWidth = k.width();
+                const screenHeight = k.height();
+
+                // Semi-transparent overlay
+                k.drawRect({
+                    pos: k.vec2(0, 0),
+                    width: screenWidth,
+                    height: screenHeight,
+                    color: k.rgb(0, 0, 0),
+                    opacity: 0.5,
+                });
+
+                // Pause text
+                k.drawText({
+                    text: "PAUSED",
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 - 20),
+                    size: 48,
+                    anchor: "center",
+                    color: k.rgb(200, 210, 220),
+                });
+
+                k.drawText({
+                    text: "Press . to resume",
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 + 30),
+                    size: 14,
+                    anchor: "center",
+                    color: k.rgb(120, 130, 140),
+                });
+            }
+
             if (gameState.gameOver) {
                 const screenWidth = k.width();
                 const screenHeight = k.height();
@@ -915,14 +953,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
         });
 
         // Time scale controls
-        k.onKeyPress("1", () => { gameState.timeScale = 1; speedMenuOpen = false; });
-        k.onKeyPress("2", () => { gameState.timeScale = 2; speedMenuOpen = false; });
-        k.onKeyPress("3", () => { gameState.timeScale = 3; speedMenuOpen = false; });
-        k.onKeyPress("4", () => { gameState.timeScale = 4; speedMenuOpen = false; });
-        k.onKeyPress("5", () => { gameState.timeScale = 5; speedMenuOpen = false; });
+        k.onKeyPress("1", () => { gameState.timeScale = 1; gameMenuOpen = false; speedSubmenuOpen = false; });
+        k.onKeyPress("2", () => { gameState.timeScale = 2; gameMenuOpen = false; speedSubmenuOpen = false; });
+        k.onKeyPress("3", () => { gameState.timeScale = 3; gameMenuOpen = false; speedSubmenuOpen = false; });
+        k.onKeyPress("4", () => { gameState.timeScale = 4; gameMenuOpen = false; speedSubmenuOpen = false; });
+        k.onKeyPress("5", () => { gameState.timeScale = 5; gameMenuOpen = false; speedSubmenuOpen = false; });
         k.onKeyPress(".", () => {
-            gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
-            speedMenuOpen = false;
+            if (gameState.timeScale === 0) {
+                gameState.timeScale = lastNonZeroSpeed;
+            } else {
+                lastNonZeroSpeed = gameState.timeScale;
+                gameState.timeScale = 0;
+            }
+            gameMenuOpen = false;
+            speedSubmenuOpen = false;
         });
 
         // P to enter patrol mode (when ships selected)
@@ -967,8 +1011,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
 
         // ESC to cancel placement modes or deselect all units
         k.onKeyPress("escape", () => {
-            if (speedMenuOpen) {
-                speedMenuOpen = false;
+            if (gameMenuOpen) {
+                gameMenuOpen = false;
+                speedSubmenuOpen = false;
             } else if (menuPanelOpen) {
                 menuPanelOpen = false;
                 gameState.timeScale = timeScaleBeforeMenu;
@@ -1153,63 +1198,71 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID) {
             if (handleSettlementPlacementClick(gameState)) return;
             if (handleTowerPlacementClick(gameState)) return;
 
-            // Check top button clicks (pause/menu)
-            if (topButtonBounds) {
-                const { pauseButton, menuButton, speedIndicator } = topButtonBounds;
-                if (pauseButton &&
-                    mouseX >= pauseButton.x && mouseX <= pauseButton.x + pauseButton.width &&
-                    mouseY >= pauseButton.y && mouseY <= pauseButton.y + pauseButton.height) {
-                    // Toggle pause
-                    gameState.timeScale = gameState.timeScale === 0 ? 1 : 0;
-                    speedMenuOpen = false;
+            // Check game menu clicks first (when open)
+            if (gameMenuBounds) {
+                // Check speed submenu clicks first
+                if (gameMenuBounds.speedSubmenu) {
+                    const submenu = gameMenuBounds.speedSubmenu;
+                    for (const item of submenu.items) {
+                        if (mouseX >= item.x && mouseX <= item.x + item.width &&
+                            mouseY >= item.y && mouseY <= item.y + item.height) {
+                            gameState.timeScale = item.speed;
+                            gameMenuOpen = false;
+                            speedSubmenuOpen = false;
+                            return;
+                        }
+                    }
+                }
+
+                // Check main menu item clicks
+                for (const item of gameMenuBounds.items) {
+                    if (mouseX >= item.x && mouseX <= item.x + item.width &&
+                        mouseY >= item.y && mouseY <= item.y + item.height) {
+                        if (item.id === 'controls') {
+                            timeScaleBeforeMenu = gameState.timeScale || 1;
+                            gameState.timeScale = 0;
+                            menuPanelOpen = true;
+                            gameMenuOpen = false;
+                            speedSubmenuOpen = false;
+                        } else if (item.id === 'speed') {
+                            speedSubmenuOpen = !speedSubmenuOpen;
+                        } else if (item.id === 'pause') {
+                            if (gameState.timeScale === 0) {
+                                gameState.timeScale = lastNonZeroSpeed;
+                            } else {
+                                lastNonZeroSpeed = gameState.timeScale;
+                                gameState.timeScale = 0;
+                            }
+                        } else if (item.id === 'quit') {
+                            k.go("title");
+                        }
+                        return;
+                    }
+                }
+
+                // Click on menu background (but not items) - do nothing, keep menu open
+                const menu = gameMenuBounds.menu;
+                if (mouseX >= menu.x && mouseX <= menu.x + menu.width &&
+                    mouseY >= menu.y && mouseY <= menu.y + menu.height) {
                     return;
                 }
+
+                // Click outside menu - close it
+                gameMenuOpen = false;
+                speedSubmenuOpen = false;
+                // Don't return - allow click to pass through
+            }
+
+            // Check top button clicks (menu button)
+            if (topButtonBounds) {
+                const { menuButton } = topButtonBounds;
                 if (menuButton &&
                     mouseX >= menuButton.x && mouseX <= menuButton.x + menuButton.width &&
                     mouseY >= menuButton.y && mouseY <= menuButton.y + menuButton.height) {
-                    // Toggle menu panel
-                    if (!menuPanelOpen) {
-                        timeScaleBeforeMenu = gameState.timeScale || 1;
-                        gameState.timeScale = 0;
-                        menuPanelOpen = true;
-                    } else {
-                        gameState.timeScale = timeScaleBeforeMenu;
-                        menuPanelOpen = false;
-                    }
-                    speedMenuOpen = false;
+                    // Toggle game menu
+                    gameMenuOpen = !gameMenuOpen;
+                    speedSubmenuOpen = false;
                     return;
-                }
-
-                // Check speed menu clicks
-                if (speedIndicator) {
-                    // If menu is open, check menu item clicks first
-                    if (speedMenuOpen && speedIndicator.menu && speedIndicator.menuItems) {
-                        const menu = speedIndicator.menu;
-                        if (mouseX >= menu.x && mouseX <= menu.x + menu.width &&
-                            mouseY >= menu.y && mouseY <= menu.y + menu.height) {
-                            // Check which item was clicked
-                            for (const item of speedIndicator.menuItems) {
-                                if (mouseY >= item.y && mouseY <= item.y + item.height) {
-                                    gameState.timeScale = item.speed;
-                                    speedMenuOpen = false;
-                                    return;
-                                }
-                            }
-                        }
-                    }
-
-                    // Check click on speed indicator to toggle menu
-                    if (mouseX >= speedIndicator.x && mouseX <= speedIndicator.x + speedIndicator.width &&
-                        mouseY >= speedIndicator.y && mouseY <= speedIndicator.y + speedIndicator.height) {
-                        speedMenuOpen = !speedMenuOpen;
-                        return;
-                    }
-
-                    // Close menu if clicking outside
-                    if (speedMenuOpen) {
-                        speedMenuOpen = false;
-                        // Don't return - allow click to pass through
-                    }
                 }
             }
 

@@ -233,3 +233,24 @@ xn    @    kaplay.js?v=9a8bb7fb:5276
 
 ## 62. User prompt
 > ship it
+
+## 63. User prompt
+> small tweak to fog of war: when a ship is firing, it should reveal itself. I.e. a pirate or ai ship should not be allowed to fire from fog cover
+
+## 64. User prompt
+> lets make some UI tweaks/refactor: 
+- Add a new menu button to the top right and refactor / move existing functionality into menu:
+- Inside this new menu add menu items for: 
+- - Controls (shows existing controls menu when clicked; include ? hotkey in menu item)
+- - Speed (show existing 1x, 2x, etc menu to the left of the menu item as a drill down)
+- - Quit (return to main menu / home screen with mode selection)
+
+## 65. User prompt
+> clicking quit throws an error: 
+> small tweaks:
+  - when unpausing the game, return to the previously set speed (if 2x and paused, unpausing should
+  resume at 2x
+  - when paused, show an overlay w/ Pause text (reuse the defeat / success screens UI style 
+
+## 66. User prompt
+> pull remote and merge 

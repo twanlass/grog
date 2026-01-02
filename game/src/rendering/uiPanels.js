@@ -122,7 +122,7 @@ export function drawResourcePanel(ctx, gameState) {
 }
 
 /**
- * Draw top right buttons (pause and menu)
+ * Draw top right menu button (hamburger icon)
  * Returns bounds for click detection
  */
 export function drawTopRightButtons(ctx, gameState) {
@@ -130,11 +130,10 @@ export function drawTopRightButtons(ctx, gameState) {
 
     const buttonWidth = 36;
     const buttonHeight = 36;
-    const buttonSpacing = 8;
     const buttonY = 15;
     const mousePos = k.mousePos();
 
-    // Menu button (rightmost)
+    // Menu button (hamburger icon)
     const menuX = screenWidth - buttonWidth - 15;
     const menuHovered = mousePos.x >= menuX && mousePos.x <= menuX + buttonWidth &&
                         mousePos.y >= buttonY && mousePos.y <= buttonY + buttonHeight;
@@ -148,68 +147,195 @@ export function drawTopRightButtons(ctx, gameState) {
         opacity: menuHovered ? 1.0 : 0.85,
     });
 
-    // Help icon (?)
-    const menuCenterX = menuX + buttonWidth / 2;
-    const menuCenterY = buttonY + buttonHeight / 2;
-    const menuIconColor = menuHovered ? k.rgb(200, 210, 220) : k.rgb(150, 160, 170);
-    k.drawText({
-        text: "?",
-        pos: k.vec2(menuCenterX, menuCenterY),
-        size: 20,
-        anchor: "center",
-        color: menuIconColor,
-    });
+    // Hamburger icon (three horizontal lines)
+    const centerX = menuX + buttonWidth / 2;
+    const centerY = buttonY + buttonHeight / 2;
+    const lineColor = menuHovered ? k.rgb(200, 210, 220) : k.rgb(150, 160, 170);
+    const lineWidth = 16;
+    const lineHeight = 2;
+    const lineSpacing = 5;
 
-    // Pause button (left of menu)
-    const pauseX = menuX - buttonWidth - buttonSpacing;
-    const isPaused = gameState.timeScale === 0;
-    const pauseHovered = mousePos.x >= pauseX && mousePos.x <= pauseX + buttonWidth &&
-                         mousePos.y >= buttonY && mousePos.y <= buttonY + buttonHeight;
-
-    k.drawRect({
-        pos: k.vec2(pauseX, buttonY),
-        width: buttonWidth,
-        height: buttonHeight,
-        color: k.rgb(0, 0, 0),
-        radius: 6,
-        opacity: pauseHovered ? 1.0 : 0.85,
-    });
-
-    const pauseCenterX = pauseX + buttonWidth / 2;
-    const pauseCenterY = buttonY + buttonHeight / 2;
-
-    if (isPaused) {
-        // Play icon (triangle)
-        const playColor = pauseHovered ? k.rgb(120, 230, 120) : k.rgb(100, 200, 100);
-        k.drawTriangle({
-            p1: k.vec2(pauseCenterX - 6, pauseCenterY - 8),
-            p2: k.vec2(pauseCenterX - 6, pauseCenterY + 8),
-            p3: k.vec2(pauseCenterX + 8, pauseCenterY),
-            color: playColor,
-        });
-    } else {
-        // Pause icon (two bars)
-        const pauseIconColor = pauseHovered ? k.rgb(200, 210, 220) : k.rgb(150, 160, 170);
+    for (let i = -1; i <= 1; i++) {
         k.drawRect({
-            pos: k.vec2(pauseCenterX - 7, pauseCenterY - 8),
-            width: 5,
-            height: 16,
-            color: pauseIconColor,
-            radius: 1,
-        });
-        k.drawRect({
-            pos: k.vec2(pauseCenterX + 2, pauseCenterY - 8),
-            width: 5,
-            height: 16,
-            color: pauseIconColor,
+            pos: k.vec2(centerX - lineWidth / 2, centerY + i * lineSpacing - lineHeight / 2),
+            width: lineWidth,
+            height: lineHeight,
+            color: lineColor,
             radius: 1,
         });
     }
 
     return {
-        pauseButton: { x: pauseX, y: buttonY, width: buttonWidth, height: buttonHeight },
         menuButton: { x: menuX, y: buttonY, width: buttonWidth, height: buttonHeight },
     };
+}
+
+/**
+ * Draw game menu dropdown
+ * Returns bounds for click detection on menu items
+ */
+export function drawGameMenu(ctx, gameState, menuState) {
+    if (!menuState.open) return null;
+
+    const { k, screenWidth } = ctx;
+    const mousePos = k.mousePos();
+
+    // Menu positioning (below the hamburger button)
+    const menuWidth = 130;
+    const itemHeight = 32;
+    const padding = 8;
+    const menuX = screenWidth - menuWidth - 15;
+    const menuY = 15 + 36 + 8;  // Below button
+
+    const menuItems = [
+        { id: 'controls', label: 'Controls', hotkey: '?' },
+        { id: 'speed', label: 'Speed', hotkey: '>', showSubmenu: true },
+        { id: 'pause', label: gameState.timeScale === 0 ? 'Resume' : 'Pause', hotkey: '.' },
+        { id: 'quit', label: 'Quit', hotkey: '' },
+    ];
+
+    const menuHeight = menuItems.length * itemHeight + padding * 2;
+
+    // Draw menu background
+    k.drawRect({
+        pos: k.vec2(menuX, menuY),
+        width: menuWidth,
+        height: menuHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 6,
+        opacity: 0.95,
+    });
+
+    const bounds = {
+        menu: { x: menuX, y: menuY, width: menuWidth, height: menuHeight },
+        items: [],
+        speedSubmenu: null,
+    };
+
+    // Draw menu items
+    for (let i = 0; i < menuItems.length; i++) {
+        const item = menuItems[i];
+        const itemY = menuY + padding + i * itemHeight;
+        const isHovered = mousePos.x >= menuX && mousePos.x <= menuX + menuWidth &&
+                          mousePos.y >= itemY && mousePos.y <= itemY + itemHeight;
+        const isSpeedItem = item.id === 'speed';
+        const isSpeedSubmenuOpen = isSpeedItem && menuState.speedSubmenuOpen;
+
+        // Highlight on hover
+        if (isHovered || isSpeedSubmenuOpen) {
+            k.drawRect({
+                pos: k.vec2(menuX + 4, itemY),
+                width: menuWidth - 8,
+                height: itemHeight,
+                color: k.rgb(60, 70, 80),
+                radius: 4,
+            });
+        }
+
+        // Item label
+        const textColor = isHovered || isSpeedSubmenuOpen ? k.rgb(255, 255, 255) : k.rgb(180, 190, 200);
+        k.drawText({
+            text: item.label,
+            pos: k.vec2(menuX + 12, itemY + itemHeight / 2),
+            size: 14,
+            anchor: "left",
+            color: textColor,
+        });
+
+        // Hotkey or current speed indicator
+        let hotkeyText = item.hotkey;
+        if (isSpeedItem) {
+            hotkeyText = `${gameState.timeScale || 1}x >`;
+        }
+        if (hotkeyText) {
+            k.drawText({
+                text: hotkeyText,
+                pos: k.vec2(menuX + menuWidth - 12, itemY + itemHeight / 2),
+                size: 12,
+                anchor: "right",
+                color: k.rgb(120, 130, 140),
+            });
+        }
+
+        bounds.items.push({
+            id: item.id,
+            x: menuX,
+            y: itemY,
+            width: menuWidth,
+            height: itemHeight,
+        });
+    }
+
+    // Draw speed submenu if open
+    if (menuState.speedSubmenuOpen) {
+        const speedSubmenuWidth = 70;
+        const speedSubmenuX = menuX - speedSubmenuWidth - 4;
+        const speedItemY = menuY + padding + 1 * itemHeight;  // Aligned with Speed item
+        const speeds = [1, 2, 3, 4, 5];
+        const speedSubmenuHeight = speeds.length * itemHeight + padding * 2;
+
+        k.drawRect({
+            pos: k.vec2(speedSubmenuX, speedItemY),
+            width: speedSubmenuWidth,
+            height: speedSubmenuHeight,
+            color: k.rgb(0, 0, 0),
+            radius: 6,
+            opacity: 0.95,
+        });
+
+        bounds.speedSubmenu = {
+            menu: { x: speedSubmenuX, y: speedItemY, width: speedSubmenuWidth, height: speedSubmenuHeight },
+            items: [],
+        };
+
+        for (let i = 0; i < speeds.length; i++) {
+            const speed = speeds[i];
+            const sItemY = speedItemY + padding + i * itemHeight;
+            const isCurrentSpeed = gameState.timeScale === speed;
+            const isHovered = mousePos.x >= speedSubmenuX && mousePos.x <= speedSubmenuX + speedSubmenuWidth &&
+                              mousePos.y >= sItemY && mousePos.y <= sItemY + itemHeight;
+
+            if (isHovered) {
+                k.drawRect({
+                    pos: k.vec2(speedSubmenuX + 4, sItemY),
+                    width: speedSubmenuWidth - 8,
+                    height: itemHeight,
+                    color: k.rgb(60, 70, 80),
+                    radius: 4,
+                });
+            }
+
+            const speedTextColor = isCurrentSpeed ? k.rgb(100, 200, 100) :
+                                   isHovered ? k.rgb(255, 255, 255) : k.rgb(180, 190, 200);
+            k.drawText({
+                text: `${speed}x`,
+                pos: k.vec2(speedSubmenuX + speedSubmenuWidth / 2, sItemY + itemHeight / 2),
+                size: 14,
+                anchor: "center",
+                color: speedTextColor,
+            });
+
+            if (isCurrentSpeed) {
+                k.drawText({
+                    text: "✓",
+                    pos: k.vec2(speedSubmenuX + speedSubmenuWidth - 10, sItemY + itemHeight / 2),
+                    size: 12,
+                    anchor: "center",
+                    color: k.rgb(100, 200, 100),
+                });
+            }
+
+            bounds.speedSubmenu.items.push({
+                speed: speed,
+                x: speedSubmenuX,
+                y: sItemY,
+                width: speedSubmenuWidth,
+                height: itemHeight,
+            });
+        }
+    }
+
+    return bounds;
 }
 
 /**
@@ -1635,17 +1761,16 @@ export function drawMenuPanel(ctx) {
  * Draw all simple UI panels (resource, buttons, time, pirate kills, wave status)
  * Returns bounds for button click detection
  */
-export function drawSimpleUIPanels(ctx, gameState, waveStatus = null, speedMenuOpen = false) {
+export function drawSimpleUIPanels(ctx, gameState, waveStatus = null) {
     drawResourcePanel(ctx, gameState);
     const buttonBounds = drawTopRightButtons(ctx, gameState);
-    const speedBounds = drawTimeIndicator(ctx, gameState.timeScale, speedMenuOpen);
     // Only show pirate kill counter in defend mode
     if (gameState.scenario && gameState.scenario.gameMode === 'defend') {
         drawPirateKillCounter(ctx, gameState.pirateKills);
     }
     drawWaveStatus(ctx, waveStatus);
 
-    return { ...buttonBounds, speedIndicator: speedBounds };
+    return buttonBounds;
 }
 
 /**
