@@ -975,7 +975,7 @@ export function updatePirateRespawns(gameState, map, createShip, hexKey, dt) {
                         const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
 
                         if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
-                            gameState.ships.push(createShip('pirate', pirateQ, pirateR));
+                            gameState.ships.push(createShip('pirate', pirateQ, pirateR, 'pirate'));
                             spawned = true;
                             break;
                         }
