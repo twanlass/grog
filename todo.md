@@ -4,6 +4,9 @@
 - Tune fog of war distnaces
 - Tune attack distances (can't attack final settlements w/ biggest ship)
 - Surrender mode from AI when just settlements is left?
+- Have all ports contribute to global resources? 
+- - what to do w/ trade route stuff? 
+
 
 ### Misc improvement ideas
 - build queue: allow ports to build multiple ships one after the other

@@ -1143,44 +1143,52 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // Hotkey 'C' to build a Cutter when port panel is open
+        // Hotkey 'C' to build a Cutter at selected port(s) - round-robin
         const MAX_QUEUE_SIZE = 3;
+        let lastBuildPortOffset = -1; // Track which port got the last build
+        let lastSelectedPortIds = []; // Track selection to reset round-robin on change
+
         k.onKeyPress("c", () => {
-            if (buildPanelBounds?.buttons) {
-                const cutterButton = buildPanelBounds.buttons.find(b => b.shipType === 'cutter');
-                if (cutterButton) {
-                    const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
-                    if (selectedPortIndices.length === 1) {
-                        const portIdx = selectedPortIndices[0].index;
-                        const port = gameState.ports[portIdx];
-                        const shipData = SHIPS.cutter;
+            const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
+            if (selectedPortIndices.length === 0) return;
 
-                        // Check if queue is full
-                        if (port.buildQueue.length >= MAX_QUEUE_SIZE) {
-                            showNotification(gameState, "Build queue full (max 3)");
-                            return;
-                        }
-                        // Check if port is repairing
-                        if (port.repair) return;
+            // Reset round-robin if selection changed
+            const currentPortIds = selectedPortIndices.map(s => s.index).join(',');
+            if (currentPortIds !== lastSelectedPortIds) {
+                lastBuildPortOffset = -1;
+                lastSelectedPortIds = currentPortIds;
+            }
 
-                        // If queue is empty, check affordability and start immediately
-                        if (port.buildQueue.length === 0) {
-                            if (!canAfford(gameState.resources, shipData.cost)) return;
-                            if (!canAffordCrew(gameState, shipData.crewCost || 0)) {
-                                showNotification(gameState, "Max crew reached. Build more settlements.");
-                                return;
-                            }
-                            deductCost(gameState.resources, shipData.cost);
-                            addToBuildQueue(port, 'cutter', gameState.resources, true);
-                            port.buildQueue[0].progress = 0;
-                            console.log("Started building: cutter (hotkey C)");
-                        } else {
-                            // Queue has items - just add without resource check
-                            addToBuildQueue(port, 'cutter', gameState.resources, false);
-                            console.log(`Queued: cutter (hotkey C, position ${port.buildQueue.length})`);
-                        }
+            const shipData = SHIPS.cutter;
+            const numPorts = selectedPortIndices.length;
+
+            // Round-robin: start from next port after last successful build
+            for (let i = 0; i < numPorts; i++) {
+                const offset = (lastBuildPortOffset + 1 + i) % numPorts;
+                const sel = selectedPortIndices[offset];
+                const port = gameState.ports[sel.index];
+
+                // Skip ineligible ports
+                if (!getBuildableShips(port).includes('cutter')) continue;
+                if (port.buildQueue.length >= MAX_QUEUE_SIZE) continue;
+                if (port.repair) continue;
+
+                // Check affordability only if queue empty
+                if (port.buildQueue.length === 0) {
+                    if (!canAfford(gameState.resources, shipData.cost)) continue;
+                    if (!canAffordCrew(gameState, shipData.crewCost || 0)) {
+                        showNotification(gameState, "Max crew reached.");
+                        continue;
                     }
+                    deductCost(gameState.resources, shipData.cost);
+                    addToBuildQueue(port, 'cutter', gameState.resources, true);
+                    port.buildQueue[0].progress = 0;
+                } else {
+                    // Queue has items - just add without resource check
+                    addToBuildQueue(port, 'cutter', gameState.resources, false);
                 }
+                lastBuildPortOffset = offset; // Remember which port we used
+                break; // One ship per keypress
             }
         });
 

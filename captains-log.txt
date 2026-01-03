@@ -1,6 +1,14 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-03 | Add multi-port build hotkey with round-robin
+----------------------------------------------------------
+### New
+- Multi-port ship building: select multiple ports and press C to queue ships
+- Round-robin distribution: each keypress adds a ship to the next eligible port
+- Selection-aware reset: round-robin restarts when port selection changes
+
+
 2026-01-03 | Fix patrol routes and add build queue
 --------------------------------------------------
 ### New

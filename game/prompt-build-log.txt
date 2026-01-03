@@ -323,3 +323,21 @@ New ship navigates to rallypoint; ships on patrol route will attempt to navigate
 
 ## 81. User prompt
 > ship it
+
+## 82. User prompt
+> maybe a tiny feature: with multiple ports selected, allow the player to add ships to the queues. Simple example: 
+1. select two ports 
+2. press "C" twice
+Result: 1 cutter is added to each selected port queue, allow the player to build ships twice as fast
+
+## 83. User prompt
+> is it true round robbin? If I press C 4 times with two selected ports, will each port add two ship builds to it queue? 
+
+## 84. User prompt
+> yes
+
+## 85. User prompt
+> and then clear that lastBuildPortOffset whenever a new port is selected (to reset it)
+
+## 86. User prompt
+> ship it
