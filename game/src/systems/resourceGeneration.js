@@ -39,9 +39,11 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt, map) {
 
             if (isHomePort) {
                 // Add to the owner's global resources
-                if (settlementOwner === 'ai' && gameState.aiPlayer) {
-                    gameState.aiPlayer.resources.wood += woodAmount;
-                } else {
+                if (settlementOwner === 'ai1' && gameState.aiPlayers && gameState.aiPlayers[0]) {
+                    gameState.aiPlayers[0].resources.wood += woodAmount;
+                } else if (settlementOwner === 'ai2' && gameState.aiPlayers && gameState.aiPlayers[1]) {
+                    gameState.aiPlayers[1].resources.wood += woodAmount;
+                } else if (settlementOwner === 'player') {
                     gameState.resources.wood += woodAmount;
                 }
             } else {

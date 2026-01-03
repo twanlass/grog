@@ -1,6 +1,20 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-03 | Add debug fog toggle and fix versus mode issues
+------------------------------------------------------------
+### New
+- Debug panel with "Hide fog of war" toggle (Menu → Debug)
+- When enabled, reveals all AI units and full minimap for debugging
+- Fair starter island templates for versus mode (3 predefined shapes)
+- Support for two AI players (ai1, ai2) in free-for-all versus mode
+
+### Fixed
+- AI spawn positions now stay within map bounds (fixed coordinate conversion)
+- Player can now attack AI structures in versus mode (fixed owner check)
+- Fog visibility checks now correctly identify ai1/ai2 as AI owners
+
+
 2026-01-02 | Hide AI units in fog of war
 ----------------------------------------
 ### New

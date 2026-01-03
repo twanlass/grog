@@ -4,6 +4,22 @@ import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, 
 import { isHexVisible, shouldRenderEntity } from "../fogOfWar.js";
 import { getShipVisualPos } from "../systems/shipMovement.js";
 import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js";
+import { isAIOwner } from "../gameState.js";
+
+// Faction colors for visual differentiation
+const FACTION_COLORS = {
+    player: { r: 60, g: 120, b: 200 },   // Blue (not used - player doesn't need indicator)
+    ai1: { r: 200, g: 60, b: 60 },       // Red
+    ai2: { r: 230, g: 160, b: 50 },      // Orange
+};
+
+/**
+ * Get faction indicator color for an owner
+ */
+function getFactionColor(owner, k) {
+    const color = FACTION_COLORS[owner] || FACTION_COLORS.ai1;
+    return k.rgb(color.r, color.g, color.b);
+}
 
 /**
  * Draw all ports
@@ -29,12 +45,12 @@ export function drawPorts(ctx, gameState, map, fogState) {
         const portData = PORTS[port.type];
         const isConstructing = port.construction !== null;
 
-        // Draw red indicator circle for AI ports (enemy faction marker)
-        if (port.owner === 'ai') {
+        // Draw indicator circle for AI ports (enemy faction marker)
+        if (isAIOwner(port.owner)) {
             k.drawCircle({
                 pos: k.vec2(screenX, screenY),
                 radius: 22 * zoom,
-                color: k.rgb(200, 60, 60),
+                color: getFactionColor(port.owner, k),
                 opacity: 0.4,
             });
         }
@@ -108,12 +124,12 @@ export function drawSettlements(ctx, gameState, fogState) {
         const settlementData = SETTLEMENTS.settlement;
         const isConstructing = settlement.construction !== null;
 
-        // Draw red indicator circle for AI settlements (enemy faction marker)
-        if (settlement.owner === 'ai') {
+        // Draw indicator circle for AI settlements (enemy faction marker)
+        if (isAIOwner(settlement.owner)) {
             k.drawCircle({
                 pos: k.vec2(screenX, screenY),
                 radius: 16 * zoom,
-                color: k.rgb(200, 60, 60),
+                color: getFactionColor(settlement.owner, k),
                 opacity: 0.4,
             });
         }
@@ -170,12 +186,12 @@ export function drawTowers(ctx, gameState, fogState) {
         const towerData = TOWERS[tower.type];
         const isConstructing = tower.construction !== null;
 
-        // Draw red indicator circle for AI towers (enemy faction marker)
-        if (tower.owner === 'ai') {
+        // Draw indicator circle for AI towers (enemy faction marker)
+        if (isAIOwner(tower.owner)) {
             k.drawCircle({
                 pos: k.vec2(screenX, screenY),
                 radius: 18 * zoom,
-                color: k.rgb(200, 60, 60),
+                color: getFactionColor(tower.owner, k),
                 opacity: 0.4,
             });
         }
@@ -240,12 +256,12 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
 
         const shipData = SHIPS[ship.type];
 
-        // Draw red indicator circle for AI ships (enemy faction marker)
-        if (ship.owner === 'ai') {
+        // Draw indicator circle for AI ships (enemy faction marker)
+        if (isAIOwner(ship.owner)) {
             k.drawCircle({
                 pos: k.vec2(screenX, screenY),
                 radius: 18 * zoom,
-                color: k.rgb(200, 60, 60),
+                color: getFactionColor(ship.owner, k),
                 opacity: 0.4,
             });
         }

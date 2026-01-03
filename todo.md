@@ -1,7 +1,9 @@
 # Grog Todos
 
-### Core Systems
-- 
+### Next
+- Tune fog of war distnaces
+- Tune attack distances (can't attack final settlements w/ biggest ship)
+- Surrender mode from AI when just settlements is left?
 
 ### Misc improvement ideas
 - build queue: allow ports to build multiple ships one after the other
@@ -10,10 +12,13 @@
 - when multiple ports are selected, allow C hotkey to build muliple ships
 - Shipyard upgrade: build two ships at once; queue up ship builds too. only consume resources at time of build if queued. 
 - Shipyard upgrade should increase crew cap
+- Towers: scout, guard, cannon -> guard shoots arrows at ships? Maybe path upgrade for fire arrows? 
+- Pirates in VS mode: have them come to ports and plunder (steal resources) and not attack by default 
 
 
 ### Bugs
 - buildings that take damange while repairing should just deduct the damage from repair progress (right now they will repair but not all the way lol)
+- towers, built from a port, should only be able to be built on current connected land /island like settelments
 
 
 ### Defend Mode notes 
@@ -31,10 +36,18 @@
 - starting: home port, settlements, a tower
 - show a 
 
-### Multiplayer Mode notes 
-- when attacking one ship, AI should be alerted and send ships to rescue
+### VS Mode notes 
+- when attacking an AI ship or structure, AI should be alerted and send ships to rescue
+- fog of war should not reveal AI player at start
 - end game: when all AI ports and ships are destroyed, have them surrender 
-- 
+- setup simple sandbox to test out different AI strategies (economy, military, etc)
+- Ensure AI can use upgrade paths and repair paths (have not see a tower)
+- Strategy types: 
+- - Rush (build ships, attack asap)
+- - Mount (build a large ecnomoy, large army, then attack)
+- - Turtle (build lots of defenses)
+- - Sub strategy: Scout (send a ship to reaveal player position)
+
 
 ## Big Ideas
 - Manual ship combat mini-game

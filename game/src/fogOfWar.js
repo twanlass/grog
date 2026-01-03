@@ -4,6 +4,7 @@ import { SHIPS } from "./sprites/ships.js";
 import { PORTS } from "./sprites/ports.js";
 import { SETTLEMENTS } from "./sprites/settlements.js";
 import { TOWERS } from "./sprites/towers.js";
+import { isAIOwner } from "./gameState.js";
 
 // Animation constants
 const RING_DELAY = 0.06;      // Seconds between each ring reveal
@@ -75,12 +76,14 @@ export function isHexRevealed(fogState, q, r) {
  * @returns {boolean} - True if entity should be rendered
  */
 export function shouldRenderEntity(fogState, entity) {
+    // Debug mode: show all entities
+    if (fogState.debugHideFog) return true;
     // Player units always visible
     if (!entity.owner || entity.owner === 'player') return true;
     // Pirates (type check for ships)
     if (entity.type === 'pirate') return isHexVisible(fogState, entity.q, entity.r);
     // AI units only visible if hex is visible
-    if (entity.owner === 'ai') return isHexVisible(fogState, entity.q, entity.r);
+    if (isAIOwner(entity.owner)) return isHexVisible(fogState, entity.q, entity.r);
     // Default: render
     return true;
 }
@@ -131,7 +134,7 @@ export function recalculateVisibility(fogState, gameState, currentTime = 0) {
 
     // Player ships (pirates and AI don't grant vision)
     for (const ship of gameState.ships) {
-        if (ship.type === 'pirate' || ship.owner === 'ai') continue;
+        if (ship.type === 'pirate' || isAIOwner(ship.owner)) continue;
         const sightDistance = SHIPS[ship.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, ship.q, ship.r, sightDistance);
         visionSources.push({ q: ship.q, r: ship.r });
@@ -140,7 +143,7 @@ export function recalculateVisibility(fogState, gameState, currentTime = 0) {
     // Completed player ports (ports being upgraded still grant vision)
     for (const port of gameState.ports) {
         if (port.construction && !port.construction.upgradeTo) continue;  // Skip new construction, not upgrades
-        if (port.owner === 'ai') continue;
+        if (isAIOwner(port.owner)) continue;
         const sightDistance = PORTS[port.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, port.q, port.r, sightDistance);
         visionSources.push({ q: port.q, r: port.r });
@@ -149,7 +152,7 @@ export function recalculateVisibility(fogState, gameState, currentTime = 0) {
     // Completed player settlements
     for (const settlement of gameState.settlements) {
         if (settlement.construction) continue;
-        if (settlement.owner === 'ai') continue;
+        if (isAIOwner(settlement.owner)) continue;
         const sightDistance = SETTLEMENTS.settlement.sightDistance;
         addRadiusToSet(fogState.visibleHexes, settlement.q, settlement.r, sightDistance);
         visionSources.push({ q: settlement.q, r: settlement.r });
@@ -158,7 +161,7 @@ export function recalculateVisibility(fogState, gameState, currentTime = 0) {
     // Completed player towers (towers being upgraded still grant vision)
     for (const tower of gameState.towers) {
         if (tower.construction && !tower.construction.upgradeTo) continue;  // Skip new construction, not upgrades
-        if (tower.owner === 'ai') continue;
+        if (isAIOwner(tower.owner)) continue;
         const sightDistance = TOWERS[tower.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, tower.q, tower.r, sightDistance);
         visionSources.push({ q: tower.q, r: tower.r });

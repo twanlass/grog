@@ -49,7 +49,13 @@
       "Bash(git -C /Users/tylerwanlass/code/grog status --short)",
       "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Add Claude skills to source control\")",
       "Bash(git -C /Users/tylerwanlass/code/grog diff --staged -- game/src/rendering/uiPanels.js game/src/rendering/unitRenderer.js game/src/scenes/gameScene.js)",
-      "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Improve UI consistency and panel positioning\")"
+      "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Improve UI consistency and panel positioning\")",
+      "Bash(git -C /Users/tylerwanlass/code/grog log --all --oneline --source -S \"wave\" -- \"*.js\")",
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline --all)",
+      "Bash(curl:*)",
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline -p -S \"drawIslandWaves\" -- game/src/scenes/gameScene.js)",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff game/src/scenes/gameScene.js)",
+      "Bash(git -C /Users/tylerwanlass/code/grog log --oneline -p -S \"''''water''''\" -- game/src/mapGenerator.js)"
     ]
   },
   "enableAllProjectMcpServers": true,

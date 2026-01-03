@@ -1,5 +1,6 @@
 // Procedural map generation for Trade Winds
 import { hexKey, hexNeighbors } from "./hex.js";
+import { selectRandomTemplates } from "./islandTemplates.js";
 
 // Tile types
 export const TILE_TYPES = {
@@ -81,6 +82,151 @@ function createNoise(seed) {
     };
 }
 
+/**
+ * Calculate 3 triangular positions for fair starting islands
+ * @param {number} width - Map width
+ * @param {number} height - Map height
+ * @returns {Array} Array of 3 positions [{q, r}, ...]
+ */
+export function calculateTriangularPositions(width, height) {
+    // Work in offset coordinates (row, col) first, then convert to axial
+    const centerRow = Math.floor(height / 2);
+    const centerCol = Math.floor(width / 2);
+    const radius = Math.min(width, height) * 0.35;
+
+    // Calculate positions in offset coordinates
+    const positions = [
+        // Top (player) - slightly above center
+        { row: centerRow - Math.round(radius * 0.6), col: centerCol },
+        // Bottom-left (AI1)
+        { row: centerRow + Math.round(radius * 0.5), col: centerCol - Math.round(radius * 0.8) },
+        // Bottom-right (AI2)
+        { row: centerRow + Math.round(radius * 0.5), col: centerCol + Math.round(radius * 0.8) },
+    ];
+
+    // Convert offset coords to axial coords (same formula used in map generation)
+    return positions.map(pos => ({
+        q: pos.col - Math.floor(pos.row / 2),
+        r: pos.row
+    }));
+}
+
+/**
+ * Determine climate zone based on row position
+ * @param {number} r - Row position
+ * @param {number} height - Map height
+ * @returns {string} Climate zone
+ */
+function getClimateForRow(r, height) {
+    const normalizedR = r / height;
+    if (normalizedR < 0.33) {
+        return CLIMATE_ZONES.ARCTIC;
+    } else if (normalizedR < 0.66) {
+        return CLIMATE_ZONES.TEMPERATE;
+    } else {
+        return CLIMATE_ZONES.TROPICAL;
+    }
+}
+
+/**
+ * Place an island template at a specific position
+ * @param {Map} tiles - Map of tiles
+ * @param {Object} template - Island template
+ * @param {number} centerQ - Center Q coordinate
+ * @param {number} centerR - Center R coordinate
+ * @param {number} height - Map height (for climate calculation)
+ * @returns {Set} Set of hex keys that were placed
+ */
+export function placeIslandTemplate(tiles, template, centerQ, centerR, height) {
+    const placedHexes = new Set();
+
+    // Place all land hexes from template
+    for (const offset of template.hexes) {
+        const q = centerQ + offset.q;
+        const r = centerR + offset.r;
+        const key = hexKey(q, r);
+        const climate = getClimateForRow(r, height);
+
+        tiles.set(key, {
+            q,
+            r,
+            type: TILE_TYPES.LAND,
+            climate,
+            isPortSite: false,  // Will be determined in coastal pass
+            hasPort: false,
+            hasFort: false,
+            isStarterIsland: true,  // Mark as protected from procedural overwrite
+        });
+        placedHexes.add(key);
+    }
+
+    // Add shallow water ring around the island
+    for (const offset of template.hexes) {
+        const q = centerQ + offset.q;
+        const r = centerR + offset.r;
+        const neighbors = hexNeighbors(q, r);
+
+        for (const n of neighbors) {
+            const nKey = hexKey(n.q, n.r);
+            // Only add shallow water if not already a land tile
+            if (!placedHexes.has(nKey) && !tiles.has(nKey)) {
+                const climate = getClimateForRow(n.r, height);
+                tiles.set(nKey, {
+                    q: n.q,
+                    r: n.r,
+                    type: TILE_TYPES.SHALLOW,
+                    climate,
+                    isPortSite: false,
+                    hasPort: false,
+                    hasFort: false,
+                    isStarterIsland: true,  // Part of starter zone (protected)
+                });
+            }
+        }
+    }
+
+    return placedHexes;
+}
+
+/**
+ * Find a port site (coastal tile) on a starter island
+ * @param {Object} map - The generated map
+ * @param {Object} islandCenter - {q, r} center of the island
+ * @returns {Object} {q, r} of a valid port site
+ */
+export function findPortSiteOnStarterIsland(map, islandCenter) {
+    // BFS from island center to find first coastal (isPortSite) tile
+    const visited = new Set();
+    const queue = [islandCenter];
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+        const key = hexKey(current.q, current.r);
+        if (visited.has(key)) continue;
+        visited.add(key);
+
+        const tile = map.tiles.get(key);
+        if (!tile || tile.type !== TILE_TYPES.LAND) continue;
+
+        // Found a port site on the starter island
+        if (tile.isPortSite && tile.isStarterIsland) {
+            return { q: current.q, r: current.r };
+        }
+
+        // Add neighbors to queue
+        const neighbors = hexNeighbors(current.q, current.r);
+        for (const n of neighbors) {
+            if (!visited.has(hexKey(n.q, n.r))) {
+                queue.push(n);
+            }
+        }
+    }
+
+    // Fallback to island center (should not happen with valid templates)
+    console.warn('Could not find port site on starter island, using center');
+    return islandCenter;
+}
+
 // Generate the game map
 export function generateMap(options = {}) {
     const {
@@ -89,19 +235,42 @@ export function generateMap(options = {}) {
         seed = Date.now(), // Random seed
         landThreshold = 0.3,     // Higher = less land
         islandScale = 0.15,      // Controls island size/clustering
+        versusMode = false,      // Enable fair starting islands for versus mode
     } = options;
 
     const noise = createNoise(seed);
     const random = seededRandom(seed + 1);
     const tiles = new Map();
 
-    // Generate hex grid (rectangular shape using offset coordinates)
+    // Track starter island hexes (excluded from procedural generation)
+    const starterIslandHexes = new Set();
+    let starterPositions = null;
+
+    // PHASE 1: Place starter islands if in versus mode
+    if (versusMode) {
+        starterPositions = calculateTriangularPositions(width, height);
+        const templates = selectRandomTemplates(3, random);
+
+        for (let i = 0; i < 3; i++) {
+            const pos = starterPositions[i];
+            const template = templates[i];
+            const placedHexes = placeIslandTemplate(tiles, template, pos.q, pos.r, height);
+            for (const hexKey of placedHexes) {
+                starterIslandHexes.add(hexKey);
+            }
+        }
+    }
+
+    // PHASE 2: Generate hex grid (skip starter island hexes)
     for (let row = 0; row < height; row++) {
         for (let col = 0; col < width; col++) {
             // Convert offset coords to axial coords for rectangular pixel bounds
             const q = col - Math.floor(row / 2);
             const r = row;
             const key = hexKey(q, r);
+
+            // Skip if already placed as starter island
+            if (starterIslandHexes.has(key)) continue;
 
             // Sample noise at this position
             const noiseVal = noise(q * islandScale, r * islandScale);
@@ -122,15 +291,7 @@ export function generateMap(options = {}) {
             }
 
             // Determine climate zone based on row
-            const normalizedR = r / height;
-            let climate;
-            if (normalizedR < 0.33) {
-                climate = CLIMATE_ZONES.ARCTIC;
-            } else if (normalizedR < 0.66) {
-                climate = CLIMATE_ZONES.TEMPERATE;
-            } else {
-                climate = CLIMATE_ZONES.TROPICAL;
-            }
+            const climate = getClimateForRow(r, height);
 
             tiles.set(key, {
                 q,
@@ -140,11 +301,12 @@ export function generateMap(options = {}) {
                 isPortSite: false,
                 hasPort: false,
                 hasFort: false,
+                isStarterIsland: false,
             });
         }
     }
 
-    // Second pass: identify coastal tiles as port sites
+    // PHASE 3: Identify coastal tiles as port sites
     for (const tile of tiles.values()) {
         if (tile.type === TILE_TYPES.LAND) {
             const neighbors = hexNeighbors(tile.q, tile.r);
@@ -166,6 +328,7 @@ export function generateMap(options = {}) {
         width,
         height,
         seed,
+        starterPositions,  // Return starter positions for game initialization
     };
 }
 

@@ -1163,3 +1163,72 @@ Figure out where to start and make a plan.
 
 ## 263. User prompt
 > ship it
+
+## 264. User prompt
+> what would we need to do to add another AI player to VS mode? So we'd have two AIs, 1 player, everyone for themeselves
+
+## 265. User prompt
+> i'm not seeing any AI players actually spawned 
+
+## 266. User prompt
+> working now. Can we reduce the map size to what it was previously? 
+
+## 267. User prompt
+> how might we randomly generate more even starting islands for the AI and players? Maybe we geenrate a random world, then generate 3 random islands that each contain only 4 settlements locations (give each AI and player the same expansion oppotunities)
+
+## 268. User prompt
+> can you review past commits and code and see when the shore wave effect was inadvertantly removed? 
+
+## 269. User prompt
+> what is the default zoom at ? 
+
+## 270. User prompt
+> quick update: 
+- set min to 1 
+- when H is pressed, snap to home island _and_ reset zoom to 1
+
+## 271. User prompt
+> yea, not seeing them even when fully zoomed in
+
+## 272. User prompt
+> I'm still able to zoom in farther than 1 
+
+## 273. User prompt
+> sorry, I had min and max backwards
+
+## 274. User prompt
+> quick fog of war bug: I can still see floating nubmers from AI settlements even though I've yet to discover their base
+
+## 275. User prompt
+> let's introduce a new debug UI panel so that we can toggle things for testing:
+- add new Debug menu item item to main menu in game. Add it after "Pause"
+- on click, open a modal (like the controls modal)
+- in the modal, add these items (we'll hook them up later):
+- - [] Hide fog of war <-- checkbox to toggle fog of war visually
+
+## 276. User prompt
+> quick nit: vertically align the label text to the checkbox: 
+
+## 277. User prompt
+> the in-game menu has a "Debug" option. In that panel is a checkbox to "hide fog of war". Let's make this toggle work. The idea is to visually hide FOW so that we can see what AI players are doing and debug their strategy
+
+## 278. User prompt
+> yes
+
+## 279. User prompt
+> if I hide fog of war, I don't see any AI opponents in vs mode. 
+
+## 280. User prompt
+> bug w/ new vs mode island generation: one AI player is spawned on an island outside the map, disconnected: 
+
+## 281. User prompt
+> one more update: when debug hide of fog of war is enabled, also remove fog of war from the minimap 
+
+## 282. User prompt
+> in vs mode, player is no longer able to attack AI structures (they are targeted, but ships wont' attack them)
+
+## 283. User prompt
+> will ai1 and ai2 attack each other?
+
+## 284. User prompt
+> ship it

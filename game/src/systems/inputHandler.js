@@ -8,7 +8,7 @@ import {
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute, exitPatrolMode,
     findFreeAdjacentWater, findNearestWaterInRange, findNearbyWaitingHex, getHomePortIndex,
-    canAffordCrew, showNotification
+    canAffordCrew, showNotification, isAIOwner
 } from "../gameState.js";
 import { hexKey } from "../hex.js";
 import { findNearestWater } from "../pathfinding.js";
@@ -486,7 +486,7 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
         // Don't allow selecting pirate ships like player units
         if (ship.type === 'pirate') continue;
         // Don't allow selecting AI-owned ships
-        if (ship.owner === 'ai') continue;
+        if (isAIOwner(ship.owner)) continue;
         // Use visual position if available (smooth movement), fallback to hex position
         const shipPos = getShipVisualPos ? getShipVisualPos(ship) : hexToPixel(ship.q, ship.r);
         const dx = worldX - shipPos.x;
@@ -508,7 +508,7 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     for (let i = 0; i < gameState.ports.length; i++) {
         const port = gameState.ports[i];
         // Don't allow selecting AI-owned ports
-        if (port.owner === 'ai') continue;
+        if (isAIOwner(port.owner)) continue;
         const portPos = hexToPixel(port.q, port.r);
         const dx = worldX - portPos.x;
         const dy = worldY - portPos.y;
@@ -529,7 +529,7 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     for (let i = 0; i < gameState.settlements.length; i++) {
         const settlement = gameState.settlements[i];
         // Don't allow selecting AI-owned settlements
-        if (settlement.owner === 'ai') continue;
+        if (isAIOwner(settlement.owner)) continue;
         const settlementPos = hexToPixel(settlement.q, settlement.r);
         const dx = worldX - settlementPos.x;
         const dy = worldY - settlementPos.y;
@@ -550,7 +550,7 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     for (let i = 0; i < gameState.towers.length; i++) {
         const tower = gameState.towers[i];
         // Don't allow selecting AI-owned towers
-        if (tower.owner === 'ai') continue;
+        if (isAIOwner(tower.owner)) continue;
         const towerPos = hexToPixel(tower.q, tower.r);
         const dx = worldX - towerPos.x;
         const dy = worldY - towerPos.y;
@@ -719,7 +719,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
             if (isShipBuildingTower(sel.index, gameState.towers)) continue;
             const ship = gameState.ships[sel.index];
             if (ship.type === 'pirate') continue;  // Can't control pirate ships
-            if (ship.owner === 'ai') continue;  // Can't control AI ships
+            if (isAIOwner(ship.owner)) continue;  // Can't control AI ships
 
             ship.attackTarget = { type: targetType, index: targetIndex };
             // Only allow immediate fire if not on active cooldown (prevents rapid fire exploit)
@@ -744,7 +744,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
     for (let i = 0; i < gameState.ships.length; i++) {
         const target = gameState.ships[i];
         // Target must be an enemy: pirate or AI-owned
-        const isEnemy = target.type === 'pirate' || target.owner === 'ai';
+        const isEnemy = target.type === 'pirate' || isAIOwner(target.owner);
         if (!isEnemy) continue;
 
         const pos = getShipVisualPos ? getShipVisualPos(target) : hexToPixel(target.q, target.r);
@@ -764,7 +764,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
     // Find clicked enemy port (AI-owned)
     for (let i = 0; i < gameState.ports.length; i++) {
         const target = gameState.ports[i];
-        if (target.owner !== 'ai') continue;
+        if (!isAIOwner(target.owner)) continue;
 
         const pos = hexToPixel(target.q, target.r);
         const dx = worldX - pos.x;
@@ -784,7 +784,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
     // Find clicked enemy settlement (AI-owned)
     for (let i = 0; i < gameState.settlements.length; i++) {
         const target = gameState.settlements[i];
-        if (target.owner !== 'ai') continue;
+        if (!isAIOwner(target.owner)) continue;
 
         const pos = hexToPixel(target.q, target.r);
         const dx = worldX - pos.x;
@@ -804,7 +804,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
     // Find clicked enemy tower (AI-owned)
     for (let i = 0; i < gameState.towers.length; i++) {
         const target = gameState.towers[i];
-        if (target.owner !== 'ai') continue;
+        if (!isAIOwner(target.owner)) continue;
 
         const pos = hexToPixel(target.q, target.r);
         const dx = worldX - pos.x;

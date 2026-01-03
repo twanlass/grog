@@ -84,18 +84,20 @@ function updatePortConstruction(gameState, fogState, dt, floatingNumbers) {
             } else {
                 console.log(`Port construction complete: ${port.type} at (${port.q}, ${port.r})`);
 
-                // Spawn floating crew number for new port
-                const portData = PORTS[port.type];
-                const crewContribution = portData.crewCapContribution || 0;
-                if (crewContribution > 0) {
-                    floatingNumbers.push({
-                        q: port.q, r: port.r,
-                        text: `+${crewContribution}`,
-                        type: 'crew',
-                        age: 0,
-                        duration: 3.0,
-                        offsetX: 0,
-                    });
+                // Spawn floating crew number for new port (player only)
+                if (!port.owner || port.owner === 'player') {
+                    const portData = PORTS[port.type];
+                    const crewContribution = portData.crewCapContribution || 0;
+                    if (crewContribution > 0) {
+                        floatingNumbers.push({
+                            q: port.q, r: port.r,
+                            text: `+${crewContribution}`,
+                            type: 'crew',
+                            age: 0,
+                            duration: 3.0,
+                            offsetX: 0,
+                        });
+                    }
                 }
             }
 
@@ -123,18 +125,20 @@ function updateSettlementConstruction(gameState, fogState, dt, floatingNumbers) 
             console.log(`Settlement construction complete at (${settlement.q}, ${settlement.r})`);
             settlement.construction = null;  // Clear construction state
 
-            // Spawn floating crew number for new settlement
-            const settlementData = SETTLEMENTS.settlement;
-            const crewContribution = settlementData.crewCapContribution || 0;
-            if (crewContribution > 0) {
-                floatingNumbers.push({
-                    q: settlement.q, r: settlement.r,
-                    text: `+${crewContribution}`,
-                    type: 'crew',
-                    age: 0,
-                    duration: 3.0,
-                    offsetX: 0,
-                });
+            // Spawn floating crew number for new settlement (player only)
+            if (!settlement.owner || settlement.owner === 'player') {
+                const settlementData = SETTLEMENTS.settlement;
+                const crewContribution = settlementData.crewCapContribution || 0;
+                if (crewContribution > 0) {
+                    floatingNumbers.push({
+                        q: settlement.q, r: settlement.r,
+                        text: `+${crewContribution}`,
+                        type: 'crew',
+                        age: 0,
+                        duration: 3.0,
+                        offsetX: 0,
+                    });
+                }
             }
 
             // Mark fog dirty - completed settlement will be included in visibility recalculation

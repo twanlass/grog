@@ -191,6 +191,7 @@ export function drawGameMenu(ctx, gameState, menuState) {
         { id: 'controls', label: 'Controls', hotkey: '?' },
         { id: 'speed', label: 'Speed', hotkey: '>', showSubmenu: true },
         { id: 'pause', label: gameState.timeScale === 0 ? 'Resume' : 'Pause', hotkey: '.' },
+        { id: 'debug', label: 'Debug', hotkey: '' },
         { id: 'quit', label: 'Quit', hotkey: '' },
     ];
 
@@ -1755,6 +1756,133 @@ export function drawMenuPanel(ctx) {
         width: panelWidth,
         height: panelHeight,
     };
+}
+
+/**
+ * Draw debug panel modal with toggleable options
+ * @param {Object} ctx - Drawing context
+ * @param {Object} debugState - Current debug state { hideFog: boolean, ... }
+ * @returns {Object} Bounds for click detection
+ */
+export function drawDebugPanel(ctx, debugState) {
+    const { k, screenWidth, screenHeight } = ctx;
+    const mousePos = k.mousePos();
+
+    const panelWidth = 280;
+    const panelHeight = 160;
+    const panelX = screenWidth / 2 - panelWidth / 2;
+    const panelY = screenHeight / 2 - panelHeight / 2;
+
+    // Panel background
+    k.drawRect({
+        pos: k.vec2(panelX, panelY),
+        width: panelWidth,
+        height: panelHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 8,
+        opacity: 0.95,
+    });
+
+    // Title
+    k.drawText({
+        text: "DEBUG OPTIONS",
+        pos: k.vec2(screenWidth / 2, panelY + 25),
+        size: 20,
+        anchor: "center",
+        color: k.rgb(255, 255, 255),
+    });
+
+    // Separator
+    k.drawLine({
+        p1: k.vec2(panelX + 20, panelY + 50),
+        p2: k.vec2(panelX + panelWidth - 20, panelY + 50),
+        width: 1,
+        color: k.rgb(60, 70, 80),
+    });
+
+    // Debug options with checkboxes
+    const options = [
+        { id: 'hideFog', label: 'Hide fog of war', value: debugState.hideFog },
+    ];
+
+    const startY = panelY + 70;
+    const rowHeight = 30;
+    const checkboxSize = 18;
+    const bounds = {
+        panel: { x: panelX, y: panelY, width: panelWidth, height: panelHeight },
+        options: [],
+    };
+
+    for (let i = 0; i < options.length; i++) {
+        const opt = options[i];
+        const y = startY + i * rowHeight;
+        const checkboxX = panelX + 25;
+        const checkboxY = y - checkboxSize / 2 + 2;
+
+        // Check if hovering this row
+        const isHovered = mousePos.x >= panelX + 20 && mousePos.x <= panelX + panelWidth - 20 &&
+                          mousePos.y >= y - rowHeight / 2 && mousePos.y <= y + rowHeight / 2;
+
+        // Highlight on hover
+        if (isHovered) {
+            k.drawRect({
+                pos: k.vec2(panelX + 15, y - 10),
+                width: panelWidth - 30,
+                height: rowHeight - 4,
+                color: k.rgb(40, 50, 60),
+                radius: 4,
+            });
+        }
+
+        // Checkbox box
+        k.drawRect({
+            pos: k.vec2(checkboxX, checkboxY),
+            width: checkboxSize,
+            height: checkboxSize,
+            color: k.rgb(30, 40, 50),
+            radius: 3,
+            outline: { color: k.rgb(100, 110, 120), width: 1 },
+        });
+
+        // Checkmark if enabled
+        if (opt.value) {
+            k.drawText({
+                text: "✓",
+                pos: k.vec2(checkboxX + checkboxSize / 2, checkboxY + checkboxSize / 2 + 1),
+                size: 14,
+                anchor: "center",
+                color: k.rgb(100, 200, 100),
+            });
+        }
+
+        // Label (vertically centered with checkbox)
+        k.drawText({
+            text: opt.label,
+            pos: k.vec2(checkboxX + checkboxSize + 12, checkboxY + checkboxSize / 2),
+            size: 14,
+            anchor: "left",
+            color: isHovered ? k.rgb(255, 255, 255) : k.rgb(180, 190, 200),
+        });
+
+        bounds.options.push({
+            id: opt.id,
+            x: panelX + 15,
+            y: y - 10,
+            width: panelWidth - 30,
+            height: rowHeight - 4,
+        });
+    }
+
+    // Close hint
+    k.drawText({
+        text: "Click outside to close",
+        pos: k.vec2(screenWidth / 2, panelY + panelHeight - 20),
+        size: 11,
+        anchor: "center",
+        color: k.rgb(100, 100, 100),
+    });
+
+    return bounds;
 }
 
 /**

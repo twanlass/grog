@@ -94,11 +94,11 @@ export function createGameState(config = {}) {
         // Used to determine which port is the "home port" (most recent port on this island)
         homeIslandHex: null,  // { q, r } - a reference hex on the home island
 
-        // AI home island (for versus mode)
-        aiHomeIslandHex: null,  // { q, r } - AI's home island reference
+        // AI home islands (for versus mode - one per AI player)
+        aiHomeIslandHexes: [],  // [{ q, r }, ...] - AI home island references
 
-        // AI player state (for versus mode)
-        aiPlayer: null,  // Initialized in versus mode only
+        // AI player states (for versus mode - one per AI player)
+        aiPlayers: [],  // Array of AI player states, initialized in versus mode only
 
         // Game over state (for defend mode)
         gameOver: null,  // null = playing, 'win' = victory, 'lose' = defeated
@@ -123,7 +123,7 @@ export function createGameState(config = {}) {
 // Create a new ship with navigation support
 export function createShip(type, q, r, owner = 'player') {
     return {
-        owner,  // 'player' | 'ai'
+        owner,  // 'player' | 'ai1' | 'ai2'
         type,
         q,
         r,
@@ -157,7 +157,7 @@ export function createShip(type, q, r, owner = 'player') {
 // Create a new port (optionally under construction)
 export function createPort(type, q, r, isConstructing = false, builderShipIndex = null, owner = 'player') {
     return {
-        owner,  // 'player' | 'ai'
+        owner,  // 'player' | 'ai1' | 'ai2'
         type,
         q,
         r,
@@ -417,6 +417,109 @@ export function findOppositeStartingPositions(map) {
     return null;
 }
 
+// Find starting positions for 3 factions (player + 2 AIs) in versus mode
+// Returns { player: {q, r}, ai1: {q, r}, ai2: {q, r} } or null if not possible
+export function findTriangularStartingPositions(map) {
+    const { tiles, width, height } = map;
+    const centerQ = Math.floor(width / 2);
+    const centerR = Math.floor(height / 2);
+
+    // Collect all valid port sites with their island info
+    const candidates = [];
+    const analyzedIslands = new Set();
+
+    for (const tile of tiles.values()) {
+        if (!tile.isPortSite) continue;
+
+        const tileKey = hexKey(tile.q, tile.r);
+        if (analyzedIslands.has(tileKey)) continue;
+
+        const islandTiles = getIslandTiles(map, tile.q, tile.r);
+
+        for (const t of islandTiles) {
+            analyzedIslands.add(hexKey(t.q, t.r));
+        }
+
+        const portSites = islandTiles.filter(t => t.isPortSite);
+        const inlandTiles = islandTiles.filter(t => !t.isPortSite);
+        const hasBothTerrains = portSites.length > 0 && inlandTiles.length > 0;
+
+        // Only consider islands with both terrains (can build settlements)
+        if (!hasBothTerrains) continue;
+
+        // Find the port site on this island closest to center
+        let bestPortSite = null;
+        let bestDist = Infinity;
+        for (const ps of portSites) {
+            const dq = ps.q - centerQ;
+            const dr = ps.r - centerR;
+            const dist = Math.abs(dq) + Math.abs(dr);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestPortSite = ps;
+            }
+        }
+
+        if (bestPortSite) {
+            candidates.push({
+                tile: bestPortSite,
+                distanceToCenter: bestDist,
+                totalSize: islandTiles.length,
+            });
+        }
+    }
+
+    // Sort by island size (prefer larger islands)
+    candidates.sort((a, b) => b.totalSize - a.totalSize);
+
+    // Find three candidates that maximize minimum pairwise distance
+    const MIN_DISTANCE = 20;  // Minimum distance between any two factions
+    let bestTriple = null;
+    let bestMinDist = 0;
+
+    for (let i = 0; i < candidates.length; i++) {
+        for (let j = i + 1; j < candidates.length; j++) {
+            for (let k = j + 1; k < candidates.length; k++) {
+                const pos1 = candidates[i];
+                const pos2 = candidates[j];
+                const pos3 = candidates[k];
+
+                const dist12 = hexDistance(pos1.tile.q, pos1.tile.r, pos2.tile.q, pos2.tile.r);
+                const dist13 = hexDistance(pos1.tile.q, pos1.tile.r, pos3.tile.q, pos3.tile.r);
+                const dist23 = hexDistance(pos2.tile.q, pos2.tile.r, pos3.tile.q, pos3.tile.r);
+
+                const minDist = Math.min(dist12, dist13, dist23);
+
+                if (minDist >= MIN_DISTANCE && minDist > bestMinDist) {
+                    bestMinDist = minDist;
+                    bestTriple = [pos1, pos2, pos3];
+                }
+            }
+        }
+    }
+
+    if (bestTriple) {
+        // Sort by distance to center - player gets closest, AIs get farther positions
+        bestTriple.sort((a, b) => a.distanceToCenter - b.distanceToCenter);
+        return {
+            player: { q: bestTriple[0].tile.q, r: bestTriple[0].tile.r },
+            ai1: { q: bestTriple[1].tile.q, r: bestTriple[1].tile.r },
+            ai2: { q: bestTriple[2].tile.q, r: bestTriple[2].tile.r },
+        };
+    }
+
+    // Fallback: use first three candidates if available
+    if (candidates.length >= 3) {
+        return {
+            player: { q: candidates[0].tile.q, r: candidates[0].tile.r },
+            ai1: { q: candidates[1].tile.q, r: candidates[1].tile.r },
+            ai2: { q: candidates[2].tile.q, r: candidates[2].tile.r },
+        };
+    }
+
+    return null;
+}
+
 // Create AI player state (for versus mode)
 export function createAIPlayerState(config = {}) {
     const startingResources = config.startingResources || { wood: 25 };
@@ -635,7 +738,7 @@ export function startPortUpgrade(port) {
 // Create a new settlement (optionally under construction)
 export function createSettlement(q, r, isConstructing = false, builderPortIndex = null, owner = 'player') {
     return {
-        owner,  // 'player' | 'ai'
+        owner,  // 'player' | 'ai1' | 'ai2'
         q,
         r,
         parentPortIndex: builderPortIndex,  // Track which port owns this settlement
@@ -787,7 +890,7 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
 // Create a new tower (optionally under construction)
 export function createTower(type, q, r, isConstructing = false, builderShipIndex = null, builderPortIndex = null, owner = 'player') {
     return {
-        owner,  // 'player' | 'ai'
+        owner,  // 'player' | 'ai1' | 'ai2'
         type,
         q,
         r,
@@ -1110,7 +1213,14 @@ export function getPortIndicesByOwner(gameState, owner) {
 
 // Get home port index for a specific owner
 export function getHomePortIndexForOwner(gameState, map, owner) {
-    const homeHex = owner === 'player' ? gameState.homeIslandHex : gameState.aiHomeIslandHex;
+    let homeHex = null;
+    if (owner === 'player') {
+        homeHex = gameState.homeIslandHex;
+    } else if (owner === 'ai1') {
+        homeHex = gameState.aiHomeIslandHexes[0];
+    } else if (owner === 'ai2') {
+        homeHex = gameState.aiHomeIslandHexes[1];
+    }
     if (!homeHex) return null;
 
     for (let i = 0; i < gameState.ports.length; i++) {
@@ -1131,4 +1241,22 @@ export function countEntitiesForOwner(gameState, owner) {
     const settlements = getSettlementsByOwner(gameState, owner).length;
     const towers = getTowersByOwner(gameState, owner).length;
     return { ships, ports, settlements, towers, total: ships + ports + settlements + towers };
+}
+
+// Check if an owner is an AI (ai1 or ai2)
+export function isAIOwner(owner) {
+    return owner === 'ai1' || owner === 'ai2';
+}
+
+// Get all AI owner identifiers
+export function getAIOwners() {
+    return ['ai1', 'ai2'];
+}
+
+// Get home island hex for a specific owner
+export function getHomeIslandHexForOwner(gameState, owner) {
+    if (owner === 'player') return gameState.homeIslandHex;
+    if (owner === 'ai1') return gameState.aiHomeIslandHexes[0];
+    if (owner === 'ai2') return gameState.aiHomeIslandHexes[1];
+    return null;
 }

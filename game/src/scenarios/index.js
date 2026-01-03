@@ -43,7 +43,7 @@ export const SCENARIOS = [
     {
         id: 'versus',
         name: 'Versus AI',
-        description: 'Eliminate the enemy',
+        description: 'Eliminate both enemies',
         gameMode: 'versus',
         mapSize: { width: 60, height: 60 },
         startingResources: { wood: 25 },
@@ -53,6 +53,7 @@ export const SCENARIOS = [
         },
         aiConfig: {
             enabled: true,
+            aiCount: 2,  // Number of AI opponents (3-way free-for-all)
             startingResources: { wood: 25 },  // Mirror player starting resources
         },
     },

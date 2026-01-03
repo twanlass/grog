@@ -6,7 +6,7 @@ const ISLAND_WAVE_RINGS = 2;        // Number of wave rings
 const ISLAND_WAVE_MAX_DIST = 20;    // Max distance from shore (pixels, before zoom)
 const ISLAND_WAVE_SPEED = 0.15;     // How fast waves travel inward (cycles per second)
 const ISLAND_WAVE_THICKNESS = 12;   // Thickness of each wave band (pixels, before zoom)
-const ISLAND_WAVE_OPACITY = 0.3;    // Max opacity of waves
+const ISLAND_WAVE_OPACITY = 0.15;    // Max opacity of waves
 
 /**
  * Compute islands by flood-filling connected land tiles
@@ -71,7 +71,7 @@ function computeIslandOutline(map, islandTiles) {
             const neighborKey = hexKey(neighbors[i].q, neighbors[i].r);
             const neighborTile = map.tiles.get(neighborKey);
             // Only add wave edge if neighbor is water (not if it's off the map edge)
-            if (!islandTiles.has(neighborKey) && neighborTile && neighborTile.type === 'water') {
+            if (!islandTiles.has(neighborKey) && neighborTile && neighborTile.type !== 'land') {
                 const c1Idx = (6 - i) % 6;
                 const c2Idx = (c1Idx + 1) % 6;
                 const start = corners[c1Idx];

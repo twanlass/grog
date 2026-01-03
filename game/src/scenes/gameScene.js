@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
-import { generateMap, getTileColor, getStippleColors, TILE_TYPES } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, countEntitiesForOwner } from "../gameState.js";
+import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland } from "../mapGenerator.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, countEntitiesForOwner, isAIOwner } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations } from "../fogOfWar.js";
 
@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
@@ -130,6 +130,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const map = generateMap({
             width: scenario.mapSize.width,
             height: scenario.mapSize.height,
+            versusMode: scenario.gameMode === 'versus',  // Enable fair starting islands
         });
 
         // Initialize game state with scenario config
@@ -142,31 +143,62 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Handle initialization based on game mode
         if (scenario.gameMode === 'versus') {
-            // Versus mode: find two starting positions on opposite sides
-            const positions = findOppositeStartingPositions(map);
-            if (positions) {
+            // Versus mode: use fair starting islands from map generation
+            if (map.starterPositions) {
+                // Find port sites on each starter island
+                const playerPort = findPortSiteOnStarterIsland(map, map.starterPositions[0]);
+                const ai1Port = findPortSiteOnStarterIsland(map, map.starterPositions[1]);
+                const ai2Port = findPortSiteOnStarterIsland(map, map.starterPositions[2]);
+
                 // Player start
-                gameState.ports.push(createPort('dock', positions.player.q, positions.player.r, false, null, 'player'));
-                gameState.homeIslandHex = { q: positions.player.q, r: positions.player.r };
+                gameState.ports.push(createPort('dock', playerPort.q, playerPort.r, false, null, 'player'));
+                gameState.homeIslandHex = { q: playerPort.q, r: playerPort.r };
 
-                // AI start
-                gameState.ports.push(createPort('dock', positions.ai.q, positions.ai.r, false, null, 'ai'));
-                gameState.aiHomeIslandHex = { q: positions.ai.q, r: positions.ai.r };
+                // AI 1 start
+                gameState.ports.push(createPort('dock', ai1Port.q, ai1Port.r, false, null, 'ai1'));
 
-                // Initialize AI player state (with optional strategy override)
+                // AI 2 start
+                gameState.ports.push(createPort('dock', ai2Port.q, ai2Port.r, false, null, 'ai2'));
+
+                // Store AI home islands
+                gameState.aiHomeIslandHexes = [
+                    { q: ai1Port.q, r: ai1Port.r },
+                    { q: ai2Port.q, r: ai2Port.r },
+                ];
+
+                // Initialize both AI player states (with optional strategy override)
                 const aiConfig = { ...scenario.aiConfig };
-                if (aiStrategyOverride) {
-                    aiConfig.strategy = aiStrategyOverride;
-                }
-                gameState.aiPlayer = createAIPlayerState(aiConfig);
+                gameState.aiPlayers = [
+                    createAIPlayerState(aiStrategyOverride ? { ...aiConfig, strategy: aiStrategyOverride } : aiConfig),
+                    createAIPlayerState(aiConfig),  // Second AI gets random strategy
+                ];
+                console.log(`Versus mode: initialized ${gameState.aiPlayers.length} AIs with fair starting islands`,
+                    `Strategies: ${gameState.aiPlayers.map(a => a.strategy).join(', ')}`);
             } else {
-                // Fallback: single player start if opposite positions not found
-                const startTile = findStartingPosition(map);
-                if (startTile) {
-                    gameState.ports.push(createPort('dock', startTile.q, startTile.r, false, null, 'player'));
-                    gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
+                // Fallback: use old triangular position finder
+                const positions = findTriangularStartingPositions(map);
+                if (positions) {
+                    gameState.ports.push(createPort('dock', positions.player.q, positions.player.r, false, null, 'player'));
+                    gameState.homeIslandHex = { q: positions.player.q, r: positions.player.r };
+                    gameState.ports.push(createPort('dock', positions.ai1.q, positions.ai1.r, false, null, 'ai1'));
+                    gameState.ports.push(createPort('dock', positions.ai2.q, positions.ai2.r, false, null, 'ai2'));
+                    gameState.aiHomeIslandHexes = [
+                        { q: positions.ai1.q, r: positions.ai1.r },
+                        { q: positions.ai2.q, r: positions.ai2.r },
+                    ];
+                    const aiConfig = { ...scenario.aiConfig };
+                    gameState.aiPlayers = [
+                        createAIPlayerState(aiStrategyOverride ? { ...aiConfig, strategy: aiStrategyOverride } : aiConfig),
+                        createAIPlayerState(aiConfig),
+                    ];
+                } else {
+                    const startTile = findStartingPosition(map);
+                    if (startTile) {
+                        gameState.ports.push(createPort('dock', startTile.q, startTile.r, false, null, 'player'));
+                        gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
+                    }
+                    console.warn('Could not find starting positions for versus mode');
                 }
-                console.warn('Could not find opposite starting positions for versus mode');
             }
         } else {
             // Sandbox and Defend modes: single player start
@@ -246,6 +278,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let speedSubmenuOpen = false;  // Speed submenu state
         let gameMenuBounds = null;  // For game menu click detection
         let menuPanelOpen = false;  // Controls menu panel state
+        let debugPanelOpen = false;  // Debug panel state
+        let debugState = { hideFog: false };  // Debug toggle values
         let timeScaleBeforeMenu = 1;  // Store time scale before opening menu
         let lastNonZeroSpeed = 1;  // Track speed before pausing
 
@@ -484,13 +518,14 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Versus mode: total elimination win condition
+            // Versus mode: total elimination win condition (3-way free-for-all)
             if (scenario && scenario.gameMode === 'versus' && !gameState.gameOver) {
                 const playerCounts = countEntitiesForOwner(gameState, 'player');
-                const aiCounts = countEntitiesForOwner(gameState, 'ai');
+                const ai1Counts = countEntitiesForOwner(gameState, 'ai1');
+                const ai2Counts = countEntitiesForOwner(gameState, 'ai2');
 
-                // Player wins if AI has no entities left
-                if (aiCounts.total === 0) {
+                // Player wins only when BOTH AIs are eliminated
+                if (ai1Counts.total === 0 && ai2Counts.total === 0) {
                     gameState.gameOver = 'win';
                 }
                 // Player loses if they have no entities left
@@ -552,11 +587,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Create render context for modular rendering functions
             const ctx = createRenderContext(k, zoom, effectiveCameraX, effectiveCameraY);
 
+            // Pass debug state to fog system for entity visibility
+            fogState.debugHideFog = debugState.hideFog;
+
             // Draw tiles, waves, decorations, and fog (migrated to rendering modules)
             drawTiles(ctx, map, tilePositions, tileColors, tileStipples, stippleAnimTime);
             drawIslandWaves(ctx, islands, stippleAnimTime);
             drawDecorations(ctx, map, tilePositions, tileDecorations, gameState);
-            drawFogOfWar(ctx, map, tilePositions, fogState, gameTime);
+            if (!debugState.hideFog) {
+                drawFogOfWar(ctx, map, tilePositions, fogState, gameTime);
+            }
 
             // Draw ports (migrated to rendering module)
             drawPorts(ctx, gameState, map, fogState);
@@ -770,6 +810,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (menuPanelOpen) {
                 topButtonBounds.menuPanel = drawMenuPanel(ctx);
             }
+
+            // Draw debug panel when open
+            if (debugPanelOpen) {
+                topButtonBounds.debugPanel = drawDebugPanel(ctx, debugState);
+            }
         });
 
         // Left-click/drag for selection or panning (spacebar + left-click)
@@ -953,9 +998,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         k.onScroll((delta) => {
             const zoomFactor = 1.1;
             if (delta.y < 0) {
-                zoom = Math.min(zoom * zoomFactor, 3);
+                zoom = Math.min(zoom * zoomFactor, 1);  // Max zoom in at 1 (default)
             } else {
-                zoom = Math.max(zoom / zoomFactor, 0.3);
+                zoom = Math.max(zoom / zoomFactor, 0.3);  // Can zoom out to 0.3
             }
         });
 
@@ -1006,6 +1051,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const pos = hexToPixel(homePort.q, homePort.r);
                 cameraX = pos.x;
                 cameraY = pos.y;
+                zoom = 1;  // Reset zoom when snapping home
             }
         });
 
@@ -1200,6 +1246,34 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
+            // Handle debug panel clicks
+            if (debugPanelOpen && topButtonBounds && topButtonBounds.debugPanel) {
+                const panel = topButtonBounds.debugPanel.panel;
+                const options = topButtonBounds.debugPanel.options;
+
+                // Check if clicking on an option checkbox
+                for (const opt of options) {
+                    if (mouseX >= opt.x && mouseX <= opt.x + opt.width &&
+                        mouseY >= opt.y && mouseY <= opt.y + opt.height) {
+                        // Toggle the option
+                        if (opt.id === 'hideFog') {
+                            debugState.hideFog = !debugState.hideFog;
+                        }
+                        return;
+                    }
+                }
+
+                // Click inside panel but not on option - do nothing
+                if (mouseX >= panel.x && mouseX <= panel.x + panel.width &&
+                    mouseY >= panel.y && mouseY <= panel.y + panel.height) {
+                    return;
+                }
+
+                // Click outside panel - close it
+                debugPanelOpen = false;
+                return;
+            }
+
             // Handle placement mode clicks first
             if (handlePortPlacementClick(gameState)) return;
             if (handleSettlementPlacementClick(gameState)) return;
@@ -1240,6 +1314,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                                 lastNonZeroSpeed = gameState.timeScale;
                                 gameState.timeScale = 0;
                             }
+                        } else if (item.id === 'debug') {
+                            debugPanelOpen = true;
+                            gameMenuOpen = false;
+                            speedSubmenuOpen = false;
                         } else if (item.id === 'quit') {
                             k.go("title");
                         }
@@ -1424,7 +1502,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             for (let i = 0; i < gameState.ships.length; i++) {
                 const ship = gameState.ships[i];
                 if (ship.type === 'pirate') continue;
-                if (ship.owner === 'ai') continue;
+                if (isAIOwner(ship.owner)) continue;
                 const pos = getShipVisualPosLocal(ship);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
@@ -1438,7 +1516,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Check each port (skip AI-owned ports)
             for (let i = 0; i < gameState.ports.length; i++) {
                 const port = gameState.ports[i];
-                if (port.owner === 'ai') continue;
+                if (isAIOwner(port.owner)) continue;
                 const pos = hexToPixel(port.q, port.r);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
@@ -1452,7 +1530,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Check each settlement (skip AI-owned settlements)
             for (let i = 0; i < gameState.settlements.length; i++) {
                 const settlement = gameState.settlements[i];
-                if (settlement.owner === 'ai') continue;
+                if (isAIOwner(settlement.owner)) continue;
                 const pos = hexToPixel(settlement.q, settlement.r);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
@@ -1486,7 +1564,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const ship = gameState.ships[i];
                     if (ship.type !== subType) continue;
                     if (ship.type === 'pirate') continue;  // Don't select pirate ships
-                    if (ship.owner === 'ai') continue;     // Don't select AI ships
+                    if (isAIOwner(ship.owner)) continue;   // Don't select AI ships
                     // Exclude ships that are currently building something
                     if (isShipBuildingPort(i, gameState.ports)) continue;
                     if (isShipBuildingTower(i, gameState.towers)) continue;
@@ -1503,7 +1581,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (let i = 0; i < gameState.ports.length; i++) {
                     const port = gameState.ports[i];
                     if (port.type !== subType) continue;
-                    if (port.owner === 'ai') continue;     // Don't select AI ports
+                    if (isAIOwner(port.owner)) continue;   // Don't select AI ports
 
                     const pos = hexToPixel(port.q, port.r);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -1517,7 +1595,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (let i = 0; i < gameState.towers.length; i++) {
                     const tower = gameState.towers[i];
                     if (tower.type !== subType) continue;
-                    if (tower.owner === 'ai') continue;     // Don't select AI towers
+                    if (isAIOwner(tower.owner)) continue;   // Don't select AI towers
 
                     const pos = hexToPixel(tower.q, tower.r);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -1530,7 +1608,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             } else if (unitType === 'settlement') {
                 for (let i = 0; i < gameState.settlements.length; i++) {
                     const settlement = gameState.settlements[i];
-                    if (settlement.owner === 'ai') continue;  // Don't select AI settlements
+                    if (isAIOwner(settlement.owner)) continue;  // Don't select AI settlements
 
                     const pos = hexToPixel(settlement.q, settlement.r);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;

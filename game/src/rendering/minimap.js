@@ -146,17 +146,22 @@ export function drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, 
 
     const maxDistSq = (radius - MINIMAP_BORDER_WIDTH - 1) * (radius - MINIMAP_BORDER_WIDTH - 1);
 
+    // Debug mode: show all tiles with full color
+    const debugHideFog = fogState.debugHideFog;
+
     // Only update color cache when fog state changes
     const currentExploredCount = fogState.exploredHexes.size;
-    const fogChanged = currentExploredCount !== minimapState.lastExploredCount;
+    const fogChanged = currentExploredCount !== minimapState.lastExploredCount || debugHideFog;
 
     if (fogChanged) {
         minimapState.lastExploredCount = currentExploredCount;
         colorCache.clear();
     }
 
-    // Only draw explored tiles (skip unexplored - they're black on black)
-    for (const key of fogState.exploredHexes) {
+    // Iterate all tiles in debug mode, or only explored tiles normally
+    const tilesToDraw = debugHideFog ? tileCache.keys() : fogState.exploredHexes;
+
+    for (const key of tilesToDraw) {
         const cached = tileCache.get(key);
         if (!cached) continue;
 
@@ -174,7 +179,8 @@ export function drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, 
         if (!fogChanged && colorCache.has(key)) {
             color = colorCache.get(key);
         } else {
-            const isVisible = fogState.visibleHexes.has(key);
+            // In debug mode, always show full terrain color
+            const isVisible = debugHideFog || fogState.visibleHexes.has(key);
             color = isVisible ? getTerrainColor(cached.tile) : COLORS.explored;
             colorCache.set(key, color);
         }

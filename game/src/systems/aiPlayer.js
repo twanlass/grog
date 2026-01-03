@@ -13,7 +13,7 @@ import {
     canAfford, deductCost, startBuilding, getBuildableShips,
     getPortsByOwner, getShipsByOwner, getSettlementsByOwner, getTowersByOwner,
     getHomePortIndexForOwner, isLandConnected, canAffordCrew,
-    getPortIndicesByOwner, getNextTowerType, startTowerUpgrade
+    getPortIndicesByOwner, getNextTowerType, startTowerUpgrade, isAIOwner
 } from "../gameState.js";
 import { findPath } from "../pathfinding.js";
 
@@ -150,13 +150,26 @@ export const STRATEGY_KEYS = ['aggressive', 'defensive', 'economic'];
 
 /**
  * Main AI update function - called every frame in versus mode
+ * Now supports multiple AI players (3-way free-for-all)
  */
 export function updateAIPlayer(gameState, map, fogState, dt) {
     if (dt === 0) return; // Paused
-    if (!gameState.aiPlayer) return; // No AI in this mode
+    if (!gameState.aiPlayers || gameState.aiPlayers.length === 0) return; // No AIs in this mode
 
-    const ai = gameState.aiPlayer;
+    // Update each AI player independently
+    for (let aiIndex = 0; aiIndex < gameState.aiPlayers.length; aiIndex++) {
+        const aiOwner = `ai${aiIndex + 1}`;  // 'ai1' or 'ai2'
+        const ai = gameState.aiPlayers[aiIndex];
+        if (!ai) continue;
 
+        updateSingleAI(gameState, map, fogState, dt, ai, aiOwner, aiIndex);
+    }
+}
+
+/**
+ * Update a single AI player's decisions
+ */
+function updateSingleAI(gameState, map, fogState, dt, ai, aiOwner, aiIndex) {
     // Track total game time for phase determination
     ai.gameTime = (ai.gameTime || 0) + dt;
 
@@ -168,25 +181,25 @@ export function updateAIPlayer(gameState, map, fogState, dt) {
 
     // Strategic decisions (every 5 seconds)
     if (ai.decisionCooldown <= 0) {
-        updateStrategicPriorities(gameState, map);
+        updateStrategicPriorities(gameState, map, ai, aiOwner);
         ai.decisionCooldown = STRATEGIC_DECISION_INTERVAL;
     }
 
     // Build decisions (every 3 seconds)
     if (ai.buildDecisionCooldown <= 0) {
-        evaluateBuildOptions(gameState, map, fogState);
+        evaluateBuildOptions(gameState, map, fogState, ai, aiOwner);
         ai.buildDecisionCooldown = BUILD_DECISION_INTERVAL;
     }
 
     // Tactical decisions (every 4 seconds)
     if (ai.tacticsCooldown <= 0) {
-        updateTactics(gameState, map);
+        updateTactics(gameState, map, ai, aiOwner);
         ai.tacticsCooldown = TACTICS_DECISION_INTERVAL;
     }
 
     // Ship commands (every 2 seconds)
     if (ai.shipCommandCooldown <= 0) {
-        updateShipCommands(gameState, map);
+        updateShipCommands(gameState, map, ai, aiOwner);
         ai.shipCommandCooldown = SHIP_COMMAND_INTERVAL;
     }
 
@@ -215,8 +228,7 @@ function determineGamePhase(gameTime, gameState) {
  * Evaluate current game state and adjust strategic priorities
  * Now uses strategy-based priorities with phase modifiers
  */
-function updateStrategicPriorities(gameState, map) {
-    const ai = gameState.aiPlayer;
+function updateStrategicPriorities(gameState, map, ai, aiOwner) {
     const strategy = AI_STRATEGIES[ai.strategy];
 
     // Update game phase
@@ -225,18 +237,25 @@ function updateStrategicPriorities(gameState, map) {
     // Get phase modifiers for current phase
     const phaseModifiers = strategy.phaseModifiers[ai.gamePhase] || {};
 
-    const aiShips = getShipsByOwner(gameState, 'ai');
-    const aiPorts = getPortsByOwner(gameState, 'ai');
-    const aiTowers = getTowersByOwner(gameState, 'ai');
+    // Get this AI's units
+    const aiShips = getShipsByOwner(gameState, aiOwner);
+    const aiPorts = getPortsByOwner(gameState, aiOwner);
+    const aiTowers = getTowersByOwner(gameState, aiOwner);
 
-    const playerShips = getShipsByOwner(gameState, 'player');
-    const playerPorts = getPortsByOwner(gameState, 'player');
-    const playerTowers = getTowersByOwner(gameState, 'player');
+    // Calculate total enemy power (all non-self factions)
+    let enemyPower = 0;
+    const factions = ['player', 'ai1', 'ai2'];
+    for (const faction of factions) {
+        if (faction === aiOwner) continue;  // Skip self
+        const ships = getShipsByOwner(gameState, faction);
+        const ports = getPortsByOwner(gameState, faction);
+        const towers = getTowersByOwner(gameState, faction);
+        enemyPower += ships.length * 2 + ports.length * 3 + towers.length * 2;
+    }
 
-    // Calculate relative power
+    // Calculate relative power (against all enemies)
     const aiPower = aiShips.length * 2 + aiPorts.length * 3 + aiTowers.length * 2;
-    const playerPower = playerShips.length * 2 + playerPorts.length * 3 + playerTowers.length * 2;
-    const powerRatio = playerPower > 0 ? aiPower / playerPower : 2;
+    const powerRatio = enemyPower > 0 ? aiPower / enemyPower : 2;
 
     // Start with strategy base priorities
     ai.priorities.economy = strategy.basePriorities.economy;
@@ -282,28 +301,26 @@ function updateStrategicPriorities(gameState, map) {
 /**
  * Main tactics update - manages scout, attack groups, and defend mode
  */
-function updateTactics(gameState, map) {
-    const ai = gameState.aiPlayer;
+function updateTactics(gameState, map, ai, aiOwner) {
     if (!ai.tactics) return;
 
     // Priority 1: Check if we need to enter/exit defend mode
-    checkDefendMode(gameState, map);
+    checkDefendMode(gameState, map, ai, aiOwner);
 
     // If defending, skip other tactics
     if (ai.tactics.isDefending) return;
 
     // Priority 2: Manage scout ship
-    manageScout(gameState, map);
+    manageScout(gameState, map, ai, aiOwner);
 
     // Priority 3: Manage group attacks
-    manageGroupAttack(gameState, map);
+    manageGroupAttack(gameState, map, ai, aiOwner);
 }
 
 /**
  * Check if we should enter or exit defend mode based on threat level
  */
-function checkDefendMode(gameState, map) {
-    const ai = gameState.aiPlayer;
+function checkDefendMode(gameState, map, ai, aiOwner) {
     const tactics = ai.tactics;
 
     // Enter defend mode at high threat (0.7+)
@@ -313,7 +330,7 @@ function checkDefendMode(gameState, map) {
         tactics.attackTarget = null;
 
         // Recall all ships to home port
-        executeDefend(gameState, map);
+        executeDefend(gameState, map, ai, aiOwner);
     }
 
     // Exit defend mode when threat drops below 0.3
@@ -325,9 +342,9 @@ function checkDefendMode(gameState, map) {
 /**
  * Recall all AI ships to defend home port
  */
-function executeDefend(gameState, map) {
-    const aiShips = getShipsByOwner(gameState, 'ai');
-    const aiHomePort = gameState.ports.find(p => p.owner === 'ai');
+function executeDefend(gameState, map, ai, aiOwner) {
+    const aiShips = getShipsByOwner(gameState, aiOwner);
+    const aiHomePort = gameState.ports.find(p => p.owner === aiOwner);
 
     if (!aiHomePort) return;
 
@@ -348,10 +365,9 @@ function executeDefend(gameState, map) {
 /**
  * Manage the scout ship - assign one ship to explore far from home
  */
-function manageScout(gameState, map) {
-    const ai = gameState.aiPlayer;
+function manageScout(gameState, map, ai, aiOwner) {
     const tactics = ai.tactics;
-    const aiShips = getShipsByOwner(gameState, 'ai');
+    const aiShips = getShipsByOwner(gameState, aiOwner);
 
     // Need at least 2 ships to have a scout (keep one for defense)
     if (aiShips.length < 2) {
@@ -362,7 +378,7 @@ function manageScout(gameState, map) {
     // Check if current scout is still valid
     if (tactics.scoutShipIndex !== null) {
         const scout = gameState.ships[tactics.scoutShipIndex];
-        if (!scout || scout.owner !== 'ai') {
+        if (!scout || scout.owner !== aiOwner) {
             tactics.scoutShipIndex = null;
         }
     }
@@ -372,7 +388,7 @@ function manageScout(gameState, map) {
         // Pick a ship that's not in the attack group
         for (let i = 0; i < gameState.ships.length; i++) {
             const ship = gameState.ships[i];
-            if (ship.owner !== 'ai') continue;
+            if (ship.owner !== aiOwner) continue;
             if (ship.repair) continue;
             if (tactics.attackGroup.includes(i)) continue;
 
@@ -386,22 +402,27 @@ function manageScout(gameState, map) {
         const scout = gameState.ships[tactics.scoutShipIndex];
         if (scout && scout.waypoints.length === 0) {
             // Generate a far patrol point for scouting
-            const scoutTarget = generateScoutTarget(gameState, map, tactics);
+            const scoutTarget = generateScoutTarget(gameState, map, tactics, aiOwner);
             if (scoutTarget) {
                 scout.waypoints = [scoutTarget];
                 scout.path = null;
             }
         }
 
-        // Check if scout found enemy base
+        // Check if scout found enemy base (any enemy faction)
         if (!tactics.enemyBaseLocation) {
-            const playerPorts = getPortsByOwner(gameState, 'player');
-            for (const port of playerPorts) {
-                const dist = hexDistance(scout.q, scout.r, port.q, port.r);
-                if (dist <= 8) {  // Scout is close enough to "see" enemy base
-                    tactics.enemyBaseLocation = { q: port.q, r: port.r };
-                    break;
+            const factions = ['player', 'ai1', 'ai2'];
+            for (const faction of factions) {
+                if (faction === aiOwner) continue;  // Skip self
+                const enemyPorts = getPortsByOwner(gameState, faction);
+                for (const port of enemyPorts) {
+                    const dist = hexDistance(scout.q, scout.r, port.q, port.r);
+                    if (dist <= 8) {  // Scout is close enough to "see" enemy base
+                        tactics.enemyBaseLocation = { q: port.q, r: port.r };
+                        break;
+                    }
                 }
+                if (tactics.enemyBaseLocation) break;
             }
         }
     }
@@ -410,8 +431,8 @@ function manageScout(gameState, map) {
 /**
  * Generate a target location for the scout to explore
  */
-function generateScoutTarget(gameState, map, tactics) {
-    const aiHomePort = gameState.ports.find(p => p.owner === 'ai');
+function generateScoutTarget(gameState, map, tactics, aiOwner) {
+    const aiHomePort = gameState.ports.find(p => p.owner === aiOwner);
     if (!aiHomePort) return null;
 
     // If enemy base is known, scout around it (harassing)
@@ -467,18 +488,17 @@ function generateScoutTarget(gameState, map, tactics) {
 /**
  * Manage coordinated group attacks
  */
-function manageGroupAttack(gameState, map) {
-    const ai = gameState.aiPlayer;
+function manageGroupAttack(gameState, map, ai, aiOwner) {
     const tactics = ai.tactics;
     const strategy = AI_STRATEGIES[ai.strategy];
     const requiredGroupSize = strategy.buildConfig.attackGroupSize;
 
-    const aiShips = getShipsByOwner(gameState, 'ai');
+    const aiShips = getShipsByOwner(gameState, aiOwner);
 
     // Clean up attack group - remove dead/invalid ships
     tactics.attackGroup = tactics.attackGroup.filter(idx => {
         const ship = gameState.ships[idx];
-        return ship && ship.owner === 'ai' && !ship.repair;
+        return ship && ship.owner === aiOwner && !ship.repair;
     });
 
     // If we have an active attack, coordinate the group
@@ -512,7 +532,7 @@ function manageGroupAttack(gameState, map) {
     const availableShips = [];
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
-        if (ship.owner !== 'ai') continue;
+        if (ship.owner !== aiOwner) continue;
         if (ship.repair) continue;
         if (i === tactics.scoutShipIndex) continue;  // Don't use scout
 
@@ -546,29 +566,28 @@ function manageGroupAttack(gameState, map) {
  * Evaluate what to build next
  * Now uses strategy-based build config
  */
-function evaluateBuildOptions(gameState, map, fogState) {
-    const ai = gameState.aiPlayer;
+function evaluateBuildOptions(gameState, map, fogState, ai, aiOwner) {
     const strategy = AI_STRATEGIES[ai.strategy];
     const buildConfig = strategy.buildConfig;
 
-    const aiPorts = getPortsByOwner(gameState, 'ai');
-    const aiShips = getShipsByOwner(gameState, 'ai');
-    const aiSettlements = getSettlementsByOwner(gameState, 'ai');
-    const aiTowers = getTowersByOwner(gameState, 'ai');
+    const aiPorts = getPortsByOwner(gameState, aiOwner);
+    const aiShips = getShipsByOwner(gameState, aiOwner);
+    const aiSettlements = getSettlementsByOwner(gameState, aiOwner);
+    const aiTowers = getTowersByOwner(gameState, aiOwner);
 
     // Skip if no ports
     if (aiPorts.length === 0) return;
 
     // Priority 1: Maintain minimum ships (strategy-defined)
     if (aiShips.length < buildConfig.minShips) {
-        if (tryBuildShip(gameState, map, 'cutter', fogState)) return;
+        if (tryBuildShip(gameState, map, 'cutter', fogState, ai, aiOwner)) return;
     }
 
     // Priority 2: Build settlements (strategy-defined limits and thresholds)
     const completedSettlements = aiSettlements.filter(s => !s.construction).length;
     if (completedSettlements < buildConfig.maxSettlements &&
         ai.resources.wood >= buildConfig.settlementWoodThreshold) {
-        if (tryBuildSettlement(gameState, map)) return;
+        if (tryBuildSettlement(gameState, map, ai, aiOwner)) return;
     }
 
     // Priority 3: Build ships based on priorities and strategy
@@ -576,44 +595,43 @@ function evaluateBuildOptions(gameState, map, fogState) {
         // Try preferred ship type first
         const preferredCost = SHIPS[buildConfig.preferredShipType]?.cost?.wood || 25;
         if (ai.resources.wood >= preferredCost) {
-            if (tryBuildShip(gameState, map, buildConfig.preferredShipType, fogState)) return;
+            if (tryBuildShip(gameState, map, buildConfig.preferredShipType, fogState, ai, aiOwner)) return;
         }
         // Fallback to cutter
         if (ai.resources.wood >= 10) {
-            if (tryBuildShip(gameState, map, 'cutter', fogState)) return;
+            if (tryBuildShip(gameState, map, 'cutter', fogState, ai, aiOwner)) return;
         }
     } else if (ai.priorities.economy > 0.5 && aiShips.length < Math.min(4, buildConfig.shipCap)) {
         // Build cargo ships for trading
-        if (tryBuildShip(gameState, map, 'schooner', fogState)) return;
-        if (tryBuildShip(gameState, map, 'cutter', fogState)) return;
+        if (tryBuildShip(gameState, map, 'schooner', fogState, ai, aiOwner)) return;
+        if (tryBuildShip(gameState, map, 'cutter', fogState, ai, aiOwner)) return;
     }
 
     // Priority 4: Build towers (strategy-defined limits and threshold)
     if (ai.priorities.defense > buildConfig.towerDefenseThreshold &&
         aiTowers.length < buildConfig.maxTowers &&
         ai.resources.wood >= 25) {
-        if (tryBuildTower(gameState, map)) return;
+        if (tryBuildTower(gameState, map, ai, aiOwner)) return;
     }
 
     // Priority 5: Upgrade existing towers (strategy-aware)
     // Defensive AI upgrades aggressively, others rarely
     if (ai.priorities.defense > buildConfig.towerUpgradePriority && aiTowers.length > 0) {
-        if (tryUpgradeTower(gameState)) return;
+        if (tryUpgradeTower(gameState, ai, aiOwner)) return;
     }
 
     // Priority 6 (Economic strategy bonus): Aggressive expansion when rich
     if (ai.strategy === 'economic' && ai.resources.wood > 50 &&
         aiShips.length >= 3 && completedSettlements < buildConfig.maxSettlements) {
-        if (tryBuildSettlement(gameState, map)) return;
+        if (tryBuildSettlement(gameState, map, ai, aiOwner)) return;
     }
 }
 
 /**
  * Try to build a ship at an available port
  */
-function tryBuildShip(gameState, map, preferredType, fogState) {
-    const ai = gameState.aiPlayer;
-    const aiPorts = getPortsByOwner(gameState, 'ai');
+function tryBuildShip(gameState, map, preferredType, fogState, ai, aiOwner) {
+    const aiPorts = getPortsByOwner(gameState, aiOwner);
 
     for (const port of aiPorts) {
         // Skip if port is busy
@@ -629,7 +647,7 @@ function tryBuildShip(gameState, map, preferredType, fogState) {
         if (!canAfford(ai.resources, shipData.cost)) continue;
 
         // Check crew
-        if (!canAffordCrewForOwner(gameState, shipData.crewCost, 'ai')) continue;
+        if (!canAffordCrewForOwner(gameState, shipData.crewCost, aiOwner)) continue;
 
         // Check if there's space to spawn
         const waterTile = findFreeAdjacentWater(map, port.q, port.r, gameState.ships);
@@ -692,16 +710,15 @@ function canAffordCrewForOwner(gameState, crewCost, owner) {
 /**
  * Try to build a settlement from a port
  */
-function tryBuildSettlement(gameState, map) {
-    const ai = gameState.aiPlayer;
-    const aiPorts = getPortsByOwner(gameState, 'ai');
+function tryBuildSettlement(gameState, map, ai, aiOwner) {
+    const aiPorts = getPortsByOwner(gameState, aiOwner);
     const settlementData = SETTLEMENTS.settlement;
 
     if (!canAfford(ai.resources, settlementData.cost)) return false;
 
     for (let i = 0; i < gameState.ports.length; i++) {
         const port = gameState.ports[i];
-        if (port.owner !== 'ai') continue;
+        if (port.owner !== aiOwner) continue;
         if (port.construction) continue;
 
         // Check if port is already building a settlement
@@ -715,7 +732,7 @@ function tryBuildSettlement(gameState, map) {
         if (site) {
             deductCost(ai.resources, settlementData.cost);
             const portIndex = gameState.ports.indexOf(port);
-            const settlement = createSettlement(site.q, site.r, true, portIndex, 'ai');
+            const settlement = createSettlement(site.q, site.r, true, portIndex, aiOwner);
             gameState.settlements.push(settlement);
             return true;
         }
@@ -761,18 +778,19 @@ function findSettlementSite(map, port, gameState) {
 /**
  * Try to build a tower near the home port
  */
-function tryBuildTower(gameState, map) {
-    const ai = gameState.aiPlayer;
+function tryBuildTower(gameState, map, ai, aiOwner) {
     const towerData = TOWERS.watchtower;
 
     if (!canAfford(ai.resources, towerData.cost)) return false;
-    if (!canAffordCrewForOwner(gameState, towerData.crewCost, 'ai')) return false;
+    if (!canAffordCrewForOwner(gameState, towerData.crewCost, aiOwner)) return false;
 
     // Find a good tower site near AI home port
-    if (!gameState.aiHomeIslandHex) return false;
+    const aiIndex = aiOwner === 'ai1' ? 0 : 1;
+    const homeHex = gameState.aiHomeIslandHexes[aiIndex];
+    if (!homeHex) return false;
 
-    const homeQ = gameState.aiHomeIslandHex.q;
-    const homeR = gameState.aiHomeIslandHex.r;
+    const homeQ = homeHex.q;
+    const homeR = homeHex.r;
 
     // Search for valid tower site
     const visited = new Set();
@@ -790,7 +808,7 @@ function tryBuildTower(gameState, map) {
         // Check if valid tower site
         if (isValidTowerSite(map, current.q, current.r, gameState.towers, gameState.ports, gameState.settlements)) {
             deductCost(ai.resources, towerData.cost);
-            const tower = createTower('watchtower', current.q, current.r, true, null, null, 'ai');
+            const tower = createTower('watchtower', current.q, current.r, true, null, null, aiOwner);
             gameState.towers.push(tower);
             return true;
         }
@@ -811,9 +829,8 @@ function tryBuildTower(gameState, map) {
 /**
  * Try to upgrade an existing AI tower to the next tier
  */
-function tryUpgradeTower(gameState) {
-    const ai = gameState.aiPlayer;
-    const aiTowers = getTowersByOwner(gameState, 'ai');
+function tryUpgradeTower(gameState, ai, aiOwner) {
+    const aiTowers = getTowersByOwner(gameState, aiOwner);
 
     // Find towers that can be upgraded (not under construction)
     for (const tower of aiTowers) {
@@ -831,7 +848,7 @@ function tryUpgradeTower(gameState) {
         // Check crew cost (upgrade costs additional crew)
         const currentTowerData = TOWERS[tower.type];
         const additionalCrew = (nextTowerData.crewCost || 0) - (currentTowerData.crewCost || 0);
-        if (additionalCrew > 0 && !canAffordCrewForOwner(gameState, additionalCrew, 'ai')) continue;
+        if (additionalCrew > 0 && !canAffordCrewForOwner(gameState, additionalCrew, aiOwner)) continue;
 
         // Upgrade the tower
         deductCost(ai.resources, nextTowerData.cost);
@@ -846,15 +863,14 @@ function tryUpgradeTower(gameState) {
  * Update AI ship commands - patrol, attack, etc.
  * Now uses strategy-based ship behavior
  */
-function updateShipCommands(gameState, map) {
-    const ai = gameState.aiPlayer;
+function updateShipCommands(gameState, map, ai, aiOwner) {
     const strategy = AI_STRATEGIES[ai.strategy];
     const shipBehavior = strategy.shipBehavior;
     const tactics = ai.tactics;
 
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
-        if (ship.owner !== 'ai') continue;
+        if (ship.owner !== aiOwner) continue;
         if (ship.repair) continue; // Don't command ships being repaired
 
         // Skip ships managed by tactics system (scout, attack group, defending)
@@ -877,7 +893,7 @@ function updateShipCommands(gameState, map) {
         if (shouldRetreat) {
             // Retreat to home port
             ship.attackTarget = null;
-            const aiHomePort = gameState.ports.find(p => p.owner === 'ai');
+            const aiHomePort = gameState.ports.find(p => p.owner === aiOwner);
             if (aiHomePort && ship.waypoints.length === 0) {
                 const retreatPoint = findAdjacentWater(map, aiHomePort.q, aiHomePort.r);
                 if (retreatPoint) {
@@ -888,8 +904,8 @@ function updateShipCommands(gameState, map) {
             continue;
         }
 
-        // Find nearest enemy target
-        const nearestEnemy = findNearestEnemy(ship, gameState);
+        // Find nearest enemy target (any non-self faction)
+        const nearestEnemy = findNearestEnemy(ship, gameState, aiOwner);
 
         if (nearestEnemy && nearestEnemy.dist <= engagementRange) {
             // Decide whether to pursue based on strategy
@@ -917,7 +933,7 @@ function updateShipCommands(gameState, map) {
 
             // Patrol: If idle, patrol around home port with strategy-defined radius
             if (ship.waypoints.length === 0) {
-                const aiHomePort = gameState.ports.find(p => p.owner === 'ai');
+                const aiHomePort = gameState.ports.find(p => p.owner === aiOwner);
                 if (aiHomePort) {
                     const patrolPoint = generatePatrolPointWithStrategy(aiHomePort, map, gameState, shipBehavior);
                     if (patrolPoint) {
@@ -991,15 +1007,17 @@ function findNearestWaterToLand(map, landQ, landR) {
 
 /**
  * Find nearest enemy target for an AI ship
+ * In free-for-all mode, targets any entity not owned by aiOwner
  */
-function findNearestEnemy(ship, gameState) {
+function findNearestEnemy(ship, gameState, aiOwner) {
     let nearest = null;
     let nearestDist = Infinity;
 
-    // Check player ships
+    // Check enemy ships (any ship not owned by self)
     for (let i = 0; i < gameState.ships.length; i++) {
         const target = gameState.ships[i];
-        if (target.owner !== 'player') continue;
+        if (target.owner === aiOwner) continue;  // Skip own ships
+        if (target.type === 'pirate') continue;  // Skip neutral pirates
 
         const dist = hexDistance(ship.q, ship.r, target.q, target.r);
         if (dist < nearestDist) {
@@ -1008,10 +1026,10 @@ function findNearestEnemy(ship, gameState) {
         }
     }
 
-    // Check player ports
+    // Check enemy ports
     for (let i = 0; i < gameState.ports.length; i++) {
         const target = gameState.ports[i];
-        if (target.owner !== 'player') continue;
+        if (target.owner === aiOwner) continue;  // Skip own ports
 
         const dist = hexDistance(ship.q, ship.r, target.q, target.r);
         if (dist < nearestDist) {
@@ -1020,10 +1038,10 @@ function findNearestEnemy(ship, gameState) {
         }
     }
 
-    // Check player settlements
+    // Check enemy settlements
     for (let i = 0; i < gameState.settlements.length; i++) {
         const target = gameState.settlements[i];
-        if (target.owner !== 'player') continue;
+        if (target.owner === aiOwner) continue;  // Skip own settlements
 
         const dist = hexDistance(ship.q, ship.r, target.q, target.r);
         if (dist < nearestDist) {
@@ -1032,10 +1050,10 @@ function findNearestEnemy(ship, gameState) {
         }
     }
 
-    // Check player towers
+    // Check enemy towers
     for (let i = 0; i < gameState.towers.length; i++) {
         const target = gameState.towers[i];
-        if (target.owner !== 'player') continue;
+        if (target.owner === aiOwner) continue;  // Skip own towers
 
         const dist = hexDistance(ship.q, ship.r, target.q, target.r);
         if (dist < nearestDist) {
@@ -1132,10 +1150,16 @@ function generatePatrolPointWithStrategy(port, map, gameState, shipBehavior) {
 }
 
 /**
- * Called when AI entity is attacked - increases threat level
+ * Called when AI entity is attacked - increases threat level for the specific AI
  */
-export function notifyAIAttacked(gameState) {
-    if (gameState.aiPlayer) {
-        gameState.aiPlayer.threatLevel = Math.min(1, (gameState.aiPlayer.threatLevel || 0) + 0.3);
+export function notifyAIAttacked(gameState, attackedOwner) {
+    if (!attackedOwner || !isAIOwner(attackedOwner)) return;
+
+    // Find which AI was attacked (ai1 -> index 0, ai2 -> index 1)
+    const aiIndex = attackedOwner === 'ai1' ? 0 : 1;
+
+    if (gameState.aiPlayers && gameState.aiPlayers[aiIndex]) {
+        gameState.aiPlayers[aiIndex].threatLevel = Math.min(1,
+            (gameState.aiPlayers[aiIndex].threatLevel || 0) + 0.3);
     }
 }
