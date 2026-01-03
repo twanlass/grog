@@ -4,7 +4,7 @@ import {
     canAfford, deductCost, createPort, exitPortBuildMode,
     createSettlement, exitSettlementBuildMode, enterPortBuildMode, enterSettlementBuildMode,
     createTower, exitTowerBuildMode, enterTowerBuildMode,
-    startBuilding, startPortUpgrade, startTowerUpgrade, isPortBuildingSettlement, isPortBuildingTower,
+    startBuilding, addToBuildQueue, cancelBuildItem, startPortUpgrade, startTowerUpgrade, isPortBuildingSettlement, isPortBuildingTower,
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute, exitPatrolMode,
     findFreeAdjacentWater, findNearestWaterInRange, findNearbyWaitingHex, getHomePortIndex,
@@ -164,6 +164,7 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
     }
 
     // Check ship build buttons
+    const MAX_QUEUE_SIZE = 3;
     for (const btn of bp.buttons) {
         if (mouseY >= btn.y && mouseY <= btn.y + btn.height) {
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
@@ -171,14 +172,36 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const portIdx = selectedPortIndices[0].index;
                 const port = gameState.ports[portIdx];
                 const shipData = SHIPS[btn.shipType];
-                if (!port.buildQueue && !port.repair && canAfford(gameState.resources, shipData.cost)) {
+
+                // Check if queue is full
+                if (port.buildQueue.length >= MAX_QUEUE_SIZE) {
+                    showNotification(gameState, "Build queue full (max 3)");
+                    return true;
+                }
+
+                // Check if port is repairing
+                if (port.repair) {
+                    return true;
+                }
+
+                // If queue is empty, check affordability and start immediately
+                if (port.buildQueue.length === 0) {
+                    if (!canAfford(gameState.resources, shipData.cost)) {
+                        return true; // Can't afford
+                    }
                     if (!canAffordCrew(gameState, shipData.crewCost || 0)) {
                         showNotification(gameState, "Max crew reached. Build more settlements.");
-                    } else {
-                        deductCost(gameState.resources, shipData.cost);
-                        startBuilding(port, btn.shipType);
-                        console.log(`Started building: ${btn.shipType}`);
+                        return true;
                     }
+                    // Deduct resources and start building
+                    deductCost(gameState.resources, shipData.cost);
+                    addToBuildQueue(port, btn.shipType, gameState.resources, true);
+                    port.buildQueue[0].progress = 0; // Mark as active
+                    console.log(`Started building: ${btn.shipType}`);
+                } else {
+                    // Queue has items - just add to queue without resource check
+                    addToBuildQueue(port, btn.shipType, gameState.resources, false);
+                    console.log(`Queued: ${btn.shipType} (position ${port.buildQueue.length})`);
                 }
             }
             return true;
@@ -194,7 +217,7 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const portIdx = selectedPortIndices[0].index;
                 const port = gameState.ports[portIdx];
                 const nextPortData = PORTS[ubtn.portType];
-                const portBusy = port.buildQueue || port.repair || isPortBuildingSettlement(portIdx, gameState.settlements);
+                const portBusy = port.buildQueue.length > 0 || port.repair || isPortBuildingSettlement(portIdx, gameState.settlements);
                 if (!portBusy && !port.construction && canAfford(gameState.resources, nextPortData.cost)) {
                     deductCost(gameState.resources, nextPortData.cost);
                     startPortUpgrade(port);
@@ -601,7 +624,9 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         if (isShipBuildingTower(sel.index, gameState.towers)) continue;
 
         const ship = gameState.ships[sel.index];
+        if (!ship) continue; // Ship may have been destroyed
         if (ship.type === 'pirate') continue; // Can't control enemy ships
+        if (isAIOwner(ship.owner)) continue; // Can't control AI ships
         if (ship.tradeRoute) {
             cancelTradeRoute(ship);
         }
@@ -661,7 +686,9 @@ export function handlePatrolWaypointClick(gameState, map, clickedHex) {
         if (isShipBuildingTower(sel.index, gameState.towers)) continue;
 
         const ship = gameState.ships[sel.index];
+        if (!ship) continue; // Ship may have been destroyed
         if (ship.type === 'pirate') continue; // Can't control enemy ships
+        if (isAIOwner(ship.owner)) continue; // Can't control AI ships
 
         // Cancel any existing trade route
         if (ship.tradeRoute) {
@@ -669,22 +696,25 @@ export function handlePatrolWaypointClick(gameState, map, clickedHex) {
         }
         ship.attackTarget = null;
 
-        // Add waypoint to both active waypoints and patrol route
-        ship.waypoints.push({ q: targetQ, r: targetR });
+        // Add to patrol route
+        const isFirstPatrolWaypoint = ship.patrolRoute.length === 1; // Only has initial position
         ship.patrolRoute.push({ q: targetQ, r: targetR });
         ship.isPatrolling = true;
         ship.showRouteLine = true;
 
-        // Clear path on first waypoint to start moving immediately
-        if (ship.waypoints.length === 1) {
+        if (isFirstPatrolWaypoint) {
+            // First patrol waypoint: replace existing waypoints to start patrol immediately
+            ship.waypoints = [{ q: targetQ, r: targetR }];
             ship.path = null;
+        } else {
+            // Subsequent waypoints: append to queue (ship continues current path)
+            ship.waypoints.push({ q: targetQ, r: targetR });
         }
 
         addedCount++;
     }
 
     if (addedCount > 0) {
-        console.log(`Added patrol waypoint at (${targetQ}, ${targetR}) for ${addedCount} ship(s)`);
         return true;
     }
     return false;
@@ -869,4 +899,47 @@ export function handlePortRallyPointClick(gameState, map, clickedHex) {
         return true;
     }
     return false;
+}
+
+/**
+ * Handle click on build queue panel to cancel items
+ * @returns {boolean} true if handled
+ */
+export function handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState) {
+    if (!buildQueuePanelBounds) return false;
+
+    const bp = buildQueuePanelBounds;
+
+    // Check if click is within panel bounds
+    if (mouseX < bp.x || mouseX > bp.x + bp.width ||
+        mouseY < bp.y || mouseY > bp.y + bp.height) {
+        return false;
+    }
+
+    // Check each queue item
+    for (const item of bp.items) {
+        if (mouseX >= item.x && mouseX <= item.x + item.width &&
+            mouseY >= item.y && mouseY <= item.y + item.height) {
+
+            // Get the selected port
+            const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
+            if (selectedPortIndices.length !== 1) return true;
+
+            const portIndex = selectedPortIndices[0].index;
+            const port = gameState.ports[portIndex];
+
+            // Cancel the build item
+            if (cancelBuildItem(port, item.index, gameState.resources)) {
+                const shipData = SHIPS[item.shipType];
+                if (item.isActive) {
+                    console.log(`Cancelled active build: ${item.shipType} (refunded ${shipData.cost.wood} wood)`);
+                } else {
+                    console.log(`Removed from queue: ${item.shipType}`);
+                }
+            }
+            return true;
+        }
+    }
+
+    return true; // Clicked panel but not on an item
 }

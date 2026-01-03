@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, countEntitiesForOwner, isAIOwner } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, countEntitiesForOwner, isAIOwner } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations } from "../fogOfWar.js";
 
@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
@@ -35,7 +35,7 @@ import { startRepair } from "../systems/repair.js";
 import { updateAIPlayer } from "../systems/aiPlayer.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
-    handleShipBuildPanelClick, handleBuildPanelClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
+    handleShipBuildPanelClick, handleBuildPanelClick, handleBuildQueueClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
     handleUnitSelection, handleWaypointClick, handleAttackClick, handlePortRallyPointClick,
     handlePatrolWaypointClick
@@ -268,6 +268,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Build panel state (for click detection)
         let buildPanelBounds = null;  // { x, y, width, height, buttons: [{y, height, shipType}] }
         let shipBuildPanelBounds = null;  // For ship's port build panel
+        let buildQueuePanelBounds = null;  // For build queue cancel buttons
         let settlementBuildPanelBounds = null;  // For settlement build button in port panel
         let towerInfoPanelBounds = null;  // For tower upgrade button
         let settlementInfoPanelBounds = null;  // For settlement repair button
@@ -672,11 +673,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Build panel UI (when exactly one port is selected)
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
             buildPanelBounds = null;
+            buildQueuePanelBounds = null;
 
             if (selectedPortIndices.length === 1) {
                 const portIndex = selectedPortIndices[0].index;
                 const port = gameState.ports[portIndex];
                 buildPanelBounds = drawPortBuildPanel(ctx, port, portIndex, gameState, { isPortBuildingSettlement });
+
+                // Draw build queue panel at bottom center (if port has items in queue)
+                buildQueuePanelBounds = drawBuildQueuePanel(ctx, port, k.mousePos());
             }
 
             // Draw tooltip if present (from build panel hover)
@@ -1024,20 +1029,22 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // P to enter patrol mode (when ships selected)
         k.onKeyPress("p", () => {
             const selectedShips = getSelectedShips(gameState);
-            if (selectedShips.length > 0) {
+            // Filter to only player-controlled ships
+            const playerShips = selectedShips.filter(ship =>
+                ship && ship.type !== 'pirate' && !isAIOwner(ship.owner)
+            );
+            if (playerShips.length > 0) {
                 enterPatrolMode(gameState);
                 // Add first patrol waypoint for each ship
-                for (const ship of selectedShips) {
-                    if (ship && ship.type !== 'pirate') {
-                        // Use current waypoint destination if moving, otherwise current position
-                        const firstWaypoint = ship.waypoints && ship.waypoints.length > 0
-                            ? { q: ship.waypoints[0].q, r: ship.waypoints[0].r }
-                            : { q: ship.q, r: ship.r };
-                        ship.patrolRoute = [firstWaypoint];
-                        ship.isPatrolling = true;
-                        ship.showRouteLine = true;
-                        // Don't clear waypoints/path - let ship continue to current destination
-                    }
+                for (const ship of playerShips) {
+                    // Use current waypoint destination if moving, otherwise current position
+                    const firstWaypoint = ship.waypoints && ship.waypoints.length > 0
+                        ? { q: ship.waypoints[0].q, r: ship.waypoints[0].r }
+                        : { q: ship.q, r: ship.r };
+                    ship.patrolRoute = [firstWaypoint];
+                    ship.isPatrolling = true;
+                    ship.showRouteLine = true;
+                    // Don't clear waypoints/path - let ship continue to current destination
                 }
                 showNotification(gameState, "Right click to add waypoints for a patrol route");
             }
@@ -1082,7 +1089,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             } else if (gameState.patrolMode.active) {
                 exitPatrolMode(gameState);
                 clearSelection(gameState);
-                console.log("Patrol mode cancelled");
             } else if (gameState.selectedUnits.length > 0) {
                 clearSelection(gameState);
             }
@@ -1138,6 +1144,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         // Hotkey 'C' to build a Cutter when port panel is open
+        const MAX_QUEUE_SIZE = 3;
         k.onKeyPress("c", () => {
             if (buildPanelBounds?.buttons) {
                 const cutterButton = buildPanelBounds.buttons.find(b => b.shipType === 'cutter');
@@ -1147,14 +1154,30 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         const portIdx = selectedPortIndices[0].index;
                         const port = gameState.ports[portIdx];
                         const shipData = SHIPS.cutter;
-                        if (!port.buildQueue && !port.repair && canAfford(gameState.resources, shipData.cost)) {
+
+                        // Check if queue is full
+                        if (port.buildQueue.length >= MAX_QUEUE_SIZE) {
+                            showNotification(gameState, "Build queue full (max 3)");
+                            return;
+                        }
+                        // Check if port is repairing
+                        if (port.repair) return;
+
+                        // If queue is empty, check affordability and start immediately
+                        if (port.buildQueue.length === 0) {
+                            if (!canAfford(gameState.resources, shipData.cost)) return;
                             if (!canAffordCrew(gameState, shipData.crewCost || 0)) {
                                 showNotification(gameState, "Max crew reached. Build more settlements.");
-                            } else {
-                                deductCost(gameState.resources, shipData.cost);
-                                startBuilding(port, 'cutter');
-                                console.log("Started building: cutter (hotkey C)");
+                                return;
                             }
+                            deductCost(gameState.resources, shipData.cost);
+                            addToBuildQueue(port, 'cutter', gameState.resources, true);
+                            port.buildQueue[0].progress = 0;
+                            console.log("Started building: cutter (hotkey C)");
+                        } else {
+                            // Queue has items - just add without resource check
+                            addToBuildQueue(port, 'cutter', gameState.resources, false);
+                            console.log(`Queued: cutter (hotkey C, position ${port.buildQueue.length})`);
                         }
                     }
                 }
@@ -1354,6 +1377,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Check UI panel clicks
             if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) return;
             if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) return;
+            if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) return;
             if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) return;
             if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) return;
             if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) return;

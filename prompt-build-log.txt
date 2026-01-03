@@ -1232,3 +1232,36 @@ Figure out where to start and make a plan.
 
 ## 284. User prompt
 > ship it
+
+## 285. User prompt
+> update our ship it command to first pull remote changes and merge those before pushing. Never use rebase. 
+
+## 286. User prompt
+> read features/docs. Then, write up a short tl;dr about the game etc that we can use as context for a Claude Project. 
+
+## 287. User prompt
+> # Build Queue Feature
+
+## Overview
+Implement a visual build queue for ship construction displayed at bottom-center of the screen.
+
+## Visual Layout
+- **Active build**: Ship sprite at bottom-center with horizontal progress bar below it
+- **Queued items**: Additional ships appear to the right of active build, displayed at 50% opacity with no progress bar
+- Queue grows horizontally to the right as items are added
+
+## Resource Handling
+- **Deduct resources only when construction actually begins** (item becomes active)
+- Adding to queue does NOT deduct resources
+- If insufficient resources when a queued item would start, it stays queued until resources are available
+
+## Behavior
+1. Player initiates build → if nothing building, start immediately (deduct resources, show at full opacity with progress bar)
+2. Player initiates build while something is building → add to queue (no resource deduction, show at 50% opacity)
+3. Build completes → ship spawns, next queued item becomes active (deduct resources at this moment)
+4. Optional: right-click queued item to remove from queue (no refund needed since nothing was spent)
+
+## UI Elements
+- Ship sprite (full opacity when building, 50% when queued)
+- Progress bar (only on active build)
+- Queue container anchored to bottom-center, expands rightward

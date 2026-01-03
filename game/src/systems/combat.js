@@ -141,18 +141,31 @@ function isShipBuilding(shipIndex, gameState) {
 }
 
 /**
- * Player ships automatically return fire when attacked by pirates
+ * Player ships automatically return fire when attacked by enemies (pirates or AI players)
  */
 function handleAutoReturnFire(gameState) {
-    // Find all pirates that are attacking player ships
-    for (let pirateIndex = 0; pirateIndex < gameState.ships.length; pirateIndex++) {
-        const pirate = gameState.ships[pirateIndex];
-        if (pirate.type !== 'pirate' || pirate.aiState !== 'attack') continue;
-        if (!pirate.aiTarget || pirate.aiTarget.type !== 'ship') continue;
+    // Find all enemy ships that are attacking player ships
+    for (let attackerIndex = 0; attackerIndex < gameState.ships.length; attackerIndex++) {
+        const attacker = gameState.ships[attackerIndex];
 
-        const targetShipIndex = pirate.aiTarget.index;
+        // Check if this is an enemy ship with a target
+        let targetShipIndex = null;
+
+        if (attacker.type === 'pirate' && attacker.aiState === 'attack' && attacker.aiTarget?.type === 'ship') {
+            // Pirate attacking a ship
+            targetShipIndex = attacker.aiTarget.index;
+        } else if (attacker.owner?.startsWith('ai') && attacker.attackTarget?.type === 'ship') {
+            // AI player ship attacking a ship
+            targetShipIndex = attacker.attackTarget.index;
+        }
+
+        if (targetShipIndex === null) continue;
+
         const targetShip = gameState.ships[targetShipIndex];
-        if (!targetShip || targetShip.type === 'pirate') continue;
+        if (!targetShip) continue;
+
+        // Only auto-return-fire for player ships being attacked
+        if (targetShip.type === 'pirate' || targetShip.owner?.startsWith('ai')) continue;
 
         // Skip ships that are building - they can't return fire
         if (isShipBuilding(targetShipIndex, gameState)) continue;
@@ -161,10 +174,10 @@ function handleAutoReturnFire(gameState) {
         if (!targetShip.attackTarget && targetShip.waypoints.length === 0 && !targetShip.tradeRoute) {
             const shipData = SHIPS[targetShip.type];
             const attackDistance = shipData.attackDistance || 2;
-            const dist = hexDistance(targetShip.q, targetShip.r, pirate.q, pirate.r);
+            const dist = hexDistance(targetShip.q, targetShip.r, attacker.q, attacker.r);
             if (dist <= attackDistance) {
                 // Close enough to return fire immediately
-                targetShip.attackTarget = { type: 'ship', index: pirateIndex };
+                targetShip.attackTarget = { type: 'ship', index: attackerIndex };
                 // Only allow immediate fire if not on active cooldown
                 if (!targetShip.attackCooldown || targetShip.attackCooldown <= 0) {
                     targetShip.attackCooldown = 0;

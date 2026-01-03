@@ -281,3 +281,45 @@ kaplay.js?v=9a8bb7fb:5276 Error: Styled text error: unclosed tags A
 
 ## 72. User prompt
 > ship it
+
+## 73. User prompt
+> player is unable to add a second ship to the queue because the port build menu hides/disables more ship building while one is active lol
+
+## 74. User prompt
+> bug: i'm noticing that not all selected ships are included the patrol route; appears to be only half. 
+
+## 75. User prompt
+> still not working. Here's exact repro steps: 
+1. Select two player units 
+2. Press 'P'
+3. Set a waypoint using right-click 
+
+Result: only one ship is moving along patrol route; other ship remains fixed. 
+
+Console log:
+Selected 2 unit(s)
+construction.js:159 Settlement construction complete at (26, 42)
+inputHandler.js:714 Added patrol waypoint at (25, 11) for 2 ship(s)
+
+## 76. User prompt
+> no; still not working. And I think appending a way point to a _moving_ ship was desired
+
+## 77. User prompt
+> we're almost there – now both ships move to the first waypoint, but only one continues (the other stops there)
+
+## 78. User prompt
+> one more bug: ships follow the route until they attempt to navigate to a hex that is occupied (by another ship)
+
+## 79. User prompt
+> blocked waypoints are still breaking routes. Repo steps: 
+1. choose a port and set it's rallypoint
+2. select ships, set patrol route
+3. build a ship
+Result: 
+New ship navigates to rallypoint; ships on patrol route will attempt to navigate to patrol waypoint that is also rallypoint and stop near there
+
+## 80. User prompt
+> bug: when player ships are attacked by an ai player they don't auto return fire 
+
+## 81. User prompt
+> ship it

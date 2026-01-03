@@ -81,9 +81,9 @@ Use the AskUserQuestion tool to ask the user if they want to push:
 - Question: "Push to remote?"
 - Options: "Yes, push" / "No, I'll push later"
 
-If they choose yes:
+If they choose yes, first pull remote changes (with merge, never rebase), then push:
 ```bash
-git push
+git pull --no-rebase origin main && git push origin main
 ```
 
 ### 9. Summary
@@ -99,3 +99,4 @@ Tell the user what was committed and whether it was pushed.
 - New major features get documented in `docs/features/` automatically
 - The commit message is auto-generated based on changes
 - Push is optional and requires user confirmation
+- Push always pulls remote changes first (merge, never rebase)

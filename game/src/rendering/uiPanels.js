@@ -1297,9 +1297,10 @@ export function drawPortStorage(ctx, port, panelX, panelWidth, panelY) {
 export function drawShipBuildingStatus(ctx, port, panelX, panelWidth, y) {
     const { k } = ctx;
 
-    const progress = Math.min(port.buildQueue.progress / port.buildQueue.buildTime, 1);
+    const activeItem = port.buildQueue[0];
+    const progress = Math.min(activeItem.progress / activeItem.buildTime, 1);
     const percent = Math.floor(progress * 100);
-    const shipName = SHIPS[port.buildQueue.shipType].name;
+    const shipName = SHIPS[activeItem.shipType].name;
 
     k.drawText({
         text: "BUILDING",
@@ -1442,7 +1443,9 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const buildableShips = getBuildableShips(port);
     const nextPortType = getNextPortType(port.type);
     const isBuildingSettlement = checkBuildingSettlement(portIndex, gameState.settlements);
-    const portBusy = port.buildQueue || isBuildingSettlement;
+    const isBuilding = port.buildQueue.length > 0;
+    const isQueueFull = port.buildQueue.length >= 3;
+    const portBusy = isBuilding || isBuildingSettlement;
     const canUpgrade = nextPortType && !portBusy && !isRepairing;
     const canBuildSettlement = !isBuildingSettlement && !gameState.settlementBuildMode.active && !isRepairing;
     const canBuildDefense = !gameState.towerBuildMode.active && !isRepairing;
@@ -1455,8 +1458,8 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const bpPadding = 10;
     const sectionGap = 4; // Gap between sections
     const shipButtonsHeight = buildableShips.length * bpRowHeight;
-    // Hide ship buttons when building (progress shown via bar above port)
-    const shipSectionHeight = port.buildQueue ? 0 : shipButtonsHeight;
+    // Always show ship buttons (queue allows adding while building)
+    const shipSectionHeight = shipButtonsHeight;
     const settlementHeight = canBuildSettlement ? bpRowHeight : 0;
     const defenseHeight = canBuildDefense ? bpRowHeight : 0; // Just Watchtower
     const upgradeHeight = canUpgrade ? bpRowHeight : 0;
@@ -1536,8 +1539,8 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         hasPreviousSection = true;
     }
 
-    // 2. Ship section (hidden when building - progress shown via bar above port)
-    if (!port.buildQueue && buildableShips.length > 0) {
+    // 2. Ship section (always visible - queue allows adding while building)
+    if (buildableShips.length > 0) {
         if (hasPreviousSection) {
             currentY += sectionGap;
         }
@@ -1550,7 +1553,8 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
             const btnHeight = bpRowHeight - 4;
             const affordable = canAfford(gameState.resources, shipData.cost) &&
                                canAffordCrew(gameState, shipData.crewCost || 0);
-            const canBuildShip = affordable && !port.buildQueue && !isRepairing;
+            // Can build if queue not full and not repairing (affordability only matters for first item)
+            const canBuildShip = !isQueueFull && !isRepairing && (isBuilding || affordable);
 
             bounds.buttons.push({ y: btnY, height: btnHeight, shipType: shipType });
 
@@ -2009,4 +2013,165 @@ export function drawNotification(ctx, notification) {
         anchor: "center",
         color: k.rgb(255, 255, 255),
     });
+}
+
+/**
+ * Draw the build queue panel at bottom center of screen
+ * Shows active build + queued items for the selected port
+ * Returns bounds for click detection (cancel buttons)
+ */
+export function drawBuildQueuePanel(ctx, port, mousePos) {
+    if (!port || port.buildQueue.length === 0) return null;
+
+    const { k, screenWidth, screenHeight } = ctx;
+
+    const itemSize = 48; // Size of ship sprite area
+    const itemSpacing = 8;
+    const progressBarHeight = 6;
+    const panelPadding = 12;
+    const queueCount = port.buildQueue.length;
+
+    // Calculate panel dimensions
+    const panelWidth = queueCount * itemSize + (queueCount - 1) * itemSpacing + panelPadding * 2;
+    const panelHeight = itemSize + progressBarHeight + panelPadding * 2 + 8;
+    const panelX = screenWidth / 2 - panelWidth / 2;
+    const panelY = screenHeight - panelHeight - 15;
+
+    // Draw panel background
+    k.drawRect({
+        pos: k.vec2(panelX, panelY),
+        width: panelWidth,
+        height: panelHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 6,
+        opacity: 0.85,
+    });
+
+    const bounds = {
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: panelHeight,
+        items: [],
+    };
+
+    // Draw each queue item
+    for (let i = 0; i < port.buildQueue.length; i++) {
+        const item = port.buildQueue[i];
+        const shipData = SHIPS[item.shipType];
+        const isActive = i === 0 && item.progress !== null;
+
+        // Calculate item position (active on left, queued to the right)
+        const itemX = panelX + panelPadding + i * (itemSize + itemSpacing);
+        const itemY = panelY + panelPadding;
+
+        // Store bounds for click detection
+        bounds.items.push({
+            index: i,
+            x: itemX,
+            y: itemY,
+            width: itemSize,
+            height: itemSize,
+            shipType: item.shipType,
+            isActive,
+        });
+
+        // Check if mouse is hovering this item
+        const isHovered = mousePos &&
+            mousePos.x >= itemX && mousePos.x <= itemX + itemSize &&
+            mousePos.y >= itemY && mousePos.y <= itemY + itemSize;
+
+        // Draw item background
+        k.drawRect({
+            pos: k.vec2(itemX, itemY),
+            width: itemSize,
+            height: itemSize,
+            color: isHovered ? k.rgb(80, 40, 40) : k.rgb(40, 45, 55),
+            radius: 4,
+        });
+
+        // Draw ship sprite (use image sprite if available)
+        const spriteScale = 2;
+        const spriteX = itemX + itemSize / 2;
+        const spriteY = itemY + itemSize / 2;
+
+        if (shipData.imageSprite) {
+            k.drawSprite({
+                sprite: shipData.imageSprite,
+                frame: 0,
+                pos: k.vec2(spriteX, spriteY),
+                anchor: "center",
+                scale: spriteScale,
+                opacity: isActive ? 1.0 : 0.5,
+            });
+        } else {
+            // Fallback to pixel art sprite
+            const spriteSize = getSpriteSize(shipData.sprite);
+            const sx = itemX + (itemSize - spriteSize.width * spriteScale) / 2;
+            const sy = itemY + (itemSize - spriteSize.height * spriteScale) / 2;
+            drawSprite(k, shipData.sprite, sx, sy, spriteScale, isActive ? 1.0 : 0.5);
+        }
+
+        // Draw red X on hover (cancel indicator)
+        if (isHovered) {
+            const xSize = 12;
+            const xThickness = 2;
+            const xColor = k.rgb(220, 60, 60);
+            const cx = itemX + itemSize / 2;
+            const cy = itemY + itemSize / 2;
+
+            // Draw X with two lines
+            k.drawLine({
+                p1: k.vec2(cx - xSize / 2, cy - xSize / 2),
+                p2: k.vec2(cx + xSize / 2, cy + xSize / 2),
+                width: xThickness,
+                color: xColor,
+            });
+            k.drawLine({
+                p1: k.vec2(cx + xSize / 2, cy - xSize / 2),
+                p2: k.vec2(cx - xSize / 2, cy + xSize / 2),
+                width: xThickness,
+                color: xColor,
+            });
+        }
+
+        // Draw progress bar for active item
+        if (isActive) {
+            const barY = itemY + itemSize + 4;
+            const progress = Math.min(item.progress / item.buildTime, 1);
+
+            // Background
+            k.drawRect({
+                pos: k.vec2(itemX, barY),
+                width: itemSize,
+                height: progressBarHeight,
+                color: k.rgb(40, 40, 40),
+                radius: 2,
+            });
+
+            // Fill
+            if (progress > 0) {
+                k.drawRect({
+                    pos: k.vec2(itemX, barY),
+                    width: itemSize * progress,
+                    height: progressBarHeight,
+                    color: k.rgb(80, 180, 220),
+                    radius: 2,
+                });
+            }
+        }
+
+        // Draw queue position number for non-active items
+        if (!isActive) {
+            k.drawText({
+                text: `${i}`,
+                pos: k.vec2(itemX + itemSize - 8, itemY + 10),
+                size: 10,
+                anchor: "center",
+                color: k.rgb(150, 150, 150),
+            });
+        }
+    }
+
+    return bounds;
 }

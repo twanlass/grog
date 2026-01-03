@@ -105,24 +105,50 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                 let targetQ = currentWaypoint.q;
                 let targetR = currentWaypoint.r;
 
+                // Check if already at destination
+                if (ship.q === targetQ && ship.r === targetR) {
+                    ship.waypoints.shift();
+                    // For patrol ships, loop back if no more waypoints
+                    if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
+                        ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+                    }
+                    continue;
+                }
+
                 if (blockedHexes.has(destKey)) {
                     // Find nearest available hex to the destination
                     const alt = findNearestAvailable(map, currentWaypoint.q, currentWaypoint.r, blockedHexes);
                     if (alt) {
+                        // If we're already at the alternative, consider waypoint "reached" and move on
+                        if (ship.q === alt.q && ship.r === alt.r) {
+                            ship.waypoints.shift();
+                            if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
+                                ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+                            }
+                            continue;
+                        }
                         targetQ = alt.q;
                         targetR = alt.r;
                     } else {
-                        // No available hex nearby - clear current waypoint, try next
+                        // No available hex nearby - skip to next waypoint
                         ship.waypoints.shift();
+                        // For patrol ships, restore route if we've run out of waypoints
+                        if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
+                            ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+                        }
                         continue;
                     }
                 }
 
                 ship.path = findPath(map, ship.q, ship.r, targetQ, targetR, blockedHexes);
 
-                // No valid path - clear current waypoint, try next
+                // No valid path - skip to next waypoint
                 if (!ship.path) {
                     ship.waypoints.shift();
+                    // For patrol ships, restore route if we've run out of waypoints
+                    if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
+                        ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+                    }
                     continue;
                 }
             }
@@ -232,8 +258,25 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                     } else if (ship.isPatrolling && ship.patrolRoute.length > 0) {
                         // Patrol loop - restore waypoints from patrol route
                         ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
-                        const nextWp = ship.waypoints[0];
-                        ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, blockedHexes);
+
+                        // Skip waypoints the ship is already at
+                        while (ship.waypoints.length > 0 &&
+                               ship.q === ship.waypoints[0].q &&
+                               ship.r === ship.waypoints[0].r) {
+                            ship.waypoints.shift();
+                            // If we've skipped all waypoints, restore again to continue loop
+                            if (ship.waypoints.length === 0) {
+                                ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+                                break; // Avoid infinite loop - just start from beginning
+                            }
+                        }
+
+                        if (ship.waypoints.length > 0) {
+                            const nextWp = ship.waypoints[0];
+                            ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, blockedHexes);
+                        } else {
+                            ship.path = null;
+                        }
                     } else {
                         ship.path = null;
                     }

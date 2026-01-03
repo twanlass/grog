@@ -635,7 +635,7 @@ function tryBuildShip(gameState, map, preferredType, fogState, ai, aiOwner) {
 
     for (const port of aiPorts) {
         // Skip if port is busy
-        if (port.construction || port.buildQueue) continue;
+        if (port.construction || port.buildQueue.length > 0) continue;
 
         const buildable = getBuildableShips(port);
         const shipType = buildable.includes(preferredType) ? preferredType : buildable[0];
@@ -675,9 +675,9 @@ function canAffordCrewForOwner(gameState, crewCost, owner) {
             const portData = PORTS[port.type];
             cap += portData.crewCapContribution || 0;
         }
-        // Ships in build queue count toward crew used
-        if (port.buildQueue) {
-            const shipData = SHIPS[port.buildQueue.shipType];
+        // Ships in build queue count toward crew used (only active item)
+        if (port.buildQueue.length > 0 && port.buildQueue[0].progress !== null) {
+            const shipData = SHIPS[port.buildQueue[0].shipType];
             used += shipData.crewCost || 0;
         }
     }

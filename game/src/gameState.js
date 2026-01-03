@@ -161,7 +161,7 @@ export function createPort(type, q, r, isConstructing = false, builderShipIndex 
         type,
         q,
         r,
-        buildQueue: null,  // { shipType, progress, buildTime } | null
+        buildQueue: [],  // [{ shipType, progress, buildTime }, ...] - first item is active
         storage: { wood: 0 },  // Local resource storage for built ports
         rallyPoint: null,  // { q, r } - waypoint for newly built ships
         // Port construction state (while being built by a ship)
@@ -669,14 +669,58 @@ export function getBuildableShips(port) {
     return portData.canBuild.map(name => name.toLowerCase());
 }
 
-// Start building a ship at a port
+// Add a ship to the build queue (max 3 items)
+// If queue is empty and resources are available, starts building immediately
+// If queue has items, adds to queue without deducting resources
+export function addToBuildQueue(port, shipType, resources, isActive = false) {
+    const shipData = SHIPS[shipType];
+    const item = {
+        shipType,
+        progress: isActive ? 0 : null, // Only active item has progress
+        buildTime: shipData.build_time,
+    };
+    port.buildQueue.push(item);
+}
+
+// Start building the first item in queue (sets progress to 0)
+export function startBuildingFirstItem(port) {
+    if (port.buildQueue.length > 0 && port.buildQueue[0].progress === null) {
+        port.buildQueue[0].progress = 0;
+    }
+}
+
+// Cancel a build queue item and optionally refund resources
+// Returns true if item was cancelled, false if not found
+export function cancelBuildItem(port, index, resources) {
+    if (index < 0 || index >= port.buildQueue.length) return false;
+
+    const item = port.buildQueue[index];
+    const shipData = SHIPS[item.shipType];
+
+    // Refund resources only for active build (index 0 with progress started)
+    if (index === 0 && item.progress !== null) {
+        for (const [resource, amount] of Object.entries(shipData.cost)) {
+            resources[resource] = (resources[resource] || 0) + amount;
+        }
+    }
+
+    // Remove from queue
+    port.buildQueue.splice(index, 1);
+
+    // If we removed the active item and there are more in queue,
+    // the new first item will be started by construction.js when resources are available
+
+    return true;
+}
+
+// Legacy function for backwards compatibility
 export function startBuilding(port, shipType) {
     const shipData = SHIPS[shipType];
-    port.buildQueue = {
+    port.buildQueue = [{
         shipType,
         progress: 0,
         buildTime: shipData.build_time,
-    };
+    }];
 }
 
 // Enter port building placement mode
@@ -1025,9 +1069,9 @@ export function computeCrewStatus(gameState) {
             const portData = PORTS[port.type];
             cap += portData.crewCapContribution || 0;
         }
-        // Ships in build queue count toward crew used (reserved when building starts)
-        if (port.buildQueue) {
-            const shipData = SHIPS[port.buildQueue.shipType];
+        // Ships in build queue count toward crew used (only active item - resources deducted)
+        if (port.buildQueue.length > 0 && port.buildQueue[0].progress !== null) {
+            const shipData = SHIPS[port.buildQueue[0].shipType];
             used += shipData.crewCost || 0;
         }
     }

@@ -1,5 +1,5 @@
 // Construction system - handles port, settlement, and tower building progress
-import { createShip, findFreeAdjacentWater } from "../gameState.js";
+import { createShip, findFreeAdjacentWater, canAfford, deductCost, canAffordCrew } from "../gameState.js";
 import { SHIPS, SETTLEMENTS, TOWERS, PORTS } from "../sprites/index.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
 
@@ -29,21 +29,49 @@ export function updateConstruction(gameState, map, fogState, dt, floatingNumbers
 
 /**
  * Update port ship building queues
+ * Queue is an array: first item is active (has progress), rest are queued
+ * Resources are only deducted when an item becomes active
  */
 function updatePortBuildQueues(gameState, map, fogState, dt) {
     for (const port of gameState.ports) {
-        if (!port.buildQueue) continue;
+        // Skip if no items in queue
+        if (!port.buildQueue || port.buildQueue.length === 0) continue;
 
-        port.buildQueue.progress += dt;
+        const activeItem = port.buildQueue[0];
+
+        // If first item hasn't started yet (progress is null), try to start it
+        if (activeItem.progress === null) {
+            const shipData = SHIPS[activeItem.shipType];
+            const resources = port.owner === 'player' ? gameState.resources : gameState.aiResources?.[port.owner];
+            const isPlayer = !port.owner || port.owner === 'player';
+
+            // Check if we can afford to start this build
+            if (isPlayer && resources) {
+                if (canAfford(resources, shipData.cost) && canAffordCrew(gameState, shipData.crewCost || 0)) {
+                    deductCost(resources, shipData.cost);
+                    activeItem.progress = 0;
+                }
+                // If can't afford, item stays queued (progress remains null)
+            } else if (!isPlayer) {
+                // AI always starts building (resources handled elsewhere)
+                activeItem.progress = 0;
+            }
+
+            // If we couldn't start, skip to next port
+            if (activeItem.progress === null) continue;
+        }
+
+        // Update progress on active item
+        activeItem.progress += dt;
 
         // Check if build is complete
-        if (port.buildQueue.progress >= port.buildQueue.buildTime) {
+        if (activeItem.progress >= activeItem.buildTime) {
             // Find free water hex to spawn ship
             const waterTile = findFreeAdjacentWater(map, port.q, port.r, gameState.ships);
             if (waterTile) {
                 // Ships inherit owner from the port that built them
                 const portOwner = port.owner || 'player';
-                const ship = createShip(port.buildQueue.shipType, waterTile.q, waterTile.r, portOwner);
+                const ship = createShip(activeItem.shipType, waterTile.q, waterTile.r, portOwner);
                 gameState.ships.push(ship);
 
                 // If port has rally point, set ship's waypoint
@@ -53,12 +81,18 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
 
                 // Mark fog dirty - new ship will be included in visibility recalculation
                 markVisibilityDirty(fogState);
-                port.buildQueue = null;
+
+                // Remove completed item from queue
+                port.buildQueue.shift();
+
                 console.log(`Ship built: ${ship.type} at (${waterTile.q}, ${waterTile.r})`);
+
+                // Next item in queue (if any) will be started on next frame
+                // when resources are checked
             }
             // If no free water, keep waiting with progress capped
             else {
-                port.buildQueue.progress = port.buildQueue.buildTime;
+                activeItem.progress = activeItem.buildTime;
             }
         }
     }

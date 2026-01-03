@@ -1,6 +1,23 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-03 | Fix patrol routes and add build queue
+--------------------------------------------------
+### New
+- Build queue system for ports (max 3 ships per queue)
+- Build queue UI panel at bottom center showing active build + queued items
+- Click-to-cancel on queue items with red X hover indicator
+
+### Improved
+- Player ships now auto-return-fire when attacked by AI players (not just pirates)
+- First patrol waypoint replaces existing waypoints to start patrol immediately
+
+### Fixed
+- Patrol routes now work correctly for multiple selected ships
+- Ships no longer get stuck when patrol waypoints are occupied by other ships
+- Ships correctly continue patrol loop when reaching blocked waypoints
+
+
 2026-01-03 | Add debug fog toggle and fix versus mode issues
 ------------------------------------------------------------
 ### New
