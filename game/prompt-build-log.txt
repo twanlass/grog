@@ -341,3 +341,11 @@ Result: 1 cutter is added to each selected port queue, allow the player to build
 
 ## 86. User prompt
 > ship it
+
+## 87. User prompt
+> let's make it even more obvous to draw attention: 
+1. double the red border size
+2. also pulse the red x; scale it up and down
+
+## 88. User prompt
+> ship it

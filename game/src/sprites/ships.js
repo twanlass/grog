@@ -120,9 +120,9 @@ export const SHIPS = {
         combat: 1,
         health: 20,
         fireCooldown: 6,        // seconds between shots
-        attackDistance: 2,      // range to attack targets
+        attackDistance: 3,      // range to attack targets
         enemySightDistance: 3,  // detection range when AI-controlled
-        sightDistance: 1,
+        sightDistance: 2,
         cost: { wood: 10 },
         crewCost: 5,
         description: "Small, scrappy starter",

@@ -274,6 +274,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let settlementInfoPanelBounds = null;  // For settlement repair button
         let shipInfoPanelBounds = null;  // For ship repair button
         let topButtonBounds = null;  // For pause/menu buttons
+        let surrenderButtonBounds = null;  // For surrender Accept/Decline buttons
         let minimapBounds = null;  // For minimap click-to-navigate
         let gameMenuOpen = false;  // Game menu dropdown state
         let speedSubmenuOpen = false;  // Speed submenu state
@@ -409,8 +410,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Update notification timer (always runs)
             updateNotification(gameState, rawDt);
 
-            // Skip game updates when game is over
-            if (gameState.gameOver) return;
+            // Skip game updates when game is over or surrender pending
+            if (gameState.gameOver || gameState.surrenderPending) return;
 
             // Delegate to game systems
             updateShipMovement(hexToPixel, gameState, map, fogState, dt, floatingNumbers);
@@ -532,6 +533,19 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 // Player loses if they have no entities left
                 if (playerCounts.total === 0) {
                     gameState.gameOver = 'lose';
+                }
+
+                // Check for AI surrender: only settlements remain (no ships, ports, or towers)
+                if (!gameState.surrenderPending) {
+                    for (const aiOwner of ['ai1', 'ai2']) {
+                        const counts = aiOwner === 'ai1' ? ai1Counts : ai2Counts;
+                        const onlySettlements = counts.ships === 0 && counts.ports === 0 &&
+                                                counts.towers === 0 && counts.settlements > 0;
+                        if (onlySettlements && !gameState.surrenderDeclined[aiOwner]) {
+                            gameState.surrenderPending = aiOwner;
+                            break;  // Only one surrender at a time
+                        }
+                    }
                 }
             }
 
@@ -667,8 +681,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Draw game menu dropdown
             gameMenuBounds = drawGameMenu(ctx, gameState, { open: gameMenuOpen, speedSubmenuOpen });
 
-            // Draw minimap (pass camera position for viewport indicator)
-            minimapBounds = drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, zoom);
+            // Draw minimap (pass camera position for viewport indicator, gameState and islands for attack alerts)
+            minimapBounds = drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, zoom, gameState, islands);
 
             // Build panel UI (when exactly one port is selected)
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
@@ -759,6 +773,103 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 });
             }
 
+            // Surrender screen (shown when AI only has settlements left)
+            if (gameState.surrenderPending && !gameState.gameOver) {
+                const screenWidth = k.width();
+                const screenHeight = k.height();
+                const mousePos = k.mousePos();
+
+                // Semi-transparent overlay
+                k.drawRect({
+                    pos: k.vec2(0, 0),
+                    width: screenWidth,
+                    height: screenHeight,
+                    color: k.rgb(0, 0, 0),
+                    opacity: 0.7,
+                });
+
+                // Title
+                k.drawText({
+                    text: "ENEMY SURRENDERS",
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 - 60),
+                    size: 42,
+                    anchor: "center",
+                    color: k.rgb(230, 190, 60),  // Gold/yellow
+                });
+
+                // Subtitle
+                const aiName = gameState.surrenderPending === 'ai1' ? 'Red forces' : 'Orange forces';
+                k.drawText({
+                    text: `${aiName} request surrender.`,
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 - 15),
+                    size: 18,
+                    anchor: "center",
+                    color: k.rgb(180, 180, 180),
+                });
+                k.drawText({
+                    text: "Only settlements remain.",
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 + 10),
+                    size: 16,
+                    anchor: "center",
+                    color: k.rgb(140, 140, 140),
+                });
+
+                // Buttons
+                const buttonWidth = 140;
+                const buttonHeight = 36;
+                const buttonGap = 20;
+                const buttonY = screenHeight / 2 + 55;
+
+                const acceptX = screenWidth / 2 - buttonWidth - buttonGap / 2;
+                const declineX = screenWidth / 2 + buttonGap / 2;
+
+                // Check hover states
+                const acceptHovered = mousePos.x >= acceptX && mousePos.x <= acceptX + buttonWidth &&
+                                      mousePos.y >= buttonY && mousePos.y <= buttonY + buttonHeight;
+                const declineHovered = mousePos.x >= declineX && mousePos.x <= declineX + buttonWidth &&
+                                       mousePos.y >= buttonY && mousePos.y <= buttonY + buttonHeight;
+
+                // Accept button (green)
+                k.drawRect({
+                    pos: k.vec2(acceptX, buttonY),
+                    width: buttonWidth,
+                    height: buttonHeight,
+                    color: acceptHovered ? k.rgb(80, 160, 80) : k.rgb(60, 130, 60),
+                    radius: 6,
+                });
+                k.drawText({
+                    text: "Accept",
+                    pos: k.vec2(acceptX + buttonWidth / 2, buttonY + buttonHeight / 2),
+                    size: 16,
+                    anchor: "center",
+                    color: k.rgb(255, 255, 255),
+                });
+
+                // Decline button (red/gray)
+                k.drawRect({
+                    pos: k.vec2(declineX, buttonY),
+                    width: buttonWidth,
+                    height: buttonHeight,
+                    color: declineHovered ? k.rgb(140, 70, 70) : k.rgb(100, 60, 60),
+                    radius: 6,
+                });
+                k.drawText({
+                    text: "Decline",
+                    pos: k.vec2(declineX + buttonWidth / 2, buttonY + buttonHeight / 2),
+                    size: 16,
+                    anchor: "center",
+                    color: k.rgb(255, 255, 255),
+                });
+
+                // Store button bounds for click handling
+                surrenderButtonBounds = {
+                    accept: { x: acceptX, y: buttonY, width: buttonWidth, height: buttonHeight },
+                    decline: { x: declineX, y: buttonY, width: buttonWidth, height: buttonHeight },
+                };
+            } else {
+                surrenderButtonBounds = null;
+            }
+
             if (gameState.gameOver) {
                 const screenWidth = k.width();
                 const screenHeight = k.height();
@@ -824,7 +935,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Left-click/drag for selection or panning (spacebar + left-click)
         k.onMousePress("left", () => {
-            if (gameState.gameOver) return; // Block clicks when game over
+            if (gameState.gameOver || gameState.surrenderPending) return; // Block clicks during overlays
             isLeftMouseDown = true;
 
             // Spacebar + left-click = pan mode
@@ -845,6 +956,39 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         k.onMouseRelease("left", () => {
             if (gameState.gameOver) return; // Block clicks when game over
+
+            // Handle surrender button clicks
+            if (gameState.surrenderPending && surrenderButtonBounds) {
+                const mousePos = k.mousePos();
+                const accept = surrenderButtonBounds.accept;
+                const decline = surrenderButtonBounds.decline;
+
+                // Check Accept button
+                if (mousePos.x >= accept.x && mousePos.x <= accept.x + accept.width &&
+                    mousePos.y >= accept.y && mousePos.y <= accept.y + accept.height) {
+                    // Remove surrendering AI's settlements
+                    const aiOwner = gameState.surrenderPending;
+                    gameState.settlements = gameState.settlements.filter(s => s.owner !== aiOwner);
+                    gameState.surrenderPending = null;
+                    // Win condition will be checked next frame if both AIs are now eliminated
+                    isLeftMouseDown = false;
+                    return;
+                }
+
+                // Check Decline button
+                if (mousePos.x >= decline.x && mousePos.x <= decline.x + decline.width &&
+                    mousePos.y >= decline.y && mousePos.y <= decline.y + decline.height) {
+                    // Mark as declined so it won't be offered again
+                    gameState.surrenderDeclined[gameState.surrenderPending] = true;
+                    gameState.surrenderPending = null;
+                    isLeftMouseDown = false;
+                    return;
+                }
+
+                // Clicked outside buttons - ignore other clicks while surrender screen is up
+                isLeftMouseDown = false;
+                return;
+            }
 
             // Check for minimap click first (navigate camera)
             const mousePos = k.mousePos();
@@ -879,7 +1023,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Right-click for panning (drag) or commands (click)
         k.onMousePress("right", () => {
-            if (gameState.gameOver) return;
+            if (gameState.gameOver || gameState.surrenderPending) return;
             isRightMouseDown = true;
 
             // Start tracking for potential pan
@@ -890,7 +1034,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         k.onMouseRelease("right", () => {
-            if (gameState.gameOver) return;
+            if (gameState.gameOver || gameState.surrenderPending) return;
 
             const dx = k.mousePos().x - panStartX;
             const dy = k.mousePos().y - panStartY;

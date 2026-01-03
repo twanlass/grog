@@ -103,6 +103,10 @@ export function createGameState(config = {}) {
         // Game over state (for defend mode)
         gameOver: null,  // null = playing, 'win' = victory, 'lose' = defeated
 
+        // AI surrender state (for versus mode)
+        surrenderPending: null,  // 'ai1' or 'ai2' when surrender offered
+        surrenderDeclined: { ai1: false, ai2: false },  // Track if player declined surrender
+
         // Notification message to display (bottom center)
         notification: null,  // { message: string, timer: number }
 
@@ -117,6 +121,10 @@ export function createGameState(config = {}) {
 
         // Cannon smoke puffs when firing
         cannonSmoke: [],
+
+        // Attack alerts for minimap - tracks when player structures are attacked off-screen
+        // Map of hexKey → { timestamp, q, r, type }
+        attackedStructures: new Map(),
     };
 }
 

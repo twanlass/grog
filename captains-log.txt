@@ -1,6 +1,19 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-03 | Add AI surrender and minimap attack alerts
+-------------------------------------------------------
+### New
+- AI surrender in versus mode: when AI has only settlements left, they offer surrender
+- Accept/Decline dialog lets player choose to end fight or continue playing
+- Minimap attack alerts: flashing red X markers when player structures attacked off-screen
+- Pulsing red border around minimap during active attacks
+
+### Improved
+- Cutter stats: increased attack distance (2→3) and sight distance (1→2)
+- Enhanced attack alert visuals with pulsing X markers and thicker border
+
+
 2026-01-03 | Add multi-port build hotkey with round-robin
 ----------------------------------------------------------
 ### New

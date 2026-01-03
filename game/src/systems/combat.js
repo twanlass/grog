@@ -1,5 +1,5 @@
 // Combat system - handles projectile attacks and damage
-import { hexDistance } from "../hex.js";
+import { hexDistance, hexKey } from "../hex.js";
 import { SHIPS } from "../sprites/ships.js";
 import { TOWERS } from "../sprites/towers.js";
 import { PORTS } from "../sprites/ports.js";
@@ -604,6 +604,21 @@ function applyDamage(gameState, targetType, targetIndex, damage, fogState) {
 
     target.health -= damage;
     target.hitFlash = HIT_FLASH_DURATION; // Trigger flash effect
+
+    // Track attacks on player structures for minimap alerts
+    // Only track ports, towers, and settlements (not ships)
+    if (targetType !== 'ship') {
+        const targetOwner = target.owner || 'player';
+        if (targetOwner === 'player') {
+            const key = hexKey(target.q, target.r);
+            gameState.attackedStructures.set(key, {
+                timestamp: Date.now(),
+                q: target.q,
+                r: target.r,
+                type: targetType,
+            });
+        }
+    }
 
     if (target.health <= 0) {
         if (targetType === 'ship') {

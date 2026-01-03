@@ -1265,3 +1265,18 @@ Implement a visual build queue for ship construction displayed at bottom-center 
 - Ship sprite (full opacity when building, 50% when queued)
 - Progress bar (only on active build)
 - Queue container anchored to bottom-center, expands rightward
+
+## 288. User prompt
+> let's add new a end game condition to vs mode: 
+if only AI settlements remain (all ships, towers, ports have been destroyed), AI should surrender (to avoid a drawn out end game where the player is just trying to find and destroy settlements). 
+1. Show a surrender screen
+2. Allow player to accept (and then trigger victory screen) or decline (and continue playing until all AI units have been destroyed
+
+## 289. User prompt
+> let's add a little improvement to our minimap: 
+Show a flashing red X when structures are being attacked (ports, towers, or settlements). Also render a pulsing red outline around the minimap. 
+
+Rules: 
+1. Only show if player camera is not currently viewing the attacked area 
+2. Only show a single red X in the approx location of the attack. It doesnt' need to be precise, more an indicator that a unit on a given island of yours is being attacked. 
+3. Maybe just show 1 X per island with an attacked structure 

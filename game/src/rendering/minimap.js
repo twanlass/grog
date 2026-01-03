@@ -25,7 +25,11 @@ const COLORS = {
     background: { r: 0, g: 0, b: 0 },
     border: { r: 60, g: 70, b: 80 },
     viewport: { r: 200, g: 60, b: 60 },
+    alert: { r: 255, g: 60, b: 60 },
 };
+
+// Attack alert constants
+const ATTACK_ALERT_DURATION = 3000;  // 3 seconds in milliseconds
 
 /**
  * Pre-calculate minimap state at scene initialization
@@ -106,10 +110,38 @@ function getTerrainColor(tile) {
 }
 
 /**
+ * Check if a world position is visible on the player's screen
+ */
+function isPositionOnScreen(worldX, worldY, cameraX, cameraY, zoom, screenW, screenH) {
+    const screenX = (worldX - cameraX) * zoom + screenW / 2;
+    const screenY = (worldY - cameraY) * zoom + screenH / 2;
+    // Add margin to avoid edge cases
+    const margin = 50;
+    return screenX >= -margin && screenX <= screenW + margin &&
+           screenY >= -margin && screenY <= screenH + margin;
+}
+
+/**
+ * Find which island a hex belongs to and return its center
+ * Returns null if not found on any island
+ */
+function findIslandCenter(hexQ, hexR, islands) {
+    if (!islands || islands.length === 0) return null;
+
+    const key = `${hexQ},${hexR}`;
+    for (const island of islands) {
+        if (island.tiles.has(key)) {
+            return island.center;
+        }
+    }
+    return null;
+}
+
+/**
  * Draw the circular minimap with camera viewport indicator
  * Returns bounds for click detection
  */
-export function drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, zoom) {
+export function drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, zoom, gameState = null, islands = null) {
     const { k, screenWidth, screenHeight } = ctx;
     const { diameter, tileCache, worldWidth, worldHeight, worldMinX, worldMinY, tileSize, colorCache } = minimapState;
 
@@ -226,6 +258,100 @@ export function drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, 
         fill: false,
         outline: { width: MINIMAP_BORDER_WIDTH, color: k.rgb(COLORS.border.r, COLORS.border.g, COLORS.border.b) },
     });
+
+    // Draw attack alerts for off-screen structure attacks
+    if (gameState && gameState.attackedStructures && gameState.attackedStructures.size > 0) {
+        const now = Date.now();
+        const alertedIslandCenters = new Map();  // island center key → true
+
+        // Collect off-screen attacked islands and clean up stale entries
+        for (const [key, attack] of gameState.attackedStructures) {
+            const age = now - attack.timestamp;
+
+            // Remove stale attacks
+            if (age > ATTACK_ALERT_DURATION) {
+                gameState.attackedStructures.delete(key);
+                continue;
+            }
+
+            // Convert hex to world position
+            const cached = tileCache.get(key);
+            if (!cached) continue;
+
+            const worldX = worldMinX + cached.normX * worldWidth;
+            const worldY = worldMinY + cached.normY * worldHeight;
+
+            // Skip if the attack is visible on screen
+            if (isPositionOnScreen(worldX, worldY, cameraX, cameraY, zoom, screenWidth, screenHeight)) {
+                continue;
+            }
+
+            // Find which island this structure is on
+            const islandCenter = findIslandCenter(attack.q, attack.r, islands);
+            if (islandCenter) {
+                const centerKey = `${Math.round(islandCenter.x)},${Math.round(islandCenter.y)}`;
+                alertedIslandCenters.set(centerKey, islandCenter);
+            } else {
+                // No island found, use the structure's own position
+                alertedIslandCenters.set(key, { x: worldX, y: worldY });
+            }
+        }
+
+        // Draw alerts if there are any off-screen attacks
+        if (alertedIslandCenters.size > 0) {
+            const time = now / 1000;  // Convert to seconds for animation
+
+            // Draw pulsing red border around minimap
+            const borderPulse = 0.5 + 0.5 * Math.sin(time * 4);
+            k.drawCircle({
+                pos: k.vec2(centerX, centerY),
+                radius: radius,
+                fill: false,
+                outline: {
+                    width: 4,
+                    color: k.rgb(COLORS.alert.r, COLORS.alert.g, COLORS.alert.b),
+                    opacity: 0.3 + 0.7 * borderPulse,
+                },
+            });
+
+            // Draw flashing and pulsing X markers at each attacked island center
+            const xFlash = Math.sin(time * 6) > 0 ? 1 : 0.4;
+            const xScalePulse = 1 + 0.3 * Math.sin(time * 5);  // Scale between 1.0 and 1.3
+            const xBaseSize = 6;
+            const xSize = xBaseSize * xScalePulse;
+            const xStroke = 2 * xScalePulse;
+
+            for (const [, center] of alertedIslandCenters) {
+                // Convert world position to minimap position
+                const normX = (center.x - worldMinX) / worldWidth;
+                const normY = (center.y - worldMinY) / worldHeight;
+                const markerX = mapOriginX + normX * drawWidth;
+                const markerY = mapOriginY + normY * drawHeight;
+
+                // Check if marker is within minimap bounds
+                const dx = markerX - centerX;
+                const dy = markerY - centerY;
+                if (dx * dx + dy * dy > radius * radius) continue;
+
+                // Draw X marker
+                const alertColor = k.rgb(COLORS.alert.r, COLORS.alert.g, COLORS.alert.b);
+                k.drawLine({
+                    p1: k.vec2(markerX - xSize, markerY - xSize),
+                    p2: k.vec2(markerX + xSize, markerY + xSize),
+                    width: xStroke,
+                    color: alertColor,
+                    opacity: xFlash,
+                });
+                k.drawLine({
+                    p1: k.vec2(markerX + xSize, markerY - xSize),
+                    p2: k.vec2(markerX - xSize, markerY + xSize),
+                    width: xStroke,
+                    color: alertColor,
+                    opacity: xFlash,
+                });
+            }
+        }
+    }
 
     // Return bounds for click detection
     return {
