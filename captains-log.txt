@@ -1,6 +1,25 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-04 | Fix crew cap, add Schooner dual-shot, ship wake sizes
+------------------------------------------------------------------
+### New
+- Schooner dual-shot: fires two projectiles per volley with staggered delay
+- Ship wake size property: each ship now has explicit `wakeSize` for water trails
+- Neutral pirates in versus mode: spawn at map center instead of near player
+- AI tower building now uses docked ships as builders (not just ports)
+
+### Improved
+- Versus mode is now default scenario
+- Plundering ships abort and retreat when health drops below threshold
+- Stronghold sight distance increased (6→12) and crew cap contribution (20→50)
+- Shipyard crew cap contribution increased (20→30)
+
+### Fixed
+- Crew cap now correctly calculated per-faction (was summing all factions)
+- Cutter water trail size reduced (was using cargo-based formula, now explicit wakeSize)
+
+
 2026-01-03 | Add AI port expansion and upgrades
 -----------------------------------------------
 ### New

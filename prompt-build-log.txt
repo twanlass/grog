@@ -1321,3 +1321,27 @@ Rules:
 
 ## 302. User prompt
 > on the title screen, can we verically center this content? 
+
+## 303. User prompt
+> can you check the logic for how AI builds towers? In VS mode, I'm seeing AI build towers on an island without a port and without a ship docked on shore. 
+
+## 304. User prompt
+> re-order the mode options on the title screen: 
+1. Skirmish 
+2. Defend
+3. Sandbox 
+
+## 305. User prompt
+> make skirmish default selected 
+
+## 306. User prompt
+> in vs mode, what is the starting crew cap set to? 
+
+## 307. User prompt
+> see screenshot: 
+
+## 308. User prompt
+> Yes. Do the same for AI players too. Each player, human or AI, should have their own crew cap lol
+
+## 309. User prompt
+> can we add a few pirates to vs mode? they should spawn in the middle of the map and attack both players and AI

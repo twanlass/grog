@@ -123,6 +123,7 @@ export const SHIPS = {
         attackDistance: 3,              // Range (in tiles/cells) for attacking enemies
         enemySightDistance: 3,          // How far AI can spot threats when controlling ship
         sightDistance: 3,               // How far player can reveal "fog of war"
+        wakeSize: 6,                    // Base size of water trail wake
         cost: { wood: 10 },             // Build resource costs (object: wood)
         crewCost: 5,                    // Crew required to operate
         description: "Small, scrappy starter", // Description for UI/tooltips
@@ -131,18 +132,20 @@ export const SHIPS = {
         name: "Schooner",
         sprite: SCHOONER,
         imageSprite: "schooner",
-        spriteScale: 1.5,
+        spriteScale: 1,
         build_time: 10,
-        speed: 1.5,
-        cargo: 20,
-        combat: 3,
-        health: 30,
+        speed: 2.5,
+        cargo: 50,
+        combat: 5,
+        health: 60,
         fireCooldown: 3,        // seconds between shots
-        attackDistance: 2,      // range to attack targets
+        attackDistance: 5,      // range to attack targets
         enemySightDistance: 6,  // detection range when AI-controlled
-        sightDistance: 1,
-        cost: { wood: 25 },
-        crewCost: 8,
+        sightDistance: 6,
+        projectileCount: 2,     // fires two shots per volley
+        wakeSize: 10,           // base size of water trail wake
+        cost: { wood: 30 },
+        crewCost: 10,
         description: "Balanced workhorse",
     },
     brigantine: {
@@ -157,6 +160,7 @@ export const SHIPS = {
         attackDistance: 2,      // range to attack targets
         enemySightDistance: 7,  // detection range when AI-controlled
         sightDistance: 2,
+        wakeSize: 12,           // base size of water trail wake
         cost: { wood: 50 },
         crewCost: 12,
         description: "Fast, medium cargo",
@@ -173,6 +177,7 @@ export const SHIPS = {
         attackDistance: 2,      // range to attack targets
         enemySightDistance: 8,  // detection range when AI-controlled
         sightDistance: 3,
+        wakeSize: 16,           // base size of water trail wake
         cost: { wood: 100 },
         crewCost: 20,
         description: "Massive cargo hauler",
@@ -188,6 +193,7 @@ export const SHIPS = {
         health: 30,
         fireCooldown: 5,        // seconds between shots
         sightDistance: 2,
+        wakeSize: 10,           // base size of water trail wake
         description: "Enemy pirate vessel",
         // AI behavior constants
         enemySightDistance: 5,  // Detection range for player ships/ports

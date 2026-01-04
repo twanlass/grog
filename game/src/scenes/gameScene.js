@@ -28,7 +28,7 @@ import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems
 import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
-import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack } from "../systems/combat.js";
+import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterSpawnPositions } from "../systems/combat.js";
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
 import { startRepair } from "../systems/repair.js";
@@ -182,6 +182,23 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 ];
                 console.log(`Versus mode: initialized ${gameState.aiPlayers.length} AIs with fair starting islands`,
                     `Strategies: ${gameState.aiPlayers.map(a => a.strategy).join(', ')}`);
+
+                // Spawn initial pirates at map center
+                if (scenario.pirateConfig && scenario.pirateConfig.startingCount > 0) {
+                    const occupiedHexes = new Set(
+                        gameState.ships.map(s => hexKey(s.q, s.r))
+                    );
+                    const spawnPositions = findCenterSpawnPositions(
+                        map,
+                        hexKey,
+                        scenario.pirateConfig.startingCount,
+                        occupiedHexes
+                    );
+                    for (const pos of spawnPositions) {
+                        gameState.ships.push(createShip('pirate', pos.q, pos.r, 'pirate'));
+                    }
+                    console.log(`Versus mode: spawned ${spawnPositions.length} pirates at map center`);
+                }
             } else {
                 // Fallback: use old triangular position finder
                 const positions = findTriangularStartingPositions(map);
@@ -423,9 +440,22 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Delegate to game systems
             updateShipMovement(hexToPixel, gameState, map, fogState, dt, floatingNumbers);
-            const homePortIdx = getHomePortIndex(gameState, map);
-            const homePort = homePortIdx !== null ? gameState.ports[homePortIdx] : null;
-            updatePirateAI(gameState, map, homePort, dt); // Pirates patrol near home port
+            // Determine patrol center for pirates
+            let piratePatrolCenter;
+            if (scenario.gameMode === 'versus') {
+                // Versus mode: pirates patrol around map center
+                const centerRow = Math.floor(map.height / 2);
+                const centerCol = Math.floor(map.width / 2);
+                piratePatrolCenter = {
+                    q: centerCol - Math.floor(centerRow / 2),
+                    r: centerRow
+                };
+            } else {
+                // Other modes: pirates patrol near player home port
+                const homePortIdx = getHomePortIndex(gameState, map);
+                piratePatrolCenter = homePortIdx !== null ? gameState.ports[homePortIdx] : null;
+            }
+            updatePirateAI(gameState, map, piratePatrolCenter, dt);
             updateAIPlayer(gameState, map, fogState, dt); // AI opponent decisions (versus mode)
             handlePatrolAutoAttack(gameState);  // Patrolling ships detect and target pirates
             updateTradeRoutes(gameState, map, dt);

@@ -10,6 +10,13 @@
 - Do ships on patrol attack structures? 
 - FUN PASS! Add clouds, bird flocks, fish! etc
 
+
+### UI nits
+- unit selected panels: polish up
+- port selected: show unit name "Dock" at top
+- add tooltips to units, upgrades
+
+
 ### Misc improvement ideas
 - build queue: allow ports to build multiple ships one after the other
 - cursor upgrades: show hand when spacebar pressed; show sword when cmd click on ship

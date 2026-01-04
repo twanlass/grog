@@ -10,6 +10,44 @@ import { markVisibilityDirty, revealRadius } from "../fogOfWar.js";
 // Combat constants
 export const CANNON_DAMAGE = 5;
 export const PIRATE_RESPAWN_COOLDOWN = 30;  // seconds before a destroyed pirate respawns
+
+/**
+ * Find water tiles near map center for pirate spawning (versus mode)
+ * @param {Object} map - The map object with tiles, width, height
+ * @param {Function} hexKeyFn - Function to create hex key from (q, r)
+ * @param {number} count - Number of spawn positions needed
+ * @param {Set} occupiedHexes - Set of hex keys already occupied by ships
+ * @returns {Array} Array of {q, r} spawn positions
+ */
+export function findCenterSpawnPositions(map, hexKeyFn, count, occupiedHexes) {
+    const centerRow = Math.floor(map.height / 2);
+    const centerCol = Math.floor(map.width / 2);
+    const centerQ = centerCol - Math.floor(centerRow / 2);
+    const centerR = centerRow;
+
+    const positions = [];
+    const maxRadius = 15;
+
+    // Spiral outward from center to find water tiles
+    for (let radius = 0; radius <= maxRadius && positions.length < count; radius++) {
+        for (let angle = 0; angle < 6 && positions.length < count; angle++) {
+            const angleRad = (angle / 6) * Math.PI * 2 + (radius * 0.5);  // Offset angle by radius for variety
+            const q = centerQ + Math.round(Math.cos(angleRad) * radius);
+            const r = centerR + Math.round(Math.sin(angleRad) * radius);
+            const key = hexKeyFn(q, r);
+
+            const tile = map.tiles.get(key);
+            if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+                if (!occupiedHexes.has(key)) {
+                    positions.push({ q, r });
+                    occupiedHexes.add(key);  // Mark as taken
+                }
+            }
+        }
+    }
+
+    return positions;
+}
 const PROJECTILE_SPEED = 1.0;      // progress per second (~1s travel time)
 const SHOT_STAGGER_DELAY = 0.3;   // seconds between multi-shot tower shots
 
@@ -75,12 +113,64 @@ function spawnWoodSplinters(gameState, q, r) {
 export function updateCombat(hexToPixel, gameState, map, dt, fogState) {
     if (dt === 0) return; // Paused
 
+    processShipPendingShots(gameState, dt, fogState);  // Fire queued ship shots
     handlePirateAttacks(gameState, dt, fogState);
     handleAutoReturnFire(gameState);  // Player ships automatically defend themselves
     handlePatrolChase(gameState, map);     // Patrolling ships chase their attack targets
     handlePlayerAttacks(gameState, dt, fogState);
     handleTowerAttacks(gameState, dt);  // Towers auto-attack pirates
     updateProjectiles(gameState, dt, fogState);
+}
+
+/**
+ * Process pending shots for ships with multi-shot capability
+ * Similar to tower pending shots - fires staggered projectiles
+ */
+function processShipPendingShots(gameState, dt, fogState) {
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const ship = gameState.ships[i];
+        if (!ship.pendingShots || ship.pendingShots.length === 0) continue;
+
+        for (let s = ship.pendingShots.length - 1; s >= 0; s--) {
+            ship.pendingShots[s].delay -= dt;
+            if (ship.pendingShots[s].delay <= 0) {
+                const shot = ship.pendingShots[s];
+                // Look up target based on type
+                let target;
+                if (shot.targetType === 'ship') {
+                    target = gameState.ships[shot.targetIndex];
+                } else if (shot.targetType === 'port') {
+                    target = gameState.ports[shot.targetIndex];
+                } else if (shot.targetType === 'tower') {
+                    target = gameState.towers[shot.targetIndex];
+                } else if (shot.targetType === 'settlement') {
+                    target = gameState.settlements[shot.targetIndex];
+                }
+
+                if (target && (target.health === undefined || target.health > 0)) {
+                    gameState.projectiles.push({
+                        sourceShipIndex: i,
+                        targetType: shot.targetType,
+                        targetIndex: shot.targetIndex,
+                        fromQ: ship.q,
+                        fromR: ship.r,
+                        toQ: target.q,
+                        toR: target.r,
+                        progress: 0,
+                        damage: shot.damage,
+                        speed: PROJECTILE_SPEED,
+                    });
+
+                    // Firing reveals AI ship position
+                    if (ship.owner && ship.owner !== 'player') {
+                        revealRadius(fogState, ship.q, ship.r, 1);
+                        markVisibilityDirty(fogState);
+                    }
+                }
+                ship.pendingShots.splice(s, 1);
+            }
+        }
+    }
 }
 
 /**
@@ -108,7 +198,10 @@ function handlePirateAttacks(gameState, dt, fogState) {
             }
 
             if (target) {
-                // Create projectile
+                const shipData = SHIPS[ship.type];
+                const projectileCount = shipData.projectileCount || 1;
+
+                // Fire first shot immediately
                 gameState.projectiles.push({
                     sourceShipIndex: i,
                     targetType: ship.aiTarget.type,
@@ -122,12 +215,23 @@ function handlePirateAttacks(gameState, dt, fogState) {
                     speed: PROJECTILE_SPEED,
                 });
 
+                // Queue subsequent shots with stagger delay
+                for (let p = 1; p < projectileCount; p++) {
+                    if (!ship.pendingShots) ship.pendingShots = [];
+                    ship.pendingShots.push({
+                        targetType: ship.aiTarget.type,
+                        targetIndex: ship.aiTarget.index,
+                        damage: CANNON_DAMAGE,
+                        delay: p * SHOT_STAGGER_DELAY,
+                    });
+                }
+
                 // Firing reveals the ship's position (no shooting from fog cover)
                 revealRadius(fogState, ship.q, ship.r, 1);
                 markVisibilityDirty(fogState);
 
                 // Reset cooldown using ship's fire rate
-                ship.attackCooldown = SHIPS[ship.type].fireCooldown;
+                ship.attackCooldown = shipData.fireCooldown;
             }
         }
     }
@@ -344,7 +448,9 @@ function handlePlayerAttacks(gameState, dt, fogState) {
         if (dist > attackDistance) continue;  // Not in range yet
 
         if (ship.attackCooldown <= 0) {
-            // Fire!
+            const projectileCount = shipData.projectileCount || 1;
+
+            // Fire first shot immediately
             gameState.projectiles.push({
                 sourceShipIndex: i,
                 targetType: targetType,
@@ -358,13 +464,24 @@ function handlePlayerAttacks(gameState, dt, fogState) {
                 speed: PROJECTILE_SPEED,
             });
 
+            // Queue subsequent shots with stagger delay
+            for (let p = 1; p < projectileCount; p++) {
+                if (!ship.pendingShots) ship.pendingShots = [];
+                ship.pendingShots.push({
+                    targetType: targetType,
+                    targetIndex: ship.attackTarget.index,
+                    damage: CANNON_DAMAGE,
+                    delay: p * SHOT_STAGGER_DELAY,
+                });
+            }
+
             // AI ships reveal themselves when firing (no shooting from fog cover)
-            if (ship.owner === 'ai') {
+            if (ship.owner && ship.owner !== 'player') {
                 revealRadius(fogState, ship.q, ship.r, 1);
                 markVisibilityDirty(fogState);
             }
 
-            ship.attackCooldown = SHIPS[ship.type].fireCooldown;
+            ship.attackCooldown = shipData.fireCooldown;
         }
     }
 }
@@ -989,7 +1106,7 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
  * @param {Function} hexKey - Function to create hex key
  * @param {number} dt - Delta time (already scaled by timeScale)
  */
-export function updatePirateRespawns(gameState, map, createShip, hexKey, dt) {
+export function updatePirateRespawns(gameState, map, createShip, hexKeyFn, dt) {
     if (dt === 0) return; // Paused
 
     for (let i = gameState.pirateRespawnQueue.length - 1; i >= 0; i--) {
@@ -997,33 +1114,46 @@ export function updatePirateRespawns(gameState, map, createShip, hexKey, dt) {
         respawn.timer -= dt;
 
         if (respawn.timer <= 0) {
-            // Spawn a new pirate near the home port
-            const homePortIndex = getHomePortIndex(gameState, map);
-            const homePort = homePortIndex !== null ? gameState.ports[homePortIndex] : null;
             let spawned = false;
+            const occupiedHexes = new Set(
+                gameState.ships.map(s => hexKeyFn(s.q, s.r))
+            );
 
-            if (homePort) {
-                const startAngle = Math.random() * Math.PI * 2;
+            // Versus mode: spawn at map center
+            if (gameState.scenario && gameState.scenario.gameMode === 'versus') {
+                const positions = findCenterSpawnPositions(map, hexKeyFn, 1, occupiedHexes);
+                if (positions.length > 0) {
+                    gameState.ships.push(createShip('pirate', positions[0].q, positions[0].r, 'pirate'));
+                    spawned = true;
+                }
+            } else {
+                // Sandbox mode: spawn near the home port
+                const homePortIndex = getHomePortIndex(gameState, map);
+                const homePort = homePortIndex !== null ? gameState.ports[homePortIndex] : null;
 
-                // Try multiple distances if needed (8-20 hexes from home port)
-                for (let dist = 12; dist >= 6 && !spawned; dist -= 2) {
-                    for (let attempt = 0; attempt < 12; attempt++) {
-                        const angle = startAngle + (attempt * Math.PI / 6);
-                        const pirateQ = homePort.q + Math.round(Math.cos(angle) * dist);
-                        const pirateR = homePort.r + Math.round(Math.sin(angle) * dist);
-                        const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
+                if (homePort) {
+                    const startAngle = Math.random() * Math.PI * 2;
 
-                        if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
-                            gameState.ships.push(createShip('pirate', pirateQ, pirateR, 'pirate'));
-                            spawned = true;
-                            break;
+                    // Try multiple distances if needed (8-20 hexes from home port)
+                    for (let dist = 12; dist >= 6 && !spawned; dist -= 2) {
+                        for (let attempt = 0; attempt < 12; attempt++) {
+                            const angle = startAngle + (attempt * Math.PI / 6);
+                            const pirateQ = homePort.q + Math.round(Math.cos(angle) * dist);
+                            const pirateR = homePort.r + Math.round(Math.sin(angle) * dist);
+                            const pirateTile = map.tiles.get(hexKeyFn(pirateQ, pirateR));
+
+                            if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
+                                gameState.ships.push(createShip('pirate', pirateQ, pirateR, 'pirate'));
+                                spawned = true;
+                                break;
+                            }
                         }
                     }
                 }
             }
 
-            // Only remove from queue if successfully spawned (or no home port)
-            if (spawned || !homePort) {
+            // Only remove from queue if successfully spawned
+            if (spawned) {
                 gameState.pirateRespawnQueue.splice(i, 1);
             } else {
                 // Retry next frame if spawn failed

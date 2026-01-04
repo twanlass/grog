@@ -2,15 +2,21 @@
 
 export const SCENARIOS = [
     {
-        id: 'sandbox',
-        name: 'Sandbox',
-        description: 'Casual adventure',
-        gameMode: 'sandbox',
+        id: 'versus',
+        name: 'Skirmish',
+        description: 'Play against AI opponents',
+        gameMode: 'versus',
         mapSize: { width: 60, height: 60 },
         startingResources: { wood: 25 },
         pirateConfig: {
-            startingCount: 2,
-            initialDelay: 60,  // seconds before first pirates spawn
+            startingCount: 2,  // Neutral pirates spawn at map center
+            initialDelay: 0,
+            spawnAtCenter: true,  // Spawn in middle of map instead of near home port
+        },
+        aiConfig: {
+            enabled: true,
+            aiCount: 2,  // Number of AI opponents (3-way free-for-all)
+            startingResources: { wood: 25 },  // Mirror player starting resources
         },
     },
     {
@@ -41,20 +47,15 @@ export const SCENARIOS = [
         },
     },
     {
-        id: 'versus',
-        name: 'Skirmish',
-        description: 'Free-for-all with AI',
-        gameMode: 'versus',
+        id: 'sandbox',
+        name: 'Sandbox',
+        description: 'Casual adventure',
+        gameMode: 'sandbox',
         mapSize: { width: 60, height: 60 },
         startingResources: { wood: 25 },
         pirateConfig: {
-            startingCount: 0,  // No neutral pirates in versus mode
-            initialDelay: 0,
-        },
-        aiConfig: {
-            enabled: true,
-            aiCount: 2,  // Number of AI opponents (3-way free-for-all)
-            startingResources: { wood: 25 },  // Mirror player starting resources
+            startingCount: 1,
+            initialDelay: 120,  // seconds before first pirates spawn
         },
     },
 ];
@@ -65,4 +66,4 @@ export function getScenario(id) {
 }
 
 // Default scenario
-export const DEFAULT_SCENARIO_ID = 'sandbox';
+export const DEFAULT_SCENARIO_ID = 'versus';

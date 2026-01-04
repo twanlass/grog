@@ -830,25 +830,72 @@ function findSettlementSite(map, port, gameState) {
 }
 
 /**
+ * Check if a ship is docked (stationary and adjacent to land)
+ */
+function isShipDocked(ship, map) {
+    // Must be stationary (no waypoints)
+    if (ship.waypoints && ship.waypoints.length > 0) return false;
+
+    // Check if any neighbor is land
+    const neighbors = hexNeighbors(ship.q, ship.r);
+    for (const n of neighbors) {
+        const tile = map.tiles.get(hexKey(n.q, n.r));
+        if (tile && tile.type === 'land') {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Find a valid AI builder (docked ship or port) for tower construction
+ * Returns { type: 'ship'|'port', index: number, q, r } or null
+ */
+function findAITowerBuilder(gameState, map, aiOwner) {
+    // First check for docked ships
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const ship = gameState.ships[i];
+        if (ship.owner !== aiOwner) continue;
+        if (!isShipDocked(ship, map)) continue;
+        // Check ship isn't already building something
+        const isBuilding = gameState.ports.some(p => p.construction?.builderShipIndex === i) ||
+                          gameState.towers.some(t => t.construction?.builderShipIndex === i);
+        if (isBuilding) continue;
+
+        return { type: 'ship', index: i, q: ship.q, r: ship.r };
+    }
+
+    // Then check for ports
+    for (let i = 0; i < gameState.ports.length; i++) {
+        const port = gameState.ports[i];
+        if (port.owner !== aiOwner) continue;
+        // Check port isn't already building a tower
+        const isBuilding = gameState.towers.some(t => t.construction?.builderPortIndex === i);
+        if (isBuilding) continue;
+
+        return { type: 'port', index: i, q: port.q, r: port.r };
+    }
+
+    return null;
+}
+
+/**
  * Try to build a tower near the home port
  */
 function tryBuildTower(gameState, map, ai, aiOwner) {
     const towerData = TOWERS.watchtower;
+    const MAX_TOWER_BUILD_DISTANCE = 5;
 
     if (!canAfford(ai.resources, towerData.cost)) return false;
     if (!canAffordCrewForOwner(gameState, towerData.crewCost, aiOwner)) return false;
 
-    // Find a good tower site near AI home port
-    const aiIndex = aiOwner === 'ai1' ? 0 : 1;
-    const homeHex = gameState.aiHomeIslandHexes[aiIndex];
-    if (!homeHex) return false;
+    // Find a valid builder (docked ship or port)
+    const builder = findAITowerBuilder(gameState, map, aiOwner);
+    if (!builder) return false; // No valid builder available
 
-    const homeQ = homeHex.q;
-    const homeR = homeHex.r;
-
-    // Search for valid tower site
+    // Search for valid tower site within build distance of builder
     const visited = new Set();
-    const queue = [{ q: homeQ, r: homeR }];
+    const queue = [{ q: builder.q, r: builder.r }];
 
     while (queue.length > 0) {
         const current = queue.shift();
@@ -856,24 +903,31 @@ function tryBuildTower(gameState, map, ai, aiOwner) {
         if (visited.has(key)) continue;
         visited.add(key);
 
+        // Check distance from builder
+        const distance = hexDistance(builder.q, builder.r, current.q, current.r);
+        if (distance > MAX_TOWER_BUILD_DISTANCE) continue;
+
         const tile = map.tiles.get(key);
         if (!tile || tile.type !== 'land') continue;
 
         // Check if valid tower site
         if (isValidTowerSite(map, current.q, current.r, gameState.towers, gameState.ports, gameState.settlements)) {
             deductCost(ai.resources, towerData.cost);
-            const tower = createTower('watchtower', current.q, current.r, true, null, null, aiOwner);
+            const tower = createTower(
+                'watchtower', current.q, current.r, true,
+                builder.type === 'ship' ? builder.index : null,
+                builder.type === 'port' ? builder.index : null,
+                aiOwner
+            );
             gameState.towers.push(tower);
             return true;
         }
 
-        // Add neighbors (limit search)
-        if (visited.size < 30) {
-            const neighbors = hexNeighbors(current.q, current.r);
-            for (const n of neighbors) {
-                if (!visited.has(hexKey(n.q, n.r))) {
-                    queue.push(n);
-                }
+        // Add neighbors
+        const neighbors = hexNeighbors(current.q, current.r);
+        for (const n of neighbors) {
+            if (!visited.has(hexKey(n.q, n.r))) {
+                queue.push(n);
             }
         }
     }
@@ -1308,7 +1362,28 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
         }
 
         if (ship.repair) continue; // Don't command ships being repaired
-        if (ship.tradeRoute) continue; // Don't interrupt plunder routes
+
+        // Check if plundering ship should abort due to low health
+        if (ship.tradeRoute) {
+            const shipData = SHIPS[ship.type];
+            const healthPct = ship.health / shipData.health;
+            if (healthPct < shipBehavior.retreatHealthThreshold) {
+                // Abort plunder and let ship fall through to retreat logic
+                ship.tradeRoute = null;
+                ship.isPlundering = false;
+                ship.waitingForDock = null;
+                ship.dockingState = null;
+            } else if (ship.dockingState) {
+                // Actively loading/unloading - can't fight, skip
+                continue;
+            } else if (ship.waitingForDock) {
+                // Waiting for dock - allow ship to engage nearby enemies
+                // (fall through to combat logic below)
+            } else {
+                continue; // In transit, keep going
+            }
+        }
+
         if (ship.dockingState) continue; // Don't interrupt loading/unloading
         if (ship.expansionMission) continue; // Don't interrupt expansion missions
 

@@ -485,3 +485,27 @@ But then the ship doesn't start loading from the port (no progress bar shown, et
 
 ## 131. User prompt
 > ship it
+
+## 132. User prompt
+> lets make the ai a little smarter when attempting to plunder: right now they nav to a port, but if the port is blocked, they just stay and wait. they take enemy fire witout firing back, and don't seem to retreat if the port is blocked. 
+
+## 133. User prompt
+> <bash-notification>
+<shell-id>b1baa45</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b1baa45.output</output-file>
+<status>completed</status>
+<summary>Background command "Quick build test" completed (exit code 0).</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+
+## 134. User prompt
+> let's update the schooner to fire like a cannon tower: two projectiles fired, with a little delay between so we can see them
+
+## 135. User prompt
+> bug: in vs mode, the water trail on cutters is really large. why? 
+
+## 136. User prompt
+> lets add a wakeSize prop to ships. 
+
+## 137. User prompt
+> ship it 

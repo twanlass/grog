@@ -1,12 +1,16 @@
 // Trade route system - handles loading, unloading, and docking at ports
 import { findFreeAdjacentWater, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex } from "../gameState.js";
 import { SHIPS } from "../sprites/index.js";
+import { hexDistance } from "../hex.js";
 
 // Loading/unloading speed
 const LOAD_TIME_PER_UNIT = 1.0;  // seconds per wood unit
 
 // Dock retry interval for waiting ships
 const DOCK_RETRY_INTERVAL = 2.0;
+
+// Max time AI ships will wait at a blocked dock before giving up
+const MAX_DOCK_WAIT_TIME = 5.0;
 
 /**
  * Get the global resources object for a given owner
@@ -335,6 +339,55 @@ function updateDockWaiting(gameState, map, dt) {
         if (ship.waypoints.length > 0 && ship.path && ship.path.length > 0) continue;
 
         ship.waitingForDock.retryTimer += dt;
+
+        // Track total wait time for AI plundering ships
+        ship.waitingForDock.totalWaitTime = (ship.waitingForDock.totalWaitTime || 0) + dt;
+
+        // AI plundering ships give up after MAX_DOCK_WAIT_TIME
+        if (ship.isPlundering && ship.waitingForDock.totalWaitTime >= MAX_DOCK_WAIT_TIME) {
+            ship.tradeRoute = null;
+            ship.isPlundering = false;
+            ship.waitingForDock = null;
+            continue;
+        }
+
+        // AI plundering ships abort if there are nearby threats (enemy ships or towers)
+        if (ship.isPlundering) {
+            const threatRange = 5;
+            let hasThreat = false;
+
+            // Check for enemy ships
+            for (const other of gameState.ships) {
+                if (other === ship) continue;
+                if (other.owner === ship.owner) continue;  // Same owner
+                const dist = hexDistance(ship.q, ship.r, other.q, other.r);
+                if (dist <= threatRange) {
+                    hasThreat = true;
+                    break;
+                }
+            }
+
+            // Check for enemy towers
+            if (!hasThreat) {
+                for (const tower of gameState.towers) {
+                    if (tower.owner === ship.owner) continue;  // Same owner
+                    if (tower.construction) continue;  // Under construction
+                    const dist = hexDistance(ship.q, ship.r, tower.q, tower.r);
+                    if (dist <= threatRange) {
+                        hasThreat = true;
+                        break;
+                    }
+                }
+            }
+
+            if (hasThreat) {
+                // Abort plunder and let ship defend itself
+                ship.tradeRoute = null;
+                ship.isPlundering = false;
+                ship.waitingForDock = null;
+                continue;
+            }
+        }
 
         if (ship.waitingForDock.retryTimer >= DOCK_RETRY_INTERVAL) {
             ship.waitingForDock.retryTimer = 0;

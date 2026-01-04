@@ -33,16 +33,15 @@ export function drawShipTrails(ctx, gameState, fogState) {
         // Hide non-player ship trails in fog
         if (!shouldRenderEntity(fogState, ship)) continue;
 
-        // Scale wake size based on ship size (using cargo as proxy)
+        // Use ship's wakeSize property for trail sizing
         const shipData = SHIPS[ship.type];
-        const sizeMultiplier = Math.sqrt(shipData.cargo);
-        const baseSize = 8 * sizeMultiplier;
-        const sizeDecay = 0.8 * sizeMultiplier;
+        const baseSize = shipData.wakeSize || 8;
+        const sizeDecay = baseSize * 0.1;
 
         for (let i = 1; i < ship.trail.length; i++) {
             const segment = ship.trail[i];
             const progress = segment.age / TRAIL_FADE_DURATION;
-            const opacity = TRAIL_BASE_OPACITY * Math.min(sizeMultiplier * 0.8, 1.2) * (1 - progress);
+            const opacity = TRAIL_BASE_OPACITY * (1 - progress);
             const size = (baseSize - i * sizeDecay) * zoom;
 
             const screenX = (segment.x - cameraX) * zoom + halfWidth;

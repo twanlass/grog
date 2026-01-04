@@ -1070,13 +1070,14 @@ export function deductCost(resources, cost) {
     }
 }
 
-// Compute current crew status (used/cap/available)
-export function computeCrewStatus(gameState) {
+// Compute current crew status (used/cap/available) for a specific owner
+export function computeCrewStatus(gameState, owner = 'player') {
     let cap = 0;
     let used = 0;
 
-    // Ports contribute to cap (only completed ports)
+    // Ports contribute to cap (only completed ports owned by this player)
     for (const port of gameState.ports) {
+        if (port.owner !== owner) continue;
         if (!port.construction) {
             const portData = PORTS[port.type];
             cap += portData.crewCapContribution || 0;
@@ -1088,24 +1089,25 @@ export function computeCrewStatus(gameState) {
         }
     }
 
-    // Settlements contribute to cap (only completed settlements)
+    // Settlements contribute to cap (only completed settlements owned by this player)
     for (const settlement of gameState.settlements) {
+        if (settlement.owner !== owner) continue;
         if (!settlement.construction) {
             const settlementData = SETTLEMENTS.settlement;
             cap += settlementData.crewCapContribution || 0;
         }
     }
 
-    // Player ships use crew (not pirates)
+    // Ships owned by this player use crew
     for (const ship of gameState.ships) {
-        if (ship.type !== 'pirate') {
-            const shipData = SHIPS[ship.type];
-            used += shipData.crewCost || 0;
-        }
+        if (ship.owner !== owner) continue;
+        const shipData = SHIPS[ship.type];
+        used += shipData.crewCost || 0;
     }
 
-    // Towers use crew (include under-construction since crew reserved at placement)
+    // Towers owned by this player use crew (include under-construction since crew reserved at placement)
     for (const tower of gameState.towers) {
+        if (tower.owner !== owner) continue;
         const towerData = TOWERS[tower.type];
         used += towerData.crewCost || 0;
     }
