@@ -28,12 +28,14 @@ Early military rush - attacks before player establishes.
 | Min ships | 3 |
 | Max settlements | 2 |
 | Max towers | 1 |
+| Max distant ports | 1 |
 | Preferred ship | Schooner |
 | Ship cap | 8 |
 | Patrol radius | 10-20 hexes (far from home) |
 | Engagement range | 10 hexes |
 | Retreat threshold | 20% health |
 | Attack group size | 2 ships |
+| Expansion priority | Low (4 ships required, 50 wood buffer) |
 
 ### Defensive
 Heavy tower investment - turtles and counterattacks.
@@ -44,12 +46,14 @@ Heavy tower investment - turtles and counterattacks.
 | Min ships | 2 |
 | Max settlements | 3 |
 | Max towers | 4 |
+| Max distant ports | 2 |
 | Preferred ship | Cutter |
 | Ship cap | 5 |
 | Patrol radius | 4-8 hexes (close to home) |
 | Engagement range | 6 hexes |
 | Retreat threshold | 50% health |
 | Attack group size | 3 ships |
+| Expansion priority | Moderate (3 ships required, 40 wood buffer) |
 
 ### Economic
 Max settlements early - booms before striking.
@@ -60,12 +64,14 @@ Max settlements early - booms before striking.
 | Min ships | 2 |
 | Max settlements | 6 |
 | Max towers | 2 |
+| Max distant ports | 3 |
 | Preferred ship | Schooner |
 | Ship cap | 6 |
 | Patrol radius | 5-10 hexes |
 | Engagement range | 5 hexes |
 | Retreat threshold | 40% health |
 | Attack group size | 4 ships |
+| Expansion priority | High (2 ships required, 20 wood buffer, builds shipyards) |
 
 ## Game Phases
 
@@ -128,6 +134,9 @@ Stored in `gameState.aiPlayer`:
         attackTarget: null,            // Current group attack target {q, r}
         enemyBaseLocation: null,       // Discovered enemy base {q, r}
         isDefending: false,            // Whether in defend mode
+        // Port expansion
+        discoveredIslands: [],         // Array of { portSiteHex, distanceFromHome, hasEnemyPresence }
+        expansionShipIndex: null,      // Ship assigned to expansion mission
     },
 }
 ```
@@ -160,7 +169,44 @@ Priorities start from the strategy's base values, then:
 3. **Military ships**: When military priority > 0.5, build preferred ship type up to ship cap
 4. **Defensive towers**: When defense priority > threshold, build up to strategy max
 5. **Tower upgrades**: When defense priority > upgrade threshold
-6. **Economic bonus**: Economic strategy builds extra settlements when rich (50+ wood)
+6. **Port upgrades**: When expansion priority > port upgrade threshold, upgrade existing ports
+7. **Port expansion**: When expansion priority > 0.5, send ships to build ports on new islands
+8. **Economic bonus**: Economic strategy builds extra settlements when rich (50+ wood)
+
+## Port Expansion System
+
+The AI can expand to new islands by discovering them and sending ships to build ports.
+
+### Island Discovery
+- All AI ships scan nearby hexes (8-hex sight range) for valid port sites
+- Islands are tracked in `tactics.discoveredIslands`
+- Skips home island and islands where AI already has a port
+- Tracks enemy presence on each discovered island
+
+### Expansion Triggers
+The AI considers expanding when:
+- Has enough ships (strategy-defined: 2-4 ships)
+- Has resources > port cost + buffer (strategy-defined: 20-50 wood)
+- Expansion priority > 0.5
+- Threat level < 0.5 (not under attack)
+- Has discovered unexploited islands
+- Below max distant ports limit
+
+### Expansion Mission Phases
+1. **Traveling**: Ship sails to docking hex adjacent to target port site
+2. **Docking**: Ship arrives and waits for resources if needed
+3. **Building**: Ship is locked while port construction progresses
+
+### Strategy Differences
+
+| Strategy | Min Ships | Wood Buffer | Max Ports | Port Type |
+|----------|-----------|-------------|-----------|-----------|
+| Economic | 2 | 20 | 3 | Shipyard |
+| Defensive | 3 | 40 | 2 | Dock |
+| Aggressive | 4 | 50 | 1 | Dock |
+
+### Port Upgrades
+The AI also upgrades existing ports (dock → shipyard → stronghold) when expansion priority exceeds the strategy's port upgrade threshold.
 
 ## Tactics System
 
@@ -272,8 +318,7 @@ AI-owned entities are marked with a red indicator circle:
 
 ## Future Expansion Ideas
 - Difficulty levels (easy/medium/hard)
-- Multiple AI opponents
-- AI port upgrades and ship repairs
+- AI ship repairs
 - AI trade routes for resource generation
 - More sophisticated targeting (prioritize damaged units, high-value targets)
 - Team modes (2v2)

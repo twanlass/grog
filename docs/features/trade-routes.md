@@ -1,38 +1,63 @@
-# Trade Routes
+# Plundering (formerly Trade Routes)
 
-Ships can collect resources from foreign ports and automatically transport them to the home port.
+Ships can plunder resources from enemy ports, stealing directly from the enemy's treasury.
 
-## Home Port
-The "home port" is determined dynamically:
-- The **home island** is the landmass where your first port was placed
-- The **home port** is the most recent completed port on that island
-- If the home port is destroyed and rebuilt, it automatically becomes the home port again
-- Trade routes store the home port index when created
+## Resource Generation
 
-## Behavior
-- Select a ship, then Command+click on a foreign port (not home port) to set up a trade route
-- Ship navigates to the foreign port and loads available wood/food
-- Loading takes 1 second per resource unit
-- Once loaded, ship automatically returns to home port to unload
-- After unloading, ship returns to foreign port (auto-loop continues indefinitely)
-- Command+click a new destination to cancel the trade route
+All settlements contribute directly to their owner's global resources:
+- **Player settlements** → `gameState.resources.wood`
+- **AI settlements** → `gameState.aiPlayers[n].resources.wood`
+
+No manual trading is needed between your own ports.
+
+## Plundering
+
+Plundering lets you steal resources from enemy factions.
+
+### How to Plunder (Player)
+1. Select a ship
+2. **Shift + right-click** on an enemy port
+3. Ship navigates to enemy port and loads resources from enemy's global treasury
+4. Ship returns to your home port and unloads to your treasury
+5. Route auto-loops until cancelled
+
+### Controls
+| Action | Input |
+|--------|-------|
+| Plunder enemy port | Shift + right-click |
+| Attack enemy port | Right-click (no shift) |
+| Cancel plunder route | Right-click elsewhere / set new destination |
 
 ## Resource Flow
-1. Foreign ports collect resources from their nearby settlements (+5 wood, +5 food every 30s)
-2. Resources are stored in the foreign port's local storage
-3. Ships load from `port.storage` into `ship.cargo` (ratio-based)
-4. Ships unload from `ship.cargo` into `gameState.resources` (global stockpile)
 
-## Ratio-Based Loading
-Ships load resources proportionally based on the foreign port's current ratio:
+```
+Enemy Treasury (global)
+    ↓ (ship loads at enemy port)
+Ship Cargo
+    ↓ (ship unloads at home port)
+Your Treasury (global)
+```
 
-| Port Storage | Ship Cargo (2) | Result |
-|--------------|----------------|--------|
-| 5 wood, 5 food | 1 wood, 1 food | 50/50 ratio |
-| 8 wood, 2 food | 2 wood, 0 food | 80/20 ratio |
-| 0 wood, 10 food | 0 wood, 2 food | 100% food |
+### Risk/Reward
+- Resources are deducted from enemy immediately when loaded
+- Resources are NOT added to your treasury until ship unloads
+- **If ship is destroyed**, cargo is lost forever
+- Enemy gets no resources back if your ship is sunk
 
-The ratio is calculated at the start of loading. If one resource runs out mid-load, the ship takes more of the remaining resource.
+## AI Plundering
+
+AI opponents can also plunder your ports.
+
+### AI Decision Making
+- **Strategy-based**: Aggressive AI plunders frequently (~63%), Defensive rarely (~28%), Economic moderate (~21%)
+- **Uses idle ships**: Only ships with no other tasks
+- **No cheating**: AI doesn't know your resource count - just attempts plundering opportunistically
+
+### AI Plunder Behavior
+- Evaluates every 5 seconds
+- Picks nearest enemy port
+- Sends one idle ship per evaluation
+- Ships complete loading before being reassigned
 
 ## Ship Cargo Capacity
 
@@ -43,123 +68,87 @@ The ratio is calculated at the start of loading. If one resource runs out mid-lo
 | Brigantine | 6 |
 | Galleon | 12 |
 
-## Manual Unload
-- If a trade route is interrupted, ships may have cargo with no destination
-- Select ship with cargo, Command+click home port to navigate and unload
-- Ship shows "RETURNING" status during this one-time unload
+## Loading/Unloading
+
+- **Speed**: 1 second per resource unit
+- **Progress bar**: Green (loading), Gold (unloading)
+- Ship stays docked until fully loaded or enemy treasury is empty
 
 ## Waiting System
-When a dock is occupied by another ship:
-- Ship navigates to a nearby water hex (2+ hexes from port)
+
+When a dock is occupied:
+- Ship navigates to nearby water hex (2+ hexes from port)
 - Ship enters "WAITING" status
-- Every 2 seconds, ship checks if dock is free
-- When free, ship navigates to dock and resumes operation
+- Retries every 2 seconds
+- Resumes when dock is free
 
 ## Status Indicators
-Ship info panel (bottom-right) shows current status:
 
 | Status | Color | Meaning |
 |--------|-------|---------|
-| AUTO-LOOP | Cyan | Active trade route, traveling |
-| LOADING | Green | Loading cargo at foreign port |
-| UNLOADING | Gold | Unloading cargo at port |
+| PLUNDERING | Cyan | Active plunder route, traveling |
+| LOADING | Green | Loading cargo at enemy port |
+| UNLOADING | Gold | Unloading cargo at home port |
 | WAITING | Yellow | Waiting for dock to be free |
-| RETURNING | Tan | One-time return to home port |
-
-## Progress Bar
-- Appears above ship during loading/unloading
-- Green fill for loading, gold fill for unloading
-- Duration = cargo units × 1 second per unit
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `game/src/gameState.js` | Ship state properties, helper functions |
-| `game/src/scenes/gameScene.js` | Trade route state machine, UI, click handling |
+| `game/src/systems/tradeRoutes.js` | Loading/unloading state machine |
+| `game/src/systems/inputHandler.js` | Shift+right-click handling |
+| `game/src/systems/aiPlayer.js` | AI plunder decisions |
+| `game/src/systems/resourceGeneration.js` | Settlement → global resources |
+| `game/src/gameState.js` | Ship state, helper functions |
 
 ## Key Functions
 
+### tradeRoutes.js
+- `updateTradeRoutes()` - Main state machine for loading/unloading
+- `getResourcesForOwner()` - Gets global resources for a faction
+
+### inputHandler.js
+- `handleTradeRouteClick()` - Handles Shift+right-click for plunder routes
+
+### aiPlayer.js
+- `evaluatePlunderRoutes()` - AI decision to send ships plundering
+
 ### gameState.js
-- `createShip()` - Creates ship with `tradeRoute`, `cargo`, `dockingState`, `waitingForDock`
-- `isShipAdjacentToPort(ship, port)` - Checks if ship is in hex adjacent to port
-- `getCargoSpace(ship, shipDefs)` - Returns remaining cargo capacity
-- `cancelTradeRoute(ship)` - Clears trade route and related state
-- `findNearbyWaitingHex(map, portQ, portR, ships)` - Finds water hex for waiting (not adjacent to port)
+- `createShip()` - Creates ship with `tradeRoute`, `cargo`, `isPlundering`, `dockingState`
+- `cancelTradeRoute()` - Clears plunder route and related state
 
 ## Data Structures
 
-### Ship trade route state
+### Ship plunder state
 ```javascript
 ship = {
-    // ... existing properties
     tradeRoute: { foreignPortIndex: 1, homePortIndex: 0 } | null,
-    cargo: { wood: 0, food: 0 },
+    isPlundering: true | false,  // Distinguishes plunder from legacy trade
+    cargo: { wood: 0 },
     dockingState: {
         action: 'loading' | 'unloading',
         progress: 0,
         totalUnits: 4,
         unitsTransferred: 0,
         targetPortIndex: 1,
-        // Ratio-based loading (only for 'loading' action)
-        targetWood: 2,      // Target wood to load based on port ratio
-        targetFood: 2,      // Target food to load
-        woodLoaded: 0,      // Wood loaded so far
-        foodLoaded: 0,      // Food loaded so far
     } | null,
     waitingForDock: { portIndex: 1, retryTimer: 0 } | null,
-    pendingUnload: false,  // For one-time manual unload
 }
 ```
 
-### Port storage (foreign ports only)
-```javascript
-port.storage = { wood: 0, food: 0 }
-```
-
-## State Machine Flow
-
-```
-Command+click foreign port with ship selected
-    ↓
-TRAVELING_TO_FOREIGN (waypoint set)
-    ↓
-Arrived at foreign port
-    ↓
-Resources available? ──No──→ Wait (check each frame)
-    ↓ Yes
-LOADING (dockingState.action = 'loading')
-    ↓
-Loading complete (cargo full or port empty)
-    ↓
-TRAVELING_TO_HOME (waypoint to home port)
-    ↓
-Arrived at home port
-    ↓
-UNLOADING (dockingState.action = 'unloading')
-    ↓
-Unloading complete
-    ↓
-TRAVELING_TO_FOREIGN (auto-loop continues)
-```
-
 ## Edge Cases
+
+- **Enemy has no resources**: Ship waits at dock, checks each frame
+- **Enemy port destroyed**: Plunder route cancelled
+- **Enemy port captured**: Plunder route cancelled (now friendly)
+- **Ship destroyed mid-voyage**: Cargo lost, enemy doesn't get it back
+- **Multiple ships same target**: Each operates independently
 - **Dock occupied**: Ship waits nearby, retries every 2 seconds
-- **No waiting spot available**: Ship waits in place
-- **Foreign port empty**: Ship waits at dock until resources generated
-- **Trade route cancelled**: Command+click any other destination, route cleared
-- **Foreign port destroyed**: Trade route cancelled
-- **Home port destroyed**: Trade route continues if another port is built on home island
-- **No home port exists**: Cannot create new trade routes
-- **Ship stuck**: Catch-all logic re-navigates ship to appropriate port
-- **Multiple ships same route**: Each operates independently
-- **Pathfinding fails**: Ship enters waiting mode, retries navigation
 
 ## Constants
 
 | Constant | Value | Location |
 |----------|-------|----------|
-| `LOAD_TIME_PER_UNIT` | 1.0 seconds | gameScene.js |
-| `DOCK_RETRY_INTERVAL` | 2.0 seconds | gameScene.js |
-| `GENERATION_INTERVAL` | 30 seconds | gameScene.js |
-| `GENERATION_AMOUNT` | 5 (wood + food) | gameScene.js |
+| `LOAD_TIME_PER_UNIT` | 1.0 seconds | tradeRoutes.js |
+| `DOCK_RETRY_INTERVAL` | 2.0 seconds | tradeRoutes.js |
+| AI plunder cooldown | 5 seconds | aiPlayer.js |

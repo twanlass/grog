@@ -13,7 +13,8 @@ import {
     canAfford, deductCost, startBuilding, getBuildableShips,
     getPortsByOwner, getShipsByOwner, getSettlementsByOwner, getTowersByOwner,
     getHomePortIndexForOwner, isLandConnected, canAffordCrew,
-    getPortIndicesByOwner, getNextTowerType, startTowerUpgrade, isAIOwner
+    getPortIndicesByOwner, getNextTowerType, startTowerUpgrade, isAIOwner,
+    findNearbyWaitingHex, getNextPortType, startPortUpgrade
 } from "../gameState.js";
 import { findPath } from "../pathfinding.js";
 
@@ -49,6 +50,14 @@ export const AI_STRATEGIES = {
             towerDefenseThreshold: 0.7,   // Only build towers if defense very high
             towerUpgradePriority: 0.2,    // Rarely upgrade towers (focused on ships)
             attackGroupSize: 2,           // Attack with fewer ships (aggressive)
+            // Port expansion config
+            portUpgradeThreshold: 0.6,    // Rarely upgrades ports
+            expansionConfig: {
+                minShipsForExpansion: 4,  // Need more ships before expanding
+                expansionWoodBuffer: 50,  // Keep buffer after port cost
+                maxDistantPorts: 1,       // Only one remote port
+                preferredPortType: 'dock', // Build cheap docks
+            },
         },
 
         // Ship behavior
@@ -89,6 +98,14 @@ export const AI_STRATEGIES = {
             towerDefenseThreshold: 0.3,   // Build towers even with low defense priority
             towerUpgradePriority: 0.8,    // Aggressively upgrade towers
             attackGroupSize: 3,           // Wait for more ships before attacking
+            // Port expansion config
+            portUpgradeThreshold: 0.4,    // Moderate port upgrades
+            expansionConfig: {
+                minShipsForExpansion: 3,  // Standard ship count
+                expansionWoodBuffer: 40,  // Moderate buffer
+                maxDistantPorts: 2,       // Two remote ports
+                preferredPortType: 'dock', // Build docks
+            },
         },
 
         shipBehavior: {
@@ -127,6 +144,14 @@ export const AI_STRATEGIES = {
             towerDefenseThreshold: 0.5,
             towerUpgradePriority: 0.4,    // Sometimes upgrade towers
             attackGroupSize: 4,           // Wait for large force before attacking
+            // Port expansion config
+            portUpgradeThreshold: 0.5,    // Moderate port upgrades
+            expansionConfig: {
+                minShipsForExpansion: 2,  // Expand early with few ships
+                expansionWoodBuffer: 20,  // Low buffer - prioritize expansion
+                maxDistantPorts: 3,       // Many remote ports
+                preferredPortType: 'shipyard', // Build shipyards for better ships
+            },
         },
 
         shipBehavior: {
@@ -197,10 +222,22 @@ function updateSingleAI(gameState, map, fogState, dt, ai, aiOwner, aiIndex) {
         ai.tacticsCooldown = TACTICS_DECISION_INTERVAL;
     }
 
+    // Update expansion mission (every frame for responsiveness)
+    if (ai.tactics) {
+        updateExpansionMission(gameState, map, ai, aiOwner);
+    }
+
     // Ship commands (every 2 seconds)
     if (ai.shipCommandCooldown <= 0) {
         updateShipCommands(gameState, map, ai, aiOwner);
         ai.shipCommandCooldown = SHIP_COMMAND_INTERVAL;
+    }
+
+    // Plunder evaluation (every 5 seconds)
+    ai.plunderCooldown = Math.max(0, (ai.plunderCooldown || 0) - dt);
+    if (ai.plunderCooldown <= 0) {
+        evaluatePlunderRoutes(gameState, map, ai, aiOwner);
+        ai.plunderCooldown = 5;
     }
 
     // Decay threat level over time
@@ -355,6 +392,13 @@ function executeDefend(gameState, map, ai, aiOwner) {
     // Send all ships back to defend
     for (const ship of aiShips) {
         if (ship.repair) continue;  // Don't interrupt repairs
+        if (ship.dockingState) continue;  // Don't interrupt loading/unloading
+
+        // Cancel plunder route if defending
+        if (ship.tradeRoute) {
+            ship.tradeRoute = null;
+            ship.isPlundering = false;
+        }
 
         ship.attackTarget = null;
         ship.waypoints = [{ q: rallyPoint.q, r: rallyPoint.r }];
@@ -400,7 +444,7 @@ function manageScout(gameState, map, ai, aiOwner) {
     // Control scout behavior
     if (tactics.scoutShipIndex !== null) {
         const scout = gameState.ships[tactics.scoutShipIndex];
-        if (scout && scout.waypoints.length === 0) {
+        if (scout && scout.waypoints.length === 0 && !scout.dockingState) {
             // Generate a far patrol point for scouting
             const scoutTarget = generateScoutTarget(gameState, map, tactics, aiOwner);
             if (scoutTarget) {
@@ -554,7 +598,7 @@ function manageGroupAttack(gameState, map, ai, aiOwner) {
         // Send attack group to target
         for (const idx of tactics.attackGroup) {
             const ship = gameState.ships[idx];
-            if (ship) {
+            if (ship && !ship.dockingState) {
                 ship.waypoints = [{ q: tactics.attackTarget.q, r: tactics.attackTarget.r }];
                 ship.path = null;
             }
@@ -620,7 +664,17 @@ function evaluateBuildOptions(gameState, map, fogState, ai, aiOwner) {
         if (tryUpgradeTower(gameState, ai, aiOwner)) return;
     }
 
-    // Priority 6 (Economic strategy bonus): Aggressive expansion when rich
+    // Priority 6: Port upgrades (strategy-defined threshold)
+    if (ai.priorities.expansion > buildConfig.portUpgradeThreshold && aiPorts.length > 0) {
+        if (tryUpgradePort(gameState, ai, aiOwner)) return;
+    }
+
+    // Priority 7: Port expansion to new islands
+    if (ai.priorities.expansion > 0.5) {
+        if (evaluateExpansion(gameState, map, ai, aiOwner)) return;
+    }
+
+    // Priority 8 (Economic strategy bonus): Aggressive expansion when rich
     if (ai.strategy === 'economic' && ai.resources.wood > 50 &&
         aiShips.length >= 3 && completedSettlements < buildConfig.maxSettlements) {
         if (tryBuildSettlement(gameState, map, ai, aiOwner)) return;
@@ -859,6 +913,382 @@ function tryUpgradeTower(gameState, ai, aiOwner) {
     return false;
 }
 
+// ============================================================
+// PORT EXPANSION SYSTEM
+// ============================================================
+
+/**
+ * Discover new islands near a ship (called during ship movement)
+ * Adds undiscovered islands to ai.tactics.discoveredIslands
+ */
+function discoverIslandsNearShip(gameState, map, ship, ai, aiOwner) {
+    const sightDistance = 8;  // How far ships can "see" port sites
+    const aiPorts = getPortsByOwner(gameState, aiOwner);
+
+    // Get AI home hex to skip home island
+    const aiIndex = aiOwner === 'ai1' ? 0 : 1;
+    const aiHomeHex = gameState.aiHomeIslandHexes ? gameState.aiHomeIslandHexes[aiIndex] : null;
+
+    // Scan hexes within sight distance
+    for (let dq = -sightDistance; dq <= sightDistance; dq++) {
+        for (let dr = -sightDistance; dr <= sightDistance; dr++) {
+            if (hexDistance(0, 0, dq, dr) > sightDistance) continue;
+
+            const q = ship.q + dq;
+            const r = ship.r + dr;
+            const tile = map.tiles.get(hexKey(q, r));
+
+            if (!tile || !tile.isPortSite) continue;
+
+            // Check if this is on the AI's home island
+            if (aiHomeHex && isLandConnected(map, aiHomeHex.q, aiHomeHex.r, q, r)) continue;
+
+            // Check if this island already has an AI port
+            const hasAIPort = aiPorts.some(p => !p.construction && isLandConnected(map, p.q, p.r, q, r));
+            if (hasAIPort) continue;
+
+            // Check if already discovered
+            const alreadyKnown = ai.tactics.discoveredIslands.some(
+                island => isLandConnected(map, island.portSiteHex.q, island.portSiteHex.r, q, r)
+            );
+            if (alreadyKnown) continue;
+
+            // Check for enemy presence
+            const hasEnemy = gameState.ports.some(p =>
+                p.owner !== aiOwner && !p.construction && isLandConnected(map, p.q, p.r, q, r)
+            );
+
+            // Calculate distance from home
+            let distanceFromHome = 0;
+            if (aiHomeHex) {
+                distanceFromHome = hexDistance(aiHomeHex.q, aiHomeHex.r, q, r);
+            }
+
+            // Add to discovered islands
+            ai.tactics.discoveredIslands.push({
+                portSiteHex: { q, r },
+                distanceFromHome,
+                hasEnemyPresence: hasEnemy,
+            });
+        }
+    }
+}
+
+/**
+ * Try to upgrade an existing AI port to the next tier
+ */
+function tryUpgradePort(gameState, ai, aiOwner) {
+    const aiPorts = getPortsByOwner(gameState, aiOwner);
+
+    for (const port of aiPorts) {
+        if (port.construction) continue;  // Already under construction/upgrade
+
+        const nextType = getNextPortType(port.type);
+        if (!nextType) continue;  // Already max tier
+
+        const nextPortData = PORTS[nextType];
+        if (!nextPortData) continue;
+
+        // Check if we can afford the upgrade
+        if (!canAfford(ai.resources, nextPortData.cost)) continue;
+
+        // Upgrade the port
+        deductCost(ai.resources, nextPortData.cost);
+        startPortUpgrade(port);
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Evaluate and initiate expansion to a new island
+ * Returns true if expansion mission was started
+ */
+function evaluateExpansion(gameState, map, ai, aiOwner) {
+    const strategy = AI_STRATEGIES[ai.strategy];
+    const expConfig = strategy.buildConfig.expansionConfig;
+    if (!expConfig) return false;
+
+    // Already have expansion ship assigned?
+    if (ai.tactics.expansionShipIndex !== null) {
+        const ship = gameState.ships[ai.tactics.expansionShipIndex];
+        if (ship && ship.owner === aiOwner && ship.expansionMission) {
+            return false;  // Mission in progress
+        }
+        // Ship lost or mission cleared
+        ai.tactics.expansionShipIndex = null;
+    }
+
+    // Check conditions
+    const aiShips = getShipsByOwner(gameState, aiOwner);
+    const aiPorts = getPortsByOwner(gameState, aiOwner);
+
+    // Get AI home hex
+    const aiIndex = aiOwner === 'ai1' ? 0 : 1;
+    const aiHomeHex = gameState.aiHomeIslandHexes ? gameState.aiHomeIslandHexes[aiIndex] : null;
+
+    // Count distant ports (not on home island)
+    const distantPorts = aiPorts.filter(p =>
+        !p.construction && aiHomeHex && !isLandConnected(map, aiHomeHex.q, aiHomeHex.r, p.q, p.r)
+    ).length;
+
+    if (distantPorts >= expConfig.maxDistantPorts) return false;
+    if (aiShips.length < expConfig.minShipsForExpansion) return false;
+    if (ai.priorities.expansion < 0.5) return false;
+    if (ai.threatLevel > 0.5) return false;
+    if (ai.tactics.discoveredIslands.length === 0) return false;
+
+    // Check affordability
+    const portType = expConfig.preferredPortType;
+    const portCost = PORTS[portType].cost.wood;
+    if (ai.resources.wood < portCost + expConfig.expansionWoodBuffer) return false;
+
+    // Select best island - filter for valid sites first
+    const validIslands = ai.tactics.discoveredIslands.filter(island =>
+        isValidPortSite(map, island.portSiteHex.q, island.portSiteHex.r, gameState.ports)
+    );
+
+    if (validIslands.length === 0) return false;
+
+    // Score islands (Economic prefers closer, Aggressive prefers farther)
+    validIslands.sort((a, b) => {
+        let scoreA = a.distanceFromHome;
+        let scoreB = b.distanceFromHome;
+        if (a.hasEnemyPresence) scoreA += 100;  // Avoid contested
+        if (b.hasEnemyPresence) scoreB += 100;
+        return ai.strategy === 'aggressive' ? scoreB - scoreA : scoreA - scoreB;
+    });
+
+    const targetIsland = validIslands[0];
+
+    // Find docking hex (water adjacent to port site)
+    const dockingHex = findAdjacentWater(map, targetIsland.portSiteHex.q, targetIsland.portSiteHex.r);
+    if (!dockingHex) return false;
+
+    // Select ship for mission
+    const availableShips = [];
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const ship = gameState.ships[i];
+        if (ship.owner !== aiOwner) continue;
+        if (ship.repair) continue;
+        if (ship.expansionMission) continue;
+        if (ship.tradeRoute) continue;
+        if (i === ai.tactics.scoutShipIndex) continue;
+        if (ai.tactics.attackGroup.includes(i)) continue;
+
+        const healthPct = ship.health / SHIPS[ship.type].health;
+        availableShips.push({ index: i, ship, healthPct });
+    }
+
+    if (availableShips.length === 0) return false;
+
+    // Prefer healthier ships
+    availableShips.sort((a, b) => b.healthPct - a.healthPct);
+    const chosen = availableShips[0];
+
+    // Assign expansion mission
+    const islandIndex = ai.tactics.discoveredIslands.indexOf(targetIsland);
+    chosen.ship.expansionMission = {
+        targetIslandIndex: islandIndex,
+        portSite: { q: targetIsland.portSiteHex.q, r: targetIsland.portSiteHex.r },
+        portType: portType,
+        phase: 'traveling',
+        dockingHex: { q: dockingHex.q, r: dockingHex.r },
+    };
+
+    // Set waypoint
+    chosen.ship.waypoints = [{ q: dockingHex.q, r: dockingHex.r }];
+    chosen.ship.path = null;
+
+    ai.tactics.expansionShipIndex = chosen.index;
+
+    return true;
+}
+
+/**
+ * Update expansion mission state (called every frame for responsiveness)
+ */
+function updateExpansionMission(gameState, map, ai, aiOwner) {
+    if (ai.tactics.expansionShipIndex === null) return;
+
+    const shipIndex = ai.tactics.expansionShipIndex;
+    const ship = gameState.ships[shipIndex];
+
+    // Ship lost?
+    if (!ship || ship.owner !== aiOwner) {
+        ai.tactics.expansionShipIndex = null;
+        return;
+    }
+
+    const mission = ship.expansionMission;
+    if (!mission) {
+        ai.tactics.expansionShipIndex = null;
+        return;
+    }
+
+    // Check if port site is still valid
+    if (!isValidPortSite(map, mission.portSite.q, mission.portSite.r, gameState.ports)) {
+        // Abort mission - site taken
+        ship.expansionMission = null;
+        ai.tactics.expansionShipIndex = null;
+        // Remove from discovered islands
+        if (mission.targetIslandIndex >= 0 && mission.targetIslandIndex < ai.tactics.discoveredIslands.length) {
+            ai.tactics.discoveredIslands.splice(mission.targetIslandIndex, 1);
+        }
+        return;
+    }
+
+    switch (mission.phase) {
+        case 'traveling':
+            // Check if arrived at docking hex
+            if (ship.q === mission.dockingHex.q &&
+                ship.r === mission.dockingHex.r &&
+                ship.waypoints.length === 0 &&
+                !ship.path) {
+                // Verify we're adjacent to port site
+                const neighbors = hexNeighbors(ship.q, ship.r);
+                const isAdjacent = neighbors.some(n =>
+                    n.q === mission.portSite.q && n.r === mission.portSite.r
+                );
+
+                if (isAdjacent) {
+                    mission.phase = 'docking';
+                } else {
+                    // Find new docking hex
+                    const newDock = findAdjacentWater(map, mission.portSite.q, mission.portSite.r);
+                    if (newDock) {
+                        mission.dockingHex = { q: newDock.q, r: newDock.r };
+                        ship.waypoints = [{ q: newDock.q, r: newDock.r }];
+                        ship.path = null;
+                    } else {
+                        // Cannot dock - abort
+                        ship.expansionMission = null;
+                        ai.tactics.expansionShipIndex = null;
+                    }
+                }
+            }
+            break;
+
+        case 'docking':
+            // Ship is positioned, try to build
+            const portData = PORTS[mission.portType];
+            if (canAfford(ai.resources, portData.cost)) {
+                deductCost(ai.resources, portData.cost);
+                const newPort = createPort(
+                    mission.portType,
+                    mission.portSite.q,
+                    mission.portSite.r,
+                    true,  // isConstructing
+                    shipIndex,
+                    aiOwner
+                );
+                gameState.ports.push(newPort);
+                mission.phase = 'building';
+            }
+            // If can't afford, stay docked and wait (resources may come in)
+            break;
+
+        case 'building':
+            // Check if port construction completed
+            const port = gameState.ports.find(p =>
+                p.construction &&
+                p.construction.builderShipIndex === shipIndex
+            );
+            if (!port) {
+                // Construction complete or failed
+                ship.expansionMission = null;
+                ai.tactics.expansionShipIndex = null;
+
+                // Remove from discovered islands (port now built there)
+                const islandIdx = mission.targetIslandIndex;
+                if (islandIdx >= 0 && islandIdx < ai.tactics.discoveredIslands.length) {
+                    ai.tactics.discoveredIslands.splice(islandIdx, 1);
+                }
+            }
+            break;
+    }
+}
+
+/**
+ * Evaluate and initiate plunder routes for AI ships
+ * Decision based on: 1) AI strategy, 2) idle ships available
+ */
+function evaluatePlunderRoutes(gameState, map, ai, aiOwner) {
+    // Plunder chance based on strategy: aggressive = 0.6, economic = 0.3, defensive = 0.1
+    const strategy = AI_STRATEGIES[ai.strategy];
+    const plunderChance = strategy.basePriorities.military * 0.7;  // Aggressive ~0.63, Defensive ~0.28, Economic ~0.21
+
+    if (Math.random() > plunderChance) return;  // Skip this evaluation based on strategy
+
+    // Find AI's home port index
+    const homePortIndex = getHomePortIndexForOwner(gameState, map, aiOwner);
+    if (homePortIndex === null) return;
+
+    // Find enemy ports (AI doesn't know if they have resources - just picks a target)
+    const enemyPorts = [];
+    for (let i = 0; i < gameState.ports.length; i++) {
+        const port = gameState.ports[i];
+        if (port.owner === aiOwner) continue;  // Skip own ports
+        if (port.construction) continue;
+        enemyPorts.push({ index: i, port });
+    }
+
+    if (enemyPorts.length === 0) return;
+
+    // Find idle AI ships not already on plunder routes or other tasks
+    const aiShips = getShipsByOwner(gameState, aiOwner);
+    for (const ship of aiShips) {
+        if (ship.tradeRoute) continue;  // Already on a route
+        if (ship.repair) continue;      // Being repaired
+        if (ship.attackTarget) continue;  // In combat
+        if (ship.patrolRoute && ship.patrolRoute.length > 0) continue;  // Patrolling
+        if (ship.waypoints.length > 0) continue;  // Moving somewhere
+        if (ship.expansionMission) continue;  // On expansion mission
+
+        // Skip scout ships (if tactics exists)
+        if (ai.tactics) {
+            const shipIndex = gameState.ships.indexOf(ship);
+            if (shipIndex === ai.tactics.scoutShipIndex) continue;
+            if (ai.tactics.attackGroup.includes(shipIndex)) continue;
+        }
+
+        // Find nearest enemy port
+        let nearest = null;
+        let nearestDist = Infinity;
+        for (const ep of enemyPorts) {
+            const dist = hexDistance(ship.q, ship.r, ep.port.q, ep.port.r);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = ep;
+            }
+        }
+
+        if (nearest) {
+            // Set up plunder route
+            ship.tradeRoute = { foreignPortIndex: nearest.index, homePortIndex };
+            ship.isPlundering = true;
+
+            // Set waypoint to enemy port
+            const adjacentWater = findFreeAdjacentWater(map, nearest.port.q, nearest.port.r, gameState.ships);
+            if (adjacentWater) {
+                ship.waypoints = [{ q: adjacentWater.q, r: adjacentWater.r }];
+                ship.path = null;
+            } else {
+                const waitingSpot = findNearbyWaitingHex(map, nearest.port.q, nearest.port.r, gameState.ships);
+                if (waitingSpot) {
+                    ship.waypoints = [{ q: waitingSpot.q, r: waitingSpot.r }];
+                    ship.path = null;
+                    ship.waitingForDock = { portIndex: nearest.index, retryTimer: 0 };
+                }
+            }
+
+            // Only assign one ship per evaluation to spread out plundering
+            return;
+        }
+    }
+}
+
 /**
  * Update AI ship commands - patrol, attack, etc.
  * Now uses strategy-based ship behavior
@@ -871,7 +1301,16 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
         if (ship.owner !== aiOwner) continue;
+
+        // Discover nearby islands (runs for all ships)
+        if (ai.tactics) {
+            discoverIslandsNearShip(gameState, map, ship, ai, aiOwner);
+        }
+
         if (ship.repair) continue; // Don't command ships being repaired
+        if (ship.tradeRoute) continue; // Don't interrupt plunder routes
+        if (ship.dockingState) continue; // Don't interrupt loading/unloading
+        if (ship.expansionMission) continue; // Don't interrupt expansion missions
 
         // Skip ships managed by tactics system (scout, attack group, defending)
         // They get their waypoints from updateTactics instead

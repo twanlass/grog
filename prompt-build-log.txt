@@ -1280,3 +1280,44 @@ Rules:
 1. Only show if player camera is not currently viewing the attacked area 
 2. Only show a single red X in the approx location of the attack. It doesnt' need to be precise, more an indicator that a unit on a given island of yours is being attacked. 
 3. Maybe just show 1 X per island with an attacked structure 
+
+## 290. User prompt
+> lets jam on a cool idea for the title screen: we'll generate a map (like we would for a game) but not spawn any units or players. We'll then the camera subtly / slowly pan around. We'll then render the menu items we have today on top 
+
+## 291. User prompt
+> let's refactor our trade route gameplay a bit: 
+1. have all ports now contribute resources (wood) to the global store; players no longer need to load / unload from non-home ports
+2. let's allow players to load resources (plunder!) from AI ports, and the unload at their own port. 
+
+## 292. User prompt
+> why do towers cost crew cap to _upgrade_?
+
+## 293. User prompt
+> clear
+
+## 294. User prompt
+> when is cursor-attack sprite used? 
+
+## 295. User prompt
+> can we show it whenver the player cursors over a an enemy unit (ship or structure) since right click aloen will attack? 
+
+## 296. User prompt
+> show it whenever hovering an ememy unit – including ports, settlements, etc
+
+## 297. User prompt
+> Will the AI expand and build ports on new islands in vs mode? 
+
+## 298. User prompt
+> Yes
+
+## 299. User prompt
+> not seeing it; just a default mac os pointer cursor 
+
+## 300. User prompt
+> I want to use the cursor-attack sprite! 
+
+## 301. User prompt
+> use the existing cursor-attack sprite please
+
+## 302. User prompt
+> on the title screen, can we verically center this content? 

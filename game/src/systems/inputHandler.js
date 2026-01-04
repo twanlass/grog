@@ -383,21 +383,32 @@ export function handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, ga
 }
 
 /**
- * Handle Command+click on foreign port to set up trade route
+ * Handle Shift+right-click on enemy port to set up plunder route
+ * Ships will load resources from enemy port storage and bring them to home port
+ * Requires shift key to distinguish from attack command
  * @returns {boolean} true if handled
  */
-export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS) {
+export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld = false) {
+    // Plunder requires shift key
+    if (!isShiftHeld) return false;
     const selectedShips = getSelectedShips(gameState);
     if (selectedShips.length === 0) return false;
 
     const homePortIndex = getHomePortIndex(gameState, map);
-    if (homePortIndex === null) return false; // No home port, can't set up trade routes
+    if (homePortIndex === null) return false; // No home port, can't set up plunder routes
 
-    // Check foreign ports only (not the home port)
+    // Get the owner of the first selected ship
+    const firstShip = selectedShips[0];
+    const shipOwner = firstShip.owner || 'player';
+
+    // Check enemy ports only (different owner than ship)
     for (let i = 0; i < gameState.ports.length; i++) {
-        if (i === homePortIndex) continue; // Skip home port
         const port = gameState.ports[i];
         if (port.construction) continue;
+
+        // Only allow plundering enemy ports
+        const portOwner = port.owner || 'player';
+        if (portOwner === shipOwner) continue; // Skip friendly ports
 
         const portPos = hexToPixel(port.q, port.r);
         const dx = worldX - portPos.x;
@@ -415,6 +426,7 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
                 const ship = gameState.ships[sel.index];
                 if (ship.type === 'pirate') continue; // Can't control enemy ships
                 ship.tradeRoute = { foreignPortIndex: i, homePortIndex: homePortIndex };
+                ship.isPlundering = true;
                 ship.dockingState = null;
                 ship.waitingForDock = null;
 
@@ -430,7 +442,7 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
                     }
                 }
             }
-            console.log(`Set trade route to foreign port ${i}`);
+            console.log(`Set plunder route to enemy port ${i}`);
             return true;
         }
     }
@@ -726,7 +738,7 @@ export function handlePatrolWaypointClick(gameState, map, clickedHex) {
  * @param {function} getShipVisualPos - Function to get ship visual position for smooth hit detection
  * @returns {boolean} true if attack target was set
  */
-export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPos) {
+export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPos, isShiftHeld = false) {
     const selectedShips = getSelectedShips(gameState);
     if (selectedShips.length === 0) return false;
 
@@ -792,6 +804,8 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
     }
 
     // Find clicked enemy port (AI-owned)
+    // Skip if shift is held - that's for plundering instead of attacking
+    if (!isShiftHeld) {
     for (let i = 0; i < gameState.ports.length; i++) {
         const target = gameState.ports[i];
         if (!isAIOwner(target.owner)) continue;
@@ -809,6 +823,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
                 return true;
             }
         }
+    }
     }
 
     // Find clicked enemy settlement (AI-owned)

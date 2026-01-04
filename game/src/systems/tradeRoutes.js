@@ -9,6 +9,19 @@ const LOAD_TIME_PER_UNIT = 1.0;  // seconds per wood unit
 const DOCK_RETRY_INTERVAL = 2.0;
 
 /**
+ * Get the global resources object for a given owner
+ */
+function getResourcesForOwner(gameState, owner) {
+    if (owner === 'ai1' && gameState.aiPlayers?.[0]) {
+        return gameState.aiPlayers[0].resources;
+    } else if (owner === 'ai2' && gameState.aiPlayers?.[1]) {
+        return gameState.aiPlayers[1].resources;
+    } else {
+        return gameState.resources;
+    }
+}
+
+/**
  * Updates all trade route logic including loading, unloading, and dock waiting
  * @param {Object} gameState - The game state
  * @param {Object} map - The game map
@@ -30,27 +43,41 @@ export function updateTradeRoutes(gameState, map, dt) {
             continue;
         }
 
+        // For plunder routes, validate port is still enemy-owned
+        if (ship.isPlundering) {
+            const shipOwner = ship.owner || 'player';
+            const portOwner = foreignPort.owner || 'player';
+            if (portOwner === shipOwner) {
+                // Port was captured - cancel plunder route
+                cancelTradeRoute(ship);
+                continue;
+            }
+        }
+
         // Initialize cargo if not present (for ships created before this feature)
         if (!ship.cargo) ship.cargo = { wood: 0 };
 
         const isAtForeignPort = isShipAdjacentToPort(ship, foreignPort) && ship.waypoints.length === 0;
         const isAtHomePort = isShipAdjacentToPort(ship, homePort) && ship.waypoints.length === 0;
 
-        // Handle LOADING state
+        // Handle LOADING state (plundering from enemy's global resources)
         if (ship.dockingState?.action === 'loading') {
             ship.dockingState.progress += dt;
 
             const unitsToLoad = Math.floor(ship.dockingState.progress / LOAD_TIME_PER_UNIT);
 
             if (unitsToLoad > ship.dockingState.unitsTransferred) {
-                // Transfer resources from port to ship
+                // Transfer resources from enemy's global pool to ship
                 const toLoad = unitsToLoad - ship.dockingState.unitsTransferred;
+                const enemyOwner = foreignPort.owner || 'player';
+                const enemyResources = getResourcesForOwner(gameState, enemyOwner);
+
                 for (let i = 0; i < toLoad; i++) {
                     const space = getCargoSpace(ship, SHIPS);
                     if (space <= 0) break;
 
-                    if (foreignPort.storage.wood > 0) {
-                        foreignPort.storage.wood--;
+                    if (enemyResources.wood > 0) {
+                        enemyResources.wood--;
                         ship.cargo.wood++;
                         ship.dockingState.unitsTransferred++;
                     }
@@ -58,11 +85,13 @@ export function updateTradeRoutes(gameState, map, dt) {
             }
 
             // Check if loading complete
-            const portEmpty = foreignPort.storage.wood === 0;
+            const enemyOwner = foreignPort.owner || 'player';
+            const enemyResources = getResourcesForOwner(gameState, enemyOwner);
+            const enemyEmpty = enemyResources.wood === 0;
             const cargoFull = getCargoSpace(ship, SHIPS) === 0;
             const expectedDuration = ship.dockingState.totalUnits * LOAD_TIME_PER_UNIT;
 
-            if (portEmpty || cargoFull || ship.dockingState.progress >= expectedDuration) {
+            if (enemyEmpty || cargoFull || ship.dockingState.progress >= expectedDuration) {
                 ship.dockingState = null;
                 // Navigate to home port
                 const homeWater = findFreeAdjacentWater(map, homePort.q, homePort.r, gameState.ships);
@@ -92,10 +121,18 @@ export function updateTradeRoutes(gameState, map, dt) {
 
             if (unitsToUnload > ship.dockingState.unitsTransferred) {
                 const toUnload = unitsToUnload - ship.dockingState.unitsTransferred;
+                const shipOwner = ship.owner || 'player';
                 for (let i = 0; i < toUnload; i++) {
                     if (ship.cargo.wood > 0) {
                         ship.cargo.wood--;
-                        gameState.resources.wood++;
+                        // Route to correct owner's resources
+                        if (shipOwner === 'ai1' && gameState.aiPlayers?.[0]) {
+                            gameState.aiPlayers[0].resources.wood++;
+                        } else if (shipOwner === 'ai2' && gameState.aiPlayers?.[1]) {
+                            gameState.aiPlayers[1].resources.wood++;
+                        } else {
+                            gameState.resources.wood++;
+                        }
                         ship.dockingState.unitsTransferred++;
                     }
                 }
@@ -127,9 +164,11 @@ export function updateTradeRoutes(gameState, map, dt) {
             continue;
         }
 
-        // Handle arrival at foreign port (start loading)
+        // Handle arrival at foreign port (start loading/plundering)
         if (isAtForeignPort && !ship.dockingState) {
-            const availableResources = foreignPort.storage.wood;
+            const enemyOwner = foreignPort.owner || 'player';
+            const enemyResources = getResourcesForOwner(gameState, enemyOwner);
+            const availableResources = enemyResources.wood;
             const space = getCargoSpace(ship, SHIPS);
             const toLoad = Math.min(availableResources, space);
 
@@ -238,10 +277,18 @@ function updatePendingUnloads(gameState, map, dt) {
 
             if (unitsToUnload > ship.dockingState.unitsTransferred) {
                 const toUnload = unitsToUnload - ship.dockingState.unitsTransferred;
+                const shipOwner = ship.owner || 'player';
                 for (let i = 0; i < toUnload; i++) {
                     if (ship.cargo.wood > 0) {
                         ship.cargo.wood--;
-                        gameState.resources.wood++;
+                        // Route to correct owner's resources
+                        if (shipOwner === 'ai1' && gameState.aiPlayers?.[0]) {
+                            gameState.aiPlayers[0].resources.wood++;
+                        } else if (shipOwner === 'ai2' && gameState.aiPlayers?.[1]) {
+                            gameState.aiPlayers[1].resources.wood++;
+                        } else {
+                            gameState.resources.wood++;
+                        }
                         ship.dockingState.unitsTransferred++;
                     }
                 }

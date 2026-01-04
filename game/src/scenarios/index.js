@@ -4,7 +4,7 @@ export const SCENARIOS = [
     {
         id: 'sandbox',
         name: 'Sandbox',
-        description: 'Open world trading',
+        description: 'Casual adventure',
         gameMode: 'sandbox',
         mapSize: { width: 60, height: 60 },
         startingResources: { wood: 25 },
@@ -16,7 +16,7 @@ export const SCENARIOS = [
     {
         id: 'defend',
         name: 'Defend',
-        description: 'Survive the waves',
+        description: 'Survive waves of pirates',
         gameMode: 'defend',
         mapSize: { width: 40, height: 40 },
         startingResources: { wood: 50 },
@@ -42,8 +42,8 @@ export const SCENARIOS = [
     },
     {
         id: 'versus',
-        name: 'Versus AI',
-        description: 'Eliminate both enemies',
+        name: 'Skirmish',
+        description: 'Free-for-all with AI',
         gameMode: 'versus',
         mapSize: { width: 60, height: 60 },
         startingResources: { wood: 25 },

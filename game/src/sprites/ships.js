@@ -110,22 +110,22 @@ export const GALLEON = [
 // Ship metadata
 export const SHIPS = {
     cutter: {
-        name: "Cutter",
-        sprite: CUTTER,
-        imageSprite: "cutter",  // Kaplay sprite name (loaded in main.js)
-        spriteScale: .75,       // scale multiplier for image sprite
-        build_time: 5,
-        speed: 2,
-        cargo: 2,
-        combat: 1,
-        health: 20,
-        fireCooldown: 6,        // seconds between shots
-        attackDistance: 3,      // range to attack targets
-        enemySightDistance: 3,  // detection range when AI-controlled
-        sightDistance: 2,
-        cost: { wood: 10 },
-        crewCost: 5,
-        description: "Small, scrappy starter",
+        name: "Cutter",                 // Ship display name
+        sprite: CUTTER,                 // Ship ASCII art or pixel array for in-game display
+        imageSprite: "cutter",          // Kaplay sprite asset name (loaded separately in main.js)
+        spriteScale: .75,               // scale multiplier for image sprite in UI/game
+        build_time: 5,                  // Turns or seconds required to build in port
+        speed: 2,                       // Speed (cells/second or units/turn) for moving on map
+        cargo: 10,                      // Maximum cargo capacity
+        combat: 1,                      // Combat power (simple base damage or stat)
+        health: 20,                     // Ship hit points (HP)
+        fireCooldown: 6,                // Cooldown (seconds between firing shots)
+        attackDistance: 3,              // Range (in tiles/cells) for attacking enemies
+        enemySightDistance: 3,          // How far AI can spot threats when controlling ship
+        sightDistance: 3,               // How far player can reveal "fog of war"
+        cost: { wood: 10 },             // Build resource costs (object: wood)
+        crewCost: 5,                    // Crew required to operate
+        description: "Small, scrappy starter", // Description for UI/tooltips
     },
     schooner: {
         name: "Schooner",
@@ -134,7 +134,7 @@ export const SHIPS = {
         spriteScale: 1.5,
         build_time: 10,
         speed: 1.5,
-        cargo: 4,
+        cargo: 20,
         combat: 3,
         health: 30,
         fireCooldown: 3,        // seconds between shots
@@ -150,7 +150,7 @@ export const SHIPS = {
         sprite: BRIGANTINE,
         build_time: 25,
         speed: 2.5,
-        cargo: 6,
+        cargo: 45,
         combat: 3,
         health: 30,
         fireCooldown: 4,        // seconds between shots

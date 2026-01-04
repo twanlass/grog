@@ -144,6 +144,7 @@ export function createShip(type, q, r, owner = 'player') {
         cargo: { wood: 0 },  // Current loaded cargo
         dockingState: null, // { action: 'loading'|'unloading', progress, totalUnits, unitsTransferred } | null
         pendingUnload: false, // Flag for one-time unload at home port
+        isPlundering: false,  // True if on a plunder route (loading from enemy port)
         waitingForDock: null, // { portIndex, retryTimer } | null - waiting for dock to be free
         // AI state (for enemy ships like pirates)
         aiState: type === 'pirate' ? 'patrol' : null,  // 'patrol' | 'chase' | 'attack' | 'retreat'
@@ -572,6 +573,9 @@ export function createAIPlayerState(config = {}) {
             attackGroup: [],            // Ship indices in coordinated attack group
             attackTarget: null,         // { q, r } current group attack target
             isDefending: false,         // Recall/defend mode active
+            // Port expansion
+            discoveredIslands: [],      // Array of { portSiteHex, distanceFromHome, hasEnemyPresence }
+            expansionShipIndex: null,   // Ship assigned to expansion mission
         },
         tacticsCooldown: 0,             // Time until next tactics evaluation
     };
@@ -1143,6 +1147,7 @@ export function getCargoSpace(ship, shipDefs) {
 // Cancel an active trade route
 export function cancelTradeRoute(ship) {
     ship.tradeRoute = null;
+    ship.isPlundering = false;
     ship.dockingState = null;
     ship.waitingForDock = null;
 }

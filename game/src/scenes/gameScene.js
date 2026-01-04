@@ -145,10 +145,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         if (scenario.gameMode === 'versus') {
             // Versus mode: use fair starting islands from map generation
             if (map.starterPositions) {
-                // Find port sites on each starter island
-                const playerPort = findPortSiteOnStarterIsland(map, map.starterPositions[0]);
-                const ai1Port = findPortSiteOnStarterIsland(map, map.starterPositions[1]);
-                const ai2Port = findPortSiteOnStarterIsland(map, map.starterPositions[2]);
+                // Randomize which position each faction gets
+                const positionIndices = [0, 1, 2];
+                // Fisher-Yates shuffle
+                for (let i = positionIndices.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [positionIndices[i], positionIndices[j]] = [positionIndices[j], positionIndices[i]];
+                }
+
+                // Find port sites on each starter island with randomized positions
+                const playerPort = findPortSiteOnStarterIsland(map, map.starterPositions[positionIndices[0]]);
+                const ai1Port = findPortSiteOnStarterIsland(map, map.starterPositions[positionIndices[1]]);
+                const ai2Port = findPortSiteOnStarterIsland(map, map.starterPositions[positionIndices[2]]);
 
                 // Player start
                 gameState.ports.push(createPort('dock', playerPort.q, playerPort.r, false, null, 'player'));
@@ -1094,8 +1102,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // WASD and edge scrolling for camera panning
         const EDGE_SCROLL_MARGIN = 20; // pixels from edge to trigger scroll
-        const CURSOR_DEFAULT = "url('src/sprites/assets/cursor.png'), auto";
-        const CURSOR_ATTACK = "url('src/sprites/assets/cursor-attack.png'), auto";
+        const CURSOR_DEFAULT = "url('/sprites/assets/cursor.png'), auto";
+        const CURSOR_ATTACK = "url('/sprites/assets/cursor-attack.png'), auto";
         let currentCursor = CURSOR_DEFAULT;
 
         k.onUpdate(() => {
@@ -1116,18 +1124,32 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (mouse.y > k.height() - EDGE_SCROLL_MARGIN) cameraY += panSpeed * k.dt();
             }
 
-            // Cursor state: show attack cursor when Cmd held over a pirate
+            // Cursor state: show attack cursor when hovering over enemy units
             let newCursor = CURSOR_DEFAULT;
-            if (k.isKeyDown("meta")) {
-                const halfW = k.width() / 2;
-                const halfH = k.height() / 2;
-                const worldX = (mouse.x - halfW) / zoom + cameraX;
-                const worldY = (mouse.y - halfH) / zoom + cameraY;
+            const halfW = k.width() / 2;
+            const halfH = k.height() / 2;
+            const worldX = (mouse.x - halfW) / zoom + cameraX;
+            const worldY = (mouse.y - halfH) / zoom + cameraY;
 
-                // Check if hovering over a pirate
-                for (const ship of gameState.ships) {
-                    if (ship.type !== 'pirate') continue;
-                    const pos = hexToPixel(ship.q, ship.r);
+            // Check if hovering over an enemy ship (pirate or AI-owned)
+            for (const ship of gameState.ships) {
+                const isEnemy = ship.type === 'pirate' || isAIOwner(ship.owner);
+                if (!isEnemy) continue;
+                const pos = hexToPixel(ship.q, ship.r);
+                const dx = worldX - pos.x;
+                const dy = worldY - pos.y;
+                if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+                    newCursor = CURSOR_ATTACK;
+                    break;
+                }
+            }
+
+            // Check if hovering over any enemy structure (tower, port, settlement)
+            if (newCursor === CURSOR_DEFAULT) {
+                const allStructures = [...gameState.towers, ...gameState.ports, ...gameState.settlements];
+                for (const structure of allStructures) {
+                    if (!isAIOwner(structure.owner)) continue;
+                    const pos = hexToPixel(structure.q, structure.r);
                     const dx = worldX - pos.x;
                     const dy = worldY - pos.y;
                     if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
@@ -1629,13 +1651,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             const isShiftHeld = k.isKeyDown("shift");
 
-            // Attack pirate ship
-            if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
+            // Attack enemy (skips ports if shift held for plundering)
+            if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal, isShiftHeld)) {
                 return;
             }
 
-            // Trade route to foreign port
-            if (handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
+            // Plunder route to enemy port (requires shift)
+            if (handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld)) {
                 return;
             }
 

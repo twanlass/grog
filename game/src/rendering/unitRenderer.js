@@ -481,7 +481,9 @@ export function drawDockingProgress(ctx, gameState, getShipVisualPosLocal, fogSt
         }
 
         // Label text
-        const label = isLoading ? "LOADING" : "UNLOADING";
+        const label = isLoading
+            ? (ship.isPlundering ? "PLUNDERING" : "LOADING")
+            : "UNLOADING";
         k.drawText({
             text: label,
             pos: k.vec2(screenX, barY - 10 * zoom),

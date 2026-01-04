@@ -1,6 +1,18 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-03 | Add AI port expansion and upgrades
+-----------------------------------------------
+### New
+- AI port expansion: AI discovers new islands and sends ships to build ports there
+- AI port upgrades: AI upgrades existing ports (dock → shipyard → stronghold)
+- Strategy-based expansion rates (Economic expands fastest with shipyards, Aggressive slowest with docks)
+- Island discovery system: ships scan for valid port sites within 8-hex sight range
+
+### Improved
+- Plundering label: progress bar now shows "PLUNDERING" instead of "LOADING" when looting enemy ports
+
+
 2026-01-03 | Add AI surrender and minimap attack alerts
 -------------------------------------------------------
 ### New

@@ -6,7 +6,9 @@
 - Surrender mode from AI when just settlements is left?
 - Have all ports contribute to global resources? 
 - - what to do w/ trade route stuff? 
-
+- minimap: show pulsing red x if any of your structures are being attacked and you're not there to see it (maybe check camera bounds?)
+- Do ships on patrol attack structures? 
+- FUN PASS! Add clouds, bird flocks, fish! etc
 
 ### Misc improvement ideas
 - build queue: allow ports to build multiple ships one after the other
@@ -17,6 +19,7 @@
 - Shipyard upgrade should increase crew cap
 - Towers: scout, guard, cannon -> guard shoots arrows at ships? Maybe path upgrade for fire arrows? 
 - Pirates in VS mode: have them come to ports and plunder (steal resources) and not attack by default 
+- P > click on island > auto-create route to circumnavigate the island!
 
 
 ### Bugs

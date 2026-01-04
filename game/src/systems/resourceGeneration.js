@@ -1,6 +1,6 @@
 // Resource generation system - handles settlement resource production and floating numbers
 import { SETTLEMENTS } from "../sprites/settlements.js";
-import { findNearestLandConnectedPort, findNearestLandConnectedPortForOwner, getHomePortIndex, getHomePortIndexForOwner } from "../gameState.js";
+import { findNearestLandConnectedPortForOwner } from "../gameState.js";
 
 /**
  * Updates resource generation from settlements and floating number animations
@@ -34,24 +34,13 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt, map) {
         if (settlement.generationTimer >= interval) {
             settlement.generationTimer = 0;
 
-            const homePortIndex = getHomePortIndexForOwner(gameState, map, settlementOwner);
-            const isHomePort = connectedPortIndex === homePortIndex;
-
-            if (isHomePort) {
-                // Add to the owner's global resources
-                if (settlementOwner === 'ai1' && gameState.aiPlayers && gameState.aiPlayers[0]) {
-                    gameState.aiPlayers[0].resources.wood += woodAmount;
-                } else if (settlementOwner === 'ai2' && gameState.aiPlayers && gameState.aiPlayers[1]) {
-                    gameState.aiPlayers[1].resources.wood += woodAmount;
-                } else if (settlementOwner === 'player') {
-                    gameState.resources.wood += woodAmount;
-                }
-            } else {
-                // Add to port's local storage
-                const port = gameState.ports[connectedPortIndex];
-                if (port && port.storage) {
-                    port.storage.wood += woodAmount;
-                }
+            // All settlements contribute directly to owner's global resources
+            if (settlementOwner === 'ai1' && gameState.aiPlayers && gameState.aiPlayers[0]) {
+                gameState.aiPlayers[0].resources.wood += woodAmount;
+            } else if (settlementOwner === 'ai2' && gameState.aiPlayers && gameState.aiPlayers[1]) {
+                gameState.aiPlayers[1].resources.wood += woodAmount;
+            } else if (settlementOwner === 'player') {
+                gameState.resources.wood += woodAmount;
             }
 
             // Spawn floating number (only for player settlements for now)

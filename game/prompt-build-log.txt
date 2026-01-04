@@ -349,3 +349,139 @@ Result: 1 cutter is added to each selected port queue, allow the player to build
 
 ## 88. User prompt
 > ship it
+
+## 89. User prompt
+> update the zoom to 1; it's too far out right now and you can see lots of end of map / black 
+
+## 90. User prompt
+> the generated map is at a slant. can we generate it so that's horizotnal? 
+
+## 91. User prompt
+> now most of the map is off screen: 
+
+## 92. User prompt
+> still a lot of black at the top right bottom left edges: 
+
+## 93. User prompt
+>  still a lot of black at the top right bottom left edges: 
+
+## 94. User prompt
+> go to 75
+
+## 95. User prompt
+> let's reduce the pan speed by half
+
+## 96. User prompt
+> can we re-use the island generation from the vs mode to generate a nice looking island and start the camera there? 
+
+## 97. User prompt
+> slow down pan speed to 5
+
+## 98. User prompt
+> on the island, let's spanwn a port, 1 tower, and 2 settlements for visual interest
+
+## 99. User prompt
+> can we render a flock of birds flying from bottom left to top right? 
+
+## 100. User prompt
+> check the angle. See how they are rotated/renderd in game. We had to fix the rotation since the source sprite is rotated 
+
+## 101. User prompt
+> they're rotated 90 degrees too far
+
+## 102. User prompt
+> can we spawn a single cutter and have it navigate the ocean from left to right? 
+
+## 103. User prompt
+> can we spawn it near the island then have it pick a real path (using A*) to wander around? 
+
+## 104. User prompt
+> can we have the ship navigate around the island? 
+
+## 105. User prompt
+> make sure the island incldues some sand lol
+
+## 106. User prompt
+> spawn some more settlements on nearby islands 
+
+## 107. User prompt
+> see how trees are drawn in the game then draw some trees on the map 
+
+## 108. User prompt
+> can we spawn a single pirate ship as well? 
+
+## 109. User prompt
+> can we render the cutter's water trail effect? 
+
+## 110. User prompt
+> let's remove the unit gallery 
+
+## 111. User prompt
+> increase the width evenly of all three boxes so text isn't cut off: 
+when selected, make border outline yellow (like unit selection hex)
+make "[ play ]" a button; black background, white text, rename to "Start"
+
+## 112. User prompt
+> - make the mode cards background black
+- remove the white border from the start button 
+- vertically center text in cards and start button 
+
+## 113. User prompt
+> remove vs debug strategy options
+
+## 114. User prompt
+> can you make this link clickable (open in a new tab)? 
+
+## 115. User prompt
+> above the sandbox card, left aligned, can you add text that says "Choose your mode:"
+
+## 116. User prompt
+> give the start button the same default border as the mode cards 
+
+## 117. User prompt
+> add 128 px of space between "a retro rts game" and the "choose your mode" 
+
+## 118. User prompt
+> how do you plunder a port and not attack it? lol
+
+## 119. User prompt
+> in vs mode, don't always spawn the player in top right; randomize their location
+
+## 120. User prompt
+> shift + right click on an enemy port doesnt do anything 
+
+## 121. User prompt
+> I see this in the console: 
+Set plunder route to enemy port 1
+
+But then the ship doesn't start loading from the port (no progress bar shown, etc etc). What is expected to happen? 
+
+## 122. User prompt
+> maybe a simplificaiton then – don't have ports store resources, but rather, when plundering, pull from the global store (for the AI or player, whomever is being plundered)
+
+## 123. User prompt
+> and to confirm, the ship then needs to return to an owned port to unload the wood and effecitvely add it to their global wood supply? If that ship is destroyed mid voyage that wood is lost, right? 
+
+## 124. User prompt
+> will / can AI use this strategy? 
+
+## 125. User prompt
+> quick tweak: I don't think the AI should be able to see player resource count and use that in it' decision making. It's also a risky strategy. When would it make sense for AI to plunder? 
+
+## 126. User prompt
+> 3 and then 2. 
+
+## 127. User prompt
+> I'm seeing AI ships start to plunder then leave port while thier loading progress bar is going
+
+## 128. User prompt
+> also make sure they have to stay in port and fully load before leaving 
+
+## 129. User prompt
+> document plundering 
+
+## 130. User prompt
+> quick text update: when ships are looting, instead of the bar saying "loading" have it say "Plundering"
+
+## 131. User prompt
+> ship it
