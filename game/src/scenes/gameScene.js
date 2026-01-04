@@ -602,6 +602,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 // Update orbit position
                 bird.angle += bird.orbitSpeed * dt;
             }
+
         });
 
         // Check if a ship is docked (on water adjacent to land, and stationary)
@@ -752,12 +753,22 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 shipBuildPanelBounds = drawShipBuildPanel(ctx, ship, shipIndex, gameState, canShowBuildPanel);
             }
 
+            // Draw tooltip if present (from ship build panel hover)
+            if (shipBuildPanelBounds?.tooltip) {
+                drawTooltip(ctx, shipBuildPanelBounds.tooltip);
+            }
+
             // Tower info panel (bottom right, when tower is selected)
             const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
             towerInfoPanelBounds = null;
             if (selectedTowerIndices.length === 1) {
                 const tower = gameState.towers[selectedTowerIndices[0].index];
                 towerInfoPanelBounds = drawTowerInfoPanel(ctx, tower, gameState);
+            }
+
+            // Draw tooltip if present (from tower panel hover)
+            if (towerInfoPanelBounds?.tooltip) {
+                drawTooltip(ctx, towerInfoPanelBounds.tooltip);
             }
 
             // Settlement info panel (bottom right, when settlement is selected)
@@ -1130,8 +1141,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // WASD and edge scrolling for camera panning
-        const EDGE_SCROLL_MARGIN = 20; // pixels from edge to trigger scroll
+        // Arrow key panning and cursor management
         const CURSOR_DEFAULT = "url('/sprites/assets/cursor.png'), auto";
         const CURSOR_ATTACK = "url('/sprites/assets/cursor-attack.png'), auto";
         let currentCursor = CURSOR_DEFAULT;
@@ -1145,14 +1155,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (k.isKeyDown("down")) cameraY += panSpeed * k.dt();
             if (k.isKeyDown("left")) cameraX -= panSpeed * k.dt();
             if (k.isKeyDown("right")) cameraX += panSpeed * k.dt();
-
-            // Edge scrolling (disabled when selecting, paused, menu open, or game over)
-            if (!isSelecting && gameState.timeScale !== 0 && !menuPanelOpen && !gameState.gameOver) {
-                if (mouse.x < EDGE_SCROLL_MARGIN) cameraX -= panSpeed * k.dt();
-                if (mouse.x > k.width() - EDGE_SCROLL_MARGIN) cameraX += panSpeed * k.dt();
-                if (mouse.y < EDGE_SCROLL_MARGIN) cameraY -= panSpeed * k.dt();
-                if (mouse.y > k.height() - EDGE_SCROLL_MARGIN) cameraY += panSpeed * k.dt();
-            }
 
             // Cursor state: show attack cursor when hovering over enemy units
             let newCursor = CURSOR_DEFAULT;
@@ -1340,7 +1342,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         // Hotkey 'C' to build a Cutter at selected port(s) - round-robin
-        const MAX_QUEUE_SIZE = 3;
         let lastBuildPortOffset = -1; // Track which port got the last build
         let lastSelectedPortIds = []; // Track selection to reset round-robin on change
 
@@ -1363,10 +1364,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const offset = (lastBuildPortOffset + 1 + i) % numPorts;
                 const sel = selectedPortIndices[offset];
                 const port = gameState.ports[sel.index];
+                const maxQueueSize = PORTS[port.type]?.maxQueueSize || 3;
 
                 // Skip ineligible ports
                 if (!getBuildableShips(port).includes('cutter')) continue;
-                if (port.buildQueue.length >= MAX_QUEUE_SIZE) continue;
+                if (port.buildQueue.length >= maxQueueSize) continue;
                 if (port.repair) continue;
 
                 // Check affordability only if queue empty

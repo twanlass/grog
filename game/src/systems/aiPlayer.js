@@ -729,10 +729,12 @@ function canAffordCrewForOwner(gameState, crewCost, owner) {
             const portData = PORTS[port.type];
             cap += portData.crewCapContribution || 0;
         }
-        // Ships in build queue count toward crew used (only active item)
-        if (port.buildQueue.length > 0 && port.buildQueue[0].progress !== null) {
-            const shipData = SHIPS[port.buildQueue[0].shipType];
-            used += shipData.crewCost || 0;
+        // Ships in build queue count toward crew used (all active items)
+        for (const item of port.buildQueue) {
+            if (item.progress !== null) {
+                const shipData = SHIPS[item.shipType];
+                used += shipData.crewCost || 0;
+            }
         }
     }
 

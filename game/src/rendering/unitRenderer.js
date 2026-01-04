@@ -94,9 +94,10 @@ export function drawPorts(ctx, gameState, map, fogState) {
         }
 
         // Draw ship build progress bar if building a ship (centered on unit)
-        if (port.buildQueue.length > 0 && port.buildQueue[0].progress !== null) {
+        // Find first active build item (may not be at index 0 with parallel builds)
+        const activeItem = port.buildQueue.find(item => item.progress !== null);
+        if (activeItem) {
             const barY = screenY;
-            const activeItem = port.buildQueue[0];
             const progress = Math.min(activeItem.progress / activeItem.buildTime, 1);
             drawConstructionProgressBar(ctx, screenX, barY, progress);
         }

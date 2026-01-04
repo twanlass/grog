@@ -75,6 +75,8 @@ export const PORTS = {
         cost: { wood: 20 },
         crewCapContribution: 15,
         sightDistance: 4,
+        maxQueueSize: 3,
+        parallelBuildSlots: 1,
         description: "Basic dock, small capacity",
     },
     shipyard: {
@@ -87,6 +89,8 @@ export const PORTS = {
         cost: { wood: 50 },
         crewCapContribution: 30,
         sightDistance: 5,
+        maxQueueSize: 5,
+        parallelBuildSlots: 2,
         description: "Harbor with repairs",
     },
     stronghold: {
@@ -100,6 +104,8 @@ export const PORTS = {
         cost: { wood: 100 },
         crewCapContribution: 50,
         sightDistance: 12,
+        maxQueueSize: 3,
+        parallelBuildSlots: 1,
         description: "Fortified, builds all ships",
     },
 };

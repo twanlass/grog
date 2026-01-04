@@ -1345,3 +1345,33 @@ Rules:
 
 ## 309. User prompt
 > can we add a few pirates to vs mode? they should spawn in the middle of the map and attack both players and AI
+
+## 310. User prompt
+> we're going to make some improvements to in-game UI. 
+
+First up, when selecting a port, update it's UI panel to show the units name at the top
+
+## 311. User prompt
+> lets remove the mouse edge camera panning functionality 
+
+## 312. User prompt
+> what does the shipyard upgrade unlock? 
+
+## 313. User prompt
+> let's add some more improvements to the shipyard: 
+1. increase build queue to 5
+2. allow it to build 2 ships at a time
+
+## 314. User prompt
+> look at our captains log – what version of the game are we on? 
+
+## 315. User prompt
+> do loot drops happen in vs mode? 
+
+## 316. User prompt
+> can we add some fun fluffy clouds to the game? 
+- should render just above the birds (but below UI)
+- should gently float scross the map
+- should spawn in groups
+- should be made of smaller hexes to be on style 
+- should have varying degress of opacity; max 90% to ensure you can see the game below

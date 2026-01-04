@@ -1082,10 +1082,12 @@ export function computeCrewStatus(gameState, owner = 'player') {
             const portData = PORTS[port.type];
             cap += portData.crewCapContribution || 0;
         }
-        // Ships in build queue count toward crew used (only active item - resources deducted)
-        if (port.buildQueue.length > 0 && port.buildQueue[0].progress !== null) {
-            const shipData = SHIPS[port.buildQueue[0].shipType];
-            used += shipData.crewCost || 0;
+        // Ships in build queue count toward crew used (all active items - resources deducted)
+        for (const item of port.buildQueue) {
+            if (item.progress !== null) {
+                const shipData = SHIPS[item.shipType];
+                used += shipData.crewCost || 0;
+            }
         }
     }
 

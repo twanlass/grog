@@ -70,8 +70,35 @@ k.loadSprite("barrel", "sprites/assets/barrel.png");
 k.loadSprite("resource-wood", "sprites/assets/resource-wood.png");
 k.loadSprite("resource-crew", "sprites/assets/resource-crew.png");
 
+// Load sounds
+k.loadSound("title-music", "sounds/grog-title.mp3");
+
 // Register scenes
 k.scene("title", () => {
+    // === TITLE MUSIC ===
+    let titleMusic = null;
+    let musicStarted = false;
+
+    function playTitleMusic() {
+        titleMusic = k.play("title-music", { volume: 0.5 });
+        titleMusic.onEnd(() => {
+            // 10 second delay before repeating
+            k.wait(10, () => {
+                playTitleMusic();
+            });
+        });
+    }
+
+    // Start music on first user interaction (browsers block autoplay)
+    function startMusicOnInteraction() {
+        if (!musicStarted) {
+            musicStarted = true;
+            playTitleMusic();
+        }
+    }
+    k.onClick(() => startMusicOnInteraction());
+    k.onKeyPress(() => startMusicOnInteraction());
+
     // === GENERATE MAP FOR BACKGROUND ===
     // Extra tall map to cover the parallelogram shape of hex grid
     const titleMap = generateMap({
@@ -447,6 +474,106 @@ k.scene("title", () => {
         });
     }
 
+    // Cloud state - fluffy clouds floating across the title screen
+    const WIND_DIRECTION = -Math.PI * 0.25; // Wind blowing bottom-left to top-right
+    const titleMapPixelWidth = titleMap.width * HEX_SIZE * 1.5;
+    const titleMapPixelHeight = titleMap.height * HEX_SIZE * 1.732;
+
+    function generateCloudShape() {
+        const puffs = [];
+        const numPuffs = 3 + Math.floor(Math.random() * 3);
+        const puffCenters = [];
+
+        for (let i = 0; i < numPuffs; i++) {
+            puffCenters.push({
+                q: (i - numPuffs / 2) * 1.2 + (Math.random() - 0.5) * 0.8,
+                r: (Math.random() - 0.5) * 1.5
+            });
+        }
+
+        // Shadow layer
+        for (const puff of puffCenters) {
+            const puffRadius = 1.2 + Math.random() * 0.6;
+            for (let dq = -2; dq <= 2; dq++) {
+                for (let dr = -2; dr <= 2; dr++) {
+                    const dist = Math.sqrt(dq * dq + dr * dr);
+                    if (dist <= puffRadius) {
+                        const edgeFade = 1 - (dist / puffRadius);
+                        puffs.push({
+                            dq: puff.q + dq + 0.3,
+                            dr: puff.r + dr + 0.3,
+                            opacity: edgeFade * 0.3,
+                            size: 0.5 + Math.random() * 0.8,
+                            color: [180, 180, 190],
+                            phase: Math.random() * Math.PI * 2,
+                            speed: 0.3 + Math.random() * 0.4,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Base layer
+        for (const puff of puffCenters) {
+            const puffRadius = 1.4 + Math.random() * 0.5;
+            for (let dq = -2; dq <= 2; dq++) {
+                for (let dr = -2; dr <= 2; dr++) {
+                    const dist = Math.sqrt(dq * dq + dr * dr);
+                    if (dist <= puffRadius) {
+                        const edgeFade = 1 - (dist / puffRadius) * 0.6;
+                        puffs.push({
+                            dq: puff.q + dq,
+                            dr: puff.r + dr,
+                            opacity: edgeFade * 0.7,
+                            size: 0.6 + Math.random() * 0.9,
+                            color: [240, 240, 245],
+                            phase: Math.random() * Math.PI * 2,
+                            speed: 0.3 + Math.random() * 0.4,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Highlight layer
+        for (const puff of puffCenters) {
+            const puffRadius = 1.0 + Math.random() * 0.4;
+            for (let dq = -1; dq <= 1; dq++) {
+                for (let dr = -1; dr <= 1; dr++) {
+                    const dist = Math.sqrt(dq * dq + dr * dr);
+                    if (dist <= puffRadius) {
+                        const edgeFade = 1 - (dist / puffRadius);
+                        puffs.push({
+                            dq: puff.q + dq - 0.2,
+                            dr: puff.r + dr - 0.2,
+                            opacity: edgeFade * 0.5,
+                            size: 0.4 + Math.random() * 0.7,
+                            color: [255, 255, 255],
+                            phase: Math.random() * Math.PI * 2,
+                            speed: 0.3 + Math.random() * 0.4,
+                        });
+                    }
+                }
+            }
+        }
+
+        return puffs;
+    }
+
+    const cloudStates = [];
+    // Spawn clouds in bottom-left formation relative to camera start
+    for (let i = 0; i < 10; i++) {
+        cloudStates.push({
+            // Start bottom-left of screen (camera starts at islandStartPos)
+            x: islandStartPos.x - 500 + Math.random() * 300 - i * 60,
+            y: islandStartPos.y + 150 + Math.random() * 250 + i * 30,
+            puffs: generateCloudShape(),
+            baseOpacity: 0.5 + Math.random() * 0.4,
+            driftSpeed: 4 + Math.random() * 4,
+            scale: 0.4 + Math.random() * 0.3,
+        });
+    }
+
     // === UPDATE LOOP ===
     k.onUpdate(() => {
         const dt = k.dt();
@@ -554,6 +681,20 @@ k.scene("title", () => {
             if (bird.offsetX > k.width() + 100 || bird.offsetY < -100) {
                 bird.offsetX = -100 - Math.random() * 200;
                 bird.offsetY = k.height() + Math.random() * 100;
+            }
+        }
+
+        // Update clouds - drift with wind direction (bottom-left to top-right)
+        for (const cloud of cloudStates) {
+            cloud.x += Math.cos(WIND_DIRECTION) * cloud.driftSpeed * dt;
+            cloud.y += Math.sin(WIND_DIRECTION) * cloud.driftSpeed * dt;
+
+            // When cloud goes off top-right, respawn in bottom-left
+            const screenX = (cloud.x - cameraX) * zoom + k.width() / 2;
+            const screenY = (cloud.y - cameraY) * zoom + k.height() / 2;
+            if (screenX > k.width() + 300 || screenY < -300) {
+                cloud.x = cameraX - 500 + Math.random() * 200;
+                cloud.y = cameraY + 400 + Math.random() * 200;
             }
         }
 
@@ -679,6 +820,50 @@ k.scene("title", () => {
                 scale: bird.scale,
                 angle: rotationDeg,
             });
+        }
+
+        // Draw clouds floating across the screen
+        for (const cloud of cloudStates) {
+            for (const puff of cloud.puffs) {
+                // Animate puff position, size, and opacity over time
+                const t = animTime * puff.speed + puff.phase;
+                const wobbleX = Math.sin(t) * 0.15;
+                const wobbleY = Math.cos(t * 0.7) * 0.1;
+                const sizeWobble = 1 + Math.sin(t * 0.5) * 0.15;
+                const opacityWobble = 1 + Math.sin(t * 0.3 + 1) * 0.1;
+
+                const puffX = cloud.x + (puff.dq + wobbleX) * HEX_SIZE * 1.5 * cloud.scale;
+                const puffY = cloud.y + (puff.dr + wobbleY + puff.dq * 0.5) * HEX_SIZE * 1.732 * cloud.scale;
+
+                const screenX = (puffX - cameraX) * zoom + halfWidth;
+                const screenY = (puffY - cameraY) * zoom + halfHeight;
+
+                // Skip if off screen
+                if (screenX < -100 || screenX > k.width() + 100 ||
+                    screenY < -100 || screenY > k.height() + 100) {
+                    continue;
+                }
+
+                const opacity = cloud.baseOpacity * puff.opacity * opacityWobble;
+                const radius = HEX_SIZE * cloud.scale * zoom * 0.9 * (puff.size || 1.0) * sizeWobble;
+                const [r, g, b] = puff.color || [255, 255, 255];
+
+                // Draw hexagonal puff
+                const hexPts = [];
+                for (let i = 0; i < 6; i++) {
+                    const angle = (Math.PI / 3) * i - Math.PI / 2;
+                    hexPts.push(k.vec2(
+                        Math.cos(angle) * radius,
+                        Math.sin(angle) * radius
+                    ));
+                }
+                k.drawPolygon({
+                    pts: hexPts,
+                    pos: k.vec2(screenX, screenY),
+                    color: k.rgb(r, g, b),
+                    opacity: Math.min(opacity, 0.9),
+                });
+            }
         }
 
         // Darken overlay for text readability
@@ -813,33 +998,48 @@ k.scene("title", () => {
     // Copyright
     const copyrightY = k.height() - 20;
     k.add([
-        k.text("(c) 2026 Tyler Wanlass / ", { size: 14 }),
-        k.pos(k.center().x - 80, copyrightY),
+        k.text("v0.05 | (c) 2026", { size: 14 }),
+        k.pos(k.center().x - 69, copyrightY),
         k.anchor("center"),
         k.color(255, 255, 255),
     ]);
-    k.add([
-        k.text("https://tyler.cv", { size: 14 }),
-        k.pos(k.center().x + 95, copyrightY),
+    const authorLink = k.add([
+        k.text("Tyler Wanlass", { size: 14 }),
+        k.pos(k.center().x + 67, copyrightY),
         k.anchor("center"),
-        k.color(150, 200, 255),
+        k.color(255, 255, 255),
         k.area(),
         "copyrightLink",
+    ]);
+    // Underline for author name
+    k.add([
+        k.rect(105, 1),
+        k.pos(k.center().x + 67, copyrightY + 8),
+        k.anchor("center"),
+        k.color(255, 255, 255),
     ]);
 
     k.onClick("copyrightLink", () => {
         window.open("https://tyler.cv", "_blank");
     });
 
+    // Helper to stop music and start game
+    function startGame() {
+        if (titleMusic) {
+            titleMusic.stop();
+        }
+        k.go("game");
+    }
+
     // Button interactions
     k.onClick("playBtn", () => {
         selectedAIStrategy = null;  // Reset to random when using Play button
-        k.go("game");
+        startGame();
     });
 
     // Keyboard shortcuts
-    k.onKeyPress("enter", () => k.go("game"));
-    k.onKeyPress("space", () => k.go("game"));
+    k.onKeyPress("enter", () => startGame());
+    k.onKeyPress("space", () => startGame());
     k.onKeyPress("left", () => {
         const currentIndex = SCENARIOS.findIndex(s => s.id === selectedScenarioId);
         if (currentIndex > 0) {

@@ -509,3 +509,132 @@ Read the output file to retrieve the output.
 
 ## 137. User prompt
 > ship it 
+
+## 138. User prompt
+> clear
+
+## 139. User prompt
+> left align the title and increase the font size 
+
+## 140. User prompt
+> update the settlement panel UI: 
+- add a left aligned title (16px font size)
+- remove the HP and Sight stats 
+
+## 141. User prompt
+> when the port is selected, append "Build " to any units it can build. I.e. "Build Settlement" 
+
+## 142. User prompt
+> next let's update the tower UI panel: 
+- remove HP, sight stats
+- update the Upgrade option to be like the port upgrade menu item 
+
+## 143. User prompt
+> let's add tooltips to the cutter and watchtower: 
+- Cutter: "Fast, cheap scout. Great for exploration and harassing enemies, but fragile in direct combat."
+- Watchtower: "Extends vision across nearby hexes. No weapons—upgrade to Mortar Tower for defense."
+
+## 144. User prompt
+> add toolitps for mortor tower and cannon battery: 
+- mortor tower: "Armed defensive structure with a single cannon. Auto-fires at enemies within range."
+- cannon battery: "Heavy fortification with dual cannons. Maximum firepower for holding key positions."
+
+## 145. User prompt
+> not seeing it on hover: 
+
+## 146. User prompt
+> for build menu, include crew cost. For example, under "Build Cutter", show "10 wood, x Crew". 
+
+## 147. User prompt
+> adjust the bottom margin of the build menu to be 15 (same position as minimap etc)
+
+## 148. User prompt
+> for tooltips, do some checking to ensure they don't go off screen: 
+
+## 149. User prompt
+> update selected ship ui panel to use left aligned title, etc
+
+## 150. User prompt
+> update the ship build menu panel to match that of the port; rfac to make re-use / shared ui if needed
+
+## 151. User prompt
+> add a tooltip to the dock item: "Basic coastal port. Can build Cutters and settlements."
+
+## 152. User prompt
+> add tooltip for shipyard upgrade: "Unlocks Schooners, increases crew capacity, and adds a second build slot."
+
+## 153. User prompt
+> text is running outside of ui panel. can we make the panel width dynamic maybe? 
+
+## 154. User prompt
+> for the ship build queue, render the ship sprite at 1x: 
+
+## 155. User prompt
+> the port build menu, when building things, don't remove those items from the menu; just disable them. This way the build menu doens't visually grow and shrink in height 
+
+## 156. User prompt
+> dont update menu items w/ building text while building; we already show a building bar in the game for visual feedback 
+
+## 157. User prompt
+> update the title screen copyright to include a version number: "v0.05"
+
+## 158. User prompt
+> fix the spacing; overlaps w/ the link now: 
+
+## 159. User prompt
+> maybe let's just underline "Tyler Wanlass" and link that to https://tyler.cv. Keep the text white though. 
+
+## 160. User prompt
+> sweet. copy right overlaps with link text: 
+
+## 161. User prompt
+> reduce the spacing to to a single space 
+
+## 162. User prompt
+> now it's overlapping. make the gap 8px 
+
+## 163. User prompt
+> increase to 16px
+
+## 164. User prompt
+> the clouds are pretty ugly. I think we need more hexes to fill it em out, give them depth, and add shape
+
+## 165. User prompt
+> remove the parallax effect, it's not quite working. Also, try other shapes for the clouds, the hexes feel too rigid
+
+## 166. User prompt
+> now try randomizing the shape sizes 
+
+## 167. User prompt
+> can we update the page favicon to use the tower sprite? 
+
+## 168. User prompt
+> update the favicon to use the new grog-favicon.png asset
+
+## 169. User prompt
+> scale the groups smaller 
+
+## 170. User prompt
+> lets only use clouds on the title screen. 
+
+## 171. User prompt
+> render a cloud formation bottom left of the screen; have the wind go bottom left to top right 
+
+## 172. User prompt
+> make the clouds slower, and double the density 
+
+## 173. User prompt
+> can the cloud shape shift over time? make it feel more organic? 
+
+## 174. User prompt
+> sweet! can we try hexes again instead of cirles? 
+
+## 175. User prompt
+> lets use Kaplay to add some sound to the title screen. I've added grog-title.mp3 to the sounds folder. Have it play when the screen loads. Put a 10s delay between repeats. 
+
+## 176. User prompt
+> kaplay.js?v=9a8bb7fb:3984 The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page. https://developer.chrome.com/blog/autoplay/#web_audio
+l    @    kaplay.js?v=9a8bb7fb:3984
+
+## 177. User prompt
+> ship it

@@ -164,7 +164,6 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
     }
 
     // Check ship build buttons
-    const MAX_QUEUE_SIZE = 3;
     for (const btn of bp.buttons) {
         if (mouseY >= btn.y && mouseY <= btn.y + btn.height) {
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
@@ -172,10 +171,11 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const portIdx = selectedPortIndices[0].index;
                 const port = gameState.ports[portIdx];
                 const shipData = SHIPS[btn.shipType];
+                const maxQueueSize = PORTS[port.type]?.maxQueueSize || 3;
 
                 // Check if queue is full
-                if (port.buildQueue.length >= MAX_QUEUE_SIZE) {
-                    showNotification(gameState, "Build queue full (max 3)");
+                if (port.buildQueue.length >= maxQueueSize) {
+                    showNotification(gameState, `Build queue full (max ${maxQueueSize})`);
                     return true;
                 }
 

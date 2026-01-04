@@ -538,3 +538,45 @@ export function drawLootSparkles(ctx, lootSparkles) {
         }
     }
 }
+
+/**
+ * Draw fluffy clouds made of soft circular puffs
+ * Each cloud has multiple layers: shadow, base, and highlight
+ */
+export function drawClouds(ctx, cloudStates) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
+
+    for (const cloud of cloudStates) {
+        for (const puff of cloud.hexes) {
+            // Calculate puff position within cloud
+            const puffX = cloud.x + puff.dq * HEX_SIZE * 1.5 * cloud.scale;
+            const puffY = cloud.y + (puff.dr + puff.dq * 0.5) * HEX_SIZE * 1.732 * cloud.scale;
+
+            // Screen position
+            const screenX = (puffX - cameraX) * zoom + halfWidth;
+            const screenY = (puffY - cameraY) * zoom + halfHeight;
+
+            // Skip if off screen (with margin for cloud size)
+            const margin = HEX_SIZE * cloud.scale * zoom * 3;
+            if (screenX < -margin || screenX > screenWidth + margin ||
+                screenY < -margin || screenY > screenHeight + margin) {
+                continue;
+            }
+
+            // Draw circular cloud puff with randomized size
+            const opacity = cloud.baseOpacity * puff.opacity;
+            const sizeMultiplier = puff.size || 1.0;
+            const radius = HEX_SIZE * cloud.scale * zoom * 0.9 * sizeMultiplier;
+
+            // Use per-puff color (shadow, base, or highlight layer)
+            const [r, g, b] = puff.color || [255, 255, 255];
+
+            k.drawCircle({
+                pos: k.vec2(screenX, screenY),
+                radius: radius,
+                color: k.rgb(r, g, b),
+                opacity: opacity,
+            });
+        }
+    }
+}

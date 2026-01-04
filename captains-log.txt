@@ -1,6 +1,19 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-04 | Add title screen clouds and music
+----------------------------------------------
+### New
+- Animated clouds on title screen: hex-based puffs with shadow, base, and highlight layers
+- Cloud shape-shifting: puffs wobble, pulse, and breathe independently for organic feel
+- Title screen music: plays on first user interaction, 10s delay between loops
+- Clouds spawn in bottom-left formation and drift to top-right
+
+### Improved
+- Title screen copyright layout: cleaner formatting with underlined author link
+- Version number added to title screen (v0.05)
+
+
 2026-01-04 | Fix crew cap, add Schooner dual-shot, ship wake sizes
 ------------------------------------------------------------------
 ### New
