@@ -339,15 +339,17 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             // Sprite faces north (up), heading 0 = east, so rotate by heading + 90°
             const rotationDeg = (ship.heading || 0) * (180 / Math.PI) + 90;
             const spriteScale = zoom * (shipData.spriteScale || 1);
-            // Frame 0 = normal, Frame 1 = flash (white silhouette)
-            const frame = ship.hitFlash > 0 ? 1 : 0;
+            // Use shader for damage flash effect (0-1 intensity)
+            const flashIntensity = ship.hitFlash > 0 ? Math.min(ship.hitFlash / 0.15, 1) : 0;
             k.drawSprite({
                 sprite: shipData.imageSprite,
-                frame: frame,
+                frame: 0,  // Always use normal frame, shader handles flash
                 pos: k.vec2(screenX, screenY),
                 anchor: "center",
                 scale: spriteScale,
                 angle: rotationDeg,
+                shader: "whiteFlash",
+                uniforms: { u_flash: flashIntensity },
             });
         } else {
             // Fall back to pixel art rendering
