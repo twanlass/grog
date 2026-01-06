@@ -94,6 +94,30 @@ k.loadSound("mode-defend", "sounds/mode-defend.mp3");
 k.loadSound("mode-sandbox", "sounds/mode-sandbox.mp3");
 k.loadSound("ui-click", "sounds/ui/ui-click.mp3");
 
+// Load ship selection sounds
+k.loadSound("select-ship-1", "sounds/units/ships/selected-1.mp3");
+k.loadSound("select-ship-2", "sounds/units/ships/selected-2.mp3");
+k.loadSound("select-ship-3", "sounds/units/ships/selected-3.mp3");
+k.loadSound("select-ship-4", "sounds/units/ships/selected-4.mp3");
+k.loadSound("select-ship-5", "sounds/units/ships/selected-5.mp3");
+
+// Load cannon fire sounds
+k.loadSound("cannon-fire-1", "sounds/units/cannons/fire-1.mp3");
+k.loadSound("cannon-fire-2", "sounds/units/cannons/fire-2.mp3");
+k.loadSound("cannon-fire-3", "sounds/units/cannons/fire-3.mp3");
+k.loadSound("cannon-fire-4", "sounds/units/cannons/fire-4.mp3");
+
+// Load cannon impact sounds
+k.loadSound("cannon-impact-1", "sounds/units/cannons/impact-1.mp3");
+k.loadSound("cannon-impact-2", "sounds/units/cannons/impact-2.mp3");
+k.loadSound("cannon-impact-3", "sounds/units/cannons/impact-3.mp3");
+k.loadSound("cannon-impact-4", "sounds/units/cannons/impact-4.mp3");
+k.loadSound("cannon-impact-5", "sounds/units/cannons/impact-5.mp3");
+
+// Load ambient sounds
+k.loadSound("ambient-ocean", "sounds/ambient/ocean.mp3");
+k.loadSound("ambient-music", "sounds/ambient/background-music.mp3");
+
 // Load shaders - use color.a channel to pass flash intensity
 k.loadShader("whiteFlash", null, `
     vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {

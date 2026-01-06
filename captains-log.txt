@@ -1,6 +1,24 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-06 | Add combat sounds and AI indicator polish
+------------------------------------------------------
+### New
+- Cannon fire sounds (4 variants) play when ships/towers fire
+- Cannon impact sounds (5 variants) play when projectiles hit
+- Ship selection sounds (5 variants) play when selecting ships
+- Ambient ocean and background music loops during gameplay
+- Sound events only play for visible hexes (fog of war aware)
+
+### Improved
+- AI faction indicators changed from circles to hexes
+- AI indicator colors now match cutter sprites (green for ai1, blue for ai2)
+- Cannon fire timing has micro variation (±20ms) to stagger volleys naturally
+
+### Fixed
+- Cutters can no longer be built via "C" hotkey while port is upgrading
+
+
 2026-01-05 | Fix damage flash shader for sprites
 ------------------------------------------------
 ### Fixed

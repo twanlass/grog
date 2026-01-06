@@ -42,11 +42,11 @@ function getDirectionalSprite(shipData, owner) {
     return 'cutter-red';  // Player default
 }
 
-// Faction colors for visual differentiation
+// Faction colors for visual differentiation (matches cutter sprite colors)
 const FACTION_COLORS = {
-    player: { r: 60, g: 120, b: 200 },   // Blue (not used - player doesn't need indicator)
-    ai1: { r: 200, g: 60, b: 60 },       // Red
-    ai2: { r: 230, g: 160, b: 50 },      // Orange
+    player: { r: 180, g: 60, b: 60 },    // Red (matches cutter-red sprite)
+    ai1: { r: 60, g: 160, b: 80 },       // Green (matches cutter-green sprite)
+    ai2: { r: 60, g: 120, b: 200 },      // Blue (matches cutter-blue sprite)
 };
 
 /**
@@ -55,6 +55,22 @@ const FACTION_COLORS = {
 function getFactionColor(owner, k) {
     const color = FACTION_COLORS[owner] || FACTION_COLORS.ai1;
     return k.rgb(color.r, color.g, color.b);
+}
+
+/**
+ * Draw a flat-topped hex shape as faction indicator
+ */
+function drawFactionHex(k, x, y, radius, color, opacity) {
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;  // Flat-topped hex
+        pts.push(k.vec2(x + radius * Math.cos(angle), y + radius * Math.sin(angle)));
+    }
+    k.drawPolygon({
+        pts,
+        color,
+        opacity,
+    });
 }
 
 /**
@@ -81,14 +97,9 @@ export function drawPorts(ctx, gameState, map, fogState) {
         const portData = PORTS[port.type];
         const isConstructing = port.construction !== null;
 
-        // Draw indicator circle for AI ports (enemy faction marker)
+        // Draw hex indicator for AI ports (enemy faction marker)
         if (isAIOwner(port.owner)) {
-            k.drawCircle({
-                pos: k.vec2(screenX, screenY),
-                radius: 22 * zoom,
-                color: getFactionColor(port.owner, k),
-                opacity: 0.4,
-            });
+            drawFactionHex(k, screenX, screenY, 22 * zoom, getFactionColor(port.owner, k), 0.4);
         }
 
         // Use PNG sprite for docks (if available), otherwise pixel art
@@ -166,14 +177,9 @@ export function drawSettlements(ctx, gameState, fogState) {
         const settlementData = SETTLEMENTS.settlement;
         const isConstructing = settlement.construction !== null;
 
-        // Draw indicator circle for AI settlements (enemy faction marker)
+        // Draw hex indicator for AI settlements (enemy faction marker)
         if (isAIOwner(settlement.owner)) {
-            k.drawCircle({
-                pos: k.vec2(screenX, screenY),
-                radius: 16 * zoom,
-                color: getFactionColor(settlement.owner, k),
-                opacity: 0.4,
-            });
+            drawFactionHex(k, screenX, screenY, 16 * zoom, getFactionColor(settlement.owner, k), 0.4);
         }
 
         // Use image sprite if available, otherwise fall back to pixel art
@@ -232,14 +238,9 @@ export function drawTowers(ctx, gameState, fogState) {
         const towerData = TOWERS[tower.type];
         const isConstructing = tower.construction !== null;
 
-        // Draw indicator circle for AI towers (enemy faction marker)
+        // Draw hex indicator for AI towers (enemy faction marker)
         if (isAIOwner(tower.owner)) {
-            k.drawCircle({
-                pos: k.vec2(screenX, screenY),
-                radius: 18 * zoom,
-                color: getFactionColor(tower.owner, k),
-                opacity: 0.4,
-            });
+            drawFactionHex(k, screenX, screenY, 18 * zoom, getFactionColor(tower.owner, k), 0.4);
         }
 
         // Use image sprite if available, otherwise fall back to pixel art
@@ -306,14 +307,9 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
 
         const shipData = SHIPS[ship.type];
 
-        // Draw indicator circle for AI ships (enemy faction marker)
+        // Draw hex indicator for AI ships (enemy faction marker)
         if (isAIOwner(ship.owner)) {
-            k.drawCircle({
-                pos: k.vec2(screenX, screenY),
-                radius: 18 * zoom,
-                color: getFactionColor(ship.owner, k),
-                opacity: 0.4,
-            });
+            drawFactionHex(k, screenX, screenY, 18 * zoom, getFactionColor(ship.owner, k), 0.4);
         }
 
         // Use directional animated sprite if available (colored by owner)

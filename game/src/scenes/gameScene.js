@@ -3,7 +3,7 @@ import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hex
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland } from "../mapGenerator.js";
 import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, countEntitiesForOwner, isAIOwner } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations } from "../fogOfWar.js";
+import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations, isHexVisible } from "../fogOfWar.js";
 
 // Rendering modules (new - extracted from this file for better organization)
 // These can be used to gradually replace inline rendering code below
@@ -255,6 +255,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Initialize minimap
         const minimapState = createMinimapState(map);
 
+        // Start ambient audio (both loop at 25% volume)
+        const ambientOcean = k.play("ambient-ocean", { loop: true, volume: 0.25 });
+        const ambientMusic = k.play("ambient-music", { loop: true, volume: 0.25 });
+
         // Selection hit detection radius (in world units)
         const SELECTION_RADIUS = HEX_SIZE * 1.2;
 
@@ -462,6 +466,22 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             updateConstruction(gameState, map, fogState, dt, floatingNumbers);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
             updateCombat(hexToPixel, gameState, map, dt, fogState);
+
+            // Process sound events from combat (only play if visible to player)
+            if (gameState.soundEvents && gameState.soundEvents.length > 0) {
+                for (const event of gameState.soundEvents) {
+                    // Only play sounds for events in visible hexes
+                    if (!isHexVisible(fogState, event.q, event.r)) continue;
+
+                    if (event.type === 'cannon-fire') {
+                        playCannonFire();
+                    } else if (event.type === 'cannon-impact') {
+                        playCannonImpact();
+                    }
+                }
+                gameState.soundEvents = [];
+            }
+
             updateRepair(gameState, dt);
             updatePirateRespawns(gameState, map, createShip, hexKey, dt);
             updateWaveSpawner(gameState, map, createShip, hexKey, dt, fogState);
@@ -1272,6 +1292,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Space to return to title when game over
         k.onKeyPress("space", () => {
             if (gameState.gameOver) {
+                ambientOcean.stop();
+                ambientMusic.stop();
                 k.go("title");
             }
         });
@@ -1379,6 +1401,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (!getBuildableShips(port).includes('cutter')) continue;
                 if (port.buildQueue.length >= maxQueueSize) continue;
                 if (port.repair) continue;
+                if (port.construction) continue;
 
                 // Check affordability only if queue empty
                 if (port.buildQueue.length === 0) {
@@ -1461,6 +1484,24 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // UI click sound helper
         function playUIClick() {
             k.play("ui-click", { volume: 0.4 });
+        }
+
+        // Ship selection sound helper (plays random 1-5)
+        function playShipSelect() {
+            const soundNum = Math.floor(Math.random() * 5) + 1;
+            k.play(`select-ship-${soundNum}`, { volume: 0.4 });
+        }
+
+        // Cannon fire sound helper (plays random 1-4)
+        function playCannonFire() {
+            const soundNum = Math.floor(Math.random() * 4) + 1;
+            k.play(`cannon-fire-${soundNum}`, { volume: 0.3 });
+        }
+
+        // Cannon impact sound helper (plays random 1-5)
+        function playCannonImpact() {
+            const soundNum = Math.floor(Math.random() * 5) + 1;
+            k.play(`cannon-impact-${soundNum}`, { volume: 0.3 });
         }
 
         // Click handler for selection and waypoints - delegates to input handler helpers
@@ -1565,6 +1606,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                             gameMenuOpen = false;
                             speedSubmenuOpen = false;
                         } else if (item.id === 'quit') {
+                            ambientOcean.stop();
+                            ambientMusic.stop();
                             k.go("title");
                         }
                         return;
@@ -1640,7 +1683,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                 // Handle double-click to select all units of same type in view
                 if (clickedUnit) {
-                    playUIClick();
                     const now = Date.now();
                     let subType = null;
 
@@ -1660,11 +1702,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         lastClickedUnit.subType === subType &&
                         now - lastClickTime < DOUBLE_CLICK_THRESHOLD) {
                         // Double-click detected - select all units of this type in view
+                        // Don't play sound here - first click already played it
                         selectAllUnitsOfTypeInView(clickedUnit.type, subType);
                         lastClickedUnit = null;
                         lastClickTime = 0;
                     } else {
-                        // Single click - track for potential double-click
+                        // Single click - play sound and track for potential double-click
+                        if (clickedUnit.type === 'ship') {
+                            playShipSelect();
+                        } else {
+                            playUIClick();
+                        }
                         lastClickedUnit = { unitType: clickedUnit.type, subType };
                         lastClickTime = now;
                     }
@@ -1747,6 +1795,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Clear selection first
             clearSelection(gameState);
 
+            // Track if any ships are selected for sound
+            let shipsSelected = false;
+
             // Check each ship (skip pirate and AI-owned ships)
             for (let i = 0; i < gameState.ships.length; i++) {
                 const ship = gameState.ships[i];
@@ -1759,6 +1810,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (screenX >= boxLeft && screenX <= boxRight &&
                     screenY >= boxTop && screenY <= boxBottom) {
                     addToSelection(gameState, 'ship', i);
+                    shipsSelected = true;
                 }
             }
 
@@ -1793,6 +1845,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const count = gameState.selectedUnits.length;
             if (count > 0) {
                 console.log(`Selected ${count} unit(s)`);
+                // Play ship selection sound if any ships were selected
+                if (shipsSelected) {
+                    playShipSelect();
+                }
             }
         }
 

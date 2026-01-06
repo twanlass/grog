@@ -1481,3 +1481,37 @@ combat.js:724 DEBUG applyDamage: setting hitFlash on ship 9 to 0.15
 
 ## 341. User prompt
 > yes please
+
+## 342. User prompt
+> bug: Cutters can be build by ports while they're upgrade ("C" hotkey was used)
+
+## 343. User prompt
+> We're going to add some sfx to the game. To start, let's play a random sound when a player selects ships. Sample from sounds/units/ships/ selected 1-5
+
+## 344. User prompt
+> two tweaks: 
+1. play the sound when ships are selected w/ the drag select box
+2. play only one sound when multiple units are selected because of a double click on a single unit (selects all of type) 
+
+## 345. User prompt
+> Now let's add some sfx whenever a cannon is fired (ships, pirates, AI, towers). Sample from units/cannons/cannons/ fire 1-4
+
+## 346. User prompt
+> now let's add some sfx for when a cannonball hits it's target (ships, ports, towers, settlements, etc). Sample from the sounds in cannons impact 1-5
+
+## 347. User prompt
+> for attack sfx (cannons fired, cannon impact) – can we only play sounds for units that are visible to the player? We dont want to hear cannon fire from across the screen or from behind fog of war 
+
+## 348. User prompt
+> AI ships have a little circle underneath them w/ a color. Two changes: 
+1. have the color match their cutter color (green, blue whatever)
+2. change the circle to a hex 
+
+## 349. User prompt
+> now let's add some ambient audio. We'll layer on an ocean track and instrumental track on repeat. we shoudl play both at 25% volumne so sfx can be heard on top. files are in sounds/ambient
+
+## 350. User prompt
+> can we add some micro variation to ship fire timing? I'm thinkning with a few ships seleted it may sound / look better if all cannons don't fire at once but with some small variation (miliseconds really)
+
+## 351. User prompt
+> ship it

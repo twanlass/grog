@@ -58,6 +58,22 @@ const LOOT_MAX_AMOUNT = 50;       // maximum wood per barrel
 const LOOT_DURATION = 30;         // seconds before loot expires
 
 /**
+ * Queue a cannon fire sound event with position for visibility check
+ */
+function queueCannonSound(gameState, q, r) {
+    if (!gameState.soundEvents) gameState.soundEvents = [];
+    gameState.soundEvents.push({ type: 'cannon-fire', q, r });
+}
+
+/**
+ * Queue a cannon impact sound event with position for visibility check
+ */
+function queueImpactSound(gameState, q, r) {
+    if (!gameState.soundEvents) gameState.soundEvents = [];
+    gameState.soundEvents.push({ type: 'cannon-impact', q, r });
+}
+
+/**
  * Spawn cannon smoke puff at a location
  */
 function spawnCannonSmoke(gameState, q, r) {
@@ -160,6 +176,7 @@ function processShipPendingShots(gameState, dt, fogState) {
                         damage: shot.damage,
                         speed: PROJECTILE_SPEED,
                     });
+                    queueCannonSound(gameState, ship.q, ship.r);
 
                     // Firing reveals AI ship position
                     if (ship.owner && ship.owner !== 'player') {
@@ -214,6 +231,7 @@ function handlePirateAttacks(gameState, dt, fogState) {
                     damage: CANNON_DAMAGE,
                     speed: PROJECTILE_SPEED,
                 });
+                queueCannonSound(gameState, ship.q, ship.r);
 
                 // Queue subsequent shots with stagger delay
                 for (let p = 1; p < projectileCount; p++) {
@@ -230,8 +248,8 @@ function handlePirateAttacks(gameState, dt, fogState) {
                 revealRadius(fogState, ship.q, ship.r, 1);
                 markVisibilityDirty(fogState);
 
-                // Reset cooldown using ship's fire rate
-                ship.attackCooldown = shipData.fireCooldown;
+                // Reset cooldown using ship's fire rate (with micro variation to stagger volleys)
+                ship.attackCooldown = shipData.fireCooldown + (Math.random() - 0.5) * 0.04;
             }
         }
     }
@@ -463,6 +481,7 @@ function handlePlayerAttacks(gameState, dt, fogState) {
                 damage: CANNON_DAMAGE,
                 speed: PROJECTILE_SPEED,
             });
+            queueCannonSound(gameState, ship.q, ship.r);
 
             // Queue subsequent shots with stagger delay
             for (let p = 1; p < projectileCount; p++) {
@@ -481,7 +500,8 @@ function handlePlayerAttacks(gameState, dt, fogState) {
                 markVisibilityDirty(fogState);
             }
 
-            ship.attackCooldown = shipData.fireCooldown;
+            // Reset cooldown (with micro variation to stagger volleys)
+            ship.attackCooldown = shipData.fireCooldown + (Math.random() - 0.5) * 0.04;
         }
     }
 }
@@ -529,6 +549,7 @@ function handleTowerAttacks(gameState, dt) {
                             damage: shot.damage,
                             speed: PROJECTILE_SPEED,
                         });
+                        queueCannonSound(gameState, tower.q, tower.r);
                     }
                     tower.pendingShots.splice(s, 1);
                 }
@@ -580,6 +601,7 @@ function handleTowerAttacks(gameState, dt) {
                         damage: towerData.damage,
                         speed: PROJECTILE_SPEED,
                     });
+                    queueCannonSound(gameState, tower.q, tower.r);
                 } else {
                     // Queue subsequent shots with stagger delay
                     if (!tower.pendingShots) tower.pendingShots = [];
@@ -590,7 +612,8 @@ function handleTowerAttacks(gameState, dt) {
                     });
                 }
             }
-            tower.attackCooldown = towerData.fireCooldown;
+            // Reset cooldown (with micro variation to stagger volleys)
+            tower.attackCooldown = towerData.fireCooldown + (Math.random() - 0.5) * 0.04;
         }
     }
 }
@@ -684,6 +707,7 @@ function updateProjectiles(gameState, dt, fogState) {
             if (hitIndex !== -1) {
                 // Hit! Apply damage to whatever is at the destination
                 applyDamage(gameState, hitType, hitIndex, proj.damage, fogState);
+                queueImpactSound(gameState, proj.toQ, proj.toR);
             } else {
                 // Miss - create water splash effect
                 gameState.waterSplashes.push({
