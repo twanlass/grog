@@ -94,15 +94,17 @@ export function drawPorts(ctx, gameState, map, fogState) {
         // Use PNG sprite for docks (if available), otherwise pixel art
         if (portData.imageSprite) {
             const spriteScale = zoom * (portData.spriteScale || 1);
-            // Frame 0 = normal, Frame 1 = flash (white silhouette)
-            const frame = port.hitFlash > 0 ? 1 : 0;
+            // Use shader for damage flash effect (0-1 intensity)
+            const flashIntensity = port.hitFlash > 0 ? Math.min(port.hitFlash / 0.15, 1) : 0;
             k.drawSprite({
                 sprite: portData.imageSprite,
-                frame: frame,
+                frame: 0,  // Always use normal frame, shader handles flash
                 pos: k.vec2(screenX, screenY),
                 anchor: "center",
                 scale: spriteScale,
                 opacity: isConstructing ? 0.5 : 1.0,
+                shader: "whiteFlash",
+                uniforms: { u_flash: flashIntensity },
             });
         } else {
             // Pixel art rendering
@@ -175,14 +177,17 @@ export function drawSettlements(ctx, gameState, fogState) {
         // Use image sprite if available, otherwise fall back to pixel art
         if (settlementData.imageSprite) {
             const spriteScale = zoom * 1.0;
-            const frame = settlement.hitFlash > 0 ? 1 : 0;
+            // Use shader for damage flash effect (0-1 intensity)
+            const flashIntensity = settlement.hitFlash > 0 ? Math.min(settlement.hitFlash / 0.15, 1) : 0;
             k.drawSprite({
                 sprite: settlementData.imageSprite,
-                frame: frame,
+                frame: 0,  // Always use normal frame, shader handles flash
                 pos: k.vec2(screenX, screenY),
                 anchor: "center",
                 scale: spriteScale,
                 opacity: isConstructing ? 0.5 : 1.0,
+                shader: "whiteFlash",
+                uniforms: { u_flash: flashIntensity },
             });
         } else {
             const spriteSize = getSpriteSize(settlementData.sprite, unitScale);
@@ -237,14 +242,17 @@ export function drawTowers(ctx, gameState, fogState) {
         // Use image sprite if available, otherwise fall back to pixel art
         if (towerData.imageSprite) {
             const spriteScale = zoom * 1.0;
-            const frame = tower.hitFlash > 0 ? 1 : 0;
+            // Use shader for damage flash effect (0-1 intensity)
+            const flashIntensity = tower.hitFlash > 0 ? Math.min(tower.hitFlash / 0.15, 1) : 0;
             k.drawSprite({
                 sprite: towerData.imageSprite,
-                frame: frame,
+                frame: 0,  // Always use normal frame, shader handles flash
                 pos: k.vec2(screenX, screenY),
                 anchor: "center",
                 scale: spriteScale,
                 opacity: isConstructing ? 0.5 : 1.0,
+                shader: "whiteFlash",
+                uniforms: { u_flash: flashIntensity },
             });
         } else {
             const spriteSize = getSpriteSize(towerData.sprite, unitScale);
