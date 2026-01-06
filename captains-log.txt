@@ -1,6 +1,21 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-05 | Add color-coded directional cutter sprites
+--------------------------------------------------------
+### New
+- Directional cutter sprites with 8-direction support (5 rows + horizontal mirroring)
+- Color-coded ships by owner: player (red), ai1 (green), ai2 (blue)
+- 3-frame animation cycling for cutter sprites
+- Sound assets for game modes and UI clicks
+
+### Improved
+- Build menu renders directional sprites with SE-facing frame
+- Build queue shows directional sprites instead of pixel art
+- Title screen cutter uses animated directional sprite
+- Plunder/loading speed reduced to 2 seconds per wood unit
+
+
 2026-01-04 | Add title screen clouds and music
 ----------------------------------------------
 ### New

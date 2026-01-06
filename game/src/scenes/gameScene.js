@@ -603,6 +603,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 bird.angle += bird.orbitSpeed * dt;
             }
 
+            // Animate ship sprites (for directional animated sprites like cutter-v2)
+            for (const ship of gameState.ships) {
+                ship.animTimer = (ship.animTimer || 0) + dt;
+                if (ship.animTimer >= 0.15) {  // ~6 FPS animation
+                    ship.animTimer = 0;
+                    ship.animFrame = ((ship.animFrame || 0) + 1) % 3;
+                }
+            }
+
         });
 
         // Check if a ship is docked (on water adjacent to land, and stationary)
@@ -1449,6 +1458,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
+        // UI click sound helper
+        function playUIClick() {
+            k.play("ui-click", { volume: 0.4 });
+        }
+
         // Click handler for selection and waypoints - delegates to input handler helpers
         function handleClick() {
             const mouseX = k.mousePos().x;
@@ -1484,6 +1498,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (const opt of options) {
                     if (mouseX >= opt.x && mouseX <= opt.x + opt.width &&
                         mouseY >= opt.y && mouseY <= opt.y + opt.height) {
+                        playUIClick();
                         // Toggle the option
                         if (opt.id === 'hideFog') {
                             debugState.hideFog = !debugState.hideFog;
@@ -1504,9 +1519,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Handle placement mode clicks first
-            if (handlePortPlacementClick(gameState)) return;
-            if (handleSettlementPlacementClick(gameState)) return;
-            if (handleTowerPlacementClick(gameState)) return;
+            if (handlePortPlacementClick(gameState)) { playUIClick(); return; }
+            if (handleSettlementPlacementClick(gameState)) { playUIClick(); return; }
+            if (handleTowerPlacementClick(gameState)) { playUIClick(); return; }
 
             // Check game menu clicks first (when open)
             if (gameMenuBounds) {
@@ -1516,6 +1531,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     for (const item of submenu.items) {
                         if (mouseX >= item.x && mouseX <= item.x + item.width &&
                             mouseY >= item.y && mouseY <= item.y + item.height) {
+                            playUIClick();
                             gameState.timeScale = item.speed;
                             gameMenuOpen = false;
                             speedSubmenuOpen = false;
@@ -1528,6 +1544,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (const item of gameMenuBounds.items) {
                     if (mouseX >= item.x && mouseX <= item.x + item.width &&
                         mouseY >= item.y && mouseY <= item.y + item.height) {
+                        playUIClick();
                         if (item.id === 'controls') {
                             timeScaleBeforeMenu = gameState.timeScale || 1;
                             gameState.timeScale = 0;
@@ -1574,6 +1591,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     mouseX >= menuButton.x && mouseX <= menuButton.x + menuButton.width &&
                     mouseY >= menuButton.y && mouseY <= menuButton.y + menuButton.height) {
                     // Toggle game menu
+                    playUIClick();
                     gameMenuOpen = !gameMenuOpen;
                     speedSubmenuOpen = false;
                     return;
@@ -1581,12 +1599,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Check UI panel clicks
-            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) return;
-            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) return;
-            if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) return;
-            if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) return;
-            if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) return;
-            if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) return;
+            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) { playUIClick(); return; }
+            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) { playUIClick(); return; }
+            if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); return; }
+            if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) { playUIClick(); return; }
+            if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); return; }
+            if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) { playUIClick(); return; }
 
             // Convert to world coordinates
             const worldX = (mouseX - k.width() / 2) / zoom + cameraX;
@@ -1622,6 +1640,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                 // Handle double-click to select all units of same type in view
                 if (clickedUnit) {
+                    playUIClick();
                     const now = Date.now();
                     let subType = null;
 

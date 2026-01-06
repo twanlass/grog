@@ -4,7 +4,7 @@ import { SHIPS } from "../sprites/index.js";
 import { hexDistance } from "../hex.js";
 
 // Loading/unloading speed
-const LOAD_TIME_PER_UNIT = 1.0;  // seconds per wood unit
+const LOAD_TIME_PER_UNIT = 2.0;  // seconds per wood unit
 
 // Dock retry interval for waiting ships
 const DOCK_RETRY_INTERVAL = 2.0;

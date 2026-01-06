@@ -1077,10 +1077,40 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
 
     // Draw sprite thumbnail
     const thumbScale = 1.2;
-    const spriteSize = getSpriteSize(spriteData.sprite, thumbScale);
     const spriteX = panelX + sidePadding + 4;
-    const spriteY = btnY + (btnHeight - spriteSize.height) / 2;
-    drawSprite(k, spriteData.sprite, spriteX, spriteY, thumbScale, canBuild ? 1.0 : 0.4);
+
+    // Use PNG sprite if available, otherwise fall back to pixel art
+    if (spriteData.directionalSprite) {
+        // For directional sprites, use player's red variant, SE facing (row 2, frame 0)
+        const frame = 2 * 3 + 0;  // row 2 (SE) * 3 cols + frame 0
+        const pngScale = (spriteData.spriteScale || 1) * 0.8;
+        const spriteY = btnY + btnHeight / 2;
+        k.drawSprite({
+            sprite: 'cutter-red',  // Always show player's color in build menu
+            frame: frame,
+            pos: k.vec2(spriteX + 14, spriteY),
+            anchor: "center",
+            scale: pngScale,
+            opacity: canBuild ? 1.0 : 0.4,
+        });
+    } else if (spriteData.imageSprite) {
+        // For rotation-based sprites, use frame 0
+        const pngScale = (spriteData.spriteScale || 1) * 0.8;
+        const spriteY = btnY + btnHeight / 2;
+        k.drawSprite({
+            sprite: spriteData.imageSprite,
+            frame: 0,
+            pos: k.vec2(spriteX + 14, spriteY),
+            anchor: "center",
+            scale: pngScale,
+            opacity: canBuild ? 1.0 : 0.4,
+        });
+    } else {
+        // Fall back to pixel art
+        const spriteSize = getSpriteSize(spriteData.sprite, thumbScale);
+        const spriteY = btnY + (btnHeight - spriteSize.height) / 2;
+        drawSprite(k, spriteData.sprite, spriteX, spriteY, thumbScale, canBuild ? 1.0 : 0.4);
+    }
 
     // Parse name and hotkey (e.g., "Cutter (C)" -> "Cutter" and "(C)")
     const hotkeyMatch = name.match(/^(.+?)(\s*\([A-Z]\))$/);
@@ -2146,22 +2176,35 @@ export function drawBuildQueuePanel(ctx, port, mousePos) {
             radius: 4,
         });
 
-        // Draw ship sprite (use image sprite if available)
-        const spriteScale = 1;
+        // Draw ship sprite (use PNG sprite if available)
         const spriteX = itemX + itemSize / 2;
         const spriteY = itemY + itemSize / 2;
 
-        if (shipData.imageSprite) {
+        if (shipData.directionalSprite) {
+            // For directional sprites, use player's red variant, SE facing (row 2, frame 0)
+            const frame = 2 * 3 + 0;  // row 2 (SE) * 3 cols + frame 0
+            const pngScale = (shipData.spriteScale || 1) * 1.0;
+            k.drawSprite({
+                sprite: 'cutter-red',  // Always show player's color in build queue
+                frame: frame,
+                pos: k.vec2(spriteX, spriteY),
+                anchor: "center",
+                scale: pngScale,
+                opacity: isActive ? 1.0 : 0.5,
+            });
+        } else if (shipData.imageSprite) {
+            const pngScale = (shipData.spriteScale || 1) * 1.0;
             k.drawSprite({
                 sprite: shipData.imageSprite,
                 frame: 0,
                 pos: k.vec2(spriteX, spriteY),
                 anchor: "center",
-                scale: spriteScale,
+                scale: pngScale,
                 opacity: isActive ? 1.0 : 0.5,
             });
         } else {
             // Fallback to pixel art sprite
+            const spriteScale = 1;
             const spriteSize = getSpriteSize(shipData.sprite);
             const sx = itemX + (itemSize - spriteSize.width * spriteScale) / 2;
             const sy = itemY + (itemSize - spriteSize.height * spriteScale) / 2;

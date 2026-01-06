@@ -113,6 +113,8 @@ export const SHIPS = {
         name: "Cutter",                 // Ship display name
         sprite: CUTTER,                 // Ship ASCII art or pixel array for in-game display
         imageSprite: "cutter",          // Kaplay sprite asset name (loaded separately in main.js)
+        directionalSprite: "cutter-v2", // 3x5 directional sprite (5 dirs, mirror for 3 more)
+        animFrames: 3,                  // Animation frames per direction
         spriteScale: .75,               // scale multiplier for image sprite in UI/game
         build_time: 5,                  // Turns or seconds required to build in port
         speed: 2,                       // Speed (cells/second or units/turn) for moving on map
@@ -123,7 +125,7 @@ export const SHIPS = {
         attackDistance: 3,              // Range (in tiles/cells) for attacking enemies
         enemySightDistance: 3,          // How far AI can spot threats when controlling ship
         sightDistance: 3,               // How far player can reveal "fog of war"
-        wakeSize: 6,                    // Base size of water trail wake
+        wakeSize: 8,                    // Base size of water trail wake
         cost: { wood: 10 },             // Build resource costs (object: wood)
         crewCost: 5,                    // Crew required to operate
         description: "Small, scrappy starter", // Description for UI/tooltips

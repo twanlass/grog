@@ -160,6 +160,9 @@ export function createShip(type, q, r, owner = 'player') {
         // Patrol state
         patrolRoute: [],      // Array of { q, r } - saved patrol waypoints for looping
         isPatrolling: false,  // Whether ship is in patrol loop mode
+        // Animation state (for directional animated sprites)
+        animFrame: 0,         // Current animation frame (0-5)
+        animTimer: 0,         // Timer for frame cycling
     };
 }
 

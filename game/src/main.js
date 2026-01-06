@@ -15,7 +15,7 @@ const k = kaplay({
 });
 
 // Selected scenario ID (persists between title screen visits)
-let selectedScenarioId = DEFAULT_SCENARIO_ID;
+let selectedScenarioId = null; // No mode selected by default
 
 // Selected AI strategy for versus mode (null = random)
 let selectedAIStrategy = null;
@@ -36,6 +36,23 @@ k.loadSprite("bird", "sprites/assets/bird.png", {
 k.loadSprite("cutter", "sprites/assets/cutter.png", {
     sliceX: 2,
     sliceY: 1,
+});
+// Load colored cutter variants (3x5: 3 anim frames, 5 directions)
+k.loadSprite("cutter-red", "sprites/assets/cutter-red.png", {
+    sliceX: 3,
+    sliceY: 5,
+});
+k.loadSprite("cutter-green", "sprites/assets/cutter-green.png", {
+    sliceX: 3,
+    sliceY: 5,
+});
+k.loadSprite("cutter-blue", "sprites/assets/cutter-blue.png", {
+    sliceX: 3,
+    sliceY: 5,
+});
+k.loadSprite("cutter-orange", "sprites/assets/cutter-orange.png", {
+    sliceX: 3,
+    sliceY: 5,
 });
 k.loadSprite("schooner", "sprites/assets/schooner.png", {
     sliceX: 2,
@@ -72,6 +89,10 @@ k.loadSprite("resource-crew", "sprites/assets/resource-crew.png");
 
 // Load sounds
 k.loadSound("title-music", "sounds/grog-title.mp3");
+k.loadSound("mode-skirmish", "sounds/mode-skirmish.mp3");
+k.loadSound("mode-defend", "sounds/mode-defend.mp3");
+k.loadSound("mode-sandbox", "sounds/mode-sandbox.mp3");
+k.loadSound("ui-click", "sounds/ui/ui-click.mp3");
 
 // Register scenes
 k.scene("title", () => {
@@ -396,7 +417,22 @@ k.scene("title", () => {
         pathIndex: 0,
         trail: [],
         trailTimer: 0,
+        animFrame: 0,
+        animTimer: 0,
     };
+
+    // Direction mapping for cutter sprite (5 rows with mirroring for 8 directions)
+    function headingToSpriteDir(heading) {
+        let deg = ((heading * 180 / Math.PI) % 360 + 360) % 360;
+        if (deg >= 247.5 && deg < 292.5) return { row: 3, flipX: false };  // N
+        if (deg >= 292.5 && deg < 337.5) return { row: 1, flipX: false };  // NE
+        if (deg >= 337.5 || deg < 22.5) return { row: 4, flipX: false };   // E
+        if (deg >= 22.5 && deg < 67.5) return { row: 2, flipX: false };    // SE
+        if (deg >= 67.5 && deg < 112.5) return { row: 0, flipX: false };   // S
+        if (deg >= 112.5 && deg < 157.5) return { row: 2, flipX: true };   // SW
+        if (deg >= 157.5 && deg < 202.5) return { row: 4, flipX: true };   // W
+        return { row: 1, flipX: true };                                     // NW
+    }
 
     // Create a pirate ship that wanders the ocean
     const pirateStart = findRandomWaterTile();
@@ -636,6 +672,13 @@ k.scene("title", () => {
         }
         titleShip.trail = titleShip.trail.filter(s => s.age < TRAIL_FADE_DURATION);
 
+        // Update cutter animation
+        titleShip.animTimer += dt;
+        if (titleShip.animTimer >= 0.15) {
+            titleShip.animTimer = 0;
+            titleShip.animFrame = (titleShip.animFrame + 1) % 3;
+        }
+
         // Update pirate ship - follow A* path
         if (pirateShip.path.length > 0 && pirateShip.pathIndex < pirateShip.path.length) {
             const waypoint = pirateShip.path[pirateShip.pathIndex];
@@ -780,17 +823,18 @@ k.scene("title", () => {
             });
         }
 
-        // Draw the sailing ship (cutter)
+        // Draw the sailing ship (cutter) using directional sprite
         const shipScreenX = (titleShip.x - cameraX) * zoom + halfWidth;
         const shipScreenY = (titleShip.y - cameraY) * zoom + halfHeight;
-        // Sprite faces north, heading 0 = east, so rotate by heading + 90°
-        const shipRotation = titleShip.heading * (180 / Math.PI) + 90;
+        const shipDir = headingToSpriteDir(titleShip.heading);
+        const shipFrame = shipDir.row * 3 + titleShip.animFrame;
         k.drawSprite({
-            sprite: 'cutter',
+            sprite: 'cutter-red',
+            frame: shipFrame,
             pos: k.vec2(shipScreenX, shipScreenY),
             anchor: 'center',
-            scale: zoom * 0.75,  // Cutter sprite scale
-            angle: shipRotation,
+            scale: zoom * 0.75,
+            flipX: shipDir.flipX,
         });
 
         // Draw the pirate ship
@@ -962,6 +1006,7 @@ k.scene("title", () => {
         k.onClick(`card-${scenario.id}`, () => {
             selectedScenarioId = scenario.id;
             updateCardSelection();
+            playModeSound(scenario.id);
         });
     });
 
@@ -973,27 +1018,39 @@ k.scene("title", () => {
             entity.outline.color = isSelected ? k.rgb(255, 200, 0) : k.rgb(80, 100, 120);
             entity.outline.width = isSelected ? 3 : 1;
         });
+        updateStartButton();
     }
 
     // Start button
     const playY = cardY + cardHeight / 2 + 70;
     const startBtnWidth = 120;
     const startBtnHeight = 60;
-    k.add([
+    const startBtnBg = k.add([
         k.rect(startBtnWidth, startBtnHeight, { radius: 6 }),
         k.pos(k.center().x, playY),
         k.anchor("center"),
         k.color(0, 0, 0),
-        k.outline(1, k.rgb(80, 100, 120)),
+        k.outline(1, k.rgb(50, 50, 60)),
         k.area(),
         "playBtn",
     ]);
-    k.add([
+    const startBtnText = k.add([
         k.text("Start", { size: 22 }),
         k.pos(k.center().x, playY),
         k.anchor("center"),
-        k.color(255, 255, 255),
+        k.color(80, 80, 80), // Dimmed initially
     ]);
+
+    // Update start button visual based on selection
+    function updateStartButton() {
+        if (selectedScenarioId === null) {
+            startBtnBg.outline.color = k.rgb(50, 50, 60);
+            startBtnText.color = k.rgb(80, 80, 80);
+        } else {
+            startBtnBg.outline.color = k.rgb(80, 100, 120);
+            startBtnText.color = k.rgb(255, 255, 255);
+        }
+    }
 
     // Copyright
     const copyrightY = k.height() - 20;
@@ -1025,6 +1082,9 @@ k.scene("title", () => {
 
     // Helper to stop music and start game
     function startGame() {
+        // Don't start if no mode selected
+        if (selectedScenarioId === null) return;
+
         if (titleMusic) {
             titleMusic.stop();
         }
@@ -1040,18 +1100,44 @@ k.scene("title", () => {
     // Keyboard shortcuts
     k.onKeyPress("enter", () => startGame());
     k.onKeyPress("space", () => startGame());
+    // Helper to play mode sound
+    let currentModeSound = null;
+    function playModeSound(scenarioId) {
+        // Stop previous mode sound if playing
+        if (currentModeSound) {
+            currentModeSound.stop();
+        }
+        const soundMap = { versus: 'mode-skirmish', defend: 'mode-defend', sandbox: 'mode-sandbox' };
+        const soundName = soundMap[scenarioId];
+        if (soundName) {
+            currentModeSound = k.play(soundName, { volume: 0.6 });
+        }
+    }
+
     k.onKeyPress("left", () => {
         const currentIndex = SCENARIOS.findIndex(s => s.id === selectedScenarioId);
         if (currentIndex > 0) {
             selectedScenarioId = SCENARIOS[currentIndex - 1].id;
             updateCardSelection();
+            playModeSound(selectedScenarioId);
+        } else if (selectedScenarioId === null) {
+            // If nothing selected, select last one
+            selectedScenarioId = SCENARIOS[SCENARIOS.length - 1].id;
+            updateCardSelection();
+            playModeSound(selectedScenarioId);
         }
     });
     k.onKeyPress("right", () => {
         const currentIndex = SCENARIOS.findIndex(s => s.id === selectedScenarioId);
-        if (currentIndex < SCENARIOS.length - 1) {
+        if (currentIndex < SCENARIOS.length - 1 && currentIndex >= 0) {
             selectedScenarioId = SCENARIOS[currentIndex + 1].id;
             updateCardSelection();
+            playModeSound(selectedScenarioId);
+        } else if (selectedScenarioId === null) {
+            // If nothing selected, select first one
+            selectedScenarioId = SCENARIOS[0].id;
+            updateCardSelection();
+            playModeSound(selectedScenarioId);
         }
     });
 });

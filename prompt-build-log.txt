@@ -1375,3 +1375,60 @@ First up, when selecting a port, update it's UI panel to show the units name at 
 - should spawn in groups
 - should be made of smaller hexes to be on style 
 - should have varying degress of opacity; max 90% to ensure you can see the game below
+
+## 317. User prompt
+> we need to integrate a new sprite asset for the Cutter: 
+1. asset file is called cutter-v2.png
+2. sheet is 6x6
+3. each row has 6 states to loop through for a simple animation
+4. each row the ship is pointed in a different direction: 
+
+row 1: pointed south-west
+row 2: south-east
+row 3: north-west 
+row 4: north-east
+row 5: north
+row 6: south
+
+## 318. User prompt
+> file added. Ship directions seem backwards. Up uses south-facing. Down uses north facing, etc. Can you look at the sprite and update the code accordingly? 
+
+## 319. User prompt
+> looks great. Okay, not seeing the white flash effect on impact. 
+
+## 320. User prompt
+> make the flash brighter, its barely noticeable
+
+## 321. User prompt
+> can you update the build menu to render the sprites where available? 
+
+## 322. User prompt
+> can you use the tower and settlement sprites too? 
+
+## 323. User prompt
+> can you use the south-east facing frame for the cutter? 
+
+## 324. User prompt
+> also update the build queue UI sprite: 
+
+## 325. User prompt
+> what determins the plunder speed of a ship (how fast it loads from a port)? 
+
+## 326. User prompt
+> Not yet. Let's just update the global load speed to 1 wood / 2 seconds
+
+## 327. User prompt
+> New cutter asset added, cutter-v3.png. Strucutre is different: 
+1. 3x5
+2. Each row contains 3 frames to animate through
+3. Rows are down, up-right, down-right, up, right
+4. we'll need to mirror the sprite for the other directions (left, down-left, up-left 
+
+## 328. User prompt
+> sweet. Okay, i updated the asset name to cutter-red.png. I also added green, orange, and blue assets. Can we always have the player use cutter red but use blue orange or green w/ for the AIs in vs mode?
+
+## 329. User prompt
+> sweet! can you update the title screen the new cutter asset (red)?
+
+## 330. User prompt
+> ship it

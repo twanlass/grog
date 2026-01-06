@@ -638,3 +638,17 @@ l    @    kaplay.js?v=9a8bb7fb:3984
 
 ## 177. User prompt
 > ship it
+
+## 178. User prompt
+> i've added three more audio clips (mode-defend.mp3, mode-skirmish.mp3, etc). By default, don't have any game mode selected. Then, when one is, play the audio clip on mode card click
+
+## 179. User prompt
+> 1. disable start visually until a mode is selected
+2. when clicking on a mode, be sure to stop playing any previous mode audio clip (so they don't overlap)
+3. can we start the title track when the tab is focused or must a user click? 
+
+## 180. User prompt
+> alright, i've added a ui-click.mp3 audio file. play it whenever the user left clicks on a unit or menu 
+
+## 181. User prompt
+> also when clicking to place  a tower or settlement 

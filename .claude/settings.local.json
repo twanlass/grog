@@ -57,7 +57,8 @@
       "Bash(git -C /Users/tylerwanlass/code/grog diff game/src/scenes/gameScene.js)",
       "Bash(git -C /Users/tylerwanlass/code/grog log --oneline -p -S \"''''water''''\" -- game/src/mapGenerator.js)",
       "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Add debug fog toggle and fix versus mode bugs\")",
-      "Bash(timeout 10 npm run dev:*)"
+      "Bash(timeout 10 npm run dev:*)",
+      "WebSearch"
     ]
   },
   "enableAllProjectMcpServers": true,

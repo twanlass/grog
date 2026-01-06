@@ -6,6 +6,42 @@ import { getShipVisualPos } from "../systems/shipMovement.js";
 import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js";
 import { isAIOwner } from "../gameState.js";
 
+/**
+ * Convert ship heading (radians) to sprite direction for 5-row sprites with mirroring
+ * Sprite rows: 0=S, 1=NE, 2=SE, 3=N, 4=E
+ * Mirrored: W=mirror E, SW=mirror SE, NW=mirror NE
+ * Screen coords: 0°=E, 90°=S(down), 180°=W, 270°=N(up)
+ * @returns {{ row: number, flipX: boolean }}
+ */
+function headingToSpriteDirection(heading) {
+    // Normalize to 0-360 degrees
+    let deg = ((heading * 180 / Math.PI) % 360 + 360) % 360;
+
+    // Map to 8 directions (each covers 45 degrees), return row + flip
+    if (deg >= 247.5 && deg < 292.5) return { row: 3, flipX: false };  // N (up)
+    if (deg >= 292.5 && deg < 337.5) return { row: 1, flipX: false };  // NE
+    if (deg >= 337.5 || deg < 22.5) return { row: 4, flipX: false };   // E (right)
+    if (deg >= 22.5 && deg < 67.5) return { row: 2, flipX: false };    // SE
+    if (deg >= 67.5 && deg < 112.5) return { row: 0, flipX: false };   // S (down)
+    if (deg >= 112.5 && deg < 157.5) return { row: 2, flipX: true };   // SW (mirror SE)
+    if (deg >= 157.5 && deg < 202.5) return { row: 4, flipX: true };   // W (mirror E)
+    return { row: 1, flipX: true };                                     // NW (mirror NE)
+}
+
+/**
+ * Get the colored directional sprite name based on ship owner
+ * @param {object} shipData - Ship metadata
+ * @param {string} owner - Ship owner ('player', 'ai1', 'ai2')
+ * @returns {string|null} Sprite name or null if no directional sprite
+ */
+function getDirectionalSprite(shipData, owner) {
+    if (!shipData.directionalSprite) return null;
+    // Map owner to colored sprite
+    if (owner === 'ai1') return 'cutter-green';
+    if (owner === 'ai2') return 'cutter-blue';
+    return 'cutter-red';  // Player default
+}
+
 // Faction colors for visual differentiation
 const FACTION_COLORS = {
     player: { r: 60, g: 120, b: 200 },   // Blue (not used - player doesn't need indicator)
@@ -268,8 +304,38 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             });
         }
 
-        // Use image sprite if available, otherwise fall back to pixel art
-        if (shipData.imageSprite) {
+        // Use directional animated sprite if available (colored by owner)
+        const dirSprite = getDirectionalSprite(shipData, ship.owner);
+        if (dirSprite) {
+            // Calculate frame from direction row + animation column
+            const dir = headingToSpriteDirection(ship.heading || 0);
+            const animCol = ship.animFrame || 0;
+            const frame = dir.row * 3 + animCol;  // row * 3 cols + column
+
+            const spriteScale = zoom * (shipData.spriteScale || 1);
+
+            k.drawSprite({
+                sprite: dirSprite,
+                frame: frame,
+                pos: k.vec2(screenX, screenY),
+                anchor: "center",
+                scale: spriteScale,
+                flipX: dir.flipX,  // Mirror for left-facing directions
+            });
+
+            // White flash overlay on hit
+            if (ship.hitFlash > 0) {
+                const flashOpacity = (ship.hitFlash / 0.15) * 0.9;
+                k.drawEllipse({
+                    pos: k.vec2(screenX, screenY),
+                    radiusX: 20 * spriteScale,
+                    radiusY: 14 * spriteScale,
+                    color: k.rgb(255, 255, 255),
+                    opacity: flashOpacity,
+                });
+            }
+        } else if (shipData.imageSprite) {
+            // Use rotation-based image sprite (for ships without directional sprites)
             // Sprite faces north (up), heading 0 = east, so rotate by heading + 90°
             const rotationDeg = (ship.heading || 0) * (180 / Math.PI) + 90;
             const spriteScale = zoom * (shipData.spriteScale || 1);
