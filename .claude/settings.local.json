@@ -58,7 +58,10 @@
       "Bash(git -C /Users/tylerwanlass/code/grog log --oneline -p -S \"''''water''''\" -- game/src/mapGenerator.js)",
       "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Add debug fog toggle and fix versus mode bugs\")",
       "Bash(timeout 10 npm run dev:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git -C /Users/tylerwanlass/code/grog diff --staged -- \"*.js\" \"*.json\")",
+      "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Add color-coded directional cutter sprites\")",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   },
   "enableAllProjectMcpServers": true,

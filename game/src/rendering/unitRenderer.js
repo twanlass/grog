@@ -94,17 +94,19 @@ export function drawPorts(ctx, gameState, map, fogState) {
         // Use PNG sprite for docks (if available), otherwise pixel art
         if (portData.imageSprite) {
             const spriteScale = zoom * (portData.spriteScale || 1);
-            // Use shader for damage flash effect (0-1 intensity)
+            // Use shader for damage flash effect - pass via opacity
             const flashIntensity = port.hitFlash > 0 ? Math.min(port.hitFlash / 0.15, 1) : 0;
+            // Combine construction opacity with flash (flash takes priority when active)
+            const baseOpacity = isConstructing ? 0.5 : 1.0;
+            const flashOpacity = flashIntensity > 0 ? (1.0 - flashIntensity) : baseOpacity;
             k.drawSprite({
                 sprite: portData.imageSprite,
-                frame: 0,  // Always use normal frame, shader handles flash
+                frame: 0,
                 pos: k.vec2(screenX, screenY),
                 anchor: "center",
                 scale: spriteScale,
-                opacity: isConstructing ? 0.5 : 1.0,
+                opacity: flashOpacity,
                 shader: "whiteFlash",
-                uniforms: { u_flash: flashIntensity },
             });
         } else {
             // Pixel art rendering
@@ -177,17 +179,18 @@ export function drawSettlements(ctx, gameState, fogState) {
         // Use image sprite if available, otherwise fall back to pixel art
         if (settlementData.imageSprite) {
             const spriteScale = zoom * 1.0;
-            // Use shader for damage flash effect (0-1 intensity)
+            // Use shader for damage flash effect - pass via opacity
             const flashIntensity = settlement.hitFlash > 0 ? Math.min(settlement.hitFlash / 0.15, 1) : 0;
+            const baseOpacity = isConstructing ? 0.5 : 1.0;
+            const flashOpacity = flashIntensity > 0 ? (1.0 - flashIntensity) : baseOpacity;
             k.drawSprite({
                 sprite: settlementData.imageSprite,
-                frame: 0,  // Always use normal frame, shader handles flash
+                frame: 0,
                 pos: k.vec2(screenX, screenY),
                 anchor: "center",
                 scale: spriteScale,
-                opacity: isConstructing ? 0.5 : 1.0,
+                opacity: flashOpacity,
                 shader: "whiteFlash",
-                uniforms: { u_flash: flashIntensity },
             });
         } else {
             const spriteSize = getSpriteSize(settlementData.sprite, unitScale);
@@ -242,17 +245,18 @@ export function drawTowers(ctx, gameState, fogState) {
         // Use image sprite if available, otherwise fall back to pixel art
         if (towerData.imageSprite) {
             const spriteScale = zoom * 1.0;
-            // Use shader for damage flash effect (0-1 intensity)
+            // Use shader for damage flash effect - pass via opacity
             const flashIntensity = tower.hitFlash > 0 ? Math.min(tower.hitFlash / 0.15, 1) : 0;
+            const baseOpacity = isConstructing ? 0.5 : 1.0;
+            const flashOpacity = flashIntensity > 0 ? (1.0 - flashIntensity) : baseOpacity;
             k.drawSprite({
                 sprite: towerData.imageSprite,
-                frame: 0,  // Always use normal frame, shader handles flash
+                frame: 0,
                 pos: k.vec2(screenX, screenY),
                 anchor: "center",
                 scale: spriteScale,
-                opacity: isConstructing ? 0.5 : 1.0,
+                opacity: flashOpacity,
                 shader: "whiteFlash",
-                uniforms: { u_flash: flashIntensity },
             });
         } else {
             const spriteSize = getSpriteSize(towerData.sprite, unitScale);
@@ -324,6 +328,9 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             // Use shader for damage flash effect (0-1 intensity)
             const flashIntensity = ship.hitFlash > 0 ? Math.min(ship.hitFlash / 0.15, 1) : 0;
 
+            // Pass flash intensity via opacity (shader uses 1-opacity as flash amount)
+            const flashOpacity = 1.0 - flashIntensity;
+
             k.drawSprite({
                 sprite: dirSprite,
                 frame: frame,
@@ -332,7 +339,7 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
                 scale: spriteScale,
                 flipX: dir.flipX,  // Mirror for left-facing directions
                 shader: "whiteFlash",
-                uniforms: { u_flash: flashIntensity },
+                opacity: flashOpacity,
             });
         } else if (shipData.imageSprite) {
             // Use rotation-based image sprite (for ships without directional sprites)
@@ -341,15 +348,16 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             const spriteScale = zoom * (shipData.spriteScale || 1);
             // Use shader for damage flash effect (0-1 intensity)
             const flashIntensity = ship.hitFlash > 0 ? Math.min(ship.hitFlash / 0.15, 1) : 0;
+            const flashOpacity = 1.0 - flashIntensity;
             k.drawSprite({
                 sprite: shipData.imageSprite,
-                frame: 0,  // Always use normal frame, shader handles flash
+                frame: 0,
                 pos: k.vec2(screenX, screenY),
                 anchor: "center",
                 scale: spriteScale,
                 angle: rotationDeg,
                 shader: "whiteFlash",
-                uniforms: { u_flash: flashIntensity },
+                opacity: flashOpacity,
             });
         } else {
             // Fall back to pixel art rendering

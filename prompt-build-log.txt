@@ -1432,3 +1432,52 @@ row 6: south
 
 ## 330. User prompt
 > ship it
+
+## 331. User prompt
+> git pull 
+
+## 332. User prompt
+> figure out why the shader effect is not working to flash sprites when attacked 
+
+## 333. User prompt
+> yea, still not seeing it. I'm expecting that when a cutter is hit it flashes white. 
+
+## 334. User prompt
+> figure out why the shader effect is not working to flash sprites when attacked. Read the kaplay + shader docs: https://kaplayjs.com/docs/guides/shaders/. 
+
+## 335. User prompt
+> no, the shader doesn't appear to be working. shall we try logging / debugging?
+
+## 336. User prompt
+> cutter looks normal 
+
+## 337. User prompt
+> yup! cutter and port are red rectangles 
+
+## 338. User prompt
+> logs: 
+DEBUG applyDamage: setting hitFlash on ship 4 to 0.15
+unitRenderer.js:329 SHIP HIT FLASH: 0.06659999999998831 intensity: 0.44399999999992207
+unitRenderer.js:329 SHIP HIT FLASH: 0.00009999999996920805 intensity: 0.0006666666664613871
+combat.js:724 DEBUG applyDamage: setting hitFlash on ship 3 to 0.15
+2combat.js:724 DEBUG applyDamage: setting hitFlash on ship 7 to 0.15
+unitRenderer.js:329 SHIP HIT FLASH: 0.08320000000002778 intensity: 0.5546666666668519
+combat.js:724 DEBUG applyDamage: setting hitFlash on ship 4 to 0.15
+unitRenderer.js:329 SHIP HIT FLASH: 0.10009999999999195 intensity: 0.6673333333332797
+unitRenderer.js:329 SHIP HIT FLASH: 0.032399999999989854 intensity: 0.21599999999993236
+
+## 339. User prompt
+> not turning red. logs:
+DEBUG applyDamage: setting hitFlash on port 0 to 0.15
+combat.js:724 DEBUG applyDamage: setting hitFlash on ship 2 to 0.15
+combat.js:724 DEBUG applyDamage: setting hitFlash on ship 9 to 0.15
+2unitRenderer.js:329 SHIP HIT FLASH: 0.1167999999999921 intensity: 0.7786666666666141
+2unitRenderer.js:329 SHIP HIT FLASH: 0.06679999999999495 intensity: 0.44533333333329966
+2unitRenderer.js:329 SHIP HIT FLASH: 0.03449999999998851 intensity: 0.22999999999992343
+2unitRenderer.js:329 SHIP HIT FLASH: 0.0010999999999881938 intensity: 0.007333333333254625
+
+## 340. User prompt
+> it's working! 
+
+## 341. User prompt
+> yes please

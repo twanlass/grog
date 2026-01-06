@@ -1,6 +1,13 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-05 | Fix damage flash shader for sprites
+------------------------------------------------
+### Fixed
+- Damage flash effect now works on PNG sprites (ships, ports, towers, settlements)
+- Shader passes flash intensity via opacity channel instead of uniforms (Kaplay workaround)
+
+
 2026-01-05 | Add color-coded directional cutter sprites
 --------------------------------------------------------
 ### New
