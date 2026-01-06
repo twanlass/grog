@@ -321,6 +321,8 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             const frame = dir.row * 3 + animCol;  // row * 3 cols + column
 
             const spriteScale = zoom * (shipData.spriteScale || 1);
+            // Use shader for damage flash effect (0-1 intensity)
+            const flashIntensity = ship.hitFlash > 0 ? Math.min(ship.hitFlash / 0.15, 1) : 0;
 
             k.drawSprite({
                 sprite: dirSprite,
@@ -329,19 +331,9 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
                 anchor: "center",
                 scale: spriteScale,
                 flipX: dir.flipX,  // Mirror for left-facing directions
+                shader: "whiteFlash",
+                uniforms: { u_flash: flashIntensity },
             });
-
-            // White flash overlay on hit
-            if (ship.hitFlash > 0) {
-                const flashOpacity = (ship.hitFlash / 0.15) * 0.9;
-                k.drawEllipse({
-                    pos: k.vec2(screenX, screenY),
-                    radiusX: 20 * spriteScale,
-                    radiusY: 14 * spriteScale,
-                    color: k.rgb(255, 255, 255),
-                    opacity: flashOpacity,
-                });
-            }
         } else if (shipData.imageSprite) {
             // Use rotation-based image sprite (for ships without directional sprites)
             // Sprite faces north (up), heading 0 = east, so rotate by heading + 90°
