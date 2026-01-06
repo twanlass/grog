@@ -94,6 +94,17 @@ k.loadSound("mode-defend", "sounds/mode-defend.mp3");
 k.loadSound("mode-sandbox", "sounds/mode-sandbox.mp3");
 k.loadSound("ui-click", "sounds/ui/ui-click.mp3");
 
+// Load shaders
+k.loadShader("whiteFlash", null, `
+    uniform float u_flash;
+
+    vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+        vec4 texColor = def_frag();
+        // Lerp toward white based on flash intensity, preserving alpha
+        return mix(texColor, vec4(1.0, 1.0, 1.0, texColor.a), u_flash);
+    }
+`);
+
 // Register scenes
 k.scene("title", () => {
     // === TITLE MUSIC ===
