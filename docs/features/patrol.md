@@ -16,6 +16,7 @@ Ships can be assigned patrol routes to continuously loop through a series of way
 
 - Ships navigate to each waypoint in order
 - When the last waypoint is reached, ships return to the first waypoint (loop)
+- **Route optimization**: The return path is computed to avoid hexes used in the forward direction, minimizing doubling back
 - Patrol continues indefinitely until cancelled
 - Multiple ships can share the same patrol route
 
@@ -70,6 +71,7 @@ Patrol routes always show the complete loop connecting all waypoints, including 
 | `game/src/systems/shipMovement.js` | Patrol loop logic |
 | `game/src/systems/combat.js` | Auto-attack detection and combat |
 | `game/src/rendering/selectionUI.js` | Patrol route visualization |
+| `game/src/pathfinding.js` | Route optimization (computePatrolCircuit) |
 
 ## Key Functions
 
@@ -79,13 +81,17 @@ Patrol routes always show the complete loop connecting all waypoints, including 
 - `createShip()` - Creates ship with `patrolRoute` and `isPatrolling` properties
 
 ### inputHandler.js
-- `handlePatrolWaypointClick(gameState, map, clickedHex)` - Adds waypoint to patrol route
+- `handlePatrolWaypointClick(gameState, map, clickedHex)` - Adds waypoint to patrol route, computes optimized circuit
 - `handleWaypointClick()` - Clears patrol on regular click
 - `handleUnitSelection()` - Exits patrol mode when selecting new units
 
+### pathfinding.js
+- `computePatrolCircuit(map, waypoints)` - Computes optimized circular path that minimizes doubling back
+- `findPathWithPenalty(map, start, goal, penaltyHexes)` - A* pathfinding with penalty for certain hexes
+
 ### shipMovement.js
 - Waypoint completion logic checks `ship.isPatrolling`
-- When waypoints empty and patrolling, restores from `ship.patrolRoute`
+- When waypoints empty and patrolling, uses `ship.patrolCircuit` if available (falls back to `patrolRoute`)
 
 ### selectionUI.js
 - `drawPatrolRoute()` - Draws solid route lines in a loop
@@ -110,6 +116,7 @@ gameState.patrolMode = {
 ship = {
     // ... existing properties
     patrolRoute: [],      // Array of { q, r } - saved patrol waypoints
+    patrolCircuit: null,  // Pre-computed optimized circular path (array of { q, r })
     isPatrolling: false,  // Whether ship is in patrol loop mode
     waypoints: [],        // Current active waypoints (consumed as ship moves)
 }

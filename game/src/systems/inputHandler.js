@@ -11,7 +11,7 @@ import {
     canAffordCrew, showNotification, isAIOwner
 } from "../gameState.js";
 import { hexKey } from "../hex.js";
-import { findNearestWater } from "../pathfinding.js";
+import { findNearestWater, computePatrolCircuit } from "../pathfinding.js";
 import { startRepair } from "./repair.js";
 
 /**
@@ -645,6 +645,7 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         // Clear attack and patrol state when manually moving
         ship.attackTarget = null;
         ship.patrolRoute = [];
+        ship.patrolCircuit = null;
         ship.isPatrolling = false;
 
         if (isShiftHeld && ship.waypoints.length > 0) {
@@ -669,6 +670,7 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
 
 /**
  * Handle patrol waypoint click - adds waypoints to patrol route
+ * Computes an optimized patrol circuit that minimizes doubling back
  * @returns {boolean} true if waypoint was added
  */
 export function handlePatrolWaypointClick(gameState, map, clickedHex) {
@@ -713,6 +715,12 @@ export function handlePatrolWaypointClick(gameState, map, clickedHex) {
         ship.patrolRoute.push({ q: targetQ, r: targetR });
         ship.isPatrolling = true;
         ship.showRouteLine = true;
+
+        // Compute optimized patrol circuit that minimizes doubling back
+        if (ship.patrolRoute.length >= 2) {
+            const circuit = computePatrolCircuit(map, ship.patrolRoute);
+            ship.patrolCircuit = circuit; // Store the pre-computed optimized path
+        }
 
         if (isFirstPatrolWaypoint) {
             // First patrol waypoint: replace existing waypoints to start patrol immediately
@@ -776,6 +784,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
             ship.path = null;
             // Clear patrol state - manual attack takes priority over patrol
             ship.patrolRoute = [];
+            ship.patrolCircuit = null;
             ship.isPatrolling = false;
             attackCount++;
         }

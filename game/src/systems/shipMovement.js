@@ -256,26 +256,40 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                         const nextWp = ship.waypoints[0];
                         ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, blockedHexes);
                     } else if (ship.isPatrolling && ship.patrolRoute.length > 0) {
-                        // Patrol loop - restore waypoints from patrol route
-                        ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+                        // Patrol loop - use pre-computed circuit if available (optimized to minimize doubling back)
+                        if (ship.patrolCircuit && ship.patrolCircuit.length > 0) {
+                            // Use the pre-computed optimized circuit path
+                            ship.path = ship.patrolCircuit.map(hex => ({ q: hex.q, r: hex.r }));
+                            ship.waypoints = []; // Circuit contains the full path
 
-                        // Skip waypoints the ship is already at
-                        while (ship.waypoints.length > 0 &&
-                               ship.q === ship.waypoints[0].q &&
-                               ship.r === ship.waypoints[0].r) {
-                            ship.waypoints.shift();
-                            // If we've skipped all waypoints, restore again to continue loop
-                            if (ship.waypoints.length === 0) {
-                                ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
-                                break; // Avoid infinite loop - just start from beginning
+                            // Skip hexes the ship is already at or has passed
+                            while (ship.path.length > 0 &&
+                                   ship.q === ship.path[0].q &&
+                                   ship.r === ship.path[0].r) {
+                                ship.path.shift();
                             }
-                        }
-
-                        if (ship.waypoints.length > 0) {
-                            const nextWp = ship.waypoints[0];
-                            ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, blockedHexes);
                         } else {
-                            ship.path = null;
+                            // Fallback: restore waypoints from patrol route (old behavior)
+                            ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+
+                            // Skip waypoints the ship is already at
+                            while (ship.waypoints.length > 0 &&
+                                   ship.q === ship.waypoints[0].q &&
+                                   ship.r === ship.waypoints[0].r) {
+                                ship.waypoints.shift();
+                                // If we've skipped all waypoints, restore again to continue loop
+                                if (ship.waypoints.length === 0) {
+                                    ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
+                                    break; // Avoid infinite loop - just start from beginning
+                                }
+                            }
+
+                            if (ship.waypoints.length > 0) {
+                                const nextWp = ship.waypoints[0];
+                                ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, blockedHexes);
+                            } else {
+                                ship.path = null;
+                            }
                         }
                     } else {
                         ship.path = null;
