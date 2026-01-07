@@ -4,6 +4,64 @@ import { hexNeighbors, hexDistance, hexKey } from "./hex.js";
 // Water tile types that ships can traverse
 const WATER_TILES = new Set(['shallow', 'deep_ocean']);
 
+/**
+ * Binary Min-Heap for efficient priority queue operations
+ * Used by A* pathfinding to get the node with lowest f-score in O(log n)
+ */
+class MinHeap {
+    constructor() {
+        this.heap = [];
+    }
+
+    isEmpty() {
+        return this.heap.length === 0;
+    }
+
+    insert(item) {
+        this.heap.push(item);
+        this.bubbleUp(this.heap.length - 1);
+    }
+
+    extractMin() {
+        if (this.heap.length === 0) return null;
+        if (this.heap.length === 1) return this.heap.pop();
+
+        const min = this.heap[0];
+        this.heap[0] = this.heap.pop();
+        this.bubbleDown(0);
+        return min;
+    }
+
+    bubbleUp(index) {
+        while (index > 0) {
+            const parentIndex = Math.floor((index - 1) / 2);
+            if (this.heap[parentIndex].f <= this.heap[index].f) break;
+            [this.heap[parentIndex], this.heap[index]] = [this.heap[index], this.heap[parentIndex]];
+            index = parentIndex;
+        }
+    }
+
+    bubbleDown(index) {
+        const length = this.heap.length;
+        while (true) {
+            const leftChild = 2 * index + 1;
+            const rightChild = 2 * index + 2;
+            let smallest = index;
+
+            if (leftChild < length && this.heap[leftChild].f < this.heap[smallest].f) {
+                smallest = leftChild;
+            }
+            if (rightChild < length && this.heap[rightChild].f < this.heap[smallest].f) {
+                smallest = rightChild;
+            }
+
+            if (smallest === index) break;
+            [this.heap[smallest], this.heap[index]] = [this.heap[index], this.heap[smallest]];
+            index = smallest;
+        }
+    }
+}
+
 // Check if a tile is passable for ships
 function isPassable(map, q, r) {
     const key = hexKey(q, r);
@@ -114,8 +172,9 @@ export function findPath(map, startQ, startR, goalQ, goalR, blockedHexes = null)
         return null;
     }
 
-    // Priority queue (simple array, sorted by f score)
-    const openSet = [{ q: startQ, r: startR, f: 0 }];
+    // Priority queue using binary min-heap for O(log n) operations
+    const openSet = new MinHeap();
+    openSet.insert({ q: startQ, r: startR, f: 0 });
     const openKeys = new Set([startKey]);
 
     // Track visited nodes and their costs
@@ -125,10 +184,9 @@ export function findPath(map, startQ, startR, goalQ, goalR, blockedHexes = null)
     // Track path (for reconstruction)
     const cameFrom = new Map();
 
-    while (openSet.length > 0) {
-        // Get node with lowest f score
-        openSet.sort((a, b) => a.f - b.f);
-        const current = openSet.shift();
+    while (!openSet.isEmpty()) {
+        // Get node with lowest f score - O(log n) with heap
+        const current = openSet.extractMin();
         const currentKey = hexKey(current.q, current.r);
         openKeys.delete(currentKey);
 
@@ -164,7 +222,7 @@ export function findPath(map, startQ, startR, goalQ, goalR, blockedHexes = null)
                 const f = tentativeG + h;
 
                 if (!openKeys.has(neighborKey)) {
-                    openSet.push({ q: neighbor.q, r: neighbor.r, f });
+                    openSet.insert({ q: neighbor.q, r: neighbor.r, f });
                     openKeys.add(neighborKey);
                 }
             }
