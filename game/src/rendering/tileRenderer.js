@@ -42,8 +42,8 @@ export function drawTiles(ctx, map, tilePositions, tileColors, tileStipples, sti
             color: tileColors.get(tile),
         });
 
-        // Draw stipple dots (only when zoomed in enough)
-        if (zoom > 0.5) {
+        // Draw stipple dots (only when zoomed in enough - raised threshold for performance)
+        if (zoom > 0.65) {
             const stipple = tileStipples.get(tile);
             const dotSize = Math.max(1.5, 2.5 * zoom);
             const isWater = tile.type === 'deep_ocean' || tile.type === 'shallow';

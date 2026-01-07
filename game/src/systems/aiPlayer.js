@@ -18,11 +18,11 @@ import {
 } from "../gameState.js";
 import { findPath } from "../pathfinding.js";
 
-// Decision intervals (seconds)
-const STRATEGIC_DECISION_INTERVAL = 5;    // Major priority adjustments
-const BUILD_DECISION_INTERVAL = 3;        // Building evaluation
-const SHIP_COMMAND_INTERVAL = 2;          // Ship command updates
-const TACTICS_DECISION_INTERVAL = 4;      // Tactical decisions (scout, attack groups, defend)
+// Decision intervals (seconds) - tuned for performance
+const STRATEGIC_DECISION_INTERVAL = 8;    // Major priority adjustments (was 5)
+const BUILD_DECISION_INTERVAL = 5;        // Building evaluation (was 3)
+const SHIP_COMMAND_INTERVAL = 3;          // Ship command updates (was 2)
+const TACTICS_DECISION_INTERVAL = 6;      // Tactical decisions (was 4)
 
 // AI Strategy Definitions
 // Each strategy has different priorities, build configs, and ship behaviors

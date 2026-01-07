@@ -325,6 +325,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Game time tracker for fog animations (runs independently of game speed)
         let gameTime = 0;
 
+        // Fog recalculation throttle (performance optimization)
+        const FOG_RECALC_INTERVAL = 0.1;  // Max 10 recalculations per second
+        let fogRecalcCooldown = 0;
+
         // Bird states (3 birds orbiting home port with varying sizes and staggered starts)
         const homeHex = gameState.homeIslandHex;
         const birdStates = homeHex ? [
@@ -486,9 +490,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             updatePirateRespawns(gameState, map, createShip, hexKey, dt);
             updateWaveSpawner(gameState, map, createShip, hexKey, dt, fogState);
 
-            // Recalculate fog visibility if any vision source changed
-            if (isVisibilityDirty(fogState)) {
+            // Recalculate fog visibility if any vision source changed (throttled for performance)
+            fogRecalcCooldown = Math.max(0, fogRecalcCooldown - rawDt);
+            if (isVisibilityDirty(fogState) && fogRecalcCooldown <= 0) {
                 recalculateVisibility(fogState, gameState, gameTime);
+                fogRecalcCooldown = FOG_RECALC_INTERVAL;
             }
 
             // Decay hit flash timers

@@ -86,9 +86,9 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
 
         if (ship.waypoints.length === 0) continue;
 
-        // Build blocked hexes (other ships, not this one)
-        const blockedHexes = new Set(occupiedHexes);
-        blockedHexes.delete(hexKey(ship.q, ship.r));
+        // Temporarily remove this ship from occupied set (avoids O(n) set copy per ship)
+        const shipKey = hexKey(ship.q, ship.r);
+        occupiedHexes.delete(shipKey);
 
         // Calculate path if needed
         if (!ship.path) {
@@ -112,12 +112,13 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                     if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
                         ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
                     }
+                    occupiedHexes.add(shipKey);  // Restore before continue
                     continue;
                 }
 
-                if (blockedHexes.has(destKey)) {
+                if (occupiedHexes.has(destKey)) {
                     // Find nearest available hex to the destination
-                    const alt = findNearestAvailable(map, currentWaypoint.q, currentWaypoint.r, blockedHexes);
+                    const alt = findNearestAvailable(map, currentWaypoint.q, currentWaypoint.r, occupiedHexes);
                     if (alt) {
                         // If we're already at the alternative, consider waypoint "reached" and move on
                         if (ship.q === alt.q && ship.r === alt.r) {
@@ -125,6 +126,7 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                             if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
                                 ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
                             }
+                            occupiedHexes.add(shipKey);  // Restore before continue
                             continue;
                         }
                         targetQ = alt.q;
@@ -136,11 +138,12 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                         if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
                             ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
                         }
+                        occupiedHexes.add(shipKey);  // Restore before continue
                         continue;
                     }
                 }
 
-                ship.path = findPath(map, ship.q, ship.r, targetQ, targetR, blockedHexes);
+                ship.path = findPath(map, ship.q, ship.r, targetQ, targetR, occupiedHexes);
 
                 // No valid path - skip to next waypoint
                 if (!ship.path) {
@@ -149,6 +152,7 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                     if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
                         ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
                     }
+                    occupiedHexes.add(shipKey);  // Restore before continue
                     continue;
                 }
             }
@@ -175,10 +179,10 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
             if (occupiedHexes.has(nextKey) && nextKey !== currentKey) {
                 // Next hex is blocked - find alternative destination near current waypoint
                 const currentWaypoint = ship.waypoints[0];
-                const alt = findNearestAvailable(map, currentWaypoint.q, currentWaypoint.r, blockedHexes);
+                const alt = findNearestAvailable(map, currentWaypoint.q, currentWaypoint.r, occupiedHexes);
                 if (alt && (alt.q !== ship.q || alt.r !== ship.r)) {
                     // Recalculate path to alternative destination
-                    const newPath = findPath(map, ship.q, ship.r, alt.q, alt.r, blockedHexes);
+                    const newPath = findPath(map, ship.q, ship.r, alt.q, alt.r, occupiedHexes);
                     if (newPath && newPath.length > 0) {
                         ship.path = newPath;
                         // Don't reset moveProgress - continue smooth movement
@@ -195,6 +199,7 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                     ship.moveProgress = 0;
                     ship.movingToward = null;
                 }
+                occupiedHexes.add(shipKey);  // Restore before continue
                 continue;
             }
 
@@ -254,7 +259,7 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                     // Calculate path to next waypoint immediately to avoid visual flash
                     if (ship.waypoints.length > 0) {
                         const nextWp = ship.waypoints[0];
-                        ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, blockedHexes);
+                        ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, occupiedHexes);
                     } else if (ship.isPatrolling && ship.patrolRoute.length > 0) {
                         // Patrol loop - restore waypoints from patrol route
                         ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
@@ -273,7 +278,7 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
 
                         if (ship.waypoints.length > 0) {
                             const nextWp = ship.waypoints[0];
-                            ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, blockedHexes);
+                            ship.path = findPath(map, ship.q, ship.r, nextWp.q, nextWp.r, occupiedHexes);
                         } else {
                             ship.path = null;
                         }
@@ -283,6 +288,9 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                 }
             }
         }
+
+        // Restore this ship's current position to occupied set
+        occupiedHexes.add(hexKey(ship.q, ship.r));
     }
 
     // Update ship water trails
