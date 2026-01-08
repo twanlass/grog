@@ -200,8 +200,9 @@ function computeIslandCenter(map, islandTiles) {
  * @param {object} ctx - Render context
  * @param {Array} islands - Pre-computed island data from computeIslands()
  * @param {number} waveTime - Animation time
+ * @param {object} fogState - Fog of war state (optional, for culling unexplored islands)
  */
-export function drawIslandWaves(ctx, islands, waveTime) {
+export function drawIslandWaves(ctx, islands, waveTime, fogState = null) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
     // Only draw when zoomed in enough
@@ -212,6 +213,18 @@ export function drawIslandWaves(ctx, islands, waveTime) {
     for (const island of islands) {
         // Skip islands with no valid outline
         if (island.outline.length < 3) continue;
+
+        // Skip unexplored islands - check if any tile in the island is explored
+        if (fogState && !fogState.debugHideFog) {
+            let hasExploredTile = false;
+            for (const key of island.tiles) {
+                if (fogState.exploredHexes.has(key)) {
+                    hasExploredTile = true;
+                    break;
+                }
+            }
+            if (!hasExploredTile) continue;
+        }
 
         // Quick visibility check using island center
         const centerScreenX = (island.center.x - cameraX) * zoom + halfWidth;

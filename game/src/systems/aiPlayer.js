@@ -19,10 +19,35 @@ import {
 import { findPath } from "../pathfinding.js";
 
 // Decision intervals (seconds) - tuned for performance
-const STRATEGIC_DECISION_INTERVAL = 8;    // Major priority adjustments (was 5)
-const BUILD_DECISION_INTERVAL = 5;        // Building evaluation (was 3)
-const SHIP_COMMAND_INTERVAL = 3;          // Ship command updates (was 2)
-const TACTICS_DECISION_INTERVAL = 6;      // Tactical decisions (was 4)
+const BASE_STRATEGIC_DECISION_INTERVAL = 8;    // Major priority adjustments
+const BASE_BUILD_DECISION_INTERVAL = 5;        // Building evaluation
+const BASE_SHIP_COMMAND_INTERVAL = 3;          // Ship command updates
+const BASE_TACTICS_DECISION_INTERVAL = 6;      // Tactical decisions
+
+// AI Difficulty Presets
+export const AI_DIFFICULTY = {
+    easy: {
+        decisionSpeedMult: 1.5,    // 50% slower decisions
+        shipCapMult: 0.7,          // Fewer ships
+        aggressionMult: 0.7,       // Less aggressive (higher retreat threshold)
+        economyMult: 0.8,          // Slower economy growth
+        label: 'Easy',
+    },
+    normal: {
+        decisionSpeedMult: 1.0,
+        shipCapMult: 1.0,
+        aggressionMult: 1.0,
+        economyMult: 1.0,
+        label: 'Normal',
+    },
+    hard: {
+        decisionSpeedMult: 0.5,    // 2x faster decisions
+        shipCapMult: 1.5,          // More ships
+        aggressionMult: 1.3,       // More aggressive (lower retreat threshold)
+        economyMult: 1.3,          // Faster economy growth
+        label: 'Hard',
+    },
+};
 
 // AI Strategy Definitions
 // Each strategy has different priorities, build configs, and ship behaviors
@@ -204,22 +229,25 @@ function updateSingleAI(gameState, map, fogState, dt, ai, aiOwner, aiIndex) {
     ai.shipCommandCooldown = Math.max(0, (ai.shipCommandCooldown || 0) - dt);
     ai.tacticsCooldown = Math.max(0, (ai.tacticsCooldown || 0) - dt);
 
-    // Strategic decisions (every 5 seconds)
+    // Get difficulty speed multiplier (higher = slower decisions)
+    const speedMult = ai.difficultySettings?.decisionSpeedMult || 1.0;
+
+    // Strategic decisions (every 8 seconds * difficulty)
     if (ai.decisionCooldown <= 0) {
         updateStrategicPriorities(gameState, map, ai, aiOwner);
-        ai.decisionCooldown = STRATEGIC_DECISION_INTERVAL;
+        ai.decisionCooldown = BASE_STRATEGIC_DECISION_INTERVAL * speedMult;
     }
 
-    // Build decisions (every 3 seconds)
+    // Build decisions (every 5 seconds * difficulty)
     if (ai.buildDecisionCooldown <= 0) {
         evaluateBuildOptions(gameState, map, fogState, ai, aiOwner);
-        ai.buildDecisionCooldown = BUILD_DECISION_INTERVAL;
+        ai.buildDecisionCooldown = BASE_BUILD_DECISION_INTERVAL * speedMult;
     }
 
-    // Tactical decisions (every 4 seconds)
+    // Tactical decisions (every 6 seconds * difficulty)
     if (ai.tacticsCooldown <= 0) {
         updateTactics(gameState, map, ai, aiOwner);
-        ai.tacticsCooldown = TACTICS_DECISION_INTERVAL;
+        ai.tacticsCooldown = BASE_TACTICS_DECISION_INTERVAL * speedMult;
     }
 
     // Update expansion mission (every frame for responsiveness)
@@ -227,17 +255,17 @@ function updateSingleAI(gameState, map, fogState, dt, ai, aiOwner, aiIndex) {
         updateExpansionMission(gameState, map, ai, aiOwner);
     }
 
-    // Ship commands (every 2 seconds)
+    // Ship commands (every 3 seconds * difficulty)
     if (ai.shipCommandCooldown <= 0) {
         updateShipCommands(gameState, map, ai, aiOwner);
-        ai.shipCommandCooldown = SHIP_COMMAND_INTERVAL;
+        ai.shipCommandCooldown = BASE_SHIP_COMMAND_INTERVAL * speedMult;
     }
 
-    // Plunder evaluation (every 5 seconds)
+    // Plunder evaluation (every 15 seconds)
     ai.plunderCooldown = Math.max(0, (ai.plunderCooldown || 0) - dt);
     if (ai.plunderCooldown <= 0) {
         evaluatePlunderRoutes(gameState, map, ai, aiOwner);
-        ai.plunderCooldown = 5;
+        ai.plunderCooldown = 15;
     }
 
     // Decay threat level over time
@@ -608,11 +636,18 @@ function manageGroupAttack(gameState, map, ai, aiOwner) {
 
 /**
  * Evaluate what to build next
- * Now uses strategy-based build config
+ * Now uses strategy-based build config with difficulty scaling
  */
 function evaluateBuildOptions(gameState, map, fogState, ai, aiOwner) {
     const strategy = AI_STRATEGIES[ai.strategy];
     const buildConfig = strategy.buildConfig;
+
+    // Apply difficulty multipliers
+    const shipCapMult = ai.difficultySettings?.shipCapMult || 1.0;
+    const economyMult = ai.difficultySettings?.economyMult || 1.0;
+    const effectiveShipCap = Math.floor(buildConfig.shipCap * shipCapMult);
+    const effectiveMaxSettlements = Math.floor(buildConfig.maxSettlements * economyMult);
+    const effectiveMinShips = Math.max(1, Math.floor(buildConfig.minShips * shipCapMult));
 
     const aiPorts = getPortsByOwner(gameState, aiOwner);
     const aiShips = getShipsByOwner(gameState, aiOwner);
@@ -622,20 +657,20 @@ function evaluateBuildOptions(gameState, map, fogState, ai, aiOwner) {
     // Skip if no ports
     if (aiPorts.length === 0) return;
 
-    // Priority 1: Maintain minimum ships (strategy-defined)
-    if (aiShips.length < buildConfig.minShips) {
+    // Priority 1: Maintain minimum ships (difficulty-scaled)
+    if (aiShips.length < effectiveMinShips) {
         if (tryBuildShip(gameState, map, 'cutter', fogState, ai, aiOwner)) return;
     }
 
-    // Priority 2: Build settlements (strategy-defined limits and thresholds)
+    // Priority 2: Build settlements (difficulty-scaled limits)
     const completedSettlements = aiSettlements.filter(s => !s.construction).length;
-    if (completedSettlements < buildConfig.maxSettlements &&
+    if (completedSettlements < effectiveMaxSettlements &&
         ai.resources.wood >= buildConfig.settlementWoodThreshold) {
         if (tryBuildSettlement(gameState, map, ai, aiOwner)) return;
     }
 
-    // Priority 3: Build ships based on priorities and strategy
-    if (ai.priorities.military > 0.5 && aiShips.length < buildConfig.shipCap) {
+    // Priority 3: Build ships based on priorities and strategy (difficulty-scaled cap)
+    if (ai.priorities.military > 0.5 && aiShips.length < effectiveShipCap) {
         // Try preferred ship type first
         const preferredCost = SHIPS[buildConfig.preferredShipType]?.cost?.wood || 25;
         if (ai.resources.wood >= preferredCost) {
@@ -645,7 +680,7 @@ function evaluateBuildOptions(gameState, map, fogState, ai, aiOwner) {
         if (ai.resources.wood >= 10) {
             if (tryBuildShip(gameState, map, 'cutter', fogState, ai, aiOwner)) return;
         }
-    } else if (ai.priorities.economy > 0.5 && aiShips.length < Math.min(4, buildConfig.shipCap)) {
+    } else if (ai.priorities.economy > 0.5 && aiShips.length < Math.min(4, effectiveShipCap)) {
         // Build cargo ships for trading
         if (tryBuildShip(gameState, map, 'schooner', fogState, ai, aiOwner)) return;
         if (tryBuildShip(gameState, map, 'cutter', fogState, ai, aiOwner)) return;
@@ -676,7 +711,7 @@ function evaluateBuildOptions(gameState, map, fogState, ai, aiOwner) {
 
     // Priority 8 (Economic strategy bonus): Aggressive expansion when rich
     if (ai.strategy === 'economic' && ai.resources.wood > 50 &&
-        aiShips.length >= 3 && completedSettlements < buildConfig.maxSettlements) {
+        aiShips.length >= 3 && completedSettlements < effectiveMaxSettlements) {
         if (tryBuildSettlement(gameState, map, ai, aiOwner)) return;
     }
 }
@@ -1271,9 +1306,9 @@ function updateExpansionMission(gameState, map, ai, aiOwner) {
  * Decision based on: 1) AI strategy, 2) idle ships available
  */
 function evaluatePlunderRoutes(gameState, map, ai, aiOwner) {
-    // Plunder chance based on strategy: aggressive = 0.6, economic = 0.3, defensive = 0.1
+    // Plunder chance based on strategy: aggressive = 0.36, economic = 0.12, defensive = 0.16
     const strategy = AI_STRATEGIES[ai.strategy];
-    const plunderChance = strategy.basePriorities.military * 0.7;  // Aggressive ~0.63, Defensive ~0.28, Economic ~0.21
+    const plunderChance = strategy.basePriorities.military * 0.4;
 
     if (Math.random() > plunderChance) return;  // Skip this evaluation based on strategy
 
@@ -1533,7 +1568,6 @@ function findNearestEnemy(ship, gameState, aiOwner) {
     for (let i = 0; i < gameState.ships.length; i++) {
         const target = gameState.ships[i];
         if (target.owner === aiOwner) continue;  // Skip own ships
-        if (target.type === 'pirate') continue;  // Skip neutral pirates
 
         const dist = hexDistance(ship.q, ship.r, target.q, target.r);
         if (dist < nearestDist) {

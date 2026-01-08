@@ -1544,3 +1544,73 @@ Read the output file to retrieve the output.
 
 ## 354. User prompt
 > claude --teleport session_0135cW7gfmdNyX2k54o1Epzb
+
+## 355. User prompt
+> 3
+
+## 356. User prompt
+> ship it
+
+## 357. User prompt
+> /ship-it 
+
+## 358. User prompt
+> <bash-notification>
+<shell-id>b506544</shell-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b506544.output</output-file>
+<status>killed</status>
+<summary>Background command "Start the game dev server" was killed.</summary>
+Read the output file to retrieve the output.
+</bash-notification>
+
+## 359. User prompt
+> let's make some more performance improvments. Right now, when looking at fogged area (unexplored) with no units on screen and no AI in Sandbox mode fps hovers around 20 FPS. When viewing past the edge of the map (pure black) FPS is 60. Expore the codebase and make some recommendations. 
+
+## 360. User prompt
+> start the game server 
+
+## 361. User prompt
+> it'sa bout 26 now. Can we kill the hatching all together? 
+
+## 362. User prompt
+> hatching added another 10 FPS! We're now at ~30 though when no units are screen and nothing is happening: 
+
+## 363. User prompt
+> we can probably also skip rendering waves
+
+## 364. User prompt
+> 60 fps boom!
+
+## 365. User prompt
+> ship it
+
+## 366. User prompt
+> in vs mode, let's tone down the pirates. wait to spawn them until later into the game and increase the time between spawning when destroyed 
+
+## 367. User prompt
+> does AI know to attack pirates? Does it know it's under attack when pirates are attacking their structures? 
+
+## 368. User prompt
+>  crash: 
+Tower upgraded: mortarTower → cannonBattery at (27, 42)
+inputHandler.js:600 Selected tower at (21, 18)
+gameScene.js:1442 Started upgrading tower to: cannonBattery (hotkey U)
+inputHandler.js:558 Selected port: dock
+gameScene.js:1345 Settlement placement mode (hotkey S)
+inputHandler.js:68 Started building settlement at (25, 18) by port 0
+inputHandler.js:558 Selected port: dock
+kaplay.js?v=9a8bb7fb:5276 TypeError: Cannot read properties of undefined (reading 'owner')
+    at handlePatrolAutoAttack (combat.js:445:24)
+    at Object.<anonymous> (gameScene.js:460:13)
+
+## 369. User prompt
+> how might we adjust the difficulty of the AI players? They feel too easy right now. 
+
+## 370. User prompt
+> quick bug since we added the difficulty to the skirmish button – only play the audio clip when skirmish is clicked and not already active / highlighted 
+
+## 371. User prompt
+> one more tweak – ai tries to plunder too often
+
+## 372. User prompt
+> ship it

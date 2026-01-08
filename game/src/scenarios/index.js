@@ -10,12 +10,14 @@ export const SCENARIOS = [
         startingResources: { wood: 25 },
         pirateConfig: {
             startingCount: 2,  // Neutral pirates spawn at map center
-            initialDelay: 0,
+            initialDelay: 180,  // 3 minutes before first pirates spawn
+            respawnDelay: 90,   // 90 seconds before destroyed pirates respawn
             spawnAtCenter: true,  // Spawn in middle of map instead of near home port
         },
         aiConfig: {
             enabled: true,
             aiCount: 2,  // Number of AI opponents (3-way free-for-all)
+            difficulty: 'normal',  // 'easy' | 'normal' | 'hard'
             startingResources: { wood: 25 },  // Mirror player starting resources
         },
     },
