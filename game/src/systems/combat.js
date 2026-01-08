@@ -11,6 +11,105 @@ import { markVisibilityDirty, revealRadius } from "../fogOfWar.js";
 export const CANNON_DAMAGE = 5;
 export const PIRATE_RESPAWN_COOLDOWN = 30;  // seconds before a destroyed pirate respawns
 
+// ============================================================================
+// PERFORMANCE OPTIMIZATION: Position lookup maps and spatial indexing
+// ============================================================================
+
+// Cached position lookup maps (rebuilt each frame in updateCombat)
+let entityPositionMap = null;  // hexKey -> { ships: [...], ports: [...], towers: [...], settlements: [...] }
+let shipSpatialIndex = null;   // regionKey -> [shipIndices]
+
+// Spatial index cell size (in hex units) - ships within this range are grouped
+const SPATIAL_CELL_SIZE = 8;
+
+/**
+ * Build position lookup map for O(1) entity queries by hex position
+ * Used by projectile hit detection
+ */
+function buildEntityPositionMap(gameState) {
+    const map = new Map();
+
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const ship = gameState.ships[i];
+        const key = hexKey(ship.q, ship.r);
+        if (!map.has(key)) map.set(key, { ships: [], ports: [], towers: [], settlements: [] });
+        map.get(key).ships.push({ index: i, entity: ship });
+    }
+
+    for (let i = 0; i < gameState.ports.length; i++) {
+        const port = gameState.ports[i];
+        const key = hexKey(port.q, port.r);
+        if (!map.has(key)) map.set(key, { ships: [], ports: [], towers: [], settlements: [] });
+        map.get(key).ports.push({ index: i, entity: port });
+    }
+
+    for (let i = 0; i < gameState.towers.length; i++) {
+        const tower = gameState.towers[i];
+        const key = hexKey(tower.q, tower.r);
+        if (!map.has(key)) map.set(key, { ships: [], ports: [], towers: [], settlements: [] });
+        map.get(key).towers.push({ index: i, entity: tower });
+    }
+
+    for (let i = 0; i < gameState.settlements.length; i++) {
+        const settlement = gameState.settlements[i];
+        const key = hexKey(settlement.q, settlement.r);
+        if (!map.has(key)) map.set(key, { ships: [], ports: [], towers: [], settlements: [] });
+        map.get(key).settlements.push({ index: i, entity: settlement });
+    }
+
+    return map;
+}
+
+/**
+ * Get spatial cell key for a position
+ */
+function getSpatialCellKey(q, r) {
+    const cellQ = Math.floor(q / SPATIAL_CELL_SIZE);
+    const cellR = Math.floor(r / SPATIAL_CELL_SIZE);
+    return `${cellQ},${cellR}`;
+}
+
+/**
+ * Build spatial index for ships - groups ships by cell for efficient range queries
+ */
+function buildShipSpatialIndex(gameState) {
+    const index = new Map();
+
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const ship = gameState.ships[i];
+        const cellKey = getSpatialCellKey(ship.q, ship.r);
+        if (!index.has(cellKey)) index.set(cellKey, []);
+        index.get(cellKey).push(i);
+    }
+
+    return index;
+}
+
+/**
+ * Get ship indices in cells that could be within range of a position
+ * Returns array of ship indices to check (much smaller than all ships)
+ */
+function getShipsInRange(spatialIndex, gameState, q, r, range) {
+    const candidates = [];
+    const cellRange = Math.ceil(range / SPATIAL_CELL_SIZE) + 1;
+    const centerCellQ = Math.floor(q / SPATIAL_CELL_SIZE);
+    const centerCellR = Math.floor(r / SPATIAL_CELL_SIZE);
+
+    for (let dq = -cellRange; dq <= cellRange; dq++) {
+        for (let dr = -cellRange; dr <= cellRange; dr++) {
+            const cellKey = `${centerCellQ + dq},${centerCellR + dr}`;
+            const shipsInCell = spatialIndex.get(cellKey);
+            if (shipsInCell) {
+                for (const shipIndex of shipsInCell) {
+                    candidates.push(shipIndex);
+                }
+            }
+        }
+    }
+
+    return candidates;
+}
+
 /**
  * Find water tiles near map center for pirate spawning (versus mode)
  * @param {Object} map - The map object with tiles, width, height
@@ -128,6 +227,10 @@ function spawnWoodSplinters(gameState, q, r) {
  */
 export function updateCombat(hexToPixel, gameState, map, dt, fogState) {
     if (dt === 0) return; // Paused
+
+    // Build spatial indexes once per frame for efficient lookups
+    entityPositionMap = buildEntityPositionMap(gameState);
+    shipSpatialIndex = buildShipSpatialIndex(gameState);
 
     processShipPendingShots(gameState, dt, fogState);  // Fire queued ship shots
     handlePirateAttacks(gameState, dt, fogState);
@@ -313,8 +416,12 @@ function handleAutoReturnFire(gameState) {
  * Patrolling ships automatically detect and attack nearby enemies
  * Uses each ship's sightDistance for detection range
  * Now owner-aware: player ships attack pirates and AI ships, AI ships attack player ships
+ * Performance: Uses spatial index for efficient enemy detection
  */
 export function handlePatrolAutoAttack(gameState) {
+    // Build spatial index if not already built (in case called outside updateCombat)
+    const spatialIndex = shipSpatialIndex || buildShipSpatialIndex(gameState);
+
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
         if (ship.type === 'pirate') continue;  // Pirates use their own AI
@@ -325,11 +432,13 @@ export function handlePatrolAutoAttack(gameState) {
         const detectRange = SHIPS[ship.type].sightDistance;
         const shipOwner = ship.owner || 'player';
 
-        // Find nearest enemy within detection range
+        // Find nearest enemy within detection range using spatial index
         let nearestEnemy = null;
         let nearestDist = Infinity;
 
-        for (let j = 0; j < gameState.ships.length; j++) {
+        const candidateIndices = getShipsInRange(spatialIndex, gameState, ship.q, ship.r, detectRange);
+        for (const j of candidateIndices) {
+            if (j === i) continue;  // Skip self
             const target = gameState.ships[j];
             // Skip friendly ships
             if (target.owner === shipOwner) continue;
@@ -556,11 +665,14 @@ function handleTowerAttacks(gameState, dt) {
             }
         }
 
-        // Find all enemies in range, sorted by distance
+        // Find all enemies in range using spatial index, sorted by distance
         // Tower owner determines who is an enemy
         const towerOwner = tower.owner || 'player';
         const enemiesInRange = [];
-        for (let j = 0; j < gameState.ships.length; j++) {
+
+        // Use spatial index to only check nearby ships
+        const candidateIndices = getShipsInRange(shipSpatialIndex, gameState, tower.q, tower.r, attackRange);
+        for (const j of candidateIndices) {
             const ship = gameState.ships[j];
             // Skip friendly ships
             if (ship.owner === towerOwner) continue;
@@ -620,7 +732,7 @@ function handleTowerAttacks(gameState, dt) {
 
 /**
  * Move projectiles and apply damage when they hit
- * Uses position-based hit detection: only hits if a valid target is at destination hex
+ * Uses position-based hit detection with O(1) lookup via entityPositionMap
  * Now owner-aware: projectiles only hit entities owned by enemies
  */
 function updateProjectiles(gameState, dt, fogState) {
@@ -645,59 +757,55 @@ function updateProjectiles(gameState, dt, fogState) {
                 sourceOwner = sourceTower.owner || 'player';
             }
 
-            // Find any valid target at the destination hex
+            // Find any valid target at the destination hex using O(1) lookup
             let hitType = null;
             let hitIndex = -1;
 
-            // Check ships at destination
-            for (let j = 0; j < gameState.ships.length; j++) {
-                const ship = gameState.ships[j];
-                if (ship.q === proj.toQ && ship.r === proj.toR) {
+            const destKey = hexKey(proj.toQ, proj.toR);
+            const entitiesAtDest = entityPositionMap.get(destKey);
+
+            if (entitiesAtDest) {
+                // Check ships at destination
+                for (const { index, entity: ship } of entitiesAtDest.ships) {
                     const targetOwner = ship.type === 'pirate' ? 'pirate' : (ship.owner || 'player');
-                    // Can only hit enemies (different owner)
                     if (targetOwner !== sourceOwner) {
                         hitType = 'ship';
-                        hitIndex = j;
+                        hitIndex = index;
                         break;
                     }
                 }
-            }
 
-            // Also check ports/towers/settlements at destination (enemies can hit these)
-            if (hitIndex === -1) {
-                for (let j = 0; j < gameState.ports.length; j++) {
-                    const port = gameState.ports[j];
-                    if (port.q === proj.toQ && port.r === proj.toR) {
+                // Check ports at destination
+                if (hitIndex === -1) {
+                    for (const { index, entity: port } of entitiesAtDest.ports) {
                         const targetOwner = port.owner || 'player';
                         if (targetOwner !== sourceOwner) {
                             hitType = 'port';
-                            hitIndex = j;
+                            hitIndex = index;
                             break;
                         }
                     }
                 }
-            }
-            if (hitIndex === -1) {
-                for (let j = 0; j < gameState.towers.length; j++) {
-                    const tower = gameState.towers[j];
-                    if (tower.q === proj.toQ && tower.r === proj.toR) {
+
+                // Check towers at destination
+                if (hitIndex === -1) {
+                    for (const { index, entity: tower } of entitiesAtDest.towers) {
                         const targetOwner = tower.owner || 'player';
                         if (targetOwner !== sourceOwner) {
                             hitType = 'tower';
-                            hitIndex = j;
+                            hitIndex = index;
                             break;
                         }
                     }
                 }
-            }
-            if (hitIndex === -1) {
-                for (let j = 0; j < gameState.settlements.length; j++) {
-                    const settlement = gameState.settlements[j];
-                    if (settlement.q === proj.toQ && settlement.r === proj.toR) {
+
+                // Check settlements at destination
+                if (hitIndex === -1) {
+                    for (const { index, entity: settlement } of entitiesAtDest.settlements) {
                         const targetOwner = settlement.owner || 'player';
                         if (targetOwner !== sourceOwner) {
                             hitType = 'settlement';
-                            hitIndex = j;
+                            hitIndex = index;
                             break;
                         }
                     }

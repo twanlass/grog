@@ -10,6 +10,53 @@ import { isAIOwner } from "./gameState.js";
 const RING_DELAY = 0.06;      // Seconds between each ring reveal
 const FADE_DURATION = 0.12;   // Seconds for each hex to fade in/out
 
+// Pre-computed hex offsets for visibility radii (performance optimization)
+// Maps radius -> array of {dq, dr} offsets
+const radiusOffsetsCache = new Map();
+
+/**
+ * Get pre-computed hex offsets for a given radius
+ * Uses cached values to avoid BFS on every visibility calculation
+ */
+function getRadiusOffsets(radius) {
+    if (radiusOffsetsCache.has(radius)) {
+        return radiusOffsetsCache.get(radius);
+    }
+
+    // Compute offsets using BFS once, then cache
+    const offsets = [{ dq: 0, dr: 0 }];
+    if (radius > 0) {
+        const visited = new Set(['0,0']);
+        let current = [{ dq: 0, dr: 0 }];
+
+        // Hex neighbor directions (axial coordinates)
+        const directions = [
+            { dq: 1, dr: 0 }, { dq: 1, dr: -1 }, { dq: 0, dr: -1 },
+            { dq: -1, dr: 0 }, { dq: -1, dr: 1 }, { dq: 0, dr: 1 }
+        ];
+
+        for (let ring = 1; ring <= radius; ring++) {
+            const next = [];
+            for (const hex of current) {
+                for (const dir of directions) {
+                    const ndq = hex.dq + dir.dq;
+                    const ndr = hex.dr + dir.dr;
+                    const key = `${ndq},${ndr}`;
+                    if (!visited.has(key)) {
+                        visited.add(key);
+                        offsets.push({ dq: ndq, dr: ndr });
+                        next.push({ dq: ndq, dr: ndr });
+                    }
+                }
+            }
+            current = next;
+        }
+    }
+
+    radiusOffsetsCache.set(radius, offsets);
+    return offsets;
+}
+
 // Create fog state with explored (permanent) and visible (dynamic) hex sets
 export function createFogState() {
     return {
@@ -98,27 +145,12 @@ export function isVisibilityDirty(fogState) {
     return fogState.isDirty;
 }
 
-// Helper: Add hexes within radius to a target set using BFS
+// Helper: Add hexes within radius to a target set using cached offsets
+// Performance: Uses pre-computed offsets instead of BFS
 function addRadiusToSet(targetSet, q, r, radius) {
-    targetSet.add(hexKey(q, r));
-    if (radius <= 0) return;
-
-    const visited = new Set([hexKey(q, r)]);
-    let current = [{ q, r }];
-
-    for (let ring = 1; ring <= radius; ring++) {
-        const next = [];
-        for (const hex of current) {
-            for (const neighbor of hexNeighbors(hex.q, hex.r)) {
-                const key = hexKey(neighbor.q, neighbor.r);
-                if (!visited.has(key)) {
-                    visited.add(key);
-                    targetSet.add(key);
-                    next.push(neighbor);
-                }
-            }
-        }
-        current = next;
+    const offsets = getRadiusOffsets(radius);
+    for (const offset of offsets) {
+        targetSet.add(hexKey(q + offset.dq, r + offset.dr));
     }
 }
 
@@ -248,7 +280,20 @@ function startRevealAnimation(fogState, newlyVisibleHexes, visionSources, curren
 
 // Start shroud animation for hexes that lost visibility
 // remainingVisibleHexes: Set of hex keys still visible (to calculate distance from edge)
+// Performance: Samples only a few visible hexes instead of checking all (O(n) vs O(n²))
 function startShroudAnimation(fogState, lostVisibilityHexes, remainingVisibleHexes, currentTime) {
+    // Sample up to 5 visible hexes for distance approximation (performance optimization)
+    const sampleSize = 5;
+    let visibleSamples = null;
+    if (remainingVisibleHexes.size > 0) {
+        visibleSamples = [];
+        let count = 0;
+        for (const visibleKey of remainingVisibleHexes) {
+            visibleSamples.push(parseHexKey(visibleKey));
+            if (++count >= sampleSize) break;
+        }
+    }
+
     for (const key of lostVisibilityHexes) {
         // If already shrouding, skip
         if (fogState.shroudingHexes.has(key)) continue;
@@ -256,22 +301,18 @@ function startShroudAnimation(fogState, lostVisibilityHexes, remainingVisibleHex
         // If revealing, cancel that animation
         fogState.revealingHexes.delete(key);
 
-        const hex = parseHexKey(key);
-
-        // Find minimum distance to any still-visible hex
-        // Closer hexes shroud later (ripple inward effect)
+        // Approximate distance using sampled visible hexes
         let minDist = 0;
-        if (remainingVisibleHexes.size > 0) {
+        if (visibleSamples && visibleSamples.length > 0) {
+            const hex = parseHexKey(key);
             minDist = Infinity;
-            for (const visibleKey of remainingVisibleHexes) {
-                const visible = parseHexKey(visibleKey);
+            for (const visible of visibleSamples) {
                 const dist = hexDistance(hex.q, hex.r, visible.q, visible.r);
                 if (dist < minDist) minDist = dist;
             }
         }
 
         // Ring delay: closer to remaining vision = later shroud (reverse ripple)
-        // Use maxDist - minDist to invert, or just use minDist directly for edge-first
         const ringDelay = minDist * RING_DELAY;
 
         fogState.shroudingHexes.set(key, {
