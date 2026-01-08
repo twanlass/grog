@@ -15,8 +15,9 @@ const GRASS_LENGTH = 4;        // Grass blade length in pixels (scaled by zoom)
  * @param {Map} tileColors - Pre-calculated tile colors
  * @param {Map} tileStipples - Pre-calculated stipple data per tile
  * @param {number} stippleAnimTime - Animation time for water twinkling
+ * @param {object} fogState - Fog of war state (optional, for culling unexplored hexes)
  */
-export function drawTiles(ctx, map, tilePositions, tileColors, tileStipples, stippleAnimTime) {
+export function drawTiles(ctx, map, tilePositions, tileColors, tileStipples, stippleAnimTime, fogState = null) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
     const margin = HEX_SIZE * zoom * 2;
     const scaledSize = HEX_SIZE * zoom;
@@ -29,6 +30,11 @@ export function drawTiles(ctx, map, tilePositions, tileColors, tileStipples, sti
         // Culling - skip off-screen hexes
         if (screenX < -margin || screenX > screenWidth + margin ||
             screenY < -margin || screenY > screenHeight + margin) {
+            continue;
+        }
+
+        // Skip unexplored hexes - they're covered by opaque fog anyway
+        if (fogState && !fogState.debugHideFog && !isHexExplored(fogState, tile.q, tile.r)) {
             continue;
         }
 
@@ -75,8 +81,9 @@ export function drawTiles(ctx, map, tilePositions, tileColors, tileStipples, sti
  * @param {Map} tilePositions - Pre-calculated tile world positions
  * @param {Map} tileDecorations - Pre-calculated decoration data per tile
  * @param {object} gameState - Game state (to check for settlements)
+ * @param {object} fogState - Fog of war state (optional, for culling unexplored hexes)
  */
-export function drawDecorations(ctx, map, tilePositions, tileDecorations, gameState) {
+export function drawDecorations(ctx, map, tilePositions, tileDecorations, gameState, fogState = null) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight, scaledHexSize } = ctx;
     const margin = HEX_SIZE * zoom * 2;
 
@@ -93,6 +100,9 @@ export function drawDecorations(ctx, map, tilePositions, tileDecorations, gameSt
     for (const [key, decorations] of tileDecorations) {
         // Skip if settlement or tower built here
         if (settlementHexes.has(key)) continue;
+
+        // Skip unexplored hexes - they're covered by opaque fog anyway
+        if (fogState && !fogState.debugHideFog && !fogState.exploredHexes.has(key)) continue;
 
         const tile = map.tiles.get(key);
         if (!tile) continue;
@@ -201,54 +211,39 @@ export function drawFogOfWar(ctx, map, tilePositions, fogState, currentTime = 0)
     const margin = HEX_SIZE * zoom * 2;
     const scaledSize = HEX_SIZE * zoom;
 
-    // Full fog colors (never seen)
+    // Full fog color (never seen)
     const fogBaseColor = k.rgb(15, 20, 30);
-    const fogHatchColor = k.rgb(25, 35, 50);
-    const hatchSpacing = Math.max(4, 6 * zoom);
 
     // Partial fog color (explored but not visible)
     const shroudColor = k.rgb(30, 40, 50);
 
     for (const tile of map.tiles.values()) {
-        // Get animated fog opacity
-        const { shroudOpacity, unexploredOpacity } = getHexFogOpacity(fogState, tile.q, tile.r, currentTime);
-
-        // Skip fully visible hexes (no fog)
-        if (shroudOpacity === 0 && unexploredOpacity === 0) continue;
-
         const pos = tilePositions.get(tile);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
         const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
-        // Culling - skip off-screen hexes
+        // Cull FIRST - skip off-screen hexes before expensive calculations
         if (screenX < -margin || screenX > screenWidth + margin ||
             screenY < -margin || screenY > screenHeight + margin) {
             continue;
         }
 
+        // Only calculate opacity for on-screen hexes
+        const { shroudOpacity, unexploredOpacity } = getHexFogOpacity(fogState, tile.q, tile.r, currentTime);
+
+        // Skip fully visible hexes (no fog)
+        if (shroudOpacity === 0 && unexploredOpacity === 0) continue;
+
         const corners = hexCorners(screenX, screenY, scaledSize);
         const pts = corners.map(c => k.vec2(c.x, c.y));
 
         if (unexploredOpacity > 0) {
-            // Never seen - full dark fog with hatching
+            // Never seen - full dark fog
             k.drawPolygon({
                 pts,
                 color: fogBaseColor,
                 opacity: unexploredOpacity,
             });
-
-            // Draw diagonal hatching pattern
-            const hexRadius = scaledSize;
-            for (let i = -4; i <= 4; i++) {
-                const offset = i * hatchSpacing;
-                k.drawLine({
-                    p1: k.vec2(screenX + offset - hexRadius, screenY - hexRadius),
-                    p2: k.vec2(screenX + offset + hexRadius, screenY + hexRadius),
-                    width: 1,
-                    color: fogHatchColor,
-                    opacity: 0.4 * (unexploredOpacity / 0.92), // Scale with fog opacity
-                });
-            }
         } else if (shroudOpacity > 0) {
             // Explored but not fully visible - partial fog (shroud) with animation
             k.drawPolygon({

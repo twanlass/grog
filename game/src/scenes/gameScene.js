@@ -680,9 +680,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             fogState.debugHideFog = debugState.hideFog;
 
             // Draw tiles, waves, decorations, and fog (migrated to rendering modules)
-            drawTiles(ctx, map, tilePositions, tileColors, tileStipples, stippleAnimTime);
-            drawIslandWaves(ctx, islands, stippleAnimTime);
-            drawDecorations(ctx, map, tilePositions, tileDecorations, gameState);
+            drawTiles(ctx, map, tilePositions, tileColors, tileStipples, stippleAnimTime, fogState);
+            drawIslandWaves(ctx, islands, stippleAnimTime, fogState);
+            drawDecorations(ctx, map, tilePositions, tileDecorations, gameState, fogState);
             if (!debugState.hideFog) {
                 drawFogOfWar(ctx, map, tilePositions, fogState, gameTime);
             }

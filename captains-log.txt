@@ -1,6 +1,15 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-07 | Optimize fog rendering: skip unexplored hexes
+----------------------------------------------------------
+### Improved
+- Fog culling moved before opacity calculation (avoids expensive checks on off-screen hexes)
+- Tiles, decorations, and waves skip rendering under unexplored fog (opaque anyway)
+- Removed hatching lines from unexplored fog (reduced draw calls)
+- FPS improved from ~20 to 60 when viewing fogged areas
+
+
 2026-01-07 | Performance optimizations: spatial indexing and caching
 ---------------------------------------------------------------------
 ### Improved
