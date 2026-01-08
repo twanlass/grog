@@ -114,7 +114,7 @@ function drawHexRangeOutline(k, centerQ, centerR, range, cameraX, cameraY, zoom,
     }
 }
 
-export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, getAIStrategy = () => null) {
+export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, getAIStrategy = () => null, getDifficulty = () => 'normal') {
     return function gameScene() {
         // Prevent browser context menu on right-click
         k.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -123,8 +123,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const scenarioId = getScenarioId();
         const scenario = getScenario(scenarioId);
 
-        // Get AI strategy override (null = random)
+        // Get AI strategy override (null = random) and difficulty
         const aiStrategyOverride = getAIStrategy();
+        const difficultyOverride = getDifficulty();
 
         // Generate the map (random each time)
         const map = generateMap({
@@ -174,30 +175,22 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     { q: ai2Port.q, r: ai2Port.r },
                 ];
 
-                // Initialize both AI player states (with optional strategy override)
-                const aiConfig = { ...scenario.aiConfig };
+                // Initialize both AI player states (with optional strategy and difficulty overrides)
+                const aiConfig = { ...scenario.aiConfig, difficulty: difficultyOverride };
                 gameState.aiPlayers = [
                     createAIPlayerState(aiStrategyOverride ? { ...aiConfig, strategy: aiStrategyOverride } : aiConfig),
                     createAIPlayerState(aiConfig),  // Second AI gets random strategy
                 ];
-                console.log(`Versus mode: initialized ${gameState.aiPlayers.length} AIs with fair starting islands`,
+                console.log(`Versus mode: initialized ${gameState.aiPlayers.length} AIs (${aiConfig.difficulty} difficulty)`,
                     `Strategies: ${gameState.aiPlayers.map(a => a.strategy).join(', ')}`);
 
-                // Spawn initial pirates at map center
+                // Queue initial pirates to spawn after delay
                 if (scenario.pirateConfig && scenario.pirateConfig.startingCount > 0) {
-                    const occupiedHexes = new Set(
-                        gameState.ships.map(s => hexKey(s.q, s.r))
-                    );
-                    const spawnPositions = findCenterSpawnPositions(
-                        map,
-                        hexKey,
-                        scenario.pirateConfig.startingCount,
-                        occupiedHexes
-                    );
-                    for (const pos of spawnPositions) {
-                        gameState.ships.push(createShip('pirate', pos.q, pos.r, 'pirate'));
+                    const initialDelay = scenario.pirateConfig.initialDelay || 0;
+                    for (let p = 0; p < scenario.pirateConfig.startingCount; p++) {
+                        gameState.pirateRespawnQueue.push({ timer: initialDelay, spawnAtCenter: true });
                     }
-                    console.log(`Versus mode: spawned ${spawnPositions.length} pirates at map center`);
+                    console.log(`Versus mode: ${scenario.pirateConfig.startingCount} pirates queued to spawn in ${initialDelay}s`);
                 }
             } else {
                 // Fallback: use old triangular position finder
@@ -211,7 +204,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         { q: positions.ai1.q, r: positions.ai1.r },
                         { q: positions.ai2.q, r: positions.ai2.r },
                     ];
-                    const aiConfig = { ...scenario.aiConfig };
+                    const aiConfig = { ...scenario.aiConfig, difficulty: difficultyOverride };
                     gameState.aiPlayers = [
                         createAIPlayerState(aiStrategyOverride ? { ...aiConfig, strategy: aiStrategyOverride } : aiConfig),
                         createAIPlayerState(aiConfig),

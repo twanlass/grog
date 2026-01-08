@@ -1,6 +1,7 @@
 import kaplay from "kaplay";
 import { createGameScene } from "./scenes/gameScene.js";
 import { SCENARIOS, DEFAULT_SCENARIO_ID } from "./scenarios/index.js";
+import { AI_DIFFICULTY } from "./systems/aiPlayer.js";
 import { generateMap, getTileColor, getStippleColors, placeIslandTemplate } from "./mapGenerator.js";
 import { findPath } from "./pathfinding.js";
 import { hexKey } from "./hex.js";
@@ -19,6 +20,9 @@ let selectedScenarioId = null; // No mode selected by default
 
 // Selected AI strategy for versus mode (null = random)
 let selectedAIStrategy = null;
+
+// Selected difficulty for versus mode
+let selectedDifficulty = 'normal';
 
 // Custom cursor (CSS-based for smooth performance)
 k.setCursor("url('sprites/assets/cursor.png'), auto");
@@ -1005,6 +1009,7 @@ k.scene("title", () => {
 
     // Track card entities for selection highlighting
     const cardBackgrounds = [];
+    let difficultyText = null;  // Reference for updating difficulty display
 
     // Create scenario cards
     SCENARIOS.forEach((scenario, index) => {
@@ -1039,12 +1044,37 @@ k.scene("title", () => {
             k.color(180, 200, 220),
         ]);
 
+        // Difficulty selector for versus mode
+        if (scenario.id === 'versus') {
+            difficultyText = k.add([
+                k.text(`< ${AI_DIFFICULTY[selectedDifficulty].label} >`, { size: 11 }),
+                k.pos(cardX, cardY + 35),
+                k.anchor("center"),
+                k.color(150, 180, 200),
+                k.area(),
+                "difficultyBtn",
+            ]);
+        }
+
         // Click handler
         k.onClick(`card-${scenario.id}`, () => {
+            const wasAlreadySelected = selectedScenarioId === scenario.id;
             selectedScenarioId = scenario.id;
             updateCardSelection();
-            playModeSound(scenario.id);
+            if (!wasAlreadySelected) {
+                playModeSound(scenario.id);
+            }
         });
+    });
+
+    // Difficulty click handler - cycle through difficulties
+    k.onClick("difficultyBtn", () => {
+        const difficulties = ['easy', 'normal', 'hard'];
+        const currentIdx = difficulties.indexOf(selectedDifficulty);
+        selectedDifficulty = difficulties[(currentIdx + 1) % difficulties.length];
+        if (difficultyText) {
+            difficultyText.text = `< ${AI_DIFFICULTY[selectedDifficulty].label} >`;
+        }
     });
 
     // Function to update card selection visuals
@@ -1180,7 +1210,7 @@ k.scene("title", () => {
 });
 
 // Pass selected scenario and AI strategy to game scene
-k.scene("game", createGameScene(k, () => selectedScenarioId, () => selectedAIStrategy));
+k.scene("game", createGameScene(k, () => selectedScenarioId, () => selectedAIStrategy, () => selectedDifficulty));
 
 // Start with title screen
 k.go("title");

@@ -4,6 +4,7 @@ import { SHIPS } from "./sprites/ships.js";
 import { SETTLEMENTS } from "./sprites/settlements.js";
 import { TOWERS, TOWER_TECH_TREE } from "./sprites/towers.js";
 import { hexKey, hexNeighbors, hexDistance } from "./hex.js";
+import { AI_DIFFICULTY } from "./systems/aiPlayer.js";
 
 export function createGameState(config = {}) {
     const startingResources = config.startingResources || { wood: 25 };
@@ -535,6 +536,8 @@ export function findTriangularStartingPositions(map) {
 // Create AI player state (for versus mode)
 export function createAIPlayerState(config = {}) {
     const startingResources = config.startingResources || { wood: 25 };
+    const difficulty = config.difficulty || 'normal';
+    const difficultySettings = AI_DIFFICULTY[difficulty] || AI_DIFFICULTY.normal;
 
     // Random strategy selection at game start
     const strategyKeys = ['aggressive', 'defensive', 'economic'];
@@ -545,6 +548,10 @@ export function createAIPlayerState(config = {}) {
         resources: {
             wood: startingResources.wood,
         },
+
+        // Difficulty settings
+        difficulty,
+        difficultySettings,
 
         // Strategy (selected once at game start, never changes)
         strategy: selectedStrategy,

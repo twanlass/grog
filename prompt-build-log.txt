@@ -1583,3 +1583,34 @@ Read the output file to retrieve the output.
 
 ## 365. User prompt
 > ship it
+
+## 366. User prompt
+> in vs mode, let's tone down the pirates. wait to spawn them until later into the game and increase the time between spawning when destroyed 
+
+## 367. User prompt
+> does AI know to attack pirates? Does it know it's under attack when pirates are attacking their structures? 
+
+## 368. User prompt
+>  crash: 
+Tower upgraded: mortarTower → cannonBattery at (27, 42)
+inputHandler.js:600 Selected tower at (21, 18)
+gameScene.js:1442 Started upgrading tower to: cannonBattery (hotkey U)
+inputHandler.js:558 Selected port: dock
+gameScene.js:1345 Settlement placement mode (hotkey S)
+inputHandler.js:68 Started building settlement at (25, 18) by port 0
+inputHandler.js:558 Selected port: dock
+kaplay.js?v=9a8bb7fb:5276 TypeError: Cannot read properties of undefined (reading 'owner')
+    at handlePatrolAutoAttack (combat.js:445:24)
+    at Object.<anonymous> (gameScene.js:460:13)
+
+## 369. User prompt
+> how might we adjust the difficulty of the AI players? They feel too easy right now. 
+
+## 370. User prompt
+> quick bug since we added the difficulty to the skirmish button – only play the audio clip when skirmish is clicked and not already active / highlighted 
+
+## 371. User prompt
+> one more tweak – ai tries to plunder too often
+
+## 372. User prompt
+> ship it

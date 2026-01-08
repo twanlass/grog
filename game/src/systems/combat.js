@@ -4,7 +4,8 @@ import { SHIPS } from "../sprites/ships.js";
 import { TOWERS } from "../sprites/towers.js";
 import { PORTS } from "../sprites/ports.js";
 import { SETTLEMENTS } from "../sprites/settlements.js";
-import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex, findNearestWaterInRange } from "../gameState.js";
+import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex, findNearestWaterInRange, isAIOwner } from "../gameState.js";
+import { notifyAIAttacked } from "./aiPlayer.js";
 import { markVisibilityDirty, revealRadius } from "../fogOfWar.js";
 
 // Combat constants
@@ -440,6 +441,7 @@ export function handlePatrolAutoAttack(gameState) {
         for (const j of candidateIndices) {
             if (j === i) continue;  // Skip self
             const target = gameState.ships[j];
+            if (!target) continue;  // Skip destroyed ships (stale index)
             // Skip friendly ships
             if (target.owner === shipOwner) continue;
             // Pirates are always enemies to player ships
@@ -676,8 +678,8 @@ function handleTowerAttacks(gameState, dt) {
             const ship = gameState.ships[j];
             // Skip friendly ships
             if (ship.owner === towerOwner) continue;
-            // Pirates are enemies to player towers
-            if (ship.type === 'pirate' && towerOwner === 'player') {
+            // Pirates are enemies to all towers
+            if (ship.type === 'pirate') {
                 // Target pirate
             } else if (ship.owner && ship.owner !== towerOwner) {
                 // Target enemy-owned ship
@@ -854,19 +856,22 @@ function applyDamage(gameState, targetType, targetIndex, damage, fogState) {
     target.health -= damage;
     target.hitFlash = HIT_FLASH_DURATION; // Trigger flash effect
 
+    // Notify AI when their units are attacked (increases threat level)
+    const targetOwner = target.owner || 'player';
+    if (isAIOwner(targetOwner)) {
+        notifyAIAttacked(gameState, targetOwner);
+    }
+
     // Track attacks on player structures for minimap alerts
     // Only track ports, towers, and settlements (not ships)
-    if (targetType !== 'ship') {
-        const targetOwner = target.owner || 'player';
-        if (targetOwner === 'player') {
-            const key = hexKey(target.q, target.r);
-            gameState.attackedStructures.set(key, {
-                timestamp: Date.now(),
-                q: target.q,
-                r: target.r,
-                type: targetType,
-            });
-        }
+    if (targetType !== 'ship' && targetOwner === 'player') {
+        const key = hexKey(target.q, target.r);
+        gameState.attackedStructures.set(key, {
+            timestamp: Date.now(),
+            q: target.q,
+            r: target.r,
+            type: targetType,
+        });
     }
 
     if (target.health <= 0) {
@@ -980,10 +985,12 @@ function destroyShip(gameState, shipIndex, fogState) {
         // Chance to drop loot
         spawnLootDrop(gameState, ship.q, ship.r);
 
-        // In sandbox mode, pirates respawn after a cooldown
+        // In sandbox/versus mode, pirates respawn after a cooldown
         // In defend mode, pirates don't respawn (waves handle spawning)
         if (!gameState.scenario || gameState.scenario.gameMode !== 'defend') {
-            gameState.pirateRespawnQueue.push({ timer: PIRATE_RESPAWN_COOLDOWN });
+            const respawnDelay = gameState.scenario?.pirateConfig?.respawnDelay || PIRATE_RESPAWN_COOLDOWN;
+            const spawnAtCenter = gameState.scenario?.pirateConfig?.spawnAtCenter || false;
+            gameState.pirateRespawnQueue.push({ timer: respawnDelay, spawnAtCenter });
         }
     }
 
@@ -1251,8 +1258,8 @@ export function updatePirateRespawns(gameState, map, createShip, hexKeyFn, dt) {
                 gameState.ships.map(s => hexKeyFn(s.q, s.r))
             );
 
-            // Versus mode: spawn at map center
-            if (gameState.scenario && gameState.scenario.gameMode === 'versus') {
+            // Spawn at map center if flagged (versus mode)
+            if (respawn.spawnAtCenter) {
                 const positions = findCenterSpawnPositions(map, hexKeyFn, 1, occupiedHexes);
                 if (positions.length > 0) {
                     gameState.ships.push(createShip('pirate', positions[0].q, positions[0].r, 'pirate'));

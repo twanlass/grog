@@ -1,6 +1,24 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-07 | Add AI difficulty selector and tune AI/pirate behavior
+--------------------------------------------------------------------
+### New
+- AI difficulty selector (Easy/Normal/Hard) for versus mode
+- Difficulty scales decision speed, ship caps, aggression, and economy growth
+
+### Improved
+- Delayed pirate spawning in versus mode (3 minutes before first spawn)
+- Extended pirate respawn cooldown (90 seconds between respawns)
+- AI now defends against pirates (towers attack pirates, ships target them)
+- AI receives threat notifications when structures are attacked
+- Reduced AI plunder frequency for more strategic gameplay
+
+### Fixed
+- Audio no longer plays on every click when changing difficulty
+- Crash in patrol auto-attack when spatial index has stale references
+
+
 2026-01-07 | Optimize fog rendering: skip unexplored hexes
 ----------------------------------------------------------
 ### Improved
