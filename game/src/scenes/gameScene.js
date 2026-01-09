@@ -426,6 +426,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const rawDt = k.dt();
             const dt = rawDt * gameState.timeScale;
 
+            // Pause/resume ambient audio when game is paused
+            const shouldPauseAudio = gameState.timeScale === 0;
+            if (ambientOcean.paused !== shouldPauseAudio) {
+                ambientOcean.paused = shouldPauseAudio;
+            }
+            if (ambientMusic.paused !== shouldPauseAudio) {
+                ambientMusic.paused = shouldPauseAudio;
+            }
+
             // Update stipple animation (always runs, even when paused or game over)
             stippleAnimTime += rawDt;
 
