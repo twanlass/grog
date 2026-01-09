@@ -6,7 +6,7 @@ import { PORTS } from "../sprites/ports.js";
 import { SETTLEMENTS } from "../sprites/settlements.js";
 import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex, findNearestWaterInRange, isAIOwner } from "../gameState.js";
 import { notifyAIAttacked } from "./aiPlayer.js";
-import { markVisibilityDirty, revealRadius } from "../fogOfWar.js";
+import { markVisibilityDirty } from "../fogOfWar.js";
 
 // Combat constants
 export const CANNON_DAMAGE = 5;
@@ -281,12 +281,6 @@ function processShipPendingShots(gameState, dt, fogState) {
                         speed: PROJECTILE_SPEED,
                     });
                     queueCannonSound(gameState, ship.q, ship.r);
-
-                    // Firing reveals AI ship position
-                    if (ship.owner && ship.owner !== 'player') {
-                        revealRadius(fogState, ship.q, ship.r, 1);
-                        markVisibilityDirty(fogState);
-                    }
                 }
                 ship.pendingShots.splice(s, 1);
             }
@@ -347,10 +341,6 @@ function handlePirateAttacks(gameState, dt, fogState) {
                         delay: p * SHOT_STAGGER_DELAY,
                     });
                 }
-
-                // Firing reveals the ship's position (no shooting from fog cover)
-                revealRadius(fogState, ship.q, ship.r, 1);
-                markVisibilityDirty(fogState);
 
                 // Reset cooldown using ship's fire rate (with micro variation to stagger volleys)
                 ship.attackCooldown = shipData.fireCooldown + (Math.random() - 0.5) * 0.04;
@@ -603,12 +593,6 @@ function handlePlayerAttacks(gameState, dt, fogState) {
                     damage: CANNON_DAMAGE,
                     delay: p * SHOT_STAGGER_DELAY,
                 });
-            }
-
-            // AI ships reveal themselves when firing (no shooting from fog cover)
-            if (ship.owner && ship.owner !== 'player') {
-                revealRadius(fogState, ship.q, ship.r, 1);
-                markVisibilityDirty(fogState);
             }
 
             // Reset cooldown (with micro variation to stagger volleys)

@@ -1623,3 +1623,12 @@ kaplay.js?v=9a8bb7fb:5276 TypeError: Cannot read properties of undefined (readin
 <summary>Background command "Start game dev server" was killed.</summary>
 </task-notification>
 Read the output file to retrieve the result: /tmp/claude/-Users-tylerwanlass-code-grog/tasks/b003249.output
+
+## 374. User prompt
+> when in vs mode, I can see parts of the map as fog of war explored even though I've not been there yet. What might cause the fog to be revealed where the player has not yet been? 
+
+## 375. User prompt
+> yes
+
+## 376. User prompt
+> ship it

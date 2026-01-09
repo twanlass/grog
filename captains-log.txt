@@ -1,6 +1,13 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-09 | Fix fog revealing unexplored areas in versus mode
+--------------------------------------------------------------
+### Fixed
+- AI ships and pirates no longer reveal fog of war when firing in unexplored areas
+- Fog is now only revealed by the player's own units and structures
+
+
 2026-01-07 | Add AI difficulty selector and tune AI/pirate behavior
 --------------------------------------------------------------------
 ### New
