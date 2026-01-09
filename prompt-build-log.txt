@@ -1614,3 +1614,12 @@ kaplay.js?v=9a8bb7fb:5276 TypeError: Cannot read properties of undefined (readin
 
 ## 372. User prompt
 > ship it
+
+## 373. User prompt
+> <task-notification>
+<task-id>b003249</task-id>
+<output-file>/tmp/claude/-Users-tylerwanlass-code-grog/tasks/b003249.output</output-file>
+<status>killed</status>
+<summary>Background command "Start game dev server" was killed.</summary>
+</task-notification>
+Read the output file to retrieve the result: /tmp/claude/-Users-tylerwanlass-code-grog/tasks/b003249.output
