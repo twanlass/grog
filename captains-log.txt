@@ -1,6 +1,16 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-10 | Make ship explosions more dramatic
+-----------------------------------------------
+### Improved
+- Larger explosion radius with expanding shockwave ring
+- Varied fire particle colors (yellow-orange, orange-red, deep red)
+- Rising smoke particles after initial blast
+- Longer explosion duration (0.6s to 1.0s)
+- Stronger camera shake with slower decay
+
+
 2026-01-10 | Add selectable AI opponent count for versus mode
 -------------------------------------------------------------
 ### New

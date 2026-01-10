@@ -72,8 +72,13 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                     ship.path = null;
                 } else {
                     const currentWaypoint = ship.waypoints[0];
-                    if (!currentWaypoint || (currentWaypoint.q !== target.q || currentWaypoint.r !== target.r)) {
-                        // Update waypoint to track moving target
+                    // Only update waypoint if target moved significantly (>2 hexes)
+                    // This prevents path thrashing when chasing moving targets
+                    const waypointDiff = currentWaypoint
+                        ? hexDistance(currentWaypoint.q, currentWaypoint.r, target.q, target.r)
+                        : Infinity;
+
+                    if (!currentWaypoint || waypointDiff > 2) {
                         ship.waypoints = [{ q: target.q, r: target.r }];
                         ship.path = null;
                     }

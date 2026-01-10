@@ -1,5 +1,5 @@
 // UI panel rendering: resource panel, build panels, ship info panel
-import { drawSprite, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
+import { drawSprite, drawSpriteHealthTint, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew, isAIOwner } from "../gameState.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
 import {
@@ -2277,7 +2277,7 @@ export function drawBuildQueuePanel(ctx, port, mousePos) {
 
 /**
  * Draw the selected ships panel at bottom center of screen
- * Shows all selected player ships with health bars
+ * Shows all selected player ships with health-based color tinting
  */
 export function drawSelectedShipsPanel(ctx, gameState) {
     const { k, screenWidth, screenHeight } = ctx;
@@ -2292,13 +2292,12 @@ export function drawSelectedShipsPanel(ctx, gameState) {
 
     const itemSize = 48;
     const itemSpacing = 8;
-    const healthBarHeight = 6;
     const panelPadding = 12;
     const shipCount = selectedShips.length;
 
     // Calculate panel dimensions
     const panelWidth = shipCount * itemSize + (shipCount - 1) * itemSpacing + panelPadding * 2;
-    const panelHeight = itemSize + healthBarHeight + panelPadding * 2 + 8;
+    const panelHeight = itemSize + panelPadding * 2;
     const panelX = screenWidth / 2 - panelWidth / 2;
     const panelY = screenHeight - panelHeight - 15;
 
@@ -2329,7 +2328,11 @@ export function drawSelectedShipsPanel(ctx, gameState) {
             radius: 4,
         });
 
-        // Draw ship sprite
+        // Calculate health for shader tinting
+        const maxHealth = shipData.health;
+        const healthPercent = Math.max(0, ship.health / maxHealth);
+
+        // Draw ship sprite with health overlay shader
         const spriteX = itemX + itemSize / 2;
         const spriteY = itemY + itemSize / 2;
 
@@ -2343,7 +2346,8 @@ export function drawSelectedShipsPanel(ctx, gameState) {
                 pos: k.vec2(spriteX, spriteY),
                 anchor: "center",
                 scale: pngScale,
-                opacity: 1.0,
+                shader: "healthOverlay",
+                opacity: healthPercent,
             });
         } else if (shipData.imageSprite) {
             const pngScale = (shipData.spriteScale || 1) * 1.0;
@@ -2353,42 +2357,16 @@ export function drawSelectedShipsPanel(ctx, gameState) {
                 pos: k.vec2(spriteX, spriteY),
                 anchor: "center",
                 scale: pngScale,
-                opacity: 1.0,
+                shader: "healthOverlay",
+                opacity: healthPercent,
             });
         } else {
-            // Fallback to pixel art sprite
+            // Fallback to pixel art sprite with health tint
             const spriteScale = 1;
             const spriteSize = getSpriteSize(shipData.sprite);
             const sx = itemX + (itemSize - spriteSize.width * spriteScale) / 2;
             const sy = itemY + (itemSize - spriteSize.height * spriteScale) / 2;
-            drawSprite(k, shipData.sprite, sx, sy, spriteScale, 1.0);
-        }
-
-        // Draw health bar below sprite
-        const barY = itemY + itemSize + 4;
-        const maxHealth = shipData.health;
-        const healthPercent = Math.max(0, ship.health / maxHealth);
-
-        // Background bar (dark)
-        k.drawRect({
-            pos: k.vec2(itemX, barY),
-            width: itemSize,
-            height: healthBarHeight,
-            color: k.rgb(40, 40, 40),
-            radius: 2,
-        });
-
-        // Health fill (red to green gradient based on health)
-        if (healthPercent > 0) {
-            const r = Math.floor(255 * (1 - healthPercent));
-            const g = Math.floor(180 * healthPercent);
-            k.drawRect({
-                pos: k.vec2(itemX, barY),
-                width: itemSize * healthPercent,
-                height: healthBarHeight,
-                color: k.rgb(r, g, 40),
-                radius: 2,
-            });
+            drawSpriteHealthTint(k, shipData.sprite, sx, sy, spriteScale, healthPercent);
         }
     }
 

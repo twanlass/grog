@@ -562,7 +562,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const margin = 100;
                     if (screenX >= -margin && screenX <= k.width() + margin &&
                         screenY >= -margin && screenY <= k.height() + margin) {
-                        cameraShake = Math.max(cameraShake, 4);  // Shake intensity
+                        cameraShake = Math.max(cameraShake, 8);  // Shake intensity (dramatic!)
                     }
                 }
                 explosion.age += dt;
@@ -575,7 +575,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (cameraShake > 0) {
                 cameraShakeX = (Math.random() - 0.5) * cameraShake * 2;
                 cameraShakeY = (Math.random() - 0.5) * cameraShake * 2;
-                cameraShake *= 0.9;  // Decay
+                cameraShake *= 0.92;  // Slower decay for dramatic effect
                 if (cameraShake < 0.1) cameraShake = 0;
             } else {
                 cameraShakeX = 0;

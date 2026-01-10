@@ -151,17 +151,24 @@ k.loadShader("healthOverlay", null, `
         // Use opacity as health percentage (0-1)
         float health = color.a;
 
-        // Calculate health-based tint color (matches health bar: green -> yellow -> orange)
-        // At 100% health: rgb(0, 200, 40) -> normalized (0, 0.78, 0.16)
-        // At 50% health: rgb(127, 100, 40) -> normalized (0.5, 0.39, 0.16)
-        // At 0% health: rgb(255, 0, 40) -> normalized (1.0, 0, 0.16)
-        float r = 1.0 - health;           // 0 at full health, 1 at empty
-        float g = 0.78 * health;          // 0.78 at full health, 0 at empty
-        float b = 0.16;                   // Constant blue component
-        vec3 tintColor = vec3(r, g, b);
+        // Calculate health-based tint: green (100%) -> orange (50%) -> red (0%)
+        vec3 tintColor;
+        if (health > 0.5) {
+            // Green to orange (100% to 50%)
+            float t = (health - 0.5) * 2.0;  // 1.0 at 100%, 0.0 at 50%
+            vec3 green = vec3(0.2, 0.8, 0.2);
+            vec3 orange = vec3(1.0, 0.5, 0.0);
+            tintColor = mix(orange, green, t);
+        } else {
+            // Orange to red (50% to 0%)
+            float t = health * 2.0;  // 1.0 at 50%, 0.0 at 0%
+            vec3 orange = vec3(1.0, 0.5, 0.0);
+            vec3 red = vec3(1.0, 0.1, 0.1);
+            tintColor = mix(red, orange, t);
+        }
 
         // Apply tint to grayscale
-        vec3 tinted = gray * tintColor * 1.5;  // Boost brightness
+        vec3 tinted = gray * tintColor;
 
         // Clamp to valid range
         tinted = clamp(tinted, 0.0, 1.0);

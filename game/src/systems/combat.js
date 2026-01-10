@@ -573,12 +573,15 @@ function handlePatrolChase(gameState, map) {
                 }
             }
 
-            // Set a single waypoint to chase the target
-            if (ship.waypoints.length === 0 ||
-                ship.waypoints[0].q !== waypointQ ||
-                ship.waypoints[0].r !== waypointR) {
+            // Only update waypoint if target moved significantly (>2 hexes)
+            // This prevents path thrashing when chasing moving targets
+            const waypointDiff = ship.waypoints.length > 0
+                ? hexDistance(ship.waypoints[0].q, ship.waypoints[0].r, waypointQ, waypointR)
+                : Infinity;
+
+            if (ship.waypoints.length === 0 || waypointDiff > 2) {
                 ship.waypoints = [{ q: waypointQ, r: waypointR }];
-                ship.path = null;  // Force path recalculation
+                ship.path = null;
             }
         } else {
             // In range, stop moving to fire
@@ -969,7 +972,7 @@ function spawnDestructionEffects(gameState, q, r, unitType, buildingType = null)
         q,
         r,
         age: 0,
-        duration: 0.6,
+        duration: 1.0,
     });
 
     // Determine debris type and location type

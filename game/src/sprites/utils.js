@@ -59,6 +59,54 @@ export function getSpriteSize(sprite, scale = 4) {
     };
 }
 
+// Draw a pixel sprite with health-based grayscale and tint (matches healthOverlay shader)
+export function drawSpriteHealthTint(k, sprite, x, y, scale = 4, healthPercent = 1.0) {
+    const height = sprite.length;
+    const width = sprite[0].length;
+
+    // Calculate health-based tint: green (100%) -> orange (50%) -> red (0%)
+    let tintR, tintG, tintB;
+    if (healthPercent > 0.5) {
+        // Green to orange (100% to 50%)
+        const t = (healthPercent - 0.5) * 2.0;
+        tintR = 1.0 * (1 - t) + 0.2 * t;  // orange.r to green.r
+        tintG = 0.5 * (1 - t) + 0.8 * t;  // orange.g to green.g
+        tintB = 0.0 * (1 - t) + 0.2 * t;  // orange.b to green.b
+    } else {
+        // Orange to red (50% to 0%)
+        const t = healthPercent * 2.0;
+        tintR = 1.0 * (1 - t) + 1.0 * t;  // red.r to orange.r
+        tintG = 0.1 * (1 - t) + 0.5 * t;  // red.g to orange.g
+        tintB = 0.1 * (1 - t) + 0.0 * t;  // red.b to orange.b
+    }
+
+    for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+            const pixel = sprite[row][col];
+            if (pixel) {
+                // Convert to grayscale using luminance weights
+                const gray = pixel[0] * 0.299 + pixel[1] * 0.587 + pixel[2] * 0.114;
+
+                // Apply tint to grayscale
+                const r = gray * tintR;
+                const g = gray * tintG;
+                const b = gray * tintB;
+
+                k.drawRect({
+                    pos: k.vec2(x + col * scale, y + row * scale),
+                    width: scale,
+                    height: scale,
+                    color: k.rgb(
+                        Math.min(255, Math.floor(r)),
+                        Math.min(255, Math.floor(g)),
+                        Math.min(255, Math.floor(b))
+                    ),
+                });
+            }
+        }
+    }
+}
+
 // Draw a white flash overlay on a sprite (for hit feedback)
 export function drawSpriteFlash(k, sprite, x, y, scale = 4, flashIntensity = 1.0) {
     const height = sprite.length;

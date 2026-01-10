@@ -1734,3 +1734,27 @@ Read the output file to retrieve the result: /var/folders/w1/p9hw508901lfyy97dhl
 
 ## 406. User prompt
 > ship it
+
+## 407. User prompt
+> let's make the ship explosions more dramatic :-) 
+
+## 408. User prompt
+> let's update the health display of selected ships in the bottom UI tray: 
+- instead of showing the health bar below each ship, render the ship sprite w/ the health shader tinting the sprites color based on it's current health. 
+
+## 409. User prompt
+> need to add more color range; should go from green, to orange, to red
+
+## 410. User prompt
+> remove the brightness boost 
+
+## 411. User prompt
+> a few tweaks:
+1. remove the center flash altogether; the ship sprite should already be flashing
+2. reduce particle count back to 10
+
+## 412. User prompt
+> the fire particles are too big, too uniform in color
+
+## 413. User prompt
+> ship it
