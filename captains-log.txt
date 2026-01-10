@@ -1,6 +1,13 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-10 | Fix patrol ship movement snapping when engaging enemies
+---------------------------------------------------------------------
+### Fixed
+- Patrol ships now smoothly transition to chase instead of snapping when detecting enemies
+- Ships complete their current movement interpolation before recalculating path
+
+
 2026-01-10 | Improve group pathfinding with flow-based movement
 ----------------------------------------------------------------
 ### New

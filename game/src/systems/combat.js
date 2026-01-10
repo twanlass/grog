@@ -454,7 +454,8 @@ export function handlePatrolAutoAttack(gameState) {
             ship.attackTarget = { type: 'ship', index: nearestEnemy.index };
             // Clear waypoints to stop patrol movement - we'll chase the target
             ship.waypoints = [];
-            ship.path = null;
+            // Don't null path directly - let movement system handle transition smoothly
+            // to prevent visual snapping mid-movement
             continue;
         }
 
@@ -524,7 +525,7 @@ export function handlePatrolAutoAttack(gameState) {
         if (attackerToDefend) {
             ship.attackTarget = { type: 'ship', index: attackerToDefend.index };
             ship.waypoints = [];
-            ship.path = null;
+            // Don't null path - let movement system handle transition smoothly
         }
     }
 }
@@ -581,12 +582,19 @@ function handlePatrolChase(gameState, map) {
 
             if (ship.waypoints.length === 0 || waypointDiff > 2) {
                 ship.waypoints = [{ q: waypointQ, r: waypointR }];
-                ship.path = null;
+                // Only force path recalculation if not mid-movement
+                // This prevents visual snapping during smooth movement
+                if (ship.moveProgress === 0) {
+                    ship.path = null;
+                }
             }
         } else {
             // In range, stop moving to fire
             ship.waypoints = [];
-            ship.path = null;
+            // Only null path if not mid-movement to prevent snapping
+            if (ship.moveProgress === 0) {
+                ship.path = null;
+            }
         }
     }
 }
