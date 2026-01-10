@@ -1,6 +1,17 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-10 | Add selectable AI opponent count for versus mode
+-------------------------------------------------------------
+### New
+- AI opponent selector (1-3) for versus mode with dropdown UI
+- Dropdown menus for difficulty and opponent count (similar to speed selector)
+
+### Improved
+- Dynamic AI initialization based on selected count
+- Difficulty and opponent dropdowns appear below Skirmish card when selected
+
+
 2026-01-09 | Fix fog revealing unexplored areas in versus mode
 --------------------------------------------------------------
 ### Fixed

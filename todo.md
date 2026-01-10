@@ -1,20 +1,14 @@
 # Grog Todos
 
 ### Next
-- Tune fog of war distnaces
-- Tune attack distances (can't attack final settlements w/ biggest ship)
-- Surrender mode from AI when just settlements is left?
-- Have all ports contribute to global resources? 
-- - what to do w/ trade route stuff? 
-- minimap: show pulsing red x if any of your structures are being attacked and you're not there to see it (maybe check camera bounds?)
 - Do ships on patrol attack structures? 
 - FUN PASS! Add clouds, bird flocks, fish! etc
-
+- continue map rendering so there's no black, but put border on edges to constrain game?
+- unit selection: don't show health bars on units; 
+- - maybe show selected units in bottom like build queue and overlay health color on sprite
 
 ### UI nits
-- unit selected panels: polish up
-- port selected: show unit name "Dock" at top
-- add tooltips to units, upgrades
+- change
 
 
 ### Misc improvement ideas
@@ -32,6 +26,7 @@
 ### Bugs
 - buildings that take damange while repairing should just deduct the damage from repair progress (right now they will repair but not all the way lol)
 - towers, built from a port, should only be able to be built on current connected land /island like settelments
+- Cutters can be build by ports during upgrade (hotkey used)
 
 
 ### Defend Mode notes 

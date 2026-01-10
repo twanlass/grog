@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
@@ -32,7 +32,7 @@ import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterS
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
 import { startRepair } from "../systems/repair.js";
-import { updateAIPlayer } from "../systems/aiPlayer.js";
+import { updateAIPlayer, STRATEGY_KEYS } from "../systems/aiPlayer.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick, handleBuildQueueClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
@@ -114,7 +114,7 @@ function drawHexRangeOutline(k, centerQ, centerR, range, cameraX, cameraY, zoom,
     }
 }
 
-export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, getAIStrategy = () => null, getDifficulty = () => 'normal') {
+export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, getAIStrategy = () => null, getDifficulty = () => 'normal', getAICount = () => 3) {
     return function gameScene() {
         // Prevent browser context menu on right-click
         k.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -144,43 +144,60 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Handle initialization based on game mode
         if (scenario.gameMode === 'versus') {
+            // Get the selected number of AI opponents (1-3)
+            const aiCount = getAICount();
+
             // Versus mode: use fair starting islands from map generation
             if (map.starterPositions) {
                 // Randomize which position each faction gets
-                const positionIndices = [0, 1, 2];
+                // We need 1 + aiCount positions (player + AIs)
+                const neededPositions = 1 + aiCount;
+                const positionIndices = [0, 1, 2, 3].slice(0, neededPositions);
                 // Fisher-Yates shuffle
                 for (let i = positionIndices.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [positionIndices[i], positionIndices[j]] = [positionIndices[j], positionIndices[i]];
                 }
 
-                // Find port sites on each starter island with randomized positions
+                // Find port sites on starter islands
                 const playerPort = findPortSiteOnStarterIsland(map, map.starterPositions[positionIndices[0]]);
-                const ai1Port = findPortSiteOnStarterIsland(map, map.starterPositions[positionIndices[1]]);
-                const ai2Port = findPortSiteOnStarterIsland(map, map.starterPositions[positionIndices[2]]);
 
                 // Player start
                 gameState.ports.push(createPort('dock', playerPort.q, playerPort.r, false, null, 'player'));
                 gameState.homeIslandHex = { q: playerPort.q, r: playerPort.r };
 
-                // AI 1 start
-                gameState.ports.push(createPort('dock', ai1Port.q, ai1Port.r, false, null, 'ai1'));
+                // Initialize AI ports and home islands based on selected count
+                const aiOwnerIds = ['ai1', 'ai2', 'ai3'];
+                gameState.aiHomeIslandHexes = [];
 
-                // AI 2 start
-                gameState.ports.push(createPort('dock', ai2Port.q, ai2Port.r, false, null, 'ai2'));
+                for (let i = 0; i < aiCount; i++) {
+                    const aiPort = findPortSiteOnStarterIsland(map, map.starterPositions[positionIndices[1 + i]]);
+                    gameState.ports.push(createPort('dock', aiPort.q, aiPort.r, false, null, aiOwnerIds[i]));
+                    gameState.aiHomeIslandHexes.push({ q: aiPort.q, r: aiPort.r });
+                }
 
-                // Store AI home islands
-                gameState.aiHomeIslandHexes = [
-                    { q: ai1Port.q, r: ai1Port.r },
-                    { q: ai2Port.q, r: ai2Port.r },
-                ];
-
-                // Initialize both AI player states (with optional strategy and difficulty overrides)
+                // Initialize AI player states dynamically
+                // Ensure AIs pick different strategies for variety
                 const aiConfig = { ...scenario.aiConfig, difficulty: difficultyOverride };
-                gameState.aiPlayers = [
-                    createAIPlayerState(aiStrategyOverride ? { ...aiConfig, strategy: aiStrategyOverride } : aiConfig),
-                    createAIPlayerState(aiConfig),  // Second AI gets random strategy
-                ];
+                gameState.aiPlayers = [];
+                let usedStrategies = [];
+
+                for (let i = 0; i < aiCount; i++) {
+                    let strategy;
+                    if (i === 0 && aiStrategyOverride) {
+                        // First AI can use override strategy
+                        strategy = aiStrategyOverride;
+                    } else {
+                        // Pick a strategy not yet used (or random if all used)
+                        const availableStrategies = STRATEGY_KEYS.filter(s => !usedStrategies.includes(s));
+                        strategy = availableStrategies.length > 0
+                            ? availableStrategies[Math.floor(Math.random() * availableStrategies.length)]
+                            : STRATEGY_KEYS[Math.floor(Math.random() * STRATEGY_KEYS.length)];
+                    }
+                    usedStrategies.push(strategy);
+                    gameState.aiPlayers.push(createAIPlayerState({ ...aiConfig, strategy }));
+                }
+
                 console.log(`Versus mode: initialized ${gameState.aiPlayers.length} AIs (${aiConfig.difficulty} difficulty)`,
                     `Strategies: ${gameState.aiPlayers.map(a => a.strategy).join(', ')}`);
 
@@ -193,22 +210,41 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     console.log(`Versus mode: ${scenario.pirateConfig.startingCount} pirates queued to spawn in ${initialDelay}s`);
                 }
             } else {
-                // Fallback: use old triangular position finder
+                // Fallback: use old triangular position finder (only supports up to 2 AIs)
                 const positions = findTriangularStartingPositions(map);
                 if (positions) {
+                    const fallbackAICount = Math.min(aiCount, 2); // Triangular finder only has 2 AI positions
+
                     gameState.ports.push(createPort('dock', positions.player.q, positions.player.r, false, null, 'player'));
                     gameState.homeIslandHex = { q: positions.player.q, r: positions.player.r };
-                    gameState.ports.push(createPort('dock', positions.ai1.q, positions.ai1.r, false, null, 'ai1'));
-                    gameState.ports.push(createPort('dock', positions.ai2.q, positions.ai2.r, false, null, 'ai2'));
-                    gameState.aiHomeIslandHexes = [
-                        { q: positions.ai1.q, r: positions.ai1.r },
-                        { q: positions.ai2.q, r: positions.ai2.r },
-                    ];
+
+                    gameState.aiHomeIslandHexes = [];
+                    const aiPositions = [positions.ai1, positions.ai2];
+
+                    for (let i = 0; i < fallbackAICount; i++) {
+                        const aiPos = aiPositions[i];
+                        gameState.ports.push(createPort('dock', aiPos.q, aiPos.r, false, null, `ai${i + 1}`));
+                        gameState.aiHomeIslandHexes.push({ q: aiPos.q, r: aiPos.r });
+                    }
+
+                    // Initialize AI player states
                     const aiConfig = { ...scenario.aiConfig, difficulty: difficultyOverride };
-                    gameState.aiPlayers = [
-                        createAIPlayerState(aiStrategyOverride ? { ...aiConfig, strategy: aiStrategyOverride } : aiConfig),
-                        createAIPlayerState(aiConfig),
-                    ];
+                    gameState.aiPlayers = [];
+                    let usedStrategies = [];
+
+                    for (let i = 0; i < fallbackAICount; i++) {
+                        let strategy;
+                        if (i === 0 && aiStrategyOverride) {
+                            strategy = aiStrategyOverride;
+                        } else {
+                            const availableStrategies = STRATEGY_KEYS.filter(s => !usedStrategies.includes(s));
+                            strategy = availableStrategies.length > 0
+                                ? availableStrategies[Math.floor(Math.random() * availableStrategies.length)]
+                                : STRATEGY_KEYS[Math.floor(Math.random() * STRATEGY_KEYS.length)];
+                        }
+                        usedStrategies.push(strategy);
+                        gameState.aiPlayers.push(createAIPlayerState({ ...aiConfig, strategy }));
+                    }
                 } else {
                     const startTile = findStartingPosition(map);
                     if (startTile) {
@@ -586,14 +622,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Versus mode: total elimination win condition (3-way free-for-all)
+            // Versus mode: total elimination win condition (4-way free-for-all)
             if (scenario && scenario.gameMode === 'versus' && !gameState.gameOver) {
                 const playerCounts = countEntitiesForOwner(gameState, 'player');
                 const ai1Counts = countEntitiesForOwner(gameState, 'ai1');
                 const ai2Counts = countEntitiesForOwner(gameState, 'ai2');
+                const ai3Counts = countEntitiesForOwner(gameState, 'ai3');
 
-                // Player wins only when BOTH AIs are eliminated
-                if (ai1Counts.total === 0 && ai2Counts.total === 0) {
+                // Player wins only when ALL AIs are eliminated
+                if (ai1Counts.total === 0 && ai2Counts.total === 0 && ai3Counts.total === 0) {
                     gameState.gameOver = 'win';
                 }
                 // Player loses if they have no entities left
@@ -603,8 +640,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                 // Check for AI surrender: only settlements remain (no ships, ports, or towers)
                 if (!gameState.surrenderPending) {
-                    for (const aiOwner of ['ai1', 'ai2']) {
-                        const counts = aiOwner === 'ai1' ? ai1Counts : ai2Counts;
+                    for (const aiOwner of ['ai1', 'ai2', 'ai3']) {
+                        const counts = aiOwner === 'ai1' ? ai1Counts : aiOwner === 'ai2' ? ai2Counts : ai3Counts;
                         const onlySettlements = counts.ships === 0 && counts.ports === 0 &&
                                                 counts.towers === 0 && counts.settlements > 0;
                         if (onlySettlements && !gameState.surrenderDeclined[aiOwner]) {
@@ -731,8 +768,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Draw ship explosions (migrated to rendering module)
             drawExplosions(ctx, gameState, fogState);
 
-            // Draw health bars (migrated to rendering module)
-            drawHealthBars(ctx, gameState, getShipVisualPosLocal, fogState);
+            // Draw health bars (hover-only)
+            drawHealthBars(ctx, gameState, getShipVisualPosLocal, fogState, SELECTION_RADIUS);
 
             // Draw loading/unloading progress bars (migrated to rendering module)
             drawDockingProgress(ctx, gameState, getShipVisualPosLocal, fogState);
@@ -772,6 +809,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                 // Draw build queue panel at bottom center (if port has items in queue)
                 buildQueuePanelBounds = drawBuildQueuePanel(ctx, port, k.mousePos());
+            }
+
+            // Draw selected ships panel at bottom center (when ships selected and no port build queue showing)
+            if (!buildQueuePanelBounds) {
+                drawSelectedShipsPanel(ctx, gameState);
             }
 
             // Draw tooltip if present (from build panel hover)
@@ -884,7 +926,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 });
 
                 // Subtitle
-                const aiName = gameState.surrenderPending === 'ai1' ? 'Red forces' : 'Orange forces';
+                const aiName = gameState.surrenderPending === 'ai1' ? 'Green forces'
+                             : gameState.surrenderPending === 'ai2' ? 'Blue forces'
+                             : 'Orange forces';
                 k.drawText({
                     text: `${aiName} request surrender.`,
                     pos: k.vec2(screenWidth / 2, screenHeight / 2 - 15),
@@ -1182,6 +1226,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const CURSOR_DEFAULT = "url('/sprites/assets/cursor.png'), auto";
         const CURSOR_ATTACK = "url('/sprites/assets/cursor-attack.png'), auto";
         let currentCursor = CURSOR_DEFAULT;
+        k.setCursor(currentCursor);
 
         k.onUpdate(() => {
             const panSpeed = 300 / zoom;
@@ -1193,37 +1238,41 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (k.isKeyDown("left")) cameraX -= panSpeed * k.dt();
             if (k.isKeyDown("right")) cameraX += panSpeed * k.dt();
 
-            // Cursor state: show attack cursor when hovering over enemy units
+            // Cursor state: show attack cursor when hovering over enemy units (only if player ship selected)
             let newCursor = CURSOR_DEFAULT;
-            const halfW = k.width() / 2;
-            const halfH = k.height() / 2;
-            const worldX = (mouse.x - halfW) / zoom + cameraX;
-            const worldY = (mouse.y - halfH) / zoom + cameraY;
+            const selectedShips = getSelectedShips(gameState);
 
-            // Check if hovering over an enemy ship (pirate or AI-owned)
-            for (const ship of gameState.ships) {
-                const isEnemy = ship.type === 'pirate' || isAIOwner(ship.owner);
-                if (!isEnemy) continue;
-                const pos = hexToPixel(ship.q, ship.r);
-                const dx = worldX - pos.x;
-                const dy = worldY - pos.y;
-                if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
-                    newCursor = CURSOR_ATTACK;
-                    break;
-                }
-            }
+            if (selectedShips.length > 0) {
+                const halfW = k.width() / 2;
+                const halfH = k.height() / 2;
+                const worldX = (mouse.x - halfW) / zoom + cameraX;
+                const worldY = (mouse.y - halfH) / zoom + cameraY;
 
-            // Check if hovering over any enemy structure (tower, port, settlement)
-            if (newCursor === CURSOR_DEFAULT) {
-                const allStructures = [...gameState.towers, ...gameState.ports, ...gameState.settlements];
-                for (const structure of allStructures) {
-                    if (!isAIOwner(structure.owner)) continue;
-                    const pos = hexToPixel(structure.q, structure.r);
+                // Check if hovering over an enemy ship (pirate or AI-owned)
+                for (const ship of gameState.ships) {
+                    const isEnemy = ship.type === 'pirate' || isAIOwner(ship.owner);
+                    if (!isEnemy) continue;
+                    const pos = hexToPixel(ship.q, ship.r);
                     const dx = worldX - pos.x;
                     const dy = worldY - pos.y;
                     if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
                         newCursor = CURSOR_ATTACK;
                         break;
+                    }
+                }
+
+                // Check if hovering over any enemy structure (tower, port, settlement)
+                if (newCursor === CURSOR_DEFAULT) {
+                    const allStructures = [...gameState.towers, ...gameState.ports, ...gameState.settlements];
+                    for (const structure of allStructures) {
+                        if (!isAIOwner(structure.owner)) continue;
+                        const pos = hexToPixel(structure.q, structure.r);
+                        const dx = worldX - pos.x;
+                        const dy = worldY - pos.y;
+                        if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+                            newCursor = CURSOR_ATTACK;
+                            break;
+                        }
                     }
                 }
             }

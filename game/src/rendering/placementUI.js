@@ -172,13 +172,14 @@ export function drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogSt
 
     // Get builder position (ship or port)
     let builderQ, builderR;
+    let builderPort = null;
     if (gameState.towerBuildMode.builderShipIndex !== null) {
         const builderShip = gameState.ships[gameState.towerBuildMode.builderShipIndex];
         if (!builderShip) return;  // Ship no longer exists
         builderQ = builderShip.q;
         builderR = builderShip.r;
     } else if (gameState.towerBuildMode.builderPortIndex !== null) {
-        const builderPort = gameState.ports[gameState.towerBuildMode.builderPortIndex];
+        builderPort = gameState.ports[gameState.towerBuildMode.builderPortIndex];
         if (!builderPort) return;  // Port no longer exists
         builderQ = builderPort.q;
         builderR = builderPort.r;
@@ -194,9 +195,9 @@ export function drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogSt
     const worldMY = (mouseY - halfHeight) / zoom + cameraY;
     const hoverHex = pixelToHex(worldMX, worldMY);
 
-    // Check if hovered hex is valid
+    // Check if hovered hex is valid (pass builderPort for land connectivity check)
     const hoverDistance = hexDistance(builderQ, builderR, hoverHex.q, hoverHex.r);
-    const isValidHover = isValidTowerSite(map, hoverHex.q, hoverHex.r, gameState.towers, gameState.ports, gameState.settlements) &&
+    const isValidHover = isValidTowerSite(map, hoverHex.q, hoverHex.r, gameState.towers, gameState.ports, gameState.settlements, builderPort) &&
                          hoverDistance <= MAX_TOWER_BUILD_DISTANCE;
     gameState.towerBuildMode.hoveredHex = isValidHover ? hoverHex : null;
 
@@ -208,10 +209,8 @@ export function drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogSt
         const dist = hexDistance(builderQ, builderR, tile.q, tile.r);
         if (dist > MAX_TOWER_BUILD_DISTANCE) continue;
 
-        const hasTower = gameState.towers.some(t => t.q === tile.q && t.r === tile.r);
-        const hasSettlement = gameState.settlements.some(s => s.q === tile.q && s.r === tile.r);
-        const hasPort = gameState.ports.some(p => p.q === tile.q && p.r === tile.r);
-        if (hasTower || hasSettlement || hasPort) continue;
+        // Use full validation including land connectivity for ports
+        if (!isValidTowerSite(map, tile.q, tile.r, gameState.towers, gameState.ports, gameState.settlements, builderPort)) continue;
 
         const pos = tilePositions.get(tile);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;

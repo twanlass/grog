@@ -3,6 +3,9 @@ import { SHIPS, PORTS, TOWERS, drawSprite, getSpriteSize } from "../sprites/inde
 
 export function createGalleryScene(k) {
     return function galleryScene() {
+        // Set custom cursor
+        k.setCursor("url('/sprites/assets/cursor.png'), auto");
+
         const ships = Object.values(SHIPS);
         const ports = Object.values(PORTS);
         const towers = Object.values(TOWERS);

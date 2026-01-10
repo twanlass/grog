@@ -39,6 +39,7 @@ function getDirectionalSprite(shipData, owner) {
     // Map owner to colored sprite
     if (owner === 'ai1') return 'cutter-green';
     if (owner === 'ai2') return 'cutter-blue';
+    if (owner === 'ai3') return 'cutter-orange';
     return 'cutter-red';  // Player default
 }
 
@@ -47,6 +48,7 @@ const FACTION_COLORS = {
     player: { r: 180, g: 60, b: 60 },    // Red (matches cutter-red sprite)
     ai1: { r: 60, g: 160, b: 80 },       // Green (matches cutter-green sprite)
     ai2: { r: 60, g: 120, b: 200 },      // Blue (matches cutter-blue sprite)
+    ai3: { r: 220, g: 140, b: 40 },       // Orange (matches cutter-orange sprite)
 };
 
 /**
@@ -309,7 +311,7 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
 
         // Draw hex indicator for AI ships (enemy faction marker)
         if (isAIOwner(ship.owner)) {
-            drawFactionHex(k, screenX, screenY, 18 * zoom, getFactionColor(ship.owner, k), 0.4);
+            drawFactionHex(k, screenX, screenY, 18 * zoom, getFactionColor(ship.owner, k), 0.75);
         }
 
         // Use directional animated sprite if available (colored by owner)

@@ -652,3 +652,15 @@ l    @    kaplay.js?v=9a8bb7fb:3984
 
 ## 181. User prompt
 > also when clicking to place  a tower or settlement 
+
+## 182. User prompt
+> let's remove pirates from the VS mode. 
+
+## 183. User prompt
+> in VS mode, let's make sure no two AI choose the same default strategy (i.e. two AI choosing the defense strategy is quite boring as both turtle)
+
+## 184. User prompt
+> can you make sure the server is running? 
+
+## 185. User prompt
+> bug: wave rendering broken 

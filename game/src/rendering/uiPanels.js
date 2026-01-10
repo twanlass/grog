@@ -1,6 +1,6 @@
 // UI panel rendering: resource panel, build panels, ship info panel
 import { drawSprite, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew } from "../gameState.js";
+import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew, isAIOwner } from "../gameState.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
 import {
     drawPanelContainer,
@@ -2273,4 +2273,129 @@ export function drawBuildQueuePanel(ctx, port, mousePos) {
     }
 
     return bounds;
+}
+
+/**
+ * Draw the selected ships panel at bottom center of screen
+ * Shows all selected player ships with health bars
+ */
+export function drawSelectedShipsPanel(ctx, gameState) {
+    const { k, screenWidth, screenHeight } = ctx;
+
+    // Get selected player ships (not pirates, not AI)
+    const selectedShips = gameState.selectedUnits
+        .filter(u => u.type === 'ship')
+        .map(u => ({ ship: gameState.ships[u.index], index: u.index }))
+        .filter(({ ship }) => ship && ship.type !== 'pirate' && !isAIOwner(ship.owner));
+
+    if (selectedShips.length === 0) return null;
+
+    const itemSize = 48;
+    const itemSpacing = 8;
+    const healthBarHeight = 6;
+    const panelPadding = 12;
+    const shipCount = selectedShips.length;
+
+    // Calculate panel dimensions
+    const panelWidth = shipCount * itemSize + (shipCount - 1) * itemSpacing + panelPadding * 2;
+    const panelHeight = itemSize + healthBarHeight + panelPadding * 2 + 8;
+    const panelX = screenWidth / 2 - panelWidth / 2;
+    const panelY = screenHeight - panelHeight - 15;
+
+    // Draw panel background
+    k.drawRect({
+        pos: k.vec2(panelX, panelY),
+        width: panelWidth,
+        height: panelHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 6,
+        opacity: 0.85,
+    });
+
+    // Draw each selected ship
+    for (let i = 0; i < selectedShips.length; i++) {
+        const { ship, index } = selectedShips[i];
+        const shipData = SHIPS[ship.type];
+
+        const itemX = panelX + panelPadding + i * (itemSize + itemSpacing);
+        const itemY = panelY + panelPadding;
+
+        // Draw item background
+        k.drawRect({
+            pos: k.vec2(itemX, itemY),
+            width: itemSize,
+            height: itemSize,
+            color: k.rgb(40, 45, 55),
+            radius: 4,
+        });
+
+        // Draw ship sprite
+        const spriteX = itemX + itemSize / 2;
+        const spriteY = itemY + itemSize / 2;
+
+        if (shipData.directionalSprite) {
+            // For directional sprites, use player's red variant, SE facing (row 2, frame 0)
+            const frame = 2 * 3 + 0;
+            const pngScale = (shipData.spriteScale || 1) * 1.0;
+            k.drawSprite({
+                sprite: 'cutter-red',
+                frame: frame,
+                pos: k.vec2(spriteX, spriteY),
+                anchor: "center",
+                scale: pngScale,
+                opacity: 1.0,
+            });
+        } else if (shipData.imageSprite) {
+            const pngScale = (shipData.spriteScale || 1) * 1.0;
+            k.drawSprite({
+                sprite: shipData.imageSprite,
+                frame: 0,
+                pos: k.vec2(spriteX, spriteY),
+                anchor: "center",
+                scale: pngScale,
+                opacity: 1.0,
+            });
+        } else {
+            // Fallback to pixel art sprite
+            const spriteScale = 1;
+            const spriteSize = getSpriteSize(shipData.sprite);
+            const sx = itemX + (itemSize - spriteSize.width * spriteScale) / 2;
+            const sy = itemY + (itemSize - spriteSize.height * spriteScale) / 2;
+            drawSprite(k, shipData.sprite, sx, sy, spriteScale, 1.0);
+        }
+
+        // Draw health bar below sprite
+        const barY = itemY + itemSize + 4;
+        const maxHealth = shipData.health;
+        const healthPercent = Math.max(0, ship.health / maxHealth);
+
+        // Background bar (dark)
+        k.drawRect({
+            pos: k.vec2(itemX, barY),
+            width: itemSize,
+            height: healthBarHeight,
+            color: k.rgb(40, 40, 40),
+            radius: 2,
+        });
+
+        // Health fill (red to green gradient based on health)
+        if (healthPercent > 0) {
+            const r = Math.floor(255 * (1 - healthPercent));
+            const g = Math.floor(180 * healthPercent);
+            k.drawRect({
+                pos: k.vec2(itemX, barY),
+                width: itemSize * healthPercent,
+                height: healthBarHeight,
+                color: k.rgb(r, g, 40),
+                radius: 2,
+            });
+        }
+    }
+
+    return {
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: panelHeight,
+    };
 }

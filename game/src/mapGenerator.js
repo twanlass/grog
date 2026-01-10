@@ -112,6 +112,37 @@ export function calculateTriangularPositions(width, height) {
 }
 
 /**
+ * Calculate 4 quadrant positions for fair starting islands (4-player mode)
+ * @param {number} width - Map width
+ * @param {number} height - Map height
+ * @returns {Array} Array of 4 positions [{q, r}, ...]
+ */
+export function calculateQuadrantPositions(width, height) {
+    // Work in offset coordinates (row, col) first, then convert to axial
+    const centerRow = Math.floor(height / 2);
+    const centerCol = Math.floor(width / 2);
+    const radius = Math.min(width, height) * 0.35;
+
+    // Calculate positions in offset coordinates - 4 corners
+    const positions = [
+        // Top (player)
+        { row: centerRow - Math.round(radius * 0.7), col: centerCol },
+        // Right (AI1)
+        { row: centerRow, col: centerCol + Math.round(radius * 0.85) },
+        // Bottom (AI2)
+        { row: centerRow + Math.round(radius * 0.7), col: centerCol },
+        // Left (AI3)
+        { row: centerRow, col: centerCol - Math.round(radius * 0.85) },
+    ];
+
+    // Convert offset coords to axial coords (same formula used in map generation)
+    return positions.map(pos => ({
+        q: pos.col - Math.floor(pos.row / 2),
+        r: pos.row
+    }));
+}
+
+/**
  * Determine climate zone based on row position
  * @param {number} r - Row position
  * @param {number} height - Map height
@@ -246,12 +277,12 @@ export function generateMap(options = {}) {
     const starterIslandHexes = new Set();
     let starterPositions = null;
 
-    // PHASE 1: Place starter islands if in versus mode
+    // PHASE 1: Place starter islands if in versus mode (4 positions for player + 3 AIs)
     if (versusMode) {
-        starterPositions = calculateTriangularPositions(width, height);
-        const templates = selectRandomTemplates(3, random);
+        starterPositions = calculateQuadrantPositions(width, height);
+        const templates = selectRandomTemplates(4, random);
 
-        for (let i = 0; i < 3; i++) {
+        for (let i = 0; i < 4; i++) {
             const pos = starterPositions[i];
             const template = templates[i];
             const placedHexes = placeIslandTemplate(tiles, template, pos.q, pos.r, height);

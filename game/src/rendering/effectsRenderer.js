@@ -336,138 +336,154 @@ export function drawExplosions(ctx, gameState, fogState) {
 }
 
 /**
- * Draw health bars for units in combat
+ * Draw health bar for hovered unit only
  * @param {function} getShipVisualPosLocal - Function to get ship visual position
  * @param {Object} fogState - Fog of war state for visibility checks
+ * @param {number} selectionRadius - Radius for hover detection
  */
-export function drawHealthBars(ctx, gameState, getShipVisualPosLocal, fogState) {
+export function drawHealthBars(ctx, gameState, getShipVisualPosLocal, fogState, selectionRadius) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
-    // Track entities to avoid duplicate health bars
-    const healthBarUnits = new Set();
+    // Convert mouse position to world coordinates
+    const mouseX = k.mousePos().x;
+    const mouseY = k.mousePos().y;
+    const worldMX = (mouseX - halfWidth) / zoom + cameraX;
+    const worldMY = (mouseY - halfHeight) / zoom + cameraY;
 
-    // Selected units
-    for (const sel of gameState.selectedUnits) {
-        if (sel.type === 'ship' || sel.type === 'port' || sel.type === 'tower' || sel.type === 'settlement') {
-            healthBarUnits.add(`${sel.type}:${sel.index}`);
-        }
-    }
+    // Find hovered unit
+    let hoveredUnit = null;
 
-    // Pirates in attack mode
-    for (const ship of gameState.ships) {
-        if (ship.type !== 'pirate' || ship.aiState !== 'attack') continue;
-
-        const pirateIndex = gameState.ships.indexOf(ship);
-        healthBarUnits.add(`ship:${pirateIndex}`);
-
-        if (ship.aiTarget && ship.aiTarget.index >= 0) {
-            healthBarUnits.add(`${ship.aiTarget.type}:${ship.aiTarget.index}`);
-        }
-    }
-
-    // Player ships with attack targets
+    // Check ships (use visual position for smooth movement)
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
-        if (ship.type === 'pirate') continue;
-        if (!ship.attackTarget) continue;
-
-        healthBarUnits.add(`ship:${i}`);
-        if (ship.attackTarget.index >= 0) {
-            healthBarUnits.add(`${ship.attackTarget.type}:${ship.attackTarget.index}`);
+        if (!shouldRenderEntity(fogState, ship)) continue;
+        const { x: shipX, y: shipY } = getShipVisualPosLocal(ship);
+        const dx = worldMX - shipX;
+        const dy = worldMY - shipY;
+        if (Math.sqrt(dx * dx + dy * dy) < selectionRadius) {
+            hoveredUnit = { type: 'ship', index: i, entity: ship, pos: { x: shipX, y: shipY } };
+            break;
         }
     }
 
-    // Draw health bars for all units
-    for (const key of healthBarUnits) {
-        const [type, indexStr] = key.split(':');
-        const index = parseInt(indexStr);
-
-        let entity, maxHealth, pos;
-        if (type === 'ship') {
-            entity = gameState.ships[index];
-            if (!entity) continue;
-            if (!shouldRenderEntity(fogState, entity)) continue;
-            maxHealth = SHIPS[entity.type].health;
-            pos = getShipVisualPosLocal(entity);
-        } else if (type === 'port') {
-            entity = gameState.ports[index];
-            if (!entity) continue;
-            if (!shouldRenderEntity(fogState, entity)) continue;
-            maxHealth = PORTS[entity.type].health;
-            pos = hexToPixel(entity.q, entity.r);
-        } else if (type === 'tower') {
-            entity = gameState.towers[index];
-            if (!entity) continue;
-            if (!shouldRenderEntity(fogState, entity)) continue;
-            maxHealth = TOWERS[entity.type].health;
-            pos = hexToPixel(entity.q, entity.r);
-        } else if (type === 'settlement') {
-            entity = gameState.settlements[index];
-            if (!entity) continue;
-            if (!shouldRenderEntity(fogState, entity)) continue;
-            maxHealth = SETTLEMENTS.settlement.health;
-            pos = hexToPixel(entity.q, entity.r);
-        } else {
-            continue;
+    // Check ports
+    if (!hoveredUnit) {
+        for (let i = 0; i < gameState.ports.length; i++) {
+            const port = gameState.ports[i];
+            if (!shouldRenderEntity(fogState, port)) continue;
+            const pos = hexToPixel(port.q, port.r);
+            const dx = worldMX - pos.x;
+            const dy = worldMY - pos.y;
+            if (Math.sqrt(dx * dx + dy * dy) < selectionRadius) {
+                hoveredUnit = { type: 'port', index: i, entity: port, pos };
+                break;
+            }
         }
+    }
 
-        const screenX = (pos.x - cameraX) * zoom + halfWidth;
-        const screenY = (pos.y - cameraY) * zoom + halfHeight;
-
-        // Skip if off screen
-        if (screenX < -100 || screenX > screenWidth + 100 ||
-            screenY < -100 || screenY > screenHeight + 100) continue;
-
-        const barWidth = 40 * zoom;
-        const barHeight = 5 * zoom;
-        const barY = screenY + 32 * zoom;  // ~4px below hex outline
-
-        // Check if unit is repairing - show repair bar centered on unit (like build bar)
-        if (entity.repair) {
-            const repairPercent = Math.max(0, entity.repair.progress / entity.repair.totalTime);
-            const repairBarWidth = 50 * zoom;
-            const repairBarHeight = 8 * zoom;
-
-            // Background bar (dark) - centered on unit
-            k.drawRect({
-                pos: k.vec2(screenX - repairBarWidth / 2, screenY),
-                width: repairBarWidth,
-                height: repairBarHeight,
-                color: k.rgb(40, 40, 40),
-                radius: 2,
-            });
-
-            // Repair progress fill (cyan/blue)
-            k.drawRect({
-                pos: k.vec2(screenX - repairBarWidth / 2, screenY),
-                width: repairBarWidth * repairPercent,
-                height: repairBarHeight,
-                color: k.rgb(80, 180, 220),
-                radius: 2,
-            });
-        } else {
-            const healthPercent = Math.max(0, entity.health / maxHealth);
-
-            // Background bar (dark)
-            k.drawRect({
-                pos: k.vec2(screenX - barWidth / 2, barY),
-                width: barWidth,
-                height: barHeight,
-                color: k.rgb(40, 40, 40),
-                radius: 2,
-            });
-
-            // Health fill (red to green gradient based on health)
-            const r = Math.floor(255 * (1 - healthPercent));
-            const g = Math.floor(180 * healthPercent);
-            k.drawRect({
-                pos: k.vec2(screenX - barWidth / 2, barY),
-                width: barWidth * healthPercent,
-                height: barHeight,
-                color: k.rgb(r, g, 40),
-                radius: 2,
-            });
+    // Check settlements
+    if (!hoveredUnit) {
+        for (let i = 0; i < gameState.settlements.length; i++) {
+            const settlement = gameState.settlements[i];
+            if (!shouldRenderEntity(fogState, settlement)) continue;
+            const pos = hexToPixel(settlement.q, settlement.r);
+            const dx = worldMX - pos.x;
+            const dy = worldMY - pos.y;
+            if (Math.sqrt(dx * dx + dy * dy) < selectionRadius) {
+                hoveredUnit = { type: 'settlement', index: i, entity: settlement, pos };
+                break;
+            }
         }
+    }
+
+    // Check towers
+    if (!hoveredUnit) {
+        for (let i = 0; i < gameState.towers.length; i++) {
+            const tower = gameState.towers[i];
+            if (!shouldRenderEntity(fogState, tower)) continue;
+            const pos = hexToPixel(tower.q, tower.r);
+            const dx = worldMX - pos.x;
+            const dy = worldMY - pos.y;
+            if (Math.sqrt(dx * dx + dy * dy) < selectionRadius) {
+                hoveredUnit = { type: 'tower', index: i, entity: tower, pos };
+                break;
+            }
+        }
+    }
+
+    // If nothing hovered, don't draw any health bar
+    if (!hoveredUnit) return;
+
+    const { type, entity, pos } = hoveredUnit;
+
+    // Get max health based on type
+    let maxHealth;
+    if (type === 'ship') {
+        maxHealth = SHIPS[entity.type].health;
+    } else if (type === 'port') {
+        maxHealth = PORTS[entity.type].health;
+    } else if (type === 'tower') {
+        maxHealth = TOWERS[entity.type].health;
+    } else if (type === 'settlement') {
+        maxHealth = SETTLEMENTS.settlement.health;
+    }
+
+    const screenX = (pos.x - cameraX) * zoom + halfWidth;
+    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+
+    // Skip if off screen
+    if (screenX < -100 || screenX > screenWidth + 100 ||
+        screenY < -100 || screenY > screenHeight + 100) return;
+
+    const barWidth = 40 * zoom;
+    const barHeight = 5 * zoom;
+    const barY = screenY + 32 * zoom;
+
+    // Check if unit is repairing - show repair bar centered on unit
+    if (entity.repair) {
+        const repairPercent = Math.max(0, entity.repair.progress / entity.repair.totalTime);
+        const repairBarWidth = 50 * zoom;
+        const repairBarHeight = 8 * zoom;
+
+        // Background bar (dark) - centered on unit
+        k.drawRect({
+            pos: k.vec2(screenX - repairBarWidth / 2, screenY),
+            width: repairBarWidth,
+            height: repairBarHeight,
+            color: k.rgb(40, 40, 40),
+            radius: 2,
+        });
+
+        // Repair progress fill (cyan/blue)
+        k.drawRect({
+            pos: k.vec2(screenX - repairBarWidth / 2, screenY),
+            width: repairBarWidth * repairPercent,
+            height: repairBarHeight,
+            color: k.rgb(80, 180, 220),
+            radius: 2,
+        });
+    } else {
+        const healthPercent = Math.max(0, entity.health / maxHealth);
+
+        // Background bar (dark)
+        k.drawRect({
+            pos: k.vec2(screenX - barWidth / 2, barY),
+            width: barWidth,
+            height: barHeight,
+            color: k.rgb(40, 40, 40),
+            radius: 2,
+        });
+
+        // Health fill (red to green gradient based on health)
+        const r = Math.floor(255 * (1 - healthPercent));
+        const g = Math.floor(180 * healthPercent);
+        k.drawRect({
+            pos: k.vec2(screenX - barWidth / 2, barY),
+            width: barWidth * healthPercent,
+            height: barHeight,
+            color: k.rgb(r, g, 40),
+            radius: 2,
+        });
     }
 }
 

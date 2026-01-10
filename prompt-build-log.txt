@@ -1632,3 +1632,105 @@ Read the output file to retrieve the result: /tmp/claude/-Users-tylerwanlass-cod
 
 ## 376. User prompt
 > ship it
+
+## 377. User prompt
+> git pull
+
+## 378. User prompt
+> can I add some whitelisted commands to this project? for example, never ask to git pull; just do it
+
+## 379. User prompt
+> 1
+
+## 380. User prompt
+> small bug: user is able to build a tower on a hex not connected to the port building it. See screenshot. 
+
+## 381. User prompt
+> lets add a 3rd AI player to VS mode
+
+## 382. User prompt
+> continue 
+
+## 383. User prompt
+> what's the default zoom and zoom ranges? 
+
+## 384. User prompt
+> debug: i've got an AI player that's in the hex next to my ship. I'm attacking their base. Their ship is doing nothing. not attacking me or defending their base. See screenshot 
+
+## 385. User prompt
+> Next AI tactic thing: they often attack in singlestons (1 ship at a time). For some strategies they shoudl attack in groups of ships to be more effective.
+
+## 386. User prompt
+> for AI players, update their colored circle under their ship units to 75% opacity so they are easier to differentiate 
+
+## 387. User prompt
+> we're going to work on a bunch of improvements to unit selection, unit vis. 
+
+- update the player unit selection visual: reduce thickness of yellow hex outline by half, change from yellow to white at 50% opacity. 
+- when player selecting ships, rendering each unit at the bottom of the screen horizontally in a black background panel  much like we render ships for the port build queue. For each ship, render its health bar below it as well. this will help reduce visual noise on the battle field. 
+- for all units (player, ai, pirate – ships, structures) only show health bars on them when hovering. This will help visually reduce noise, allow you to see health status of an individual unit. 
+
+## 388. User prompt
+> we're going to write a new shader to adjust the color of our units when rendered in the UI: 
+- should grayscale the unit sprite 
+- should apply a green, yellow, or orange overlay based on it's health (much like we render unit health bars)
+
+## 389. User prompt
+> increase cursor spirtes size to 1.25x
+
+## 390. User prompt
+> dont resize the assets; just scale them in code please 
+
+## 391. User prompt
+> clear
+
+## 392. User prompt
+> i can't see my cursor now
+
+## 393. User prompt
+> still not seeing a cursor. when I hover over the window my cursor disssapears
+
+## 394. User prompt
+> now it's visible, but  back to just a system cursor; i'm not seeing my custom cursor sprites. 
+
+## 395. User prompt
+> i see it in game; not on the title screen though. 
+
+## 396. User prompt
+> how is the cursor implemented? How might we adjust it's rendered size? 
+
+## 397. User prompt
+> why isn't k.setCursor used to w/ the custom sprites? 
+
+## 398. User prompt
+> update the cursor-attack logic to only show when a player ship is selected _and_ hovering an ememy unit (you can't attack unless you have a ship selected)
+
+## 399. User prompt
+> debug: AI is being attacked by AI (their settlement is being fired on) but the nearby ship isn't attempting to defend (by attacking the attacker). See screenshot for visual. 
+
+## 400. User prompt
+> how might we use a shader to add a ripple effect when a ship explodes? Like a distortion wave emminating from the center of the ship? 
+
+## 401. User prompt
+> clear
+
+## 402. User prompt
+> <task-notification>
+<task-id>bb640be</task-id>
+<output-file>/var/folders/w1/p9hw508901lfyy97dhl_3pcc0000gn/T/claude/-Users-tylerwanlass-code-grog/tasks/bb640be.output</output-file>
+<status>killed</status>
+<summary>Background command "Start the dev server to test the fix" was killed.</summary>
+</task-notification>
+Read the output file to retrieve the result: /var/folders/w1/p9hw508901lfyy97dhl_3pcc0000gn/T/claude/-Users-tylerwanlass-code-grog/tasks/bb640be.output
+
+## 403. User prompt
+> for vs mode, let's make the number of AI opponents selectable 
+
+## 404. User prompt
+> investigate: units appear to jump between hexes / stutter while moving when they have a target they are trying to follow / attack. 
+
+## 405. User prompt
+> update the width the opponent seletor so text isn't cut off 
+
+## 406. User prompt
+> ship it

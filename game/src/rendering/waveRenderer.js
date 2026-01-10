@@ -275,7 +275,19 @@ export function drawIslandWaves(ctx, islands, waveTime, fogState = null) {
 
             // Draw individual line segments (avoids polygon corner overlap issues)
             const n = pts.length;
-            for (let i = 0; i < n; i++) {
+
+            // Check if outline forms a closed loop by comparing first and last vertices
+            // from the original outline (before screen transform)
+            const firstVert = island.outline[0];
+            const lastVert = island.outline[island.outline.length - 1];
+            const closedLoop = firstVert && lastVert &&
+                Math.abs(firstVert.x - lastVert.x) < 1 &&
+                Math.abs(firstVert.y - lastVert.y) < 1;
+
+            // Only draw n-1 segments if not a closed loop (don't connect last to first)
+            const segmentCount = closedLoop ? n : n - 1;
+
+            for (let i = 0; i < segmentCount; i++) {
                 const p1 = pts[i];
                 const p2 = pts[(i + 1) % n];
 

@@ -115,13 +115,13 @@ export const SHIPS = {
         imageSprite: "cutter",          // Kaplay sprite asset name (loaded separately in main.js)
         directionalSprite: "cutter-v2", // 3x5 directional sprite (5 dirs, mirror for 3 more)
         animFrames: 3,                  // Animation frames per direction
-        spriteScale: .75,               // scale multiplier for image sprite in UI/game
+        spriteScale: 1,               // scale multiplier for image sprite in UI/game
         build_time: 5,                  // Turns or seconds required to build in port
-        speed: 2,                       // Speed (cells/second or units/turn) for moving on map
+        speed: 2.5,                       // Speed (cells/second or units/turn) for moving on map
         cargo: 10,                      // Maximum cargo capacity
-        combat: 1,                      // Combat power (simple base damage or stat)
-        health: 20,                     // Ship hit points (HP)
-        fireCooldown: 6,                // Cooldown (seconds between firing shots)
+        combat: 3,                      // Combat power (simple base damage or stat)
+        health: 15,                     // Ship hit points (HP)
+        fireCooldown: 3,                // Cooldown (seconds between firing shots)
         attackDistance: 3,              // Range (in tiles/cells) for attacking enemies
         enemySightDistance: 3,          // How far AI can spot threats when controlling ship
         sightDistance: 3,               // How far player can reveal "fog of war"
@@ -136,11 +136,11 @@ export const SHIPS = {
         imageSprite: "schooner",
         spriteScale: 1,
         build_time: 10,
-        speed: 2.5,
+        speed: 2,
         cargo: 50,
-        combat: 5,
+        combat: 2.5,
         health: 60,
-        fireCooldown: 3,        // seconds between shots
+        fireCooldown: 1.5,        // seconds between shots
         attackDistance: 5,      // range to attack targets
         enemySightDistance: 6,  // detection range when AI-controlled
         sightDistance: 6,

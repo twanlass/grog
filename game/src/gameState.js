@@ -106,7 +106,7 @@ export function createGameState(config = {}) {
 
         // AI surrender state (for versus mode)
         surrenderPending: null,  // 'ai1' or 'ai2' when surrender offered
-        surrenderDeclined: { ai1: false, ai2: false },  // Track if player declined surrender
+        surrenderDeclined: { ai1: false, ai2: false, ai3: false },  // Track if player declined surrender
 
         // Notification message to display (bottom center)
         notification: null,  // { message: string, timer: number }
@@ -1026,8 +1026,8 @@ export function startTowerUpgrade(tower) {
     return true;
 }
 
-// Check if a hex is a valid tower site (land hex, not occupied)
-export function isValidTowerSite(map, q, r, existingTowers, existingPorts, existingSettlements) {
+// Check if a hex is a valid tower site (land hex, not occupied, connected to builder port)
+export function isValidTowerSite(map, q, r, existingTowers, existingPorts, existingSettlements, builderPort = null) {
     const tile = map.tiles.get(hexKey(q, r));
     if (!tile || tile.type !== 'land') return false;
 
@@ -1044,6 +1044,11 @@ export function isValidTowerSite(map, q, r, existingTowers, existingPorts, exist
     // Check if already occupied by a settlement
     for (const settlement of existingSettlements) {
         if (settlement.q === q && settlement.r === r) return false;
+    }
+
+    // Check if connected by land to the builder port
+    if (builderPort && !isLandConnected(map, builderPort.q, builderPort.r, q, r)) {
+        return false;
     }
 
     return true;
@@ -1291,6 +1296,8 @@ export function getHomePortIndexForOwner(gameState, map, owner) {
         homeHex = gameState.aiHomeIslandHexes[0];
     } else if (owner === 'ai2') {
         homeHex = gameState.aiHomeIslandHexes[1];
+    } else if (owner === 'ai3') {
+        homeHex = gameState.aiHomeIslandHexes[2];
     }
     if (!homeHex) return null;
 
@@ -1314,14 +1321,14 @@ export function countEntitiesForOwner(gameState, owner) {
     return { ships, ports, settlements, towers, total: ships + ports + settlements + towers };
 }
 
-// Check if an owner is an AI (ai1 or ai2)
+// Check if an owner is an AI (ai1, ai2, or ai3)
 export function isAIOwner(owner) {
-    return owner === 'ai1' || owner === 'ai2';
+    return owner === 'ai1' || owner === 'ai2' || owner === 'ai3';
 }
 
 // Get all AI owner identifiers
 export function getAIOwners() {
-    return ['ai1', 'ai2'];
+    return ['ai1', 'ai2', 'ai3'];
 }
 
 // Get home island hex for a specific owner
@@ -1329,5 +1336,6 @@ export function getHomeIslandHexForOwner(gameState, owner) {
     if (owner === 'player') return gameState.homeIslandHex;
     if (owner === 'ai1') return gameState.aiHomeIslandHexes[0];
     if (owner === 'ai2') return gameState.aiHomeIslandHexes[1];
+    if (owner === 'ai3') return gameState.aiHomeIslandHexes[2];
     return null;
 }

@@ -9,7 +9,7 @@ import { shouldRenderEntity } from "../fogOfWar.js";
 /**
  * Draw selection indicator for a single unit (hex outline)
  */
-function drawSelectionHexOutline(ctx, q, r, color, lineWidth = 3) {
+function drawSelectionHexOutline(ctx, q, r, color, lineWidth = 1.5, opacity = 0.5) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, scaledHexSize } = ctx;
     const pos = hexToPixel(q, r);
     const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -21,14 +21,14 @@ function drawSelectionHexOutline(ctx, q, r, color, lineWidth = 3) {
     for (let j = 0; j < pts.length; j++) {
         const p1 = pts[j];
         const p2 = pts[(j + 1) % pts.length];
-        k.drawLine({ p1, p2, width: lineWidth, color });
+        k.drawLine({ p1, p2, width: lineWidth, color, opacity });
     }
 }
 
 /**
  * Draw selection indicator at a world position (for moving units)
  */
-function drawSelectionAtPosition(ctx, worldX, worldY, color, lineWidth = 3) {
+function drawSelectionAtPosition(ctx, worldX, worldY, color, lineWidth = 1.5, opacity = 0.5) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, scaledHexSize } = ctx;
     const screenX = (worldX - cameraX) * zoom + halfWidth;
     const screenY = (worldY - cameraY) * zoom + halfHeight;
@@ -39,14 +39,14 @@ function drawSelectionAtPosition(ctx, worldX, worldY, color, lineWidth = 3) {
     for (let j = 0; j < pts.length; j++) {
         const p1 = pts[j];
         const p2 = pts[(j + 1) % pts.length];
-        k.drawLine({ p1, p2, width: lineWidth, color });
+        k.drawLine({ p1, p2, width: lineWidth, color, opacity });
     }
 }
 
 /**
  * Draw merged selection outlines - skips edges shared between adjacent selected hexes
  */
-function drawMergedSelectionOutlines(ctx, selectedHexes, color, lineWidth = 3) {
+function drawMergedSelectionOutlines(ctx, selectedHexes, color, lineWidth = 1.5, opacity = 0.5) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, scaledHexSize } = ctx;
 
     // Build set of selected hex keys for fast lookup
@@ -71,6 +71,7 @@ function drawMergedSelectionOutlines(ctx, selectedHexes, color, lineWidth = 3) {
                 p2: k.vec2(corners[c2].x, corners[c2].y),
                 width: lineWidth,
                 color: color,
+                opacity: opacity,
                 cap: "round",
             });
         }
@@ -631,7 +632,7 @@ export function drawWaypointsAndRallyPoints(ctx, gameState, getShipVisualPos, ma
  */
 export function drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, selectionState) {
     const { k } = ctx;
-    const selectionColor = k.rgb(255, 220, 50);
+    const selectionColor = k.rgb(255, 255, 255);
 
     // Collect all selected stationary unit hexes for merged outline
     const selectedHexes = [];

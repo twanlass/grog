@@ -75,6 +75,7 @@ export const AI_STRATEGIES = {
             towerDefenseThreshold: 0.7,   // Only build towers if defense very high
             towerUpgradePriority: 0.2,    // Rarely upgrade towers (focused on ships)
             attackGroupSize: 2,           // Attack with fewer ships (aggressive)
+            preferGroupAttacks: false,    // Attack individually when opportunity arises
             // Port expansion config
             portUpgradeThreshold: 0.6,    // Rarely upgrades ports
             expansionConfig: {
@@ -123,6 +124,7 @@ export const AI_STRATEGIES = {
             towerDefenseThreshold: 0.3,   // Build towers even with low defense priority
             towerUpgradePriority: 0.8,    // Aggressively upgrade towers
             attackGroupSize: 3,           // Wait for more ships before attacking
+            preferGroupAttacks: true,     // Coordinate attacks, don't rush in alone
             // Port expansion config
             portUpgradeThreshold: 0.4,    // Moderate port upgrades
             expansionConfig: {
@@ -169,6 +171,7 @@ export const AI_STRATEGIES = {
             towerDefenseThreshold: 0.5,
             towerUpgradePriority: 0.4,    // Sometimes upgrade towers
             attackGroupSize: 4,           // Wait for large force before attacking
+            preferGroupAttacks: true,     // Coordinate attacks, don't rush in alone
             // Port expansion config
             portUpgradeThreshold: 0.5,    // Moderate port upgrades
             expansionConfig: {
@@ -309,7 +312,7 @@ function updateStrategicPriorities(gameState, map, ai, aiOwner) {
 
     // Calculate total enemy power (all non-self factions)
     let enemyPower = 0;
-    const factions = ['player', 'ai1', 'ai2'];
+    const factions = ['player', 'ai1', 'ai2', 'ai3'];
     for (const faction of factions) {
         if (faction === aiOwner) continue;  // Skip self
         const ships = getShipsByOwner(gameState, faction);
@@ -483,7 +486,7 @@ function manageScout(gameState, map, ai, aiOwner) {
 
         // Check if scout found enemy base (any enemy faction)
         if (!tactics.enemyBaseLocation) {
-            const factions = ['player', 'ai1', 'ai2'];
+            const factions = ['player', 'ai1', 'ai2', 'ai3'];
             for (const faction of factions) {
                 if (faction === aiOwner) continue;  // Skip self
                 const enemyPorts = getPortsByOwner(gameState, faction);
@@ -597,8 +600,6 @@ function manageGroupAttack(gameState, map, ai, aiOwner) {
     }
 
     // No active attack - try to form a new attack group
-    // Only attack if we know where enemy is
-    if (!tactics.enemyBaseLocation) return;
 
     // Count available ships (not scout, not repairing)
     const availableShips = [];
@@ -615,9 +616,47 @@ function manageGroupAttack(gameState, map, ai, aiOwner) {
     if (availableShips.length >= requiredGroupSize) {
         // Take required number of ships for the attack
         tactics.attackGroup = availableShips.slice(0, requiredGroupSize);
-        tactics.attackTarget = { ...tactics.enemyBaseLocation };
 
-        // Find water near enemy base to attack
+        // Choose attack target: enemy base if known, otherwise find nearest enemy
+        let attackTarget = null;
+        if (tactics.enemyBaseLocation) {
+            attackTarget = { ...tactics.enemyBaseLocation };
+        } else {
+            // Find nearest enemy entity to any of our ships
+            let nearestDist = Infinity;
+            for (const idx of tactics.attackGroup) {
+                const ship = gameState.ships[idx];
+                if (!ship) continue;
+                // Check enemy ports
+                for (const port of gameState.ports) {
+                    if (port.owner === aiOwner) continue;
+                    const dist = hexDistance(ship.q, ship.r, port.q, port.r);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        attackTarget = { q: port.q, r: port.r };
+                    }
+                }
+                // Check enemy ships
+                for (const enemyShip of gameState.ships) {
+                    if (enemyShip.owner === aiOwner) continue;
+                    const dist = hexDistance(ship.q, ship.r, enemyShip.q, enemyShip.r);
+                    if (dist < nearestDist) {
+                        nearestDist = dist;
+                        attackTarget = { q: enemyShip.q, r: enemyShip.r };
+                    }
+                }
+            }
+        }
+
+        if (!attackTarget) {
+            // No target found, don't form group yet
+            tactics.attackGroup = [];
+            return;
+        }
+
+        tactics.attackTarget = attackTarget;
+
+        // Find water near target to attack
         const attackPoint = findAdjacentWater(map, tactics.attackTarget.q, tactics.attackTarget.r);
         if (attackPoint) {
             tactics.attackTarget = attackPoint;
@@ -930,6 +969,9 @@ function tryBuildTower(gameState, map, ai, aiOwner) {
     const builder = findAITowerBuilder(gameState, map, aiOwner);
     if (!builder) return false; // No valid builder available
 
+    // Get builder port for land connectivity check (null if building from ship)
+    const builderPort = builder.type === 'port' ? gameState.ports[builder.index] : null;
+
     // Search for valid tower site within build distance of builder
     const visited = new Set();
     const queue = [{ q: builder.q, r: builder.r }];
@@ -947,8 +989,8 @@ function tryBuildTower(gameState, map, ai, aiOwner) {
         const tile = map.tiles.get(key);
         if (!tile || tile.type !== 'land') continue;
 
-        // Check if valid tower site
-        if (isValidTowerSite(map, current.q, current.r, gameState.towers, gameState.ports, gameState.settlements)) {
+        // Check if valid tower site (pass builderPort for land connectivity check)
+        if (isValidTowerSite(map, current.q, current.r, gameState.towers, gameState.ports, gameState.settlements, builderPort)) {
             deductCost(ai.resources, towerData.cost);
             const tower = createTower(
                 'watchtower', current.q, current.r, true,
@@ -1017,7 +1059,7 @@ function discoverIslandsNearShip(gameState, map, ship, ai, aiOwner) {
     const aiPorts = getPortsByOwner(gameState, aiOwner);
 
     // Get AI home hex to skip home island
-    const aiIndex = aiOwner === 'ai1' ? 0 : 1;
+    const aiIndex = aiOwner === 'ai1' ? 0 : aiOwner === 'ai2' ? 1 : 2;
     const aiHomeHex = gameState.aiHomeIslandHexes ? gameState.aiHomeIslandHexes[aiIndex] : null;
 
     // Scan hexes within sight distance
@@ -1116,7 +1158,7 @@ function evaluateExpansion(gameState, map, ai, aiOwner) {
     const aiPorts = getPortsByOwner(gameState, aiOwner);
 
     // Get AI home hex
-    const aiIndex = aiOwner === 'ai1' ? 0 : 1;
+    const aiIndex = aiOwner === 'ai1' ? 0 : aiOwner === 'ai2' ? 1 : 2;
     const aiHomeHex = gameState.aiHomeIslandHexes ? gameState.aiHomeIslandHexes[aiIndex] : null;
 
     // Count distant ports (not on home island)
@@ -1424,9 +1466,13 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
         if (ship.dockingState) continue; // Don't interrupt loading/unloading
         if (ship.expansionMission) continue; // Don't interrupt expansion missions
 
-        // Skip ships managed by tactics system (scout, attack group, defending)
+        // Check for immediate threats - engage enemies within 2 hexes regardless of tactical state
+        const immediateEnemy = findNearestEnemy(ship, gameState, aiOwner);
+        const hasImmediateThreat = immediateEnemy && immediateEnemy.dist <= 2;
+
+        // Skip ships managed by tactics system UNLESS there's an immediate threat
         // They get their waypoints from updateTactics instead
-        if (tactics) {
+        if (tactics && !hasImmediateThreat) {
             if (tactics.isDefending) continue;  // All ships recalled
             if (i === tactics.scoutShipIndex) continue;  // Scout has own behavior
             if (tactics.attackGroup.includes(i)) continue;  // In attack group
@@ -1455,27 +1501,42 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
             continue;
         }
 
-        // Find nearest enemy target (any non-self faction)
-        const nearestEnemy = findNearestEnemy(ship, gameState, aiOwner);
+        // Reuse immediateEnemy if we have it, otherwise find nearest enemy
+        const nearestEnemy = immediateEnemy || findNearestEnemy(ship, gameState, aiOwner);
+
+        // Check if this strategy prefers coordinated group attacks
+        const preferGroupAttacks = strategy.buildConfig.preferGroupAttacks;
+        const isInAttackGroup = tactics && tactics.attackGroup.includes(i);
+        const closeRangeThreshold = 3;  // Always engage enemies this close (self-defense)
 
         if (nearestEnemy && nearestEnemy.dist <= engagementRange) {
-            // Decide whether to pursue based on strategy
-            const shouldPursue = Math.random() < shipBehavior.pursuitPersistence || nearestEnemy.dist <= 3;
+            // For group-attack strategies: only engage at range if part of attack group
+            // Always engage at close range for self-defense
+            const isCloseRange = nearestEnemy.dist <= closeRangeThreshold;
+            const canEngageAtRange = !preferGroupAttacks || isInAttackGroup;
 
-            if (shouldPursue) {
-                // Chase and attack
-                ship.attackTarget = { type: nearestEnemy.type, index: nearestEnemy.index };
+            if (isCloseRange || canEngageAtRange) {
+                // Decide whether to pursue based on strategy
+                const shouldPursue = Math.random() < shipBehavior.pursuitPersistence || nearestEnemy.dist <= 3;
 
-                // Set waypoint to target
-                const targetPos = getTargetPosition(nearestEnemy, gameState, map);
-                if (targetPos && (ship.waypoints.length === 0 ||
-                    ship.waypoints[0].q !== targetPos.q ||
-                    ship.waypoints[0].r !== targetPos.r)) {
-                    ship.waypoints = [{ q: targetPos.q, r: targetPos.r }];
-                    ship.path = null;
+                if (shouldPursue) {
+                    // Chase and attack
+                    ship.attackTarget = { type: nearestEnemy.type, index: nearestEnemy.index };
+
+                    // Set waypoint to target
+                    const targetPos = getTargetPosition(nearestEnemy, gameState, map);
+                    if (targetPos && (ship.waypoints.length === 0 ||
+                        ship.waypoints[0].q !== targetPos.q ||
+                        ship.waypoints[0].r !== targetPos.r)) {
+                        ship.waypoints = [{ q: targetPos.q, r: targetPos.r }];
+                        ship.path = null;
+                    }
+                } else {
+                    // Break off pursuit, clear target
+                    ship.attackTarget = null;
                 }
             } else {
-                // Break off pursuit, clear target
+                // Strategy prefers group attacks - don't engage alone at range
                 ship.attackTarget = null;
             }
         } else {
@@ -1705,8 +1766,8 @@ function generatePatrolPointWithStrategy(port, map, gameState, shipBehavior) {
 export function notifyAIAttacked(gameState, attackedOwner) {
     if (!attackedOwner || !isAIOwner(attackedOwner)) return;
 
-    // Find which AI was attacked (ai1 -> index 0, ai2 -> index 1)
-    const aiIndex = attackedOwner === 'ai1' ? 0 : 1;
+    // Find which AI was attacked (ai1 -> index 0, ai2 -> index 1, ai3 -> index 2)
+    const aiIndex = attackedOwner === 'ai1' ? 0 : attackedOwner === 'ai2' ? 1 : 2;
 
     if (gameState.aiPlayers && gameState.aiPlayers[aiIndex]) {
         gameState.aiPlayers[aiIndex].threatLevel = Math.min(1,

@@ -455,6 +455,76 @@ export function handlePatrolAutoAttack(gameState) {
             // Clear waypoints to stop patrol movement - we'll chase the target
             ship.waypoints = [];
             ship.path = null;
+            continue;
+        }
+
+        // Check if nearby friendly structures are under attack and defend them
+        const ATTACKER_TIMEOUT = 3000; // 3 seconds - attack must be recent
+        let attackerToDefend = null;
+        let closestStructureDist = Infinity;
+
+        // Check settlements
+        for (const settlement of gameState.settlements) {
+            if (settlement.owner !== shipOwner) continue;
+            if (!settlement.lastAttacker) continue;
+            if (Date.now() - settlement.lastAttacker.timestamp > ATTACKER_TIMEOUT) {
+                settlement.lastAttacker = null;
+                continue;
+            }
+            const distToSettlement = hexDistance(ship.q, ship.r, settlement.q, settlement.r);
+            if (distToSettlement <= detectRange && distToSettlement < closestStructureDist) {
+                const attackerShip = gameState.ships[settlement.lastAttacker.index];
+                // Check if attacker still exists and is an enemy (different owner or pirate)
+                if (attackerShip && (attackerShip.type === 'pirate' || attackerShip.owner !== shipOwner)) {
+                    attackerToDefend = settlement.lastAttacker;
+                    closestStructureDist = distToSettlement;
+                }
+            }
+        }
+
+        // Check ports
+        for (const port of gameState.ports) {
+            if (port.owner !== shipOwner) continue;
+            if (!port.lastAttacker) continue;
+            if (Date.now() - port.lastAttacker.timestamp > ATTACKER_TIMEOUT) {
+                port.lastAttacker = null;
+                continue;
+            }
+            const distToPort = hexDistance(ship.q, ship.r, port.q, port.r);
+            if (distToPort <= detectRange && distToPort < closestStructureDist) {
+                const attackerShip = gameState.ships[port.lastAttacker.index];
+                // Check if attacker still exists and is an enemy (different owner or pirate)
+                if (attackerShip && (attackerShip.type === 'pirate' || attackerShip.owner !== shipOwner)) {
+                    attackerToDefend = port.lastAttacker;
+                    closestStructureDist = distToPort;
+                }
+            }
+        }
+
+        // Check towers
+        for (const tower of gameState.towers) {
+            if (tower.owner !== shipOwner) continue;
+            if (!tower.lastAttacker) continue;
+            if (Date.now() - tower.lastAttacker.timestamp > ATTACKER_TIMEOUT) {
+                tower.lastAttacker = null;
+                continue;
+            }
+            const distToTower = hexDistance(ship.q, ship.r, tower.q, tower.r);
+            if (distToTower <= detectRange && distToTower < closestStructureDist) {
+                const attackerShip = gameState.ships[tower.lastAttacker.index];
+                // Check if attacker still exists and is an enemy (different owner or pirate)
+                if (attackerShip && (attackerShip.type === 'pirate' || attackerShip.owner !== shipOwner)) {
+                    attackerToDefend = tower.lastAttacker;
+                    closestStructureDist = distToTower;
+                }
+            }
+        }
+
+        // Target the attacker if we found one
+        if (attackerToDefend) {
+            ship.attackTarget = { type: 'ship', index: attackerToDefend.index };
+            ship.waypoints = [];
+            ship.path = null;
         }
     }
 }
@@ -800,7 +870,11 @@ function updateProjectiles(gameState, dt, fogState) {
 
             if (hitIndex !== -1) {
                 // Hit! Apply damage to whatever is at the destination
-                applyDamage(gameState, hitType, hitIndex, proj.damage, fogState);
+                // Pass attacker info for defensive AI to target
+                const attackerInfo = proj.sourceShipIndex !== undefined && proj.sourceShipIndex >= 0
+                    ? { type: 'ship', index: proj.sourceShipIndex }
+                    : null;
+                applyDamage(gameState, hitType, hitIndex, proj.damage, fogState, attackerInfo);
                 queueImpactSound(gameState, proj.toQ, proj.toR);
             } else {
                 // Miss - create water splash effect
@@ -822,8 +896,9 @@ const HIT_FLASH_DURATION = 0.15;
 
 /**
  * Apply damage to a target, destroying it if health reaches 0
+ * @param {Object} attackerInfo - Optional info about the attacker { type: 'ship', index: number }
  */
-function applyDamage(gameState, targetType, targetIndex, damage, fogState) {
+function applyDamage(gameState, targetType, targetIndex, damage, fogState, attackerInfo = null) {
     let target;
     if (targetType === 'ship') {
         target = gameState.ships[targetIndex];
@@ -839,6 +914,15 @@ function applyDamage(gameState, targetType, targetIndex, damage, fogState) {
 
     target.health -= damage;
     target.hitFlash = HIT_FLASH_DURATION; // Trigger flash effect
+
+    // Track attacker on structures for defensive AI responses
+    if (targetType !== 'ship' && attackerInfo) {
+        target.lastAttacker = {
+            type: attackerInfo.type,
+            index: attackerInfo.index,
+            timestamp: Date.now()
+        };
+    }
 
     // Notify AI when their units are attacked (increases threat level)
     const targetOwner = target.owner || 'player';
@@ -1104,6 +1188,37 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
         // Also fix sourceShipIndex if ship was removed
         if (removedType === 'ship' && proj.sourceShipIndex > removedIndex) {
             proj.sourceShipIndex--;
+        }
+    }
+
+    // Fix lastAttacker references on structures (for ship removal)
+    if (removedType === 'ship') {
+        for (const settlement of gameState.settlements) {
+            if (settlement.lastAttacker && settlement.lastAttacker.type === 'ship') {
+                if (settlement.lastAttacker.index === removedIndex) {
+                    settlement.lastAttacker = null;
+                } else if (settlement.lastAttacker.index > removedIndex) {
+                    settlement.lastAttacker.index--;
+                }
+            }
+        }
+        for (const port of gameState.ports) {
+            if (port.lastAttacker && port.lastAttacker.type === 'ship') {
+                if (port.lastAttacker.index === removedIndex) {
+                    port.lastAttacker = null;
+                } else if (port.lastAttacker.index > removedIndex) {
+                    port.lastAttacker.index--;
+                }
+            }
+        }
+        for (const tower of gameState.towers) {
+            if (tower.lastAttacker && tower.lastAttacker.type === 'ship') {
+                if (tower.lastAttacker.index === removedIndex) {
+                    tower.lastAttacker = null;
+                } else if (tower.lastAttacker.index > removedIndex) {
+                    tower.lastAttacker.index--;
+                }
+            }
         }
     }
 

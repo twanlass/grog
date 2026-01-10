@@ -24,8 +24,12 @@ let selectedAIStrategy = null;
 // Selected difficulty for versus mode
 let selectedDifficulty = 'normal';
 
-// Custom cursor (CSS-based for smooth performance)
-k.setCursor("url('sprites/assets/cursor.png'), auto");
+// Selected AI count for versus mode (1-3 opponents)
+let selectedAICount = 3;
+
+// Load cursor sprites (used via CSS cursor in gameScene.js)
+k.loadSprite("cursor-default", "sprites/assets/cursor.png");
+k.loadSprite("cursor-attack", "sprites/assets/cursor-attack.png");
 
 // Load animated sprites
 k.loadSprite("bird", "sprites/assets/bird.png", {
@@ -135,8 +139,42 @@ k.loadShader("whiteFlash", null, `
     }
 `);
 
+// Health overlay shader - grayscales sprite and applies health-based color tint
+// Pass health percentage (0-1) via opacity property
+k.loadShader("healthOverlay", null, `
+    vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+        vec4 texColor = texture2D(tex, uv);
+
+        // Convert to grayscale using luminance weights
+        float gray = dot(texColor.rgb, vec3(0.299, 0.587, 0.114));
+
+        // Use opacity as health percentage (0-1)
+        float health = color.a;
+
+        // Calculate health-based tint color (matches health bar: green -> yellow -> orange)
+        // At 100% health: rgb(0, 200, 40) -> normalized (0, 0.78, 0.16)
+        // At 50% health: rgb(127, 100, 40) -> normalized (0.5, 0.39, 0.16)
+        // At 0% health: rgb(255, 0, 40) -> normalized (1.0, 0, 0.16)
+        float r = 1.0 - health;           // 0 at full health, 1 at empty
+        float g = 0.78 * health;          // 0.78 at full health, 0 at empty
+        float b = 0.16;                   // Constant blue component
+        vec3 tintColor = vec3(r, g, b);
+
+        // Apply tint to grayscale
+        vec3 tinted = gray * tintColor * 1.5;  // Boost brightness
+
+        // Clamp to valid range
+        tinted = clamp(tinted, 0.0, 1.0);
+
+        return vec4(tinted, texColor.a);
+    }
+`);
+
 // Register scenes
 k.scene("title", () => {
+    // Set custom cursor
+    k.setCursor("url('/sprites/assets/cursor.png'), auto");
+
     // === TITLE MUSIC ===
     let titleMusic = null;
     let musicStarted = false;
@@ -1009,7 +1047,13 @@ k.scene("title", () => {
 
     // Track card entities for selection highlighting
     const cardBackgrounds = [];
-    let difficultyText = null;  // Reference for updating difficulty display
+
+    // Dropdown menu state
+    let difficultyMenuOpen = false;
+    let aiCountMenuOpen = false;
+
+    // Store versus card position for dropdown positioning
+    let versusCardX = 0;
 
     // Create scenario cards
     SCENARIOS.forEach((scenario, index) => {
@@ -1044,16 +1088,9 @@ k.scene("title", () => {
             k.color(180, 200, 220),
         ]);
 
-        // Difficulty selector for versus mode
+        // Store versus card position for dropdown UI
         if (scenario.id === 'versus') {
-            difficultyText = k.add([
-                k.text(`< ${AI_DIFFICULTY[selectedDifficulty].label} >`, { size: 11 }),
-                k.pos(cardX, cardY + 35),
-                k.anchor("center"),
-                k.color(150, 180, 200),
-                k.area(),
-                "difficultyBtn",
-            ]);
+            versusCardX = cardX;
         }
 
         // Click handler
@@ -1067,15 +1104,29 @@ k.scene("title", () => {
         });
     });
 
-    // Difficulty click handler - cycle through difficulties
-    k.onClick("difficultyBtn", () => {
-        const difficulties = ['easy', 'normal', 'hard'];
-        const currentIdx = difficulties.indexOf(selectedDifficulty);
-        selectedDifficulty = difficulties[(currentIdx + 1) % difficulties.length];
-        if (difficultyText) {
-            difficultyText.text = `< ${AI_DIFFICULTY[selectedDifficulty].label} >`;
-        }
-    });
+    // Dropdown button and menu dimensions
+    const difficultyBtnWidth = 80;
+    const aiCountBtnWidth = 105;
+    const dropdownBtnHeight = 24;
+    const dropdownBtnSpacing = 10;
+    const dropdownY = cardY + cardHeight / 2 + 15;
+
+    // Helper to get dropdown button bounds
+    function getDifficultyBtnBounds() {
+        const x = versusCardX - difficultyBtnWidth - dropdownBtnSpacing / 2;
+        return { x, y: dropdownY, width: difficultyBtnWidth, height: dropdownBtnHeight };
+    }
+
+    function getAICountBtnBounds() {
+        const x = versusCardX + dropdownBtnSpacing / 2;
+        return { x, y: dropdownY, width: aiCountBtnWidth, height: dropdownBtnHeight };
+    }
+
+    // Helper to check if point is in bounds
+    function isInBounds(px, py, bounds) {
+        return px >= bounds.x && px <= bounds.x + bounds.width &&
+               py >= bounds.y && py <= bounds.y + bounds.height;
+    }
 
     // Function to update card selection visuals
     function updateCardSelection() {
@@ -1207,10 +1258,246 @@ k.scene("title", () => {
             playModeSound(selectedScenarioId);
         }
     });
+
+    // === DROPDOWN UI RENDERING ===
+    k.onDraw(() => {
+        // Only show dropdowns when Skirmish mode is selected
+        if (selectedScenarioId !== 'versus') return;
+
+        const mousePos = k.mousePos();
+        const difficulties = ['easy', 'normal', 'hard'];
+        const aiCounts = [1, 2, 3];
+        const menuItemHeight = 26;
+
+        // Draw difficulty button
+        const diffBounds = getDifficultyBtnBounds();
+        const diffHovered = isInBounds(mousePos.x, mousePos.y, diffBounds);
+
+        k.drawRect({
+            pos: k.vec2(diffBounds.x, diffBounds.y),
+            width: diffBounds.width,
+            height: diffBounds.height,
+            color: k.rgb(0, 0, 0),
+            radius: 4,
+            opacity: diffHovered || difficultyMenuOpen ? 1.0 : 0.85,
+        });
+        k.drawRect({
+            pos: k.vec2(diffBounds.x, diffBounds.y),
+            width: diffBounds.width,
+            height: diffBounds.height,
+            color: k.rgb(0, 0, 0),
+            radius: 4,
+            fill: false,
+            outline: { width: 1, color: difficultyMenuOpen ? k.rgb(255, 200, 0) : k.rgb(80, 100, 120) },
+        });
+        k.drawText({
+            text: AI_DIFFICULTY[selectedDifficulty].label,
+            pos: k.vec2(diffBounds.x + diffBounds.width / 2, diffBounds.y + diffBounds.height / 2),
+            size: 12,
+            anchor: "center",
+            color: diffHovered || difficultyMenuOpen ? k.rgb(255, 255, 255) : k.rgb(180, 200, 220),
+        });
+
+        // Draw AI count button
+        const aiBounds = getAICountBtnBounds();
+        const aiHovered = isInBounds(mousePos.x, mousePos.y, aiBounds);
+
+        k.drawRect({
+            pos: k.vec2(aiBounds.x, aiBounds.y),
+            width: aiBounds.width,
+            height: aiBounds.height,
+            color: k.rgb(0, 0, 0),
+            radius: 4,
+            opacity: aiHovered || aiCountMenuOpen ? 1.0 : 0.85,
+        });
+        k.drawRect({
+            pos: k.vec2(aiBounds.x, aiBounds.y),
+            width: aiBounds.width,
+            height: aiBounds.height,
+            color: k.rgb(0, 0, 0),
+            radius: 4,
+            fill: false,
+            outline: { width: 1, color: aiCountMenuOpen ? k.rgb(255, 200, 0) : k.rgb(80, 100, 120) },
+        });
+        k.drawText({
+            text: `${selectedAICount} ${selectedAICount === 1 ? 'Opponent' : 'Opponents'}`,
+            pos: k.vec2(aiBounds.x + aiBounds.width / 2, aiBounds.y + aiBounds.height / 2),
+            size: 12,
+            anchor: "center",
+            color: aiHovered || aiCountMenuOpen ? k.rgb(255, 255, 255) : k.rgb(180, 200, 220),
+        });
+
+        // Draw difficulty dropdown menu if open
+        if (difficultyMenuOpen) {
+            const menuX = diffBounds.x;
+            const menuY = diffBounds.y + diffBounds.height + 4;
+            const menuHeight = difficulties.length * menuItemHeight + 8;
+
+            k.drawRect({
+                pos: k.vec2(menuX, menuY),
+                width: diffBounds.width,
+                height: menuHeight,
+                color: k.rgb(0, 0, 0),
+                radius: 4,
+                opacity: 0.95,
+            });
+            k.drawRect({
+                pos: k.vec2(menuX, menuY),
+                width: diffBounds.width,
+                height: menuHeight,
+                color: k.rgb(0, 0, 0),
+                radius: 4,
+                fill: false,
+                outline: { width: 1, color: k.rgb(80, 100, 120) },
+            });
+
+            difficulties.forEach((diff, i) => {
+                const itemY = menuY + 4 + i * menuItemHeight;
+                const itemBounds = { x: menuX, y: itemY, width: diffBounds.width, height: menuItemHeight };
+                const isItemHovered = isInBounds(mousePos.x, mousePos.y, itemBounds);
+                const isSelected = selectedDifficulty === diff;
+
+                if (isItemHovered) {
+                    k.drawRect({
+                        pos: k.vec2(menuX + 4, itemY),
+                        width: diffBounds.width - 8,
+                        height: menuItemHeight,
+                        color: k.rgb(60, 80, 100),
+                        radius: 3,
+                    });
+                }
+
+                k.drawText({
+                    text: AI_DIFFICULTY[diff].label,
+                    pos: k.vec2(menuX + diffBounds.width / 2, itemY + menuItemHeight / 2),
+                    size: 12,
+                    anchor: "center",
+                    color: isSelected ? k.rgb(255, 200, 0) : k.rgb(200, 210, 220),
+                });
+            });
+        }
+
+        // Draw AI count dropdown menu if open
+        if (aiCountMenuOpen) {
+            const menuX = aiBounds.x;
+            const menuY = aiBounds.y + aiBounds.height + 4;
+            const menuHeight = aiCounts.length * menuItemHeight + 8;
+
+            k.drawRect({
+                pos: k.vec2(menuX, menuY),
+                width: aiBounds.width,
+                height: menuHeight,
+                color: k.rgb(0, 0, 0),
+                radius: 4,
+                opacity: 0.95,
+            });
+            k.drawRect({
+                pos: k.vec2(menuX, menuY),
+                width: aiBounds.width,
+                height: menuHeight,
+                color: k.rgb(0, 0, 0),
+                radius: 4,
+                fill: false,
+                outline: { width: 1, color: k.rgb(80, 100, 120) },
+            });
+
+            aiCounts.forEach((count, i) => {
+                const itemY = menuY + 4 + i * menuItemHeight;
+                const itemBounds = { x: menuX, y: itemY, width: aiBounds.width, height: menuItemHeight };
+                const isItemHovered = isInBounds(mousePos.x, mousePos.y, itemBounds);
+                const isSelected = selectedAICount === count;
+
+                if (isItemHovered) {
+                    k.drawRect({
+                        pos: k.vec2(menuX + 4, itemY),
+                        width: aiBounds.width - 8,
+                        height: menuItemHeight,
+                        color: k.rgb(60, 80, 100),
+                        radius: 3,
+                    });
+                }
+
+                k.drawText({
+                    text: `${count} ${count === 1 ? 'Opponent' : 'Opponents'}`,
+                    pos: k.vec2(menuX + aiBounds.width / 2, itemY + menuItemHeight / 2),
+                    size: 12,
+                    anchor: "center",
+                    color: isSelected ? k.rgb(255, 200, 0) : k.rgb(200, 210, 220),
+                });
+            });
+        }
+    });
+
+    // === DROPDOWN CLICK HANDLING ===
+    k.onClick(() => {
+        // Only handle dropdown clicks when Skirmish mode is selected
+        if (selectedScenarioId !== 'versus') {
+            difficultyMenuOpen = false;
+            aiCountMenuOpen = false;
+            return;
+        }
+
+        const mousePos = k.mousePos();
+        const difficulties = ['easy', 'normal', 'hard'];
+        const aiCounts = [1, 2, 3];
+        const menuItemHeight = 26;
+
+        // Check difficulty menu item clicks first (when open)
+        if (difficultyMenuOpen) {
+            const diffBounds = getDifficultyBtnBounds();
+            const menuY = diffBounds.y + diffBounds.height + 4;
+
+            for (let i = 0; i < difficulties.length; i++) {
+                const itemY = menuY + 4 + i * menuItemHeight;
+                const itemBounds = { x: diffBounds.x, y: itemY, width: diffBounds.width, height: menuItemHeight };
+                if (isInBounds(mousePos.x, mousePos.y, itemBounds)) {
+                    selectedDifficulty = difficulties[i];
+                    difficultyMenuOpen = false;
+                    return;
+                }
+            }
+        }
+
+        // Check AI count menu item clicks first (when open)
+        if (aiCountMenuOpen) {
+            const aiBounds = getAICountBtnBounds();
+            const menuY = aiBounds.y + aiBounds.height + 4;
+
+            for (let i = 0; i < aiCounts.length; i++) {
+                const itemY = menuY + 4 + i * menuItemHeight;
+                const itemBounds = { x: aiBounds.x, y: itemY, width: aiBounds.width, height: menuItemHeight };
+                if (isInBounds(mousePos.x, mousePos.y, itemBounds)) {
+                    selectedAICount = aiCounts[i];
+                    aiCountMenuOpen = false;
+                    return;
+                }
+            }
+        }
+
+        // Check button clicks
+        const diffBounds = getDifficultyBtnBounds();
+        const aiBounds = getAICountBtnBounds();
+
+        if (isInBounds(mousePos.x, mousePos.y, diffBounds)) {
+            difficultyMenuOpen = !difficultyMenuOpen;
+            aiCountMenuOpen = false;
+            return;
+        }
+
+        if (isInBounds(mousePos.x, mousePos.y, aiBounds)) {
+            aiCountMenuOpen = !aiCountMenuOpen;
+            difficultyMenuOpen = false;
+            return;
+        }
+
+        // Click outside closes all menus
+        difficultyMenuOpen = false;
+        aiCountMenuOpen = false;
+    });
 });
 
 // Pass selected scenario and AI strategy to game scene
-k.scene("game", createGameScene(k, () => selectedScenarioId, () => selectedAIStrategy, () => selectedDifficulty));
+k.scene("game", createGameScene(k, () => selectedScenarioId, () => selectedAIStrategy, () => selectedDifficulty, () => selectedAICount));
 
 // Start with title screen
 k.go("title");
