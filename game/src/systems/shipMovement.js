@@ -1,7 +1,7 @@
 // Ship movement system - handles pathfinding, hex-to-hex navigation, and fog revelation
-import { hexKey, hexDistance, hexToPixel } from "../hex.js";
+import { hexKey, hexDistance, hexToPixel, hexNeighbors } from "../hex.js";
 import { SHIPS } from "../sprites/index.js";
-import { findPath, findNearestAvailable, findNearestWater } from "../pathfinding.js";
+import { findPath, findNearestAvailable, findNearestWater, findPathWithAvoidance } from "../pathfinding.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
 
 // Trail configuration
@@ -39,6 +39,100 @@ function snapToHexDirection(angle) {
 }
 
 /**
+ * Build a reservation map for predictive collision avoidance.
+ * Maps hexKey -> { shipIndex, permanent } where permanent means the ship is stationary.
+ * @param {Array} ships - Array of ship objects
+ * @returns {Map} Reservation map
+ */
+function buildReservationMap(ships) {
+    const reservations = new Map();
+
+    for (let i = 0; i < ships.length; i++) {
+        const ship = ships[i];
+        const isStationary = !ship.path || ship.path.length === 0 || ship.repair;
+
+        // Reserve current position
+        reservations.set(hexKey(ship.q, ship.r), {
+            shipIndex: i,
+            permanent: isStationary
+        });
+
+        // Reserve upcoming path positions (look ahead 2-3 hexes)
+        if (ship.path && ship.path.length > 0) {
+            const lookAhead = Math.min(ship.path.length, 3);
+            for (let j = 0; j < lookAhead; j++) {
+                const hex = ship.path[j];
+                const key = hexKey(hex.q, hex.r);
+                // Only reserve if not already reserved by another ship
+                if (!reservations.has(key)) {
+                    reservations.set(key, { shipIndex: i, permanent: false });
+                }
+            }
+        }
+    }
+
+    return reservations;
+}
+
+/**
+ * Detect conflicts where multiple ships want to move to the same hex.
+ * @param {Array} ships - Array of ship objects
+ * @returns {Array} Array of { hexKey, shipIndices } conflicts
+ */
+function detectConflicts(ships) {
+    const nextHexClaims = new Map(); // hexKey -> [shipIndices]
+
+    for (let i = 0; i < ships.length; i++) {
+        const ship = ships[i];
+        if (!ship.path || ship.path.length === 0) continue;
+        if (ship.repair) continue;
+
+        const nextHex = ship.path[0];
+        const key = hexKey(nextHex.q, nextHex.r);
+
+        if (!nextHexClaims.has(key)) {
+            nextHexClaims.set(key, []);
+        }
+        nextHexClaims.get(key).push(i);
+    }
+
+    const conflicts = [];
+    for (const [key, indices] of nextHexClaims) {
+        if (indices.length > 1) {
+            conflicts.push({ hexKey: key, shipIndices: indices });
+        }
+    }
+
+    return conflicts;
+}
+
+/**
+ * Resolve a conflict by determining which ship should yield.
+ * Ships farther from their destination yield to closer ships.
+ * @param {Object} conflict - { hexKey, shipIndices }
+ * @param {Array} ships - Array of ship objects
+ * @returns {number} Index of ship that should yield (repath)
+ */
+function resolveConflict(conflict, ships) {
+    let farthestIdx = conflict.shipIndices[0];
+    let farthestDist = -1;
+
+    for (const idx of conflict.shipIndices) {
+        const ship = ships[idx];
+        const waypoint = ship.waypoints[0];
+        if (!waypoint) continue;
+
+        const dist = hexDistance(ship.q, ship.r, waypoint.q, waypoint.r);
+        if (dist > farthestDist) {
+            farthestDist = dist;
+            farthestIdx = idx;
+        }
+    }
+
+    return farthestIdx;
+}
+
+/**
  * Updates all ship movement, pathfinding, and water trails
  * @param {Function} hexToPixel - Coordinate conversion function
  * @param {Object} gameState - The game state
@@ -50,114 +144,121 @@ function snapToHexDirection(angle) {
 export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, floatingNumbers = []) {
     if (dt === 0) return; // Paused
 
-    // Build set of occupied hexes (all ships)
+    // Phase 1: Build predictive reservation map
+    const reservations = buildReservationMap(gameState.ships);
+
+    // Also build simple occupied set for backwards compatibility
     const occupiedHexes = new Set();
     for (const s of gameState.ships) {
         occupiedHexes.add(hexKey(s.q, s.r));
     }
 
+    // Phase 2: Handle attack targets (must update waypoints before conflict detection)
     for (const ship of gameState.ships) {
-        // Skip ships being repaired (can't move while repairing)
         if (ship.repair) continue;
 
-        // Check if player ship is in attack range of its target
         if (ship.attackTarget && ship.attackTarget.type === 'ship') {
             const target = gameState.ships[ship.attackTarget.index];
             if (target) {
                 const dist = hexDistance(ship.q, ship.r, target.q, target.r);
-                const attackDistance = 2;  // Same as pirate attack range
+                const attackDistance = 2;
                 if (dist <= attackDistance) {
-                    // In range - stop moving, combat system will handle firing
                     ship.waypoints = [];
                     ship.path = null;
                 } else {
                     const currentWaypoint = ship.waypoints[0];
-                    // Only update waypoint if target moved significantly (>2 hexes)
-                    // This prevents path thrashing when chasing moving targets
                     const waypointDiff = currentWaypoint
                         ? hexDistance(currentWaypoint.q, currentWaypoint.r, target.q, target.r)
                         : Infinity;
-
                     if (!currentWaypoint || waypointDiff > 2) {
                         ship.waypoints = [{ q: target.q, r: target.r }];
                         ship.path = null;
                     }
                 }
             } else {
-                // Target destroyed
                 ship.attackTarget = null;
             }
         }
+    }
 
+    // Phase 3: Detect and resolve conflicts (ships wanting same hex)
+    const conflicts = detectConflicts(gameState.ships);
+    for (const conflict of conflicts) {
+        const yieldingShipIdx = resolveConflict(conflict, gameState.ships);
+        const yieldingShip = gameState.ships[yieldingShipIdx];
+        // Force the yielding ship to repath with avoidance
+        yieldingShip.path = null;
+    }
+
+    // Phase 4: Calculate paths and execute movement for each ship
+    for (let shipIdx = 0; shipIdx < gameState.ships.length; shipIdx++) {
+        const ship = gameState.ships[shipIdx];
+
+        if (ship.repair) continue;
         if (ship.waypoints.length === 0) continue;
 
-        // Temporarily remove this ship from occupied set (avoids O(n) set copy per ship)
         const shipKey = hexKey(ship.q, ship.r);
         occupiedHexes.delete(shipKey);
 
         // Calculate path if needed
         if (!ship.path) {
-            // If ship is mid-movement toward a saved target, restore path to that target first
-            // This prevents visual snapping when waypoint changes mid-movement
             if (ship.moveProgress > 0 && ship.movingToward) {
-                // Restore minimal path to current movement target
                 ship.path = [{ q: ship.movingToward.q, r: ship.movingToward.r }];
-                ship.movingToward = null;  // Clear it, will be set again below
+                ship.movingToward = null;
             } else {
-                // Check if destination is blocked by another ship
                 const currentWaypoint = ship.waypoints[0];
                 const destKey = hexKey(currentWaypoint.q, currentWaypoint.r);
                 let targetQ = currentWaypoint.q;
                 let targetR = currentWaypoint.r;
 
-                // Check if already at destination
                 if (ship.q === targetQ && ship.r === targetR) {
                     ship.waypoints.shift();
-                    // For patrol ships, loop back if no more waypoints
                     if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
                         ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
                     }
-                    occupiedHexes.add(shipKey);  // Restore before continue
+                    occupiedHexes.add(shipKey);
                     continue;
                 }
 
-                if (occupiedHexes.has(destKey)) {
-                    // Find nearest available hex to the destination
+                // Check if destination is permanently occupied
+                const destRes = reservations.get(destKey);
+                if (destRes && destRes.permanent && destRes.shipIndex !== shipIdx) {
                     const alt = findNearestAvailable(map, currentWaypoint.q, currentWaypoint.r, occupiedHexes);
                     if (alt) {
-                        // If we're already at the alternative, consider waypoint "reached" and move on
                         if (ship.q === alt.q && ship.r === alt.r) {
                             ship.waypoints.shift();
                             if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
                                 ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
                             }
-                            occupiedHexes.add(shipKey);  // Restore before continue
+                            occupiedHexes.add(shipKey);
                             continue;
                         }
                         targetQ = alt.q;
                         targetR = alt.r;
                     } else {
-                        // No available hex nearby - skip to next waypoint
                         ship.waypoints.shift();
-                        // For patrol ships, restore route if we've run out of waypoints
                         if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
                             ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
                         }
-                        occupiedHexes.add(shipKey);  // Restore before continue
+                        occupiedHexes.add(shipKey);
                         continue;
                     }
                 }
 
-                ship.path = findPath(map, ship.q, ship.r, targetQ, targetR, occupiedHexes);
+                // Use avoidance-aware pathfinding for smoother group movement
+                ship.path = findPathWithAvoidance(map, ship.q, ship.r, targetQ, targetR, reservations, shipIdx);
 
-                // No valid path - skip to next waypoint
+                // Fallback to standard pathfinding if avoidance path fails
+                if (!ship.path) {
+                    ship.path = findPath(map, ship.q, ship.r, targetQ, targetR, occupiedHexes);
+                }
+
                 if (!ship.path) {
                     ship.waypoints.shift();
-                    // For patrol ships, restore route if we've run out of waypoints
                     if (ship.waypoints.length === 0 && ship.isPatrolling && ship.patrolRoute.length > 0) {
                         ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
                     }
-                    occupiedHexes.add(shipKey);  // Restore before continue
+                    occupiedHexes.add(shipKey);
                     continue;
                 }
             }
@@ -168,43 +269,39 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
             const speed = SHIPS[ship.type].speed;
             const currentKey = hexKey(ship.q, ship.r);
 
-            // Check ahead: is next hex going to be blocked?
             const next = ship.path[0];
             const nextKey = hexKey(next.q, next.r);
 
-            // Save current movement target for smooth waypoint changes
             ship.movingToward = { q: next.q, r: next.r };
 
-            // Update ship heading to face the next hex (snapped to 6 directions)
             const fromPos = hexToPixel(ship.q, ship.r);
             const toPos = hexToPixel(next.q, next.r);
             const rawAngle = Math.atan2(toPos.y - fromPos.y, toPos.x - fromPos.x);
             ship.heading = snapToHexDirection(rawAngle);
 
-            if (occupiedHexes.has(nextKey) && nextKey !== currentKey) {
-                // Next hex is blocked - find alternative destination near current waypoint
+            // Check if next hex is blocked by a stationary ship
+            const nextRes = reservations.get(nextKey);
+            const isBlocked = nextRes && nextRes.permanent && nextRes.shipIndex !== shipIdx && nextKey !== currentKey;
+
+            if (isBlocked || (occupiedHexes.has(nextKey) && nextKey !== currentKey)) {
                 const currentWaypoint = ship.waypoints[0];
                 const alt = findNearestAvailable(map, currentWaypoint.q, currentWaypoint.r, occupiedHexes);
                 if (alt && (alt.q !== ship.q || alt.r !== ship.r)) {
-                    // Recalculate path to alternative destination
-                    const newPath = findPath(map, ship.q, ship.r, alt.q, alt.r, occupiedHexes);
+                    const newPath = findPathWithAvoidance(map, ship.q, ship.r, alt.q, alt.r, reservations, shipIdx);
                     if (newPath && newPath.length > 0) {
                         ship.path = newPath;
-                        // Don't reset moveProgress - continue smooth movement
                     } else {
-                        // No valid path - stop and wait
                         ship.path = null;
                         ship.moveProgress = 0;
                         ship.movingToward = null;
                     }
                 } else {
-                    // Already at or near destination - advance to next waypoint
                     ship.waypoints.shift();
                     ship.path = null;
                     ship.moveProgress = 0;
                     ship.movingToward = null;
                 }
-                occupiedHexes.add(shipKey);  // Restore before continue
+                occupiedHexes.add(shipKey);
                 continue;
             }
 

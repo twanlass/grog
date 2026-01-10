@@ -2319,15 +2319,6 @@ export function drawSelectedShipsPanel(ctx, gameState) {
         const itemX = panelX + panelPadding + i * (itemSize + itemSpacing);
         const itemY = panelY + panelPadding;
 
-        // Draw item background
-        k.drawRect({
-            pos: k.vec2(itemX, itemY),
-            width: itemSize,
-            height: itemSize,
-            color: k.rgb(40, 45, 55),
-            radius: 4,
-        });
-
         // Calculate health for shader tinting
         const maxHealth = shipData.health;
         const healthPercent = Math.max(0, ship.health / maxHealth);

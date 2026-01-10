@@ -48,6 +48,7 @@
       "Bash(git add:*)",
       "Bash(git -C /Users/tylerwanlass/code/grog diff --staged)",
       "Skill(ship-it)",
+      "Skill(update-docs)",
       "Bash(git -C /Users/tylerwanlass/code/grog add .)",
       "Bash(git -C /Users/tylerwanlass/code/grog diff --staged -- game/src/rendering/minimap.js game/src/scenes/gameScene.js)",
       "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Add circular minimap with click-to-navigate\")",

@@ -11,7 +11,7 @@ import {
     canAffordCrew, showNotification, isAIOwner
 } from "../gameState.js";
 import { hexKey } from "../hex.js";
-import { findNearestWater } from "../pathfinding.js";
+import { findNearestWater, distributeDestinations } from "../pathfinding.js";
 import { startRepair } from "./repair.js";
 
 /**
@@ -629,16 +629,41 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         }
     }
 
-    let movedCount = 0;
+    // Collect valid ships that can be moved
+    const validShips = [];
+    const shipIndexMap = []; // Maps validShips index to gameState.ships index
     for (const sel of gameState.selectedUnits) {
         if (sel.type !== 'ship') continue;
         if (isShipBuildingPort(sel.index, gameState.ports)) continue;
         if (isShipBuildingTower(sel.index, gameState.towers)) continue;
 
         const ship = gameState.ships[sel.index];
-        if (!ship) continue; // Ship may have been destroyed
-        if (ship.type === 'pirate') continue; // Can't control enemy ships
-        if (isAIOwner(ship.owner)) continue; // Can't control AI ships
+        if (!ship) continue;
+        if (ship.type === 'pirate') continue;
+        if (isAIOwner(ship.owner)) continue;
+
+        validShips.push(ship);
+        shipIndexMap.push(sel.index);
+    }
+
+    if (validShips.length === 0) return false;
+
+    // Build occupied hexes set for distribution
+    const occupiedHexes = new Set();
+    for (const s of gameState.ships) {
+        occupiedHexes.add(hexKey(s.q, s.r));
+    }
+
+    // Distribute destinations when multiple ships are selected (non-shift click)
+    let assignments = null;
+    if (validShips.length > 1 && !isShiftHeld) {
+        assignments = distributeDestinations(map, targetQ, targetR, validShips, occupiedHexes);
+    }
+
+    let movedCount = 0;
+    for (let i = 0; i < validShips.length; i++) {
+        const ship = validShips[i];
+
         if (ship.tradeRoute) {
             cancelTradeRoute(ship);
         }
@@ -647,15 +672,30 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         ship.patrolRoute = [];
         ship.isPatrolling = false;
 
+        // Determine this ship's destination
+        let destQ = targetQ;
+        let destR = targetR;
+        if (assignments) {
+            // Find this ship's assigned destination
+            const assignment = assignments.find(a => a.shipIndex === i);
+            if (assignment) {
+                destQ = assignment.q;
+                destR = assignment.r;
+            }
+        }
+
+        // Store original click target for waypoint marker rendering
+        ship.waypointTarget = { q: targetQ, r: targetR };
+
         if (isShiftHeld && ship.waypoints.length > 0) {
             // Shift+click: append to queue (don't clear path - continue current movement)
-            ship.waypoints.push({ q: targetQ, r: targetR });
-            ship.showRouteLine = true;  // Show route line for multi-waypoint paths
+            ship.waypoints.push({ q: destQ, r: destR });
+            ship.showRouteLine = true;
         } else {
             // Regular click: clear and set single destination
-            ship.waypoints = [{ q: targetQ, r: targetR }];
+            ship.waypoints = [{ q: destQ, r: destR }];
             ship.path = null;
-            ship.showRouteLine = false;  // Hide route line for single destinations
+            ship.showRouteLine = false;
         }
         movedCount++;
     }

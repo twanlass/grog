@@ -1114,18 +1114,22 @@ k.scene("title", () => {
     // Dropdown button and menu dimensions
     const difficultyBtnWidth = 80;
     const aiCountBtnWidth = 105;
-    const dropdownBtnHeight = 24;
+    const dropdownBtnHeight = 28;
     const dropdownBtnSpacing = 10;
     const dropdownY = cardY + cardHeight / 2 + 15;
 
-    // Helper to get dropdown button bounds
+    // Total width of both buttons for centering
+    const totalDropdownWidth = difficultyBtnWidth + dropdownBtnSpacing + aiCountBtnWidth;
+
+    // Helper to get dropdown button bounds (centered as a group under skirmish card)
     function getDifficultyBtnBounds() {
-        const x = versusCardX - difficultyBtnWidth - dropdownBtnSpacing / 2;
-        return { x, y: dropdownY, width: difficultyBtnWidth, height: dropdownBtnHeight };
+        const groupStartX = versusCardX - totalDropdownWidth / 2;
+        return { x: groupStartX, y: dropdownY, width: difficultyBtnWidth, height: dropdownBtnHeight };
     }
 
     function getAICountBtnBounds() {
-        const x = versusCardX + dropdownBtnSpacing / 2;
+        const groupStartX = versusCardX - totalDropdownWidth / 2;
+        const x = groupStartX + difficultyBtnWidth + dropdownBtnSpacing;
         return { x, y: dropdownY, width: aiCountBtnWidth, height: dropdownBtnHeight };
     }
 

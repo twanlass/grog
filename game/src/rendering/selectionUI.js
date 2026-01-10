@@ -592,6 +592,9 @@ function drawPatrolRoute(ctx, ship, getShipVisualPos, map) {
  * Draw waypoints and rally points (should be called BEFORE units to render underneath)
  */
 export function drawWaypointsAndRallyPoints(ctx, gameState, getShipVisualPos, map) {
+    // Track drawn waypoint targets to avoid duplicates (for group selections)
+    const drawnTargets = new Set();
+
     // Draw ship waypoints
     for (let i = 0; i < gameState.ships.length; i++) {
         if (!isSelected(gameState, 'ship', i)) continue;
@@ -610,8 +613,12 @@ export function drawWaypointsAndRallyPoints(ctx, gameState, getShipVisualPos, ma
                 if (ship.showRouteLine || ship.waypoints.length > 1) {
                     drawWaypointRoute(ctx, ship, getShipVisualPos, map);
                 }
-                for (const wp of ship.waypoints) {
-                    drawWaypointMarker(ctx, wp.q, wp.r);
+                // Draw single X at the original click target (not at each ship's distributed destination)
+                const target = ship.waypointTarget || ship.waypoints[0];
+                const targetKey = `${target.q},${target.r}`;
+                if (!drawnTargets.has(targetKey)) {
+                    drawWaypointMarker(ctx, target.q, target.r);
+                    drawnTargets.add(targetKey);
                 }
             }
         }

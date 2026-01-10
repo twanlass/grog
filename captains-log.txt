@@ -1,6 +1,22 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-10 | Improve group pathfinding with flow-based movement
+----------------------------------------------------------------
+### New
+- Distributed destination assignment spreads ships around waypoint target
+- Predictive reservation system prevents collision before it happens
+- Soft-cost pathfinding makes ships flow around each other naturally
+- Conflict detection and resolution for simultaneous movement
+
+### Improved
+- Ships travel in parallel paths using angle-based destination matching
+- Single waypoint marker at click location instead of per-ship markers
+- Title screen difficulty/opponent buttons centered under Skirmish card
+- Removed gray backgrounds from ship selection tray
+- Increased title screen button height by 4px
+
+
 2026-01-10 | Make ship explosions more dramatic
 -----------------------------------------------
 ### Improved

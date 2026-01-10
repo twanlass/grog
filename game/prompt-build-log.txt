@@ -664,3 +664,32 @@ l    @    kaplay.js?v=9a8bb7fb:3984
 
 ## 185. User prompt
 > bug: wave rendering broken 
+
+## 186. User prompt
+> npm run dev
+
+## 187. User prompt
+> lets polish this a bit. There's an clunky behavior right now. To use an example: 
+6 ships are selected. When waypoints are set, two rows (front row, back row) of 3 waypoints are chosen near the the target click. The first 3 ships will reach the closer waypoints first. The other 3 ships then need to navigate around those statinary ships to the "Front" to arrive at their waypoints. Ideally, the first ships arrive occupy the front most waypoints so that the lagging ships fall in behind so there's no visual shuffle when ship arrive 
+
+## 188. User prompt
+> can we tighten the waypoints around the target? Right now, its creating a ring of waypoints vs a tight packed group. This causes the ships to form into a wide "wave" vs a tight pack'
+
+## 189. User prompt
+> idea: what if we tried to normalize the distance from each ship to each waypoint to be as similar as possible? I think it's when the distance to travel for one ship is much longer than others that we see this shuffling happen.  
+
+## 190. User prompt
+> how might we get them to travel together more tightly? They fan out right now (almost no ship takes the straight light direct route)
+
+## 191. User prompt
+> last update here: 
+only show a single waypoint X; it should be rendered at the location of the click. 
+
+## 192. User prompt
+> small nit: with ships selected, in the tray UI at the bottom, remove the gray background around each ship: 
+
+## 193. User prompt
+> on the title screen, center the difficulty and oppoonent buttons (as a group) under the skirmish button; increase the height of the difficulty and opponent buttons by 4px 
+
+## 194. User prompt
+> ship it

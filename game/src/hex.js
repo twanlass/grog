@@ -84,3 +84,29 @@ export function parseHexKey(key) {
     const [q, r] = key.split(",").map(Number);
     return { q, r };
 }
+
+// Get all hexes at exactly 'radius' distance from center (forms a ring)
+export function getHexRing(centerQ, centerR, radius) {
+    if (radius === 0) return [{ q: centerQ, r: centerR }];
+    const results = [];
+    // Start at the hex directly east of center at distance 'radius'
+    let q = centerQ + radius;
+    let r = centerR;
+    // Walk around the ring in 6 directions
+    const directions = [
+        { q: 0, r: -1 },   // NW
+        { q: -1, r: 0 },   // W
+        { q: -1, r: 1 },   // SW
+        { q: 0, r: 1 },    // SE
+        { q: 1, r: 0 },    // E
+        { q: 1, r: -1 },   // NE
+    ];
+    for (const dir of directions) {
+        for (let i = 0; i < radius; i++) {
+            results.push({ q, r });
+            q += dir.q;
+            r += dir.r;
+        }
+    }
+    return results;
+}
