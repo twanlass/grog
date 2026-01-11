@@ -1,6 +1,21 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-11 | Unify AI and patrol ship detection with chase limits
+-----------------------------------------------------------------
+### New
+- Ships now use their type's `sightDistance` for enemy detection (not strategy-defined range)
+- Added `maxChaseDistance` per ship type (Cutter 8, Schooner 10, Brigantine 12, Galleon 15)
+- Chase cooldown system: ships ignore enemies for 5 seconds after giving up a chase
+- Strategy-specific chase multiplier (Aggressive 1.5x, others 1.0x)
+- Strategy-specific scout behavior (engage, observe, hit-and-run)
+
+### Improved
+- AI ships no longer chase enemies across the entire map
+- Player patrol ships return to their route after reaching chase limit
+- Consistent detection behavior between player and AI ships
+
+
 2026-01-11 | Add action buttons for ship and port commands
 ----------------------------------------------------------
 ### New

@@ -90,9 +90,12 @@ export const AI_STRATEGIES = {
         shipBehavior: {
             patrolRadiusMin: 10,      // Patrol farther from home
             patrolRadiusMax: 20,      // Aggressive patrolling into enemy territory
-            engagementRange: 10,      // Detect and chase enemies from farther
+            // Detection uses ship's sightDistance from SHIPS[type]
+            chaseDistanceMultiplier: 1.5,  // Chases 1.5x the ship's maxChaseDistance
             pursuitPersistence: 0.9,  // High chance to continue pursuit
             retreatHealthThreshold: 0.2,  // Only retreat when very damaged
+            scoutBehavior: 'engage',  // Scouts attack what they find
+            chaseCooldown: 5,         // Seconds before can chase again after giving up
         },
 
         // Priority modifiers per game phase
@@ -138,9 +141,12 @@ export const AI_STRATEGIES = {
         shipBehavior: {
             patrolRadiusMin: 4,       // Stay close to home
             patrolRadiusMax: 8,       // Tight patrol radius
-            engagementRange: 6,       // Only engage when close
+            // Detection uses ship's sightDistance from SHIPS[type]
+            chaseDistanceMultiplier: 1.0,  // Standard chase distance
             pursuitPersistence: 0.4,  // Often break off pursuit
             retreatHealthThreshold: 0.5,  // Retreat early to preserve forces
+            scoutBehavior: 'observe', // Scouts report positions, avoid combat
+            chaseCooldown: 5,         // Seconds before can chase again after giving up
         },
 
         phaseModifiers: {
@@ -185,9 +191,12 @@ export const AI_STRATEGIES = {
         shipBehavior: {
             patrolRadiusMin: 5,       // Moderate patrol
             patrolRadiusMax: 10,
-            engagementRange: 5,       // Avoid engagement early
+            // Detection uses ship's sightDistance from SHIPS[type]
+            chaseDistanceMultiplier: 1.0,  // Standard chase distance
             pursuitPersistence: 0.5,  // Sometimes pursue
             retreatHealthThreshold: 0.4,
+            scoutBehavior: 'hit-and-run',  // Scouts harass, then retreat
+            chaseCooldown: 5,         // Seconds before can chase again after giving up
         },
 
         phaseModifiers: {
@@ -1480,8 +1489,12 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
 
         const shipData = SHIPS[ship.type];
 
-        // Use strategy-defined engagement range
-        const engagementRange = shipBehavior.engagementRange;
+        // Use ship's sightDistance for detection (not strategy's engagementRange)
+        const detectRange = shipData.sightDistance;
+
+        // Calculate max chase distance with strategy multiplier
+        const maxChaseDistance = (shipData.maxChaseDistance || 10) * (shipBehavior.chaseDistanceMultiplier || 1.0);
+        const chaseCooldown = shipBehavior.chaseCooldown || 5;
 
         // Check ship health for retreat behavior
         const healthPercent = ship.health / shipData.health;
@@ -1490,12 +1503,53 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
         if (shouldRetreat) {
             // Retreat to home port
             ship.attackTarget = null;
+            // Clear chase state
+            ship.chaseStartHex = null;
+            ship.chaseDistanceTraveled = 0;
             const aiHomePort = gameState.ports.find(p => p.owner === aiOwner);
             if (aiHomePort && ship.waypoints.length === 0) {
                 const retreatPoint = findAdjacentWater(map, aiHomePort.q, aiHomePort.r);
                 if (retreatPoint) {
                     ship.waypoints = [{ q: retreatPoint.q, r: retreatPoint.r }];
                     ship.path = null;
+                }
+            }
+            continue;
+        }
+
+        // Check chase cooldown - skip enemy detection if in cooldown
+        if (ship.chaseCooldownTimer > 0) {
+            // Patrol: If idle during cooldown, patrol around home port
+            if (ship.waypoints.length === 0) {
+                const aiHomePort = gameState.ports.find(p => p.owner === aiOwner);
+                if (aiHomePort) {
+                    const patrolPoint = generatePatrolPointWithStrategy(aiHomePort, map, gameState, shipBehavior);
+                    if (patrolPoint) {
+                        ship.waypoints = [patrolPoint];
+                        ship.path = null;
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Check if chase limit reached
+        if (ship.attackTarget && ship.chaseDistanceTraveled >= maxChaseDistance) {
+            // Give up chase
+            ship.attackTarget = null;
+            ship.chaseStartHex = null;
+            ship.chaseDistanceTraveled = 0;
+            ship.chaseCooldownTimer = chaseCooldown;  // Enter cooldown
+
+            // Resume patrol
+            if (ship.waypoints.length === 0) {
+                const aiHomePort = gameState.ports.find(p => p.owner === aiOwner);
+                if (aiHomePort) {
+                    const patrolPoint = generatePatrolPointWithStrategy(aiHomePort, map, gameState, shipBehavior);
+                    if (patrolPoint) {
+                        ship.waypoints = [patrolPoint];
+                        ship.path = null;
+                    }
                 }
             }
             continue;
@@ -1509,7 +1563,7 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
         const isInAttackGroup = tactics && tactics.attackGroup.includes(i);
         const closeRangeThreshold = 3;  // Always engage enemies this close (self-defense)
 
-        if (nearestEnemy && nearestEnemy.dist <= engagementRange) {
+        if (nearestEnemy && nearestEnemy.dist <= detectRange) {
             // For group-attack strategies: only engage at range if part of attack group
             // Always engage at close range for self-defense
             const isCloseRange = nearestEnemy.dist <= closeRangeThreshold;
@@ -1520,6 +1574,12 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
                 const shouldPursue = Math.random() < shipBehavior.pursuitPersistence || nearestEnemy.dist <= 3;
 
                 if (shouldPursue) {
+                    // Start chase - track where it began
+                    if (!ship.chaseStartHex) {
+                        ship.chaseStartHex = { q: ship.q, r: ship.r };
+                        ship.chaseDistanceTraveled = 0;
+                    }
+
                     // Chase and attack
                     ship.attackTarget = { type: nearestEnemy.type, index: nearestEnemy.index };
 
@@ -1532,16 +1592,22 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
                         ship.path = null;
                     }
                 } else {
-                    // Break off pursuit, clear target
+                    // Break off pursuit, clear target and chase state
                     ship.attackTarget = null;
+                    ship.chaseStartHex = null;
+                    ship.chaseDistanceTraveled = 0;
                 }
             } else {
                 // Strategy prefers group attacks - don't engage alone at range
                 ship.attackTarget = null;
+                ship.chaseStartHex = null;
+                ship.chaseDistanceTraveled = 0;
             }
         } else {
-            // Clear attack target if enemy is far
+            // Clear attack target if enemy is far or out of sight
             ship.attackTarget = null;
+            ship.chaseStartHex = null;
+            ship.chaseDistanceTraveled = 0;
 
             // Patrol: If idle, patrol around home port with strategy-defined radius
             if (ship.waypoints.length === 0) {

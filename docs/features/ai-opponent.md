@@ -310,11 +310,28 @@ AI-owned entities are marked with a red indicator circle:
 
 ### Strategy-Specific Values
 
-| Strategy | Patrol Radius | Engagement Range | Attack Group Size |
-|----------|---------------|------------------|-------------------|
-| Aggressive | 10-20 hexes | 10 hexes | 2 ships |
-| Defensive | 4-8 hexes | 6 hexes | 3 ships |
-| Economic | 5-10 hexes | 5 hexes | 4 ships |
+| Strategy | Patrol Radius | Chase Distance Multiplier | Scout Behavior | Attack Group Size |
+|----------|---------------|---------------------------|----------------|-------------------|
+| Aggressive | 10-20 hexes | 1.5x | engage | 2 ships |
+| Defensive | 4-8 hexes | 1.0x | observe | 3 ships |
+| Economic | 5-10 hexes | 1.0x | hit-and-run | 4 ships |
+
+### Detection and Chase System
+
+AI ships use the ship type's `sightDistance` for detection (not a strategy-defined value). When a ship detects an enemy within its sight distance:
+
+1. **Detection**: Ship spots enemy within `sightDistance` (varies by ship type: Cutter 3, Schooner 6, etc.)
+2. **Chase**: Ship pursues target, tracking distance traveled
+3. **Chase Limit**: When `chaseDistanceTraveled` reaches `maxChaseDistance * chaseDistanceMultiplier`, ship gives up
+4. **Cooldown**: Ship enters 5-second cooldown, ignoring all enemies
+5. **Resume**: After cooldown, ship resumes patrol/normal behavior
+
+| Ship | sightDistance | maxChaseDistance |
+|------|---------------|------------------|
+| Cutter | 3 hexes | 8 hexes |
+| Schooner | 6 hexes | 10 hexes |
+| Brigantine | 2 hexes | 12 hexes |
+| Galleon | 3 hexes | 15 hexes |
 
 ## Future Expansion Ideas
 - Difficulty levels (easy/medium/hard)

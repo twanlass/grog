@@ -21,21 +21,30 @@ Ships can be assigned patrol routes to continuously loop through a series of way
 
 ## Auto-Attack
 
-Patrolling ships automatically engage nearby pirates:
+Patrolling ships automatically engage nearby enemies (pirates and AI ships):
 
-1. Ship detects pirate within its `sightDistance` (varies by ship type)
-2. Ship interrupts patrol and chases the pirate
-3. Ship fires when within attack range (2 hexes)
-4. When pirate is destroyed, ship resumes patrol from its route
+1. Ship detects enemy within its `sightDistance` (varies by ship type)
+2. Ship interrupts patrol and chases the enemy
+3. Ship fires when within attack range
+4. If chase exceeds `maxChaseDistance`, ship gives up and enters cooldown
+5. When enemy is destroyed OR chase limit reached, ship resumes patrol from its route
 
-### Detection Ranges
+### Detection and Chase Limits
 
-| Ship | sightDistance |
-|------|---------------|
-| Cutter | 1 hex |
-| Schooner | 1 hex |
-| Brigantine | 2 hexes |
-| Galleon | 3 hexes |
+| Ship | sightDistance | maxChaseDistance |
+|------|---------------|------------------|
+| Cutter | 3 hexes | 8 hexes |
+| Schooner | 6 hexes | 10 hexes |
+| Brigantine | 2 hexes | 12 hexes |
+| Galleon | 3 hexes | 15 hexes |
+
+### Chase Cooldown
+
+When a ship reaches its chase limit, it:
+1. Gives up the chase
+2. Enters a 5-second cooldown (ignores all enemies)
+3. Restores patrol route and resumes patrolling
+4. After cooldown, can detect and engage enemies again
 
 ## Cancelling a Patrol
 

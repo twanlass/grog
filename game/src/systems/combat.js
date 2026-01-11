@@ -419,6 +419,9 @@ export function handlePatrolAutoAttack(gameState) {
         if (!ship.isPatrolling && !ship.guardMode) continue;  // Only patrol or guard mode ships auto-attack
         if (ship.attackTarget) continue;  // Already has a target
 
+        // Skip if in chase cooldown - ship is ignoring enemies temporarily
+        if (ship.chaseCooldownTimer > 0) continue;
+
         // Use ship's sightDistance for detection range
         const detectRange = SHIPS[ship.type].sightDistance;
         const shipOwner = ship.owner || 'player';
@@ -451,6 +454,10 @@ export function handlePatrolAutoAttack(gameState) {
         }
 
         if (nearestEnemy) {
+            // Start chase - track where it began
+            ship.chaseStartHex = { q: ship.q, r: ship.r };
+            ship.chaseDistanceTraveled = 0;
+
             ship.attackTarget = { type: 'ship', index: nearestEnemy.index };
             // Clear waypoints to stop patrol movement - we'll chase the target
             ship.waypoints = [];
@@ -523,6 +530,10 @@ export function handlePatrolAutoAttack(gameState) {
 
         // Target the attacker if we found one
         if (attackerToDefend) {
+            // Start chase - track where it began
+            ship.chaseStartHex = { q: ship.q, r: ship.r };
+            ship.chaseDistanceTraveled = 0;
+
             ship.attackTarget = { type: 'ship', index: attackerToDefend.index };
             ship.waypoints = [];
             // Don't null path - let movement system handle transition smoothly
@@ -534,15 +545,35 @@ export function handlePatrolAutoAttack(gameState) {
  * Patrolling ships with attack targets navigate toward the target
  * Updates waypoint to target's current position each frame
  * Supports chasing ships, ports, settlements, and towers
+ * Enforces maxChaseDistance limit - gives up and returns to patrol if exceeded
  */
 function handlePatrolChase(gameState, map) {
+    const CHASE_COOLDOWN = 5;  // Seconds before can chase again after giving up
+
     for (const ship of gameState.ships) {
         if (ship.type === 'pirate') continue;
-        if (!ship.isPatrolling) continue;
+        if (!ship.isPatrolling && !ship.guardMode) continue;
         if (!ship.attackTarget) continue;
 
         const shipData = SHIPS[ship.type];
         const attackDistance = shipData.attackDistance || 2;
+        const maxChaseDistance = shipData.maxChaseDistance || 10;
+
+        // Check if chase limit reached
+        if (ship.chaseDistanceTraveled >= maxChaseDistance) {
+            // Give up chase
+            ship.attackTarget = null;
+            ship.chaseStartHex = null;
+            ship.chaseDistanceTraveled = 0;
+            ship.chaseCooldownTimer = CHASE_COOLDOWN;
+
+            // Restore patrol route if patrolling
+            if (ship.isPatrolling && ship.patrolRoute && ship.patrolRoute.length > 0) {
+                ship.waypoints = [...ship.patrolRoute];
+                ship.path = null;
+            }
+            continue;
+        }
 
         // Look up target based on type
         let target;
@@ -619,6 +650,11 @@ function handlePlayerAttacks(gameState, dt, fogState) {
             ship.attackCooldown = Math.max(0, ship.attackCooldown - dt);
         }
 
+        // Decrement chase cooldown timer
+        if (ship.chaseCooldownTimer > 0) {
+            ship.chaseCooldownTimer = Math.max(0, ship.chaseCooldownTimer - dt);
+        }
+
         // Skip firing logic if not attacking
         if (!ship.attackTarget) continue;
 
@@ -637,6 +673,9 @@ function handlePlayerAttacks(gameState, dt, fogState) {
 
         if (!target) {
             ship.attackTarget = null;  // Target destroyed
+            // Clear chase state
+            ship.chaseStartHex = null;
+            ship.chaseDistanceTraveled = 0;
             // Resume patrol if ship was patrolling
             if (ship.isPatrolling && ship.patrolRoute.length > 0) {
                 ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));
@@ -1174,6 +1213,9 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
         if (ship.attackTarget && ship.attackTarget.type === removedType) {
             if (ship.attackTarget.index === removedIndex) {
                 ship.attackTarget = null;
+                // Clear chase state
+                ship.chaseStartHex = null;
+                ship.chaseDistanceTraveled = 0;
                 // Resume patrol if ship was patrolling
                 if (ship.isPatrolling && ship.patrolRoute.length > 0) {
                     ship.waypoints = ship.patrolRoute.map(wp => ({ q: wp.q, r: wp.r }));

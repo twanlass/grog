@@ -1855,3 +1855,24 @@ Read the output file to retrieve the result: /var/folders/w1/p9hw508901lfyy97dhl
 
 ## 432. User prompt
 > ship it 
+
+## 433. User prompt
+> clear
+
+## 434. User prompt
+> <task-notification>
+<task-id>b54428c</task-id>
+<output-file>/var/folders/w1/p9hw508901lfyy97dhl_3pcc0000gn/T/claude/-Users-tylerwanlass-code-grog/tasks/b54428c.output</output-file>
+<status>killed</status>
+<summary>Background command "cd /Users/tylerwanlass/code/grog/game && npm run dev 2>&1 &" was killed.</summary>
+</task-notification>
+Read the output file to retrieve the result: /var/folders/w1/p9hw508901lfyy97dhl_3pcc0000gn/T/claude/-Users-tylerwanlass-code-grog/tasks/b54428c.output
+
+## 435. User prompt
+> review plans/ai-engagement-sight-distance.md first
+
+I think the needle to thread: 
+1. AI ships, pirate or otherwise, should use the ships sightDistance const. This way we can introduce new nits or tune existing ones easily. 
+2. AI ships should also have a maxChaseDistance; we don't want an AI chasing other AI or players around the entire map;
+2a. We should introduce the same thing for player ships that are A) on a patrol route or B) in ~attack mode or C) auto-returning fire because they were attacked. 
+3. The AI strategy should impact whether the AI ship attacks, observes, retreats, continue scouting etc. 

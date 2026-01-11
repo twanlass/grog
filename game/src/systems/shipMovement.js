@@ -328,9 +328,14 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                 ship.r = nextHex.r;
                 occupiedHexes.add(nextHexKey);
 
-                // Track chase distance for pirates
+                // Track chase distance for pirates (legacy)
                 if (ship.aiState === 'chase') {
                     ship.aiChaseDistance++;
+                }
+
+                // Track chase distance for patrol/guard ships and AI ships chasing targets
+                if (ship.attackTarget && ship.chaseStartHex) {
+                    ship.chaseDistanceTraveled++;
                 }
 
                 // Mark fog dirty when player ship moves (triggers visibility recalculation)

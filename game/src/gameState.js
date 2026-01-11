@@ -168,6 +168,10 @@ export function createShip(type, q, r, owner = 'player') {
         isPatrolling: false,  // Whether ship is in patrol loop mode
         // Guard mode (auto-attack nearby enemies while stationary/moving)
         guardMode: false,
+        // Chase state (for patrol/guard auto-attack and AI pursuit)
+        chaseStartHex: null,       // { q, r } where chase began
+        chaseDistanceTraveled: 0,  // Hex moves while chasing
+        chaseCooldownTimer: 0,     // Seconds remaining before can chase again
         // Animation state (for directional animated sprites)
         animFrame: 0,         // Current animation frame (0-5)
         animTimer: 0,         // Timer for frame cycling

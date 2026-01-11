@@ -125,6 +125,7 @@ export const SHIPS = {
         attackDistance: 3,              // Range (in tiles/cells) for attacking enemies
         enemySightDistance: 3,          // How far AI can spot threats when controlling ship
         sightDistance: 3,               // How far player can reveal "fog of war"
+        maxChaseDistance: 8,            // Give up chase after this many hex moves
         wakeSize: 8,                    // Base size of water trail wake
         cost: { wood: 10 },             // Build resource costs (object: wood)
         crewCost: 5,                    // Crew required to operate
@@ -144,6 +145,7 @@ export const SHIPS = {
         attackDistance: 5,      // range to attack targets
         enemySightDistance: 6,  // detection range when AI-controlled
         sightDistance: 6,
+        maxChaseDistance: 10,   // give up chase after this many hex moves
         projectileCount: 2,     // fires two shots per volley
         wakeSize: 10,           // base size of water trail wake
         cost: { wood: 30 },
@@ -162,6 +164,7 @@ export const SHIPS = {
         attackDistance: 2,      // range to attack targets
         enemySightDistance: 7,  // detection range when AI-controlled
         sightDistance: 2,
+        maxChaseDistance: 12,   // give up chase after this many hex moves
         wakeSize: 12,           // base size of water trail wake
         cost: { wood: 50 },
         crewCost: 12,
@@ -179,6 +182,7 @@ export const SHIPS = {
         attackDistance: 2,      // range to attack targets
         enemySightDistance: 8,  // detection range when AI-controlled
         sightDistance: 3,
+        maxChaseDistance: 15,   // give up chase after this many hex moves
         wakeSize: 16,           // base size of water trail wake
         cost: { wood: 100 },
         crewCost: 20,
