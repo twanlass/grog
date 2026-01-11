@@ -2368,3 +2368,110 @@ export function drawSelectedShipsPanel(ctx, gameState) {
         height: panelHeight,
     };
 }
+
+/**
+ * Draw action buttons to the left of the minimap
+ * Ships selected: Move, Attack, Patrol buttons
+ * Ports selected (no ships): Rally button
+ */
+export function drawActionButtons(ctx, gameState) {
+    const { k, screenWidth, screenHeight } = ctx;
+    const mousePos = k.mousePos();
+
+    // Check what's selected
+    const selectedShips = gameState.selectedUnits
+        .filter(u => u.type === 'ship')
+        .map(u => gameState.ships[u.index])
+        .filter(ship => ship && ship.type !== 'pirate' && !isAIOwner(ship.owner));
+
+    const selectedPorts = gameState.selectedUnits
+        .filter(u => u.type === 'port')
+        .map(u => gameState.ports[u.index])
+        .filter(port => port && !isAIOwner(port.owner));
+
+    // Determine which buttons to show
+    let buttons;
+    if (selectedShips.length > 0) {
+        // Ship buttons
+        buttons = [
+            { id: 'move', label: 'Move', hotkey: 'M' },
+            { id: 'attack', label: 'Attack', hotkey: 'A' },
+            { id: 'patrol', label: 'Patrol', hotkey: 'P' },
+        ];
+    } else if (selectedPorts.length > 0) {
+        // Port buttons
+        buttons = [
+            { id: 'rally', label: 'Rally', hotkey: 'R' },
+        ];
+    } else {
+        return null;
+    }
+
+    // Button sizing
+    const buttonWidth = 56;
+    const buttonHeight = 32;
+    const buttonGap = 6;
+
+    // Position to the left of minimap (minimap is 200px diameter, 15px margin)
+    const minimapLeftEdge = screenWidth - 15 - 200;
+    const buttonsRightEdge = minimapLeftEdge - 10;  // 10px gap from minimap
+    const totalWidth = buttons.length * buttonWidth + (buttons.length - 1) * buttonGap;
+    const startX = buttonsRightEdge - totalWidth;
+    const y = screenHeight - 15 - buttonHeight;
+
+    const bounds = { buttons: [] };
+
+    for (let i = 0; i < buttons.length; i++) {
+        const btn = buttons[i];
+        const x = startX + i * (buttonWidth + buttonGap);
+
+        const isHovered = mousePos.x >= x && mousePos.x <= x + buttonWidth &&
+                          mousePos.y >= y && mousePos.y <= y + buttonHeight;
+        const isActive = gameState.actionMode.active === btn.id;
+
+        // Button background
+        const bgColor = isActive ? k.rgb(80, 120, 160) :
+                        isHovered ? k.rgb(50, 60, 70) : k.rgb(0, 0, 0);
+        k.drawRect({
+            pos: k.vec2(x, y),
+            width: buttonWidth,
+            height: buttonHeight,
+            color: bgColor,
+            radius: 6,
+            opacity: 0.85,
+        });
+
+        // Border when active
+        if (isActive) {
+            k.drawRect({
+                pos: k.vec2(x, y),
+                width: buttonWidth,
+                height: buttonHeight,
+                color: k.rgb(100, 160, 220),
+                radius: 6,
+                fill: false,
+                outline: { width: 2, color: k.rgb(100, 160, 220) },
+            });
+        }
+
+        // Label text
+        const textColor = isActive ? k.rgb(255, 255, 255) :
+                          isHovered ? k.rgb(220, 230, 240) : k.rgb(150, 160, 170);
+        k.drawText({
+            text: btn.label,
+            pos: k.vec2(x + buttonWidth / 2, y + buttonHeight / 2),
+            size: 12,
+            anchor: "center",
+            color: textColor,
+        });
+
+        bounds.buttons.push({
+            id: btn.id,
+            x, y,
+            width: buttonWidth,
+            height: buttonHeight,
+        });
+    }
+
+    return bounds;
+}

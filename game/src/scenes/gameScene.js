@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, countEntitiesForOwner, isAIOwner } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations, isHexVisible } from "../fogOfWar.js";
 
@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
@@ -334,6 +334,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let topButtonBounds = null;  // For pause/menu buttons
         let surrenderButtonBounds = null;  // For surrender Accept/Decline buttons
         let minimapBounds = null;  // For minimap click-to-navigate
+        let actionButtonBounds = null;  // For action buttons (Move, Attack, Patrol)
         let gameMenuOpen = false;  // Game menu dropdown state
         let speedSubmenuOpen = false;  // Speed submenu state
         let gameMenuBounds = null;  // For game menu click detection
@@ -797,6 +798,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Draw minimap (pass camera position for viewport indicator, gameState and islands for attack alerts)
             minimapBounds = drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, zoom, gameState, islands);
 
+            // Draw action buttons (when ships are selected)
+            actionButtonBounds = drawActionButtons(ctx, gameState);
+
             // Build panel UI (when exactly one port is selected)
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
             buildPanelBounds = null;
@@ -1238,11 +1242,14 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (k.isKeyDown("left")) cameraX -= panSpeed * k.dt();
             if (k.isKeyDown("right")) cameraX += panSpeed * k.dt();
 
-            // Cursor state: show attack cursor when hovering over enemy units (only if player ship selected)
+            // Cursor state: show attack cursor when in attack mode or hovering over enemy units
             let newCursor = CURSOR_DEFAULT;
             const selectedShips = getSelectedShips(gameState);
 
-            if (selectedShips.length > 0) {
+            // Always show attack cursor when in attack mode
+            if (gameState.actionMode.active === 'attack') {
+                newCursor = CURSOR_ATTACK;
+            } else if (selectedShips.length > 0) {
                 const halfW = k.width() / 2;
                 const halfH = k.height() / 2;
                 const worldX = (mouse.x - halfW) / zoom + cameraX;
@@ -1310,6 +1317,38 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             speedSubmenuOpen = false;
         });
 
+        // M to enter move mode (when ships selected)
+        k.onKeyPress("m", () => {
+            const selectedShips = getSelectedShips(gameState);
+            const playerShips = selectedShips.filter(ship =>
+                ship && ship.type !== 'pirate' && !isAIOwner(ship.owner)
+            );
+            if (playerShips.length > 0) {
+                if (gameState.actionMode.active === 'move') {
+                    exitActionMode(gameState);
+                } else {
+                    enterActionMode(gameState, 'move');
+                    showNotification(gameState, "Choose destination");
+                }
+            }
+        });
+
+        // A to enter attack mode (when ships selected)
+        k.onKeyPress("a", () => {
+            const selectedShips = getSelectedShips(gameState);
+            const playerShips = selectedShips.filter(ship =>
+                ship && ship.type !== 'pirate' && !isAIOwner(ship.owner)
+            );
+            if (playerShips.length > 0) {
+                if (gameState.actionMode.active === 'attack') {
+                    exitActionMode(gameState);
+                } else {
+                    enterActionMode(gameState, 'attack');
+                    showNotification(gameState, "Choose target");
+                }
+            }
+        });
+
         // P to enter patrol mode (when ships selected)
         k.onKeyPress("p", () => {
             const selectedShips = getSelectedShips(gameState);
@@ -1318,19 +1357,49 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 ship && ship.type !== 'pirate' && !isAIOwner(ship.owner)
             );
             if (playerShips.length > 0) {
-                enterPatrolMode(gameState);
-                // Add first patrol waypoint for each ship
-                for (const ship of playerShips) {
-                    // Use current waypoint destination if moving, otherwise current position
-                    const firstWaypoint = ship.waypoints && ship.waypoints.length > 0
-                        ? { q: ship.waypoints[0].q, r: ship.waypoints[0].r }
-                        : { q: ship.q, r: ship.r };
-                    ship.patrolRoute = [firstWaypoint];
-                    ship.isPatrolling = true;
-                    ship.showRouteLine = true;
-                    // Don't clear waypoints/path - let ship continue to current destination
+                if (gameState.actionMode.active === 'patrol') {
+                    exitActionMode(gameState);
+                    exitPatrolMode(gameState);
+                } else {
+                    enterActionMode(gameState, 'patrol');
+                    enterPatrolMode(gameState);
+                    // Add first patrol waypoint for each ship
+                    for (const ship of playerShips) {
+                        // Use current waypoint destination if moving, otherwise current position
+                        const firstWaypoint = ship.waypoints && ship.waypoints.length > 0
+                            ? { q: ship.waypoints[0].q, r: ship.waypoints[0].r }
+                            : { q: ship.q, r: ship.r };
+                        ship.patrolRoute = [firstWaypoint];
+                        ship.isPatrolling = true;
+                        ship.showRouteLine = true;
+                        // Don't clear waypoints/path - let ship continue to current destination
+                    }
+                    showNotification(gameState, "Choose patrol route");
                 }
-                showNotification(gameState, "Right click to add waypoints for a patrol route");
+            }
+        });
+
+        // R to enter rally mode (when ports selected, no ships)
+        k.onKeyPress("r", () => {
+            const selectedShips = getSelectedShips(gameState);
+            const hasPlayerShips = selectedShips.some(ship =>
+                ship && ship.type !== 'pirate' && !isAIOwner(ship.owner)
+            );
+            // Only allow rally mode if no ships are selected
+            if (hasPlayerShips) return;
+
+            const selectedPorts = gameState.selectedUnits
+                .filter(u => u.type === 'port')
+                .map(u => gameState.ports[u.index])
+                .filter(port => port && !isAIOwner(port.owner));
+
+            if (selectedPorts.length > 0) {
+                if (gameState.actionMode.active === 'rally') {
+                    exitActionMode(gameState);
+                } else {
+                    enterActionMode(gameState, 'rally');
+                    showNotification(gameState, "Select rally point");
+                }
             }
         });
 
@@ -1372,6 +1441,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             } else if (gameState.towerBuildMode.active) {
                 exitTowerBuildMode(gameState);
                 console.log("Tower placement cancelled");
+            } else if (gameState.actionMode.active) {
+                const wasPatrolMode = gameState.actionMode.active === 'patrol';
+                exitActionMode(gameState);
+                if (gameState.patrolMode.active) {
+                    exitPatrolMode(gameState);
+                }
+                if (wasPatrolMode) {
+                    clearSelection(gameState);
+                }
             } else if (gameState.patrolMode.active) {
                 exitPatrolMode(gameState);
                 clearSelection(gameState);
@@ -1706,6 +1784,50 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); return; }
             if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) { playUIClick(); return; }
 
+            // Check action button clicks (Move, Attack, Patrol)
+            if (actionButtonBounds) {
+                for (const btn of actionButtonBounds.buttons) {
+                    if (mouseX >= btn.x && mouseX <= btn.x + btn.width &&
+                        mouseY >= btn.y && mouseY <= btn.y + btn.height) {
+                        playUIClick();
+
+                        if (gameState.actionMode.active === btn.id) {
+                            // Toggle off if clicking same button
+                            exitActionMode(gameState);
+                            if (btn.id === 'patrol') {
+                                exitPatrolMode(gameState);
+                            }
+                        } else {
+                            // Enter the action mode
+                            enterActionMode(gameState, btn.id);
+
+                            // Show appropriate toast message
+                            if (btn.id === 'move') {
+                                showNotification(gameState, "Choose destination");
+                            } else if (btn.id === 'attack') {
+                                showNotification(gameState, "Choose target");
+                            } else if (btn.id === 'patrol') {
+                                // Enter patrol mode and set up initial state
+                                enterPatrolMode(gameState);
+                                const selectedShips = getSelectedShips(gameState);
+                                for (const ship of selectedShips) {
+                                    const firstWaypoint = ship.waypoints && ship.waypoints.length > 0
+                                        ? { q: ship.waypoints[0].q, r: ship.waypoints[0].r }
+                                        : { q: ship.q, r: ship.r };
+                                    ship.patrolRoute = [firstWaypoint];
+                                    ship.isPatrolling = true;
+                                    ship.showRouteLine = true;
+                                }
+                                showNotification(gameState, "Choose patrol route");
+                            } else if (btn.id === 'rally') {
+                                showNotification(gameState, "Select rally point");
+                            }
+                        }
+                        return;  // Consume click
+                    }
+                }
+            }
+
             // Convert to world coordinates
             const worldX = (mouseX - k.width() / 2) / zoom + cameraX;
             const worldY = (mouseY - k.height() / 2) / zoom + cameraY;
@@ -1714,6 +1836,52 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Check modifier keys
             const isShiftHeld = k.isKeyDown("shift");
             const isCommandHeld = k.isKeyDown("meta");
+
+            // Handle action mode clicks (from action buttons)
+            if (gameState.actionMode.active === 'move') {
+                // Move mode: set waypoint and exit
+                handleWaypointClick(gameState, map, clickedHex, isShiftHeld);
+                exitActionMode(gameState);
+                return;
+            }
+
+            if (gameState.actionMode.active === 'attack') {
+                // Attack mode: try to attack enemy first
+                if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
+                    exitActionMode(gameState);
+                    return;
+                }
+                // No enemy clicked - navigate to location with guard mode (auto-attack enabled)
+                handleWaypointClick(gameState, map, clickedHex, isShiftHeld);
+                const selectedShips = getSelectedShips(gameState);
+                for (const ship of selectedShips) {
+                    ship.guardMode = true;
+                }
+                exitActionMode(gameState);
+                return;
+            }
+
+            if (gameState.actionMode.active === 'patrol') {
+                // Patrol mode: check if clicking on a unit first
+                // If so, exit patrol mode and select the unit instead
+                const clickedUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, false, getShipVisualPosLocal);
+                if (clickedUnit) {
+                    // Clicked on a unit - exit patrol mode, unit is already selected
+                    exitActionMode(gameState);
+                    exitPatrolMode(gameState);
+                    return;
+                }
+                // No unit clicked - add patrol waypoint (stay in mode for multiple points)
+                handlePatrolWaypointClick(gameState, map, clickedHex);
+                return;
+            }
+
+            if (gameState.actionMode.active === 'rally') {
+                // Rally mode: set rally point for selected port(s)
+                handlePortRallyPointClick(gameState, map, clickedHex);
+                exitActionMode(gameState);
+                return;
+            }
 
             let clickedOnUnit = false;
 
@@ -1737,6 +1905,14 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (!clickedOnUnit) {
                 const clickedUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPosLocal);
                 clickedOnUnit = clickedUnit !== null;
+
+                // Exit action mode when selecting a unit
+                if (clickedUnit && gameState.actionMode.active) {
+                    exitActionMode(gameState);
+                    if (gameState.patrolMode.active) {
+                        exitPatrolMode(gameState);
+                    }
+                }
 
                 // Handle double-click to select all units of same type in view
                 if (clickedUnit) {

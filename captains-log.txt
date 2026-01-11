@@ -1,6 +1,22 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-11 | Add action buttons for ship and port commands
+----------------------------------------------------------
+### New
+- Action buttons (Move, Attack, Patrol) appear when ships are selected
+- Rally button appears when ports are selected (no ships)
+- Hotkeys M, A, P, R for Move, Attack, Patrol, Rally modes
+- Guard mode: ships navigating via Attack button auto-attack nearby enemies
+- Attack cursor shown when in attack mode
+
+### Improved
+- Patrol mode now cancels when clicking on another unit (instead of adding waypoint)
+
+### Fixed
+- Escape key now deselects units when exiting patrol mode
+
+
 2026-01-10 | Fix patrol ship movement snapping when engaging enemies
 ---------------------------------------------------------------------
 ### Fixed

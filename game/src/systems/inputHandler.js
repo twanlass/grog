@@ -667,10 +667,11 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         if (ship.tradeRoute) {
             cancelTradeRoute(ship);
         }
-        // Clear attack and patrol state when manually moving
+        // Clear attack, patrol, and guard state when manually moving
         ship.attackTarget = null;
         ship.patrolRoute = [];
         ship.isPatrolling = false;
+        ship.guardMode = false;
 
         // Determine this ship's destination
         let destQ = targetQ;
@@ -814,9 +815,10 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
             // Navigate to waypoint (water tile near target for structures)
             ship.waypoints = [{ q: waypointQ, r: waypointR }];
             ship.path = null;
-            // Clear patrol state - manual attack takes priority over patrol
+            // Clear patrol and guard state - manual attack takes priority
             ship.patrolRoute = [];
             ship.isPatrolling = false;
+            ship.guardMode = false;
             attackCount++;
         }
         return attackCount;

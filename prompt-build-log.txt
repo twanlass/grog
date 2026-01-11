@@ -1787,3 +1787,71 @@ Read the output file to retrieve the result: /var/folders/w1/p9hw508901lfyy97dhl
 <summary>Background command "Start dev server and check if running" failed with exit code 137.</summary>
 </task-notification>
 Read the output file to retrieve the result: /var/folders/w1/p9hw508901lfyy97dhl_3pcc0000gn/T/claude/-Users-tylerwanlass-code-grog/tasks/be0e510.output
+
+## 417. User prompt
+> let's add a hook for session to start to have claude code before making a plan: 
+1. read the adding features doc
+2. search for relevant feature docs and read those 
+
+## 418. User prompt
+> bug: when ships are on a patrol route and encounter / see an AI, their movement snaps / jumps as they navigate to the enemey vs smoothly moving like normal
+
+## 419. User prompt
+> will using "/clear" cause it to lose this context though? 
+
+## 420. User prompt
+> ship it
+
+## 421. User prompt
+> we're going to implment some UI for actions that only have mouse / hotkey entrypoints today: move, attack, and patrol. Attached is rough wireframe. We'll add buttons for each bottom right to the left of the mini map. Here's how the buttons will work: 
+1. Only show these actions when one or more ships are selected
+2. Move: when left clicked, show toast message that says "Choose destination"; then on the next left click, set the ship(s) waypoints. 
+3. Attack: ^ same, except toast should say "Choose target" 
+3a. if a non-enemy unit is targeted, we probably want to have the seleted ship(s) navigate there and when arriving be in "patrol mode", ready to attack anythign in sight. 
+4. Patrol: ^ like move, execpt toast says "Choose patrol route"; then on left click set patrol points; existing escape or other unit selection ends patrol point creation mode. 
+
+## 422. User prompt
+> I think this hook needs to run after the user prompts. So, claude starts, user asks to build feature x, <hook runs>, plan created, etc
+
+## 423. User prompt
+> <task-notification>
+<task-id>b63c8cc</task-id>
+<output-file>/var/folders/w1/p9hw508901lfyy97dhl_3pcc0000gn/T/claude/-Users-tylerwanlass-code-grog/tasks/b63c8cc.output</output-file>
+<status>killed</status>
+<summary>Background command "Start dev server to test the fix" was killed.</summary>
+</task-notification>
+Read the output file to retrieve the result: /var/folders/w1/p9hw508901lfyy97dhl_3pcc0000gn/T/claude/-Users-tylerwanlass-code-grog/tasks/b63c8cc.output
+<task-notification>
+<task-id>b8e6965</task-id>
+<output-file>/var/folders/w1/p9hw508901lfyy97dhl_3pcc0000gn/T/claude/-Users-tylerwanlass-code-grog/tasks/b8e6965.output</output-file>
+<status>failed</status>
+<summary>Background command "Start dev server" failed with exit code 137.</summary>
+</task-notification>
+Read the output file to retrieve the result: /var/folders/w1/p9hw508901lfyy97dhl_3pcc0000gn/T/claude/-Users-tylerwanlass-code-grog/tasks/b8e6965.output
+
+## 424. User prompt
+> for the buttons, spell out "Move" "Attack" and "Patrol"; add hotkeys for move "M", and attack, "A" (same logic should apply to hotkeys as buttons, i.e. only usable with ship(s) selected
+
+## 425. User prompt
+> when in patrol mode, escape key should also deselect the selected units (right now it exists patrol mode)
+
+## 426. User prompt
+> when attack mode is active, use cursor-attack 
+
+## 427. User prompt
+> lets add a new action for ports: when selected, add a rallypoint action button. When selected show at toast notif "Select rally point"; on left click, set the rallypoint for that port. 
+
+## 428. User prompt
+> bug with patrol mode: selecting another unit (like a port) should cancel patrol mode, not add another path waypoint
+
+## 429. User prompt
+> do we have a chase cooldown for AI? or like a max distnace they'll chase a player? 
+
+## 430. User prompt
+> how does engagementRange interact w/ their enemy sight distance?
+
+## 431. User prompt
+> create a new root project directory called plans. In there, write this exploration around engagement range and sight distance to a new markdown file. We'll work on this later. 
+
+## 432. User prompt
+> ship it 

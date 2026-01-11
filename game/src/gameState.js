@@ -67,6 +67,11 @@ export function createGameState(config = {}) {
             active: false,
         },
 
+        // Action button targeting mode (move, attack, patrol)
+        actionMode: {
+            active: null,  // null | 'move' | 'attack' | 'patrol'
+        },
+
         // Pirate respawn queue: [{ timer }]
         pirateRespawnQueue: [],
 
@@ -161,6 +166,8 @@ export function createShip(type, q, r, owner = 'player') {
         // Patrol state
         patrolRoute: [],      // Array of { q, r } - saved patrol waypoints for looping
         isPatrolling: false,  // Whether ship is in patrol loop mode
+        // Guard mode (auto-attack nearby enemies while stationary/moving)
+        guardMode: false,
         // Animation state (for directional animated sprites)
         animFrame: 0,         // Current animation frame (0-5)
         animTimer: 0,         // Timer for frame cycling
@@ -1002,6 +1009,16 @@ export function enterPatrolMode(gameState) {
 // Exit patrol waypoint setting mode
 export function exitPatrolMode(gameState) {
     gameState.patrolMode.active = false;
+}
+
+// Enter action mode (move, attack, or patrol targeting)
+export function enterActionMode(gameState, mode) {
+    gameState.actionMode.active = mode;
+}
+
+// Exit action mode
+export function exitActionMode(gameState) {
+    gameState.actionMode.active = null;
 }
 
 // Get the next tower type in the upgrade tree

@@ -416,7 +416,7 @@ export function handlePatrolAutoAttack(gameState) {
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
         if (ship.type === 'pirate') continue;  // Pirates use their own AI
-        if (!ship.isPatrolling) continue;
+        if (!ship.isPatrolling && !ship.guardMode) continue;  // Only patrol or guard mode ships auto-attack
         if (ship.attackTarget) continue;  // Already has a target
 
         // Use ship's sightDistance for detection range
