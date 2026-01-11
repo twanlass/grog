@@ -1,6 +1,12 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-11 | Increase cannonball speed
+---------------------------------------
+### Improved
+- Cannonballs travel 25% faster (~0.8s travel time instead of 1s)
+
+
 2026-01-11 | Add control groups and improve selected ships panel
 ----------------------------------------------------------------
 ### New

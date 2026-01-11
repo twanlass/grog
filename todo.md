@@ -6,6 +6,9 @@
 - continue map rendering so there's no black, but put border on edges to constrain game?
 - unit selection: don't show health bars on units; 
 - - maybe show selected units in bottom like build queue and overlay health color on sprite
+- - update actual ship selection outline; maybe just highlight tile? 
+- explore some sort of group path finding to make paths smoother when controlling a group
+- Add Attack hotkey; A > then click an area. Like a single destination patrol. Then units should just attack whatever is in range, vs having to manually click every unit
 
 ### UI nits
 - change

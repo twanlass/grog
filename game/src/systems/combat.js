@@ -148,7 +148,7 @@ export function findCenterSpawnPositions(map, hexKeyFn, count, occupiedHexes) {
 
     return positions;
 }
-const PROJECTILE_SPEED = 1.0;      // progress per second (~1s travel time)
+const PROJECTILE_SPEED = 1.25;     // progress per second (~0.8s travel time)
 const SHOT_STAGGER_DELAY = 0.3;   // seconds between multi-shot tower shots
 
 // Loot drop constants
