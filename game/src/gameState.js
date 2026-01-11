@@ -22,6 +22,10 @@ export function createGameState(config = {}) {
         // Currently selected units (multi-select)
         selectedUnits: [], // [{ type: 'ship'|'port', index: number }, ...]
 
+        // Saved unit selections (control groups) - slots 0-9
+        // Each slot: [{ type: 'ship'|'port'|'settlement'|'tower', id: string }]
+        savedSelections: Array.from({ length: 10 }, () => []),
+
         // Currently targeted enemy ship for attack visualization (red hex border)
         attackTargetShipIndex: null,
 
@@ -137,6 +141,7 @@ export function createGameState(config = {}) {
 // Create a new ship with navigation support
 export function createShip(type, q, r, owner = 'player') {
     return {
+        id: `ship-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         owner,  // 'player' | 'ai1' | 'ai2'
         type,
         q,
@@ -181,6 +186,7 @@ export function createShip(type, q, r, owner = 'player') {
 // Create a new port (optionally under construction)
 export function createPort(type, q, r, isConstructing = false, builderShipIndex = null, owner = 'player') {
     return {
+        id: `port-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         owner,  // 'player' | 'ai1' | 'ai2'
         type,
         q,
@@ -259,6 +265,79 @@ export function getSelectedShips(gameState) {
     return gameState.selectedUnits
         .filter(u => u.type === 'ship')
         .map(u => gameState.ships[u.index]);
+}
+
+// ============================================================
+// Control Group Functions (saved unit selections)
+// ============================================================
+
+// Save current selection to a control group slot (0-9)
+export function saveSelectionToGroup(gameState, slot) {
+    if (slot < 0 || slot > 9) return;
+
+    // Convert current selection (index-based) to ID-based for persistence
+    const saved = [];
+    for (const unit of gameState.selectedUnits) {
+        let entity = null;
+        if (unit.type === 'ship') entity = gameState.ships[unit.index];
+        else if (unit.type === 'port') entity = gameState.ports[unit.index];
+        else if (unit.type === 'settlement') entity = gameState.settlements[unit.index];
+        else if (unit.type === 'tower') entity = gameState.towers[unit.index];
+
+        if (entity?.id) {
+            saved.push({ type: unit.type, id: entity.id });
+        }
+    }
+    gameState.savedSelections[slot] = saved;
+}
+
+// Recall a saved selection, filtering out destroyed units
+// Returns array of { type, index } for still-existing units
+export function recallSelectionFromGroup(gameState, slot) {
+    if (slot < 0 || slot > 9) return [];
+
+    const saved = gameState.savedSelections[slot];
+    const recalled = [];
+
+    for (const entry of saved) {
+        let collection = null;
+        if (entry.type === 'ship') collection = gameState.ships;
+        else if (entry.type === 'port') collection = gameState.ports;
+        else if (entry.type === 'settlement') collection = gameState.settlements;
+        else if (entry.type === 'tower') collection = gameState.towers;
+
+        if (collection) {
+            const index = collection.findIndex(e => e.id === entry.id);
+            if (index !== -1) {
+                recalled.push({ type: entry.type, index });
+            }
+        }
+    }
+
+    return recalled;
+}
+
+// Calculate center position of units in a control group (for camera snap)
+export function getGroupCenterPosition(gameState, slot, hexToPixelFn) {
+    const units = recallSelectionFromGroup(gameState, slot);
+    if (units.length === 0) return null;
+
+    let sumX = 0, sumY = 0;
+    for (const unit of units) {
+        let entity = null;
+        if (unit.type === 'ship') entity = gameState.ships[unit.index];
+        else if (unit.type === 'port') entity = gameState.ports[unit.index];
+        else if (unit.type === 'settlement') entity = gameState.settlements[unit.index];
+        else if (unit.type === 'tower') entity = gameState.towers[unit.index];
+
+        if (entity) {
+            const pos = hexToPixelFn(entity.q, entity.r);
+            sumX += pos.x;
+            sumY += pos.y;
+        }
+    }
+
+    return { x: sumX / units.length, y: sumY / units.length };
 }
 
 // Get all land tiles connected to a starting hex (island analysis)
@@ -815,6 +894,7 @@ export function startPortUpgrade(port) {
 // Create a new settlement (optionally under construction)
 export function createSettlement(q, r, isConstructing = false, builderPortIndex = null, owner = 'player') {
     return {
+        id: `settlement-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         owner,  // 'player' | 'ai1' | 'ai2'
         q,
         r,
@@ -967,6 +1047,7 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
 // Create a new tower (optionally under construction)
 export function createTower(type, q, r, isConstructing = false, builderShipIndex = null, builderPortIndex = null, owner = 'player') {
     return {
+        id: `tower-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         owner,  // 'player' | 'ai1' | 'ai2'
         type,
         q,

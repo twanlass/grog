@@ -1876,3 +1876,58 @@ I think the needle to thread:
 2. AI ships should also have a maxChaseDistance; we don't want an AI chasing other AI or players around the entire map;
 2a. We should introduce the same thing for player ships that are A) on a patrol route or B) in ~attack mode or C) auto-returning fire because they were attacked. 
 3. The AI strategy should impact whether the AI ship attacks, observes, retreats, continue scouting etc. 
+
+## 436. User prompt
+> new feature: saved unit selections. Allows the player to save a selection of ships to a number then recall that selection later (or snap cameara to those units) with a hotkey. 
+
+- with ships selected, cmd + number (0-9) creates a hotkey 
+- number recalls the selection (units selected)
+- double tapping number recalls selection + snaps camera to selected units
+
+## 437. User prompt
+> let's make a global hook for all claude code projects that plays a sound when claude is done or ready for input. Here's an exmaple (though I don't know if these sounds exist): "Stop": [
+  {
+    "hooks": [
+      {
+        "type": "command",
+        "command": "afplay -v 0.40 /System/Library/Sounds/Morse.aiff"
+      }
+    ]
+  }
+],
+"Notification": [
+  {
+    "hooks": [
+      {
+        "type": "command",
+        "command": "afplay -v 0.35 /System/Library/Sounds/Ping.aiff"
+      }
+    ]
+  }
+]
+
+## 438. User prompt
+> can we add a sound for "notificaiton" as well as "stop"?
+
+## 439. User prompt
+> lets update the selected unit drawer UI at the bottom. 
+- reduce the sprite size: maybe render at 75% of default size
+- the row gets long; let's wrap and render 6 units per line?
+
+
+See screenshot for context: 
+
+## 440. User prompt
+> do i have hooks configured? 
+
+## 441. User prompt
+> yes
+
+## 442. User prompt
+> print the path to my claude code global hooks
+
+## 443. User prompt
+> when speed is changed, show a toast notification "Speed [increased/descreased] to [1/2/3/5/5]x"
+
+## 444. User prompt
+> ship it

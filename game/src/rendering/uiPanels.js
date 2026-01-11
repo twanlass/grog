@@ -2290,14 +2290,19 @@ export function drawSelectedShipsPanel(ctx, gameState) {
 
     if (selectedShips.length === 0) return null;
 
-    const itemSize = 48;
-    const itemSpacing = 8;
-    const panelPadding = 12;
+    const itemSize = 36;  // 75% of 48
+    const itemSpacing = 6;
+    const panelPadding = 10;
+    const itemsPerRow = 6;
     const shipCount = selectedShips.length;
 
+    // Calculate rows and columns
+    const numRows = Math.ceil(shipCount / itemsPerRow);
+    const numCols = Math.min(shipCount, itemsPerRow);
+
     // Calculate panel dimensions
-    const panelWidth = shipCount * itemSize + (shipCount - 1) * itemSpacing + panelPadding * 2;
-    const panelHeight = itemSize + panelPadding * 2;
+    const panelWidth = numCols * itemSize + (numCols - 1) * itemSpacing + panelPadding * 2;
+    const panelHeight = numRows * itemSize + (numRows - 1) * itemSpacing + panelPadding * 2;
     const panelX = screenWidth / 2 - panelWidth / 2;
     const panelY = screenHeight - panelHeight - 15;
 
@@ -2316,8 +2321,12 @@ export function drawSelectedShipsPanel(ctx, gameState) {
         const { ship, index } = selectedShips[i];
         const shipData = SHIPS[ship.type];
 
-        const itemX = panelX + panelPadding + i * (itemSize + itemSpacing);
-        const itemY = panelY + panelPadding;
+        // Calculate row and column for this ship
+        const row = Math.floor(i / itemsPerRow);
+        const col = i % itemsPerRow;
+
+        const itemX = panelX + panelPadding + col * (itemSize + itemSpacing);
+        const itemY = panelY + panelPadding + row * (itemSize + itemSpacing);
 
         // Calculate health for shader tinting
         const maxHealth = shipData.health;
@@ -2330,7 +2339,7 @@ export function drawSelectedShipsPanel(ctx, gameState) {
         if (shipData.directionalSprite) {
             // For directional sprites, use player's red variant, SE facing (row 2, frame 0)
             const frame = 2 * 3 + 0;
-            const pngScale = (shipData.spriteScale || 1) * 1.0;
+            const pngScale = (shipData.spriteScale || 1) * 0.75;
             k.drawSprite({
                 sprite: 'cutter-red',
                 frame: frame,
@@ -2341,7 +2350,7 @@ export function drawSelectedShipsPanel(ctx, gameState) {
                 opacity: healthPercent,
             });
         } else if (shipData.imageSprite) {
-            const pngScale = (shipData.spriteScale || 1) * 1.0;
+            const pngScale = (shipData.spriteScale || 1) * 0.75;
             k.drawSprite({
                 sprite: shipData.imageSprite,
                 frame: 0,
@@ -2353,7 +2362,7 @@ export function drawSelectedShipsPanel(ctx, gameState) {
             });
         } else {
             // Fallback to pixel art sprite with health tint
-            const spriteScale = 1;
+            const spriteScale = 0.75;
             const spriteSize = getSpriteSize(shipData.sprite);
             const sx = itemX + (itemSize - spriteSize.width * spriteScale) / 2;
             const sy = itemY + (itemSize - spriteSize.height * spriteScale) / 2;

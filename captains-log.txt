@@ -1,6 +1,18 @@
 CAPTAIN'S LOG
 =============
 
+2026-01-11 | Add control groups and improve selected ships panel
+----------------------------------------------------------------
+### New
+- Control groups (Cmd+0-9 to save, 0-9 to recall, double-tap to snap camera)
+- Unique IDs for all entities to track saved selections through destruction
+- Speed change notifications when using +/- keys
+
+### Improved
+- Speed controls moved from 1-5 to +/- (increment/decrement)
+- Selected ships panel smaller (75% sprites) and wraps at 6 per row
+
+
 2026-01-11 | Unify AI and patrol ship detection with chase limits
 -----------------------------------------------------------------
 ### New

@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations, isHexVisible } from "../fogOfWar.js";
 
@@ -1300,12 +1300,25 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // Time scale controls
-        k.onKeyPress("1", () => { gameState.timeScale = 1; gameMenuOpen = false; speedSubmenuOpen = false; });
-        k.onKeyPress("2", () => { gameState.timeScale = 2; gameMenuOpen = false; speedSubmenuOpen = false; });
-        k.onKeyPress("3", () => { gameState.timeScale = 3; gameMenuOpen = false; speedSubmenuOpen = false; });
-        k.onKeyPress("4", () => { gameState.timeScale = 4; gameMenuOpen = false; speedSubmenuOpen = false; });
-        k.onKeyPress("5", () => { gameState.timeScale = 5; gameMenuOpen = false; speedSubmenuOpen = false; });
+        // Time scale controls (+ to increase, - to decrease)
+        k.onKeyPress("=", () => {
+            const oldSpeed = gameState.timeScale;
+            gameState.timeScale = Math.min(gameState.timeScale + 1, 5);
+            if (gameState.timeScale !== oldSpeed) {
+                showNotification(gameState, `Speed increased to ${gameState.timeScale}x`);
+            }
+            gameMenuOpen = false;
+            speedSubmenuOpen = false;
+        });
+        k.onKeyPress("-", () => {
+            const oldSpeed = gameState.timeScale;
+            gameState.timeScale = Math.max(gameState.timeScale - 1, 1);
+            if (gameState.timeScale !== oldSpeed) {
+                showNotification(gameState, `Speed decreased to ${gameState.timeScale}x`);
+            }
+            gameMenuOpen = false;
+            speedSubmenuOpen = false;
+        });
         k.onKeyPress(".", () => {
             if (gameState.timeScale === 0) {
                 gameState.timeScale = lastNonZeroSpeed;
@@ -1316,6 +1329,54 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             gameMenuOpen = false;
             speedSubmenuOpen = false;
         });
+
+        // Control group key handlers (0-9)
+        // Cmd+Number: Save current selection to slot
+        // Number: Recall saved selection
+        // Double-tap Number: Recall + snap camera to units
+        const lastNumberKeyPresses = {};
+        const DOUBLE_TAP_THRESHOLD = 350; // milliseconds
+
+        const numberKeys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        for (const numKey of numberKeys) {
+            k.onKeyPress(numKey, () => {
+                const slot = parseInt(numKey, 10);
+                const isCommandHeld = k.isKeyDown("meta") || k.isKeyDown("control");
+                const now = Date.now();
+
+                if (isCommandHeld) {
+                    // Cmd+Number: Save current selection to slot
+                    if (gameState.selectedUnits.length > 0) {
+                        saveSelectionToGroup(gameState, slot);
+                        const count = gameState.savedSelections[slot].length;
+                        showNotification(gameState, `Saved ${count} unit${count > 1 ? 's' : ''} to group ${slot}`);
+                    }
+                } else {
+                    // Number key: Recall selection
+                    const units = recallSelectionFromGroup(gameState, slot);
+
+                    if (units.length > 0) {
+                        // Check for double-tap (camera snap)
+                        const lastPress = lastNumberKeyPresses[numKey] || 0;
+                        const isDoubleTap = (now - lastPress) < DOUBLE_TAP_THRESHOLD;
+
+                        // Set selection
+                        gameState.selectedUnits = units;
+
+                        if (isDoubleTap) {
+                            // Double-tap: Also snap camera to group center
+                            const center = getGroupCenterPosition(gameState, slot, hexToPixel);
+                            if (center) {
+                                cameraX = center.x;
+                                cameraY = center.y;
+                            }
+                        }
+                    }
+
+                    lastNumberKeyPresses[numKey] = now;
+                }
+            });
+        }
 
         // M to enter move mode (when ships selected)
         k.onKeyPress("m", () => {
