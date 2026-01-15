@@ -926,6 +926,23 @@ function updateProjectiles(gameState, dt, fogState) {
                     : null;
                 applyDamage(gameState, hitType, hitIndex, proj.damage, fogState, attackerInfo);
                 queueImpactSound(gameState, proj.toQ, proj.toR);
+
+                // Apply splash damage for tower projectiles with splash config
+                if (sourceTower && hitType === 'ship') {
+                    const towerData = TOWERS[sourceTower.type];
+                    if (towerData && towerData.splash) {
+                        applySplashDamage(
+                            gameState,
+                            proj.toQ,
+                            proj.toR,
+                            towerData.splash,
+                            proj.damage,
+                            sourceOwner,
+                            hitIndex,
+                            fogState
+                        );
+                    }
+                }
             } else {
                 // Miss - create water splash effect
                 gameState.waterSplashes.push({
@@ -943,6 +960,51 @@ function updateProjectiles(gameState, dt, fogState) {
 
 // Duration of hit flash effect in seconds
 const HIT_FLASH_DURATION = 0.15;
+
+/**
+ * Apply splash damage from tower projectiles to nearby enemy ships
+ * @param {Object} gameState - The game state
+ * @param {number} impactQ - Hex q coordinate of impact
+ * @param {number} impactR - Hex r coordinate of impact
+ * @param {Object} splashConfig - { minRadius, maxRadius, bonusDamage }
+ * @param {number} baseDamage - Base damage of the projectile
+ * @param {string} sourceOwner - Owner of the source tower
+ * @param {number} primaryTargetIndex - Index of primary target ship to exclude
+ * @param {Object} fogState - Fog of war state
+ */
+function applySplashDamage(gameState, impactQ, impactR, splashConfig, baseDamage, sourceOwner, primaryTargetIndex, fogState) {
+    // Random radius between min and max (inclusive)
+    const splashRadius = splashConfig.minRadius + Math.floor(Math.random() * (splashConfig.maxRadius - splashConfig.minRadius + 1));
+
+    // Random damage multiplier: 1.0 to 1.0 + bonusDamage
+    const damageMultiplier = 1.0 + Math.random() * splashConfig.bonusDamage;
+    const splashDamage = Math.round(baseDamage * damageMultiplier);
+
+    // Find all enemy ships within splash radius using spatial index
+    const candidateIndices = getShipsInRange(shipSpatialIndex, gameState, impactQ, impactR, splashRadius);
+
+    for (const shipIndex of candidateIndices) {
+        // Skip the primary target (already took direct hit)
+        if (shipIndex === primaryTargetIndex) continue;
+
+        const ship = gameState.ships[shipIndex];
+        if (!ship || ship.health <= 0) continue;
+
+        // Check if ship is an enemy of the tower owner
+        const shipOwner = ship.type === 'pirate' ? 'pirate' : (ship.owner || 'player');
+        if (shipOwner === sourceOwner) continue;  // Skip friendly ships
+
+        // Verify within splash radius
+        const dist = hexDistance(impactQ, impactR, ship.q, ship.r);
+        if (dist > splashRadius) continue;
+
+        // Apply splash damage
+        applyDamage(gameState, 'ship', shipIndex, splashDamage, fogState, null);
+
+        // Spawn wood splinters for splash hit visual feedback
+        spawnWoodSplinters(gameState, ship.q, ship.r);
+    }
+}
 
 /**
  * Apply damage to a target, destroying it if health reaches 0
