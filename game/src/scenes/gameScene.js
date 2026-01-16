@@ -1232,15 +1232,36 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let currentCursor = CURSOR_DEFAULT;
         k.setCursor(currentCursor);
 
+        // Calculate camera bounds based on map size (with some padding)
+        const mapMinPos = hexToPixel(0, 0);
+        const mapMaxPos = hexToPixel(map.width - 1, map.height - 1);
+        const cameraPadding = HEX_SIZE * 4; // Allow some padding beyond map edges
+        const cameraMinX = mapMinPos.x - cameraPadding;
+        const cameraMaxX = mapMaxPos.x + cameraPadding;
+        const cameraMinY = mapMinPos.y - cameraPadding;
+        const cameraMaxY = mapMaxPos.y + cameraPadding;
+
+        // Helper to clamp camera position within bounds
+        function clampCamera() {
+            cameraX = Math.max(cameraMinX, Math.min(cameraMaxX, cameraX));
+            cameraY = Math.max(cameraMinY, Math.min(cameraMaxY, cameraY));
+        }
+
         k.onUpdate(() => {
             const panSpeed = 300 / zoom;
             const mouse = k.mousePos();
 
-            // Arrow key panning
-            if (k.isKeyDown("up")) cameraY -= panSpeed * k.dt();
-            if (k.isKeyDown("down")) cameraY += panSpeed * k.dt();
-            if (k.isKeyDown("left")) cameraX -= panSpeed * k.dt();
-            if (k.isKeyDown("right")) cameraX += panSpeed * k.dt();
+            // Arrow key panning - disabled when mouse/trackpad panning is active
+            // This prevents conflicts between keyboard and trackpad input
+            if (!isPanning && !isRightMouseDown) {
+                if (k.isKeyDown("up")) cameraY -= panSpeed * k.dt();
+                if (k.isKeyDown("down")) cameraY += panSpeed * k.dt();
+                if (k.isKeyDown("left")) cameraX -= panSpeed * k.dt();
+                if (k.isKeyDown("right")) cameraX += panSpeed * k.dt();
+            }
+
+            // Clamp camera to map bounds
+            clampCamera();
 
             // Cursor state: show attack cursor when in attack mode or hovering over enemy units
             let newCursor = CURSOR_DEFAULT;
