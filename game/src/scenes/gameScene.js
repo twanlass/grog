@@ -41,6 +41,9 @@ import {
     handlePatrolWaypointClick
 } from "../systems/inputHandler.js";
 
+// Mobile touch support
+import { isTouchDevice, initTouchHandlers, resetTouchState } from "../systems/touchHandler.js";
+
 // Default scenario config (used if none provided)
 import { getScenario, DEFAULT_SCENARIO_ID } from "../scenarios/index.js";
 
@@ -347,6 +350,21 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Floating numbers for resource generation animation
         const floatingNumbers = [];
         const GENERATION_INTERVAL = 30;  // seconds between resource generation
+
+        // Mobile touch state
+        const isMobile = isTouchDevice();
+        let touchZoomBase = zoom;  // Store initial zoom for pinch gesture
+        let touchPanCameraX = cameraX;  // Store initial camera for two-finger pan
+        let touchPanCameraY = cameraY;
+        let virtualMousePos = null;  // Override for k.mousePos() on touch devices
+
+        // Helper to get mouse position (respects touch override)
+        function getMousePos() {
+            if (virtualMousePos) {
+                return virtualMousePos;
+            }
+            return k.mousePos();
+        }
         const GENERATION_AMOUNT = 5;     // amount of each resource generated
 
         // Stipple animation timer for water twinkling effect
@@ -897,7 +915,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 });
 
                 k.drawText({
-                    text: "Press . to resume",
+                    text: isMobile ? "Tap play button to resume" : "Press . to resume",
                     pos: k.vec2(screenWidth / 2, screenHeight / 2 + 30),
                     size: 14,
                     anchor: "center",
@@ -1068,7 +1086,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         // Left-click/drag for selection or panning (spacebar + left-click)
+        // On mobile, touch handlers manage all input, so skip mouse handlers
         k.onMousePress("left", () => {
+            if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver || gameState.surrenderPending) return; // Block clicks during overlays
             isLeftMouseDown = true;
 
@@ -1089,6 +1109,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         k.onMouseRelease("left", () => {
+            if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver) return; // Block clicks when game over
 
             // Handle surrender button clicks
@@ -1157,6 +1178,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Right-click for panning (drag) or commands (click)
         k.onMousePress("right", () => {
+            if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver || gameState.surrenderPending) return;
             isRightMouseDown = true;
 
@@ -1168,6 +1190,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         k.onMouseRelease("right", () => {
+            if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver || gameState.surrenderPending) return;
 
             const dx = k.mousePos().x - panStartX;
@@ -1199,6 +1222,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         k.onMouseMove(() => {
+            if (isMobile) return; // Touch handlers manage input on mobile
+
             // Camera panning (spacebar+left-drag or right-drag)
             if (isPanning) {
                 const pdx = k.mousePos().x - panStartX;
@@ -1215,7 +1240,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
             // Selection box dragging (only when left mouse is held and not panning)
-            else if (isLeftMouseDown) {
+            // Disabled on mobile - touch drag is used for panning instead
+            else if (isLeftMouseDown && !isMobile) {
                 const dx = k.mousePos().x - selectStartX;
                 const dy = k.mousePos().y - selectStartY;
                 if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
@@ -1723,8 +1749,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Click handler for selection and waypoints - delegates to input handler helpers
         function handleClick() {
-            const mouseX = k.mousePos().x;
-            const mouseY = k.mousePos().y;
+            const mousePos = getMousePos();
+            const mouseX = mousePos.x;
+            const mouseY = mousePos.y;
 
             // Close menu panel on any click (except menu button itself, handled below)
             if (menuPanelOpen) {
@@ -1859,8 +1886,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Check UI panel clicks
-            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) { playUIClick(); return; }
-            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) { playUIClick(); return; }
+            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) {
+                playUIClick();
+                // On mobile, close panel after tapping a build option
+                if (isMobile) clearSelection(gameState);
+                return;
+            }
+            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) {
+                playUIClick();
+                // On mobile, close panel after tapping a build option
+                if (isMobile) clearSelection(gameState);
+                return;
+            }
             if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); return; }
             if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) { playUIClick(); return; }
             if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); return; }
@@ -2055,8 +2092,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Right-click handler for commands (attack, waypoint, trade route, unload)
         // Acts like Command+click but without needing the modifier key
         function handleRightClick() {
-            const mouseX = k.mousePos().x;
-            const mouseY = k.mousePos().y;
+            const mousePos = getMousePos();
+            const mouseX = mousePos.x;
+            const mouseY = mousePos.y;
 
             // Convert to world coordinates
             const worldX = (mouseX - k.width() / 2) / zoom + cameraX;
@@ -2244,6 +2282,88 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (count > 0) {
                 console.log(`Double-click: selected ${count} ${subType}(s) in view`);
             }
+        }
+
+        // === MOBILE TOUCH SUPPORT ===
+        // Initialize touch handlers for mobile devices
+        if (isMobile) {
+            initTouchHandlers(k.canvas, {
+                // Single tap = left click (select units, tap UI buttons)
+                onTap: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    // Set virtual mouse position for the click handler
+                    virtualMousePos = { x, y };
+                    selectStartX = x;
+                    selectStartY = y;
+                    selectEndX = x;
+                    selectEndY = y;
+                    handleClick();
+                    virtualMousePos = null;
+                },
+
+                // Long press = right click (issue commands)
+                onLongPress: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    // Set virtual mouse position for the right click handler
+                    virtualMousePos = { x, y };
+                    selectStartX = x;
+                    selectStartY = y;
+                    handleRightClick();
+                    virtualMousePos = null;
+                },
+
+                // Single finger drag = pan camera (more intuitive on mobile)
+                onDragStart: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    touchPanCameraX = cameraX;
+                    touchPanCameraY = cameraY;
+                },
+
+                onDragMove: (x, y, dx, dy) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    // Pan camera (invert direction for natural scrolling feel)
+                    cameraX = touchPanCameraX - dx / zoom;
+                    cameraY = touchPanCameraY - dy / zoom;
+                    clampCamera();
+                },
+
+                onDragEnd: (x, y, wasDrag) => {
+                    // Drag ended, camera position is already set
+                },
+
+                // Pinch = zoom
+                onPinchStart: () => {
+                    touchZoomBase = zoom;
+                },
+
+                onPinchMove: (scale, centerX, centerY) => {
+                    // Calculate new zoom, clamped to valid range
+                    const newZoom = Math.max(0.3, Math.min(1, touchZoomBase * scale));
+                    zoom = newZoom;
+                },
+
+                onPinchEnd: () => {
+                    // Pinch ended, zoom is already set
+                },
+
+                // Two-finger pan = camera movement
+                onTwoFingerPanStart: (x, y) => {
+                    touchPanCameraX = cameraX;
+                    touchPanCameraY = cameraY;
+                },
+
+                onTwoFingerPanMove: (dx, dy) => {
+                    cameraX = touchPanCameraX - dx / zoom;
+                    cameraY = touchPanCameraY - dy / zoom;
+                    clampCamera();
+                },
+
+                onTwoFingerPanEnd: () => {
+                    // Pan ended
+                },
+            });
+
+            console.log("Mobile touch controls enabled");
         }
 
         // Center camera on starting position (or map center if no start)

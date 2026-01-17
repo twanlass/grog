@@ -2484,3 +2484,173 @@ export function drawActionButtons(ctx, gameState) {
 
     return bounds;
 }
+
+/**
+ * Draw mobile-friendly controls at the bottom of the screen
+ * Returns bounds for tap detection on buttons
+ */
+export function drawMobileControls(ctx, gameState, touchPos = null) {
+    const { k, screenWidth, screenHeight } = ctx;
+
+    // Mobile control bar at bottom of screen
+    const barHeight = 60;
+    const barY = screenHeight - barHeight;
+    const buttonSize = 44; // iOS minimum tap target
+    const buttonSpacing = 12;
+    const buttonRadius = 8;
+
+    // Draw semi-transparent bar background
+    k.drawRect({
+        pos: k.vec2(0, barY),
+        width: screenWidth,
+        height: barHeight,
+        color: k.rgb(0, 0, 0),
+        opacity: 0.7,
+    });
+
+    // Calculate button positions (centered)
+    const totalButtonWidth = buttonSize * 3 + buttonSpacing * 2;
+    const startX = (screenWidth - totalButtonWidth) / 2;
+
+    const bounds = {
+        buttons: [],
+    };
+
+    // Helper to check if touch/mouse is over a button
+    const isHovered = (x, y, width, height) => {
+        if (touchPos) {
+            return touchPos.x >= x && touchPos.x <= x + width &&
+                   touchPos.y >= y && touchPos.y <= y + height;
+        }
+        const mousePos = k.mousePos();
+        return mousePos.x >= x && mousePos.x <= x + width &&
+               mousePos.y >= y && mousePos.y <= y + height;
+    };
+
+    // Speed down button (-)
+    const speedDownX = startX;
+    const buttonY = barY + (barHeight - buttonSize) / 2;
+    const speedDownHovered = isHovered(speedDownX, buttonY, buttonSize, buttonSize);
+
+    k.drawRect({
+        pos: k.vec2(speedDownX, buttonY),
+        width: buttonSize,
+        height: buttonSize,
+        color: speedDownHovered ? k.rgb(60, 70, 80) : k.rgb(40, 45, 55),
+        radius: buttonRadius,
+    });
+    k.drawRect({
+        pos: k.vec2(speedDownX, buttonY),
+        width: buttonSize,
+        height: buttonSize,
+        color: k.rgb(80, 90, 100),
+        radius: buttonRadius,
+        fill: false,
+        outline: { width: 1, color: k.rgb(80, 90, 100) },
+    });
+    k.drawText({
+        text: "-",
+        pos: k.vec2(speedDownX + buttonSize / 2, buttonY + buttonSize / 2),
+        size: 24,
+        anchor: "center",
+        color: gameState.timeScale <= 1 ? k.rgb(100, 100, 100) : k.rgb(220, 220, 220),
+    });
+    bounds.buttons.push({ id: 'speedDown', x: speedDownX, y: buttonY, width: buttonSize, height: buttonSize });
+
+    // Pause/Play button (center, larger)
+    const pauseX = startX + buttonSize + buttonSpacing;
+    const isPaused = gameState.timeScale === 0;
+    const pauseHovered = isHovered(pauseX, buttonY, buttonSize, buttonSize);
+
+    k.drawRect({
+        pos: k.vec2(pauseX, buttonY),
+        width: buttonSize,
+        height: buttonSize,
+        color: pauseHovered ? k.rgb(60, 70, 80) : (isPaused ? k.rgb(80, 60, 40) : k.rgb(40, 45, 55)),
+        radius: buttonRadius,
+    });
+    k.drawRect({
+        pos: k.vec2(pauseX, buttonY),
+        width: buttonSize,
+        height: buttonSize,
+        color: isPaused ? k.rgb(200, 150, 80) : k.rgb(80, 90, 100),
+        radius: buttonRadius,
+        fill: false,
+        outline: { width: isPaused ? 2 : 1, color: isPaused ? k.rgb(200, 150, 80) : k.rgb(80, 90, 100) },
+    });
+
+    // Draw pause or play icon
+    const iconX = pauseX + buttonSize / 2;
+    const iconY = buttonY + buttonSize / 2;
+    const iconColor = pauseHovered ? k.rgb(255, 255, 255) : (isPaused ? k.rgb(255, 200, 100) : k.rgb(220, 220, 220));
+
+    if (isPaused) {
+        // Play triangle
+        k.drawPolygon({
+            pts: [
+                k.vec2(iconX - 6, iconY - 8),
+                k.vec2(iconX + 8, iconY),
+                k.vec2(iconX - 6, iconY + 8),
+            ],
+            color: iconColor,
+        });
+    } else {
+        // Pause bars
+        k.drawRect({
+            pos: k.vec2(iconX - 7, iconY - 8),
+            width: 5,
+            height: 16,
+            color: iconColor,
+            radius: 1,
+        });
+        k.drawRect({
+            pos: k.vec2(iconX + 2, iconY - 8),
+            width: 5,
+            height: 16,
+            color: iconColor,
+            radius: 1,
+        });
+    }
+    bounds.buttons.push({ id: 'pause', x: pauseX, y: buttonY, width: buttonSize, height: buttonSize });
+
+    // Speed up button (+)
+    const speedUpX = startX + (buttonSize + buttonSpacing) * 2;
+    const speedUpHovered = isHovered(speedUpX, buttonY, buttonSize, buttonSize);
+
+    k.drawRect({
+        pos: k.vec2(speedUpX, buttonY),
+        width: buttonSize,
+        height: buttonSize,
+        color: speedUpHovered ? k.rgb(60, 70, 80) : k.rgb(40, 45, 55),
+        radius: buttonRadius,
+    });
+    k.drawRect({
+        pos: k.vec2(speedUpX, buttonY),
+        width: buttonSize,
+        height: buttonSize,
+        color: k.rgb(80, 90, 100),
+        radius: buttonRadius,
+        fill: false,
+        outline: { width: 1, color: k.rgb(80, 90, 100) },
+    });
+    k.drawText({
+        text: "+",
+        pos: k.vec2(speedUpX + buttonSize / 2, buttonY + buttonSize / 2),
+        size: 24,
+        anchor: "center",
+        color: gameState.timeScale >= 5 ? k.rgb(100, 100, 100) : k.rgb(220, 220, 220),
+    });
+    bounds.buttons.push({ id: 'speedUp', x: speedUpX, y: buttonY, width: buttonSize, height: buttonSize });
+
+    // Speed indicator text
+    const speedText = isPaused ? "PAUSED" : `${gameState.timeScale}x`;
+    k.drawText({
+        text: speedText,
+        pos: k.vec2(screenWidth / 2, barY + 8),
+        size: 11,
+        anchor: "center",
+        color: isPaused ? k.rgb(255, 200, 100) : k.rgb(150, 160, 170),
+    });
+
+    return bounds;
+}
