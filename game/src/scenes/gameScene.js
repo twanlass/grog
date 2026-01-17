@@ -1086,7 +1086,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         // Left-click/drag for selection or panning (spacebar + left-click)
+        // On mobile, touch handlers manage all input, so skip mouse handlers
         k.onMousePress("left", () => {
+            if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver || gameState.surrenderPending) return; // Block clicks during overlays
             isLeftMouseDown = true;
 
@@ -1107,6 +1109,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         k.onMouseRelease("left", () => {
+            if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver) return; // Block clicks when game over
 
             // Handle surrender button clicks
@@ -1175,6 +1178,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Right-click for panning (drag) or commands (click)
         k.onMousePress("right", () => {
+            if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver || gameState.surrenderPending) return;
             isRightMouseDown = true;
 
@@ -1186,6 +1190,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         k.onMouseRelease("right", () => {
+            if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver || gameState.surrenderPending) return;
 
             const dx = k.mousePos().x - panStartX;
@@ -1217,6 +1222,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         k.onMouseMove(() => {
+            if (isMobile) return; // Touch handlers manage input on mobile
+
             // Camera panning (spacebar+left-drag or right-drag)
             if (isPanning) {
                 const pdx = k.mousePos().x - panStartX;
@@ -1233,7 +1240,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
             // Selection box dragging (only when left mouse is held and not panning)
-            else if (isLeftMouseDown) {
+            // Disabled on mobile - touch drag is used for panning instead
+            else if (isLeftMouseDown && !isMobile) {
                 const dx = k.mousePos().x - selectStartX;
                 const dy = k.mousePos().y - selectStartY;
                 if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
