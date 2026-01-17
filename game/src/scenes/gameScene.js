@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons, drawMobileControls } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
@@ -338,7 +338,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let surrenderButtonBounds = null;  // For surrender Accept/Decline buttons
         let minimapBounds = null;  // For minimap click-to-navigate
         let actionButtonBounds = null;  // For action buttons (Move, Attack, Patrol)
-        let mobileControlsBounds = null;  // For mobile control buttons (pause, speed)
         let gameMenuOpen = false;  // Game menu dropdown state
         let speedSubmenuOpen = false;  // Speed submenu state
         let gameMenuBounds = null;  // For game menu click detection
@@ -886,12 +885,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (selectedShipIndices.length === 1 && selectedTowerIndices.length === 0 && selectedSettlementIndices.length === 0 && !shipBuildPanelBounds) {
                 const ship = gameState.ships[selectedShipIndices[0].index];
                 shipInfoPanelBounds = drawShipInfoPanel(ctx, ship, gameState);
-            }
-
-            // Draw mobile controls (pause, speed) - only on touch devices
-            mobileControlsBounds = null;
-            if (isMobile) {
-                mobileControlsBounds = drawMobileControls(ctx, gameState);
             }
 
             // Draw notification message (bottom center)
@@ -1885,8 +1878,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Check UI panel clicks
-            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) { playUIClick(); return; }
-            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) { playUIClick(); return; }
+            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) {
+                playUIClick();
+                // On mobile, close panel after tapping a build option
+                if (isMobile) clearSelection(gameState);
+                return;
+            }
+            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) {
+                playUIClick();
+                // On mobile, close panel after tapping a build option
+                if (isMobile) clearSelection(gameState);
+                return;
+            }
             if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); return; }
             if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) { playUIClick(); return; }
             if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); return; }
@@ -1929,38 +1932,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                                 showNotification(gameState, "Choose patrol route");
                             } else if (btn.id === 'rally') {
                                 showNotification(gameState, "Select rally point");
-                            }
-                        }
-                        return;  // Consume click
-                    }
-                }
-            }
-
-            // Check mobile control button clicks
-            if (mobileControlsBounds && mobileControlsBounds.buttons) {
-                for (const btn of mobileControlsBounds.buttons) {
-                    if (mouseX >= btn.x && mouseX <= btn.x + btn.width &&
-                        mouseY >= btn.y && mouseY <= btn.y + btn.height) {
-                        playUIClick();
-
-                        if (btn.id === 'pause') {
-                            if (gameState.timeScale === 0) {
-                                gameState.timeScale = lastNonZeroSpeed;
-                            } else {
-                                lastNonZeroSpeed = gameState.timeScale;
-                                gameState.timeScale = 0;
-                            }
-                        } else if (btn.id === 'speedUp') {
-                            const oldSpeed = gameState.timeScale;
-                            gameState.timeScale = Math.min(gameState.timeScale + 1, 5);
-                            if (gameState.timeScale !== oldSpeed) {
-                                showNotification(gameState, `Speed increased to ${gameState.timeScale}x`);
-                            }
-                        } else if (btn.id === 'speedDown') {
-                            const oldSpeed = gameState.timeScale;
-                            gameState.timeScale = Math.max(gameState.timeScale - 1, 1);
-                            if (gameState.timeScale !== oldSpeed) {
-                                showNotification(gameState, `Speed decreased to ${gameState.timeScale}x`);
                             }
                         }
                         return;  // Consume click
@@ -2333,28 +2304,23 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     virtualMousePos = null;
                 },
 
-                // Single finger drag = selection box
+                // Single finger drag = pan camera (more intuitive on mobile)
                 onDragStart: (x, y) => {
                     if (gameState.gameOver || gameState.surrenderPending) return;
-                    selectStartX = x;
-                    selectStartY = y;
-                    selectEndX = x;
-                    selectEndY = y;
-                    isSelecting = true;
+                    touchPanCameraX = cameraX;
+                    touchPanCameraY = cameraY;
                 },
 
                 onDragMove: (x, y, dx, dy) => {
                     if (gameState.gameOver || gameState.surrenderPending) return;
-                    selectEndX = x;
-                    selectEndY = y;
+                    // Pan camera (invert direction for natural scrolling feel)
+                    cameraX = touchPanCameraX - dx / zoom;
+                    cameraY = touchPanCameraY - dy / zoom;
+                    clampCamera();
                 },
 
                 onDragEnd: (x, y, wasDrag) => {
-                    if (gameState.gameOver) return;
-                    if (wasDrag && isSelecting) {
-                        handleSelectionBox();
-                    }
-                    isSelecting = false;
+                    // Drag ended, camera position is already set
                 },
 
                 // Pinch = zoom

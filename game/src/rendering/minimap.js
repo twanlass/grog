@@ -3,7 +3,7 @@ import { hexToPixel, hexKey, parseHexKey } from "../hex.js";
 import { TILE_TYPES, CLIMATE_ZONES } from "../mapGenerator.js";
 
 // Minimap dimensions
-const MINIMAP_DIAMETER = 200;
+const MINIMAP_DIAMETER = 100;
 const MINIMAP_MARGIN_RIGHT = 15;
 const MINIMAP_MARGIN_BOTTOM = 15;
 const MINIMAP_BORDER_WIDTH = 0;

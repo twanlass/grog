@@ -3,7 +3,8 @@
  *
  * Provides touch-based input handling for mobile devices:
  * - Single tap: Left-click equivalent (select units)
- * - Long-press (500ms): Right-click equivalent (commands)
+ * - Long-press (300ms): Right-click equivalent (commands)
+ * - Single-finger drag: Pan camera
  * - Pinch: Zoom in/out
  * - Two-finger drag: Pan camera
  */
@@ -43,7 +44,7 @@ let touchState = {
 };
 
 // Configuration
-const LONG_PRESS_DURATION = 500; // ms
+const LONG_PRESS_DURATION = 300; // ms
 const TAP_MOVE_THRESHOLD = 15; // pixels - movement allowed for tap
 const DRAG_THRESHOLD = 10; // pixels
 
