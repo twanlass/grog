@@ -20,7 +20,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons, drawMobileControls } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
@@ -40,6 +40,9 @@ import {
     handleUnitSelection, handleWaypointClick, handleAttackClick, handlePortRallyPointClick,
     handlePatrolWaypointClick
 } from "../systems/inputHandler.js";
+
+// Mobile touch support
+import { isTouchDevice, initTouchHandlers, resetTouchState } from "../systems/touchHandler.js";
 
 // Default scenario config (used if none provided)
 import { getScenario, DEFAULT_SCENARIO_ID } from "../scenarios/index.js";
@@ -335,6 +338,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let surrenderButtonBounds = null;  // For surrender Accept/Decline buttons
         let minimapBounds = null;  // For minimap click-to-navigate
         let actionButtonBounds = null;  // For action buttons (Move, Attack, Patrol)
+        let mobileControlsBounds = null;  // For mobile control buttons (pause, speed)
         let gameMenuOpen = false;  // Game menu dropdown state
         let speedSubmenuOpen = false;  // Speed submenu state
         let gameMenuBounds = null;  // For game menu click detection
@@ -347,6 +351,21 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Floating numbers for resource generation animation
         const floatingNumbers = [];
         const GENERATION_INTERVAL = 30;  // seconds between resource generation
+
+        // Mobile touch state
+        const isMobile = isTouchDevice();
+        let touchZoomBase = zoom;  // Store initial zoom for pinch gesture
+        let touchPanCameraX = cameraX;  // Store initial camera for two-finger pan
+        let touchPanCameraY = cameraY;
+        let virtualMousePos = null;  // Override for k.mousePos() on touch devices
+
+        // Helper to get mouse position (respects touch override)
+        function getMousePos() {
+            if (virtualMousePos) {
+                return virtualMousePos;
+            }
+            return k.mousePos();
+        }
         const GENERATION_AMOUNT = 5;     // amount of each resource generated
 
         // Stipple animation timer for water twinkling effect
@@ -869,6 +888,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 shipInfoPanelBounds = drawShipInfoPanel(ctx, ship, gameState);
             }
 
+            // Draw mobile controls (pause, speed) - only on touch devices
+            mobileControlsBounds = null;
+            if (isMobile) {
+                mobileControlsBounds = drawMobileControls(ctx, gameState);
+            }
+
             // Draw notification message (bottom center)
             drawNotification(ctx, gameState.notification);
 
@@ -897,7 +922,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 });
 
                 k.drawText({
-                    text: "Press . to resume",
+                    text: isMobile ? "Tap play button to resume" : "Press . to resume",
                     pos: k.vec2(screenWidth / 2, screenHeight / 2 + 30),
                     size: 14,
                     anchor: "center",
@@ -1723,8 +1748,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Click handler for selection and waypoints - delegates to input handler helpers
         function handleClick() {
-            const mouseX = k.mousePos().x;
-            const mouseY = k.mousePos().y;
+            const mousePos = getMousePos();
+            const mouseX = mousePos.x;
+            const mouseY = mousePos.y;
 
             // Close menu panel on any click (except menu button itself, handled below)
             if (menuPanelOpen) {
@@ -1910,6 +1936,38 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
+            // Check mobile control button clicks
+            if (mobileControlsBounds && mobileControlsBounds.buttons) {
+                for (const btn of mobileControlsBounds.buttons) {
+                    if (mouseX >= btn.x && mouseX <= btn.x + btn.width &&
+                        mouseY >= btn.y && mouseY <= btn.y + btn.height) {
+                        playUIClick();
+
+                        if (btn.id === 'pause') {
+                            if (gameState.timeScale === 0) {
+                                gameState.timeScale = lastNonZeroSpeed;
+                            } else {
+                                lastNonZeroSpeed = gameState.timeScale;
+                                gameState.timeScale = 0;
+                            }
+                        } else if (btn.id === 'speedUp') {
+                            const oldSpeed = gameState.timeScale;
+                            gameState.timeScale = Math.min(gameState.timeScale + 1, 5);
+                            if (gameState.timeScale !== oldSpeed) {
+                                showNotification(gameState, `Speed increased to ${gameState.timeScale}x`);
+                            }
+                        } else if (btn.id === 'speedDown') {
+                            const oldSpeed = gameState.timeScale;
+                            gameState.timeScale = Math.max(gameState.timeScale - 1, 1);
+                            if (gameState.timeScale !== oldSpeed) {
+                                showNotification(gameState, `Speed decreased to ${gameState.timeScale}x`);
+                            }
+                        }
+                        return;  // Consume click
+                    }
+                }
+            }
+
             // Convert to world coordinates
             const worldX = (mouseX - k.width() / 2) / zoom + cameraX;
             const worldY = (mouseY - k.height() / 2) / zoom + cameraY;
@@ -2055,8 +2113,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Right-click handler for commands (attack, waypoint, trade route, unload)
         // Acts like Command+click but without needing the modifier key
         function handleRightClick() {
-            const mouseX = k.mousePos().x;
-            const mouseY = k.mousePos().y;
+            const mousePos = getMousePos();
+            const mouseX = mousePos.x;
+            const mouseY = mousePos.y;
 
             // Convert to world coordinates
             const worldX = (mouseX - k.width() / 2) / zoom + cameraX;
@@ -2244,6 +2303,93 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (count > 0) {
                 console.log(`Double-click: selected ${count} ${subType}(s) in view`);
             }
+        }
+
+        // === MOBILE TOUCH SUPPORT ===
+        // Initialize touch handlers for mobile devices
+        if (isMobile) {
+            initTouchHandlers(k.canvas, {
+                // Single tap = left click (select units, tap UI buttons)
+                onTap: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    // Set virtual mouse position for the click handler
+                    virtualMousePos = { x, y };
+                    selectStartX = x;
+                    selectStartY = y;
+                    selectEndX = x;
+                    selectEndY = y;
+                    handleClick();
+                    virtualMousePos = null;
+                },
+
+                // Long press = right click (issue commands)
+                onLongPress: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    // Set virtual mouse position for the right click handler
+                    virtualMousePos = { x, y };
+                    selectStartX = x;
+                    selectStartY = y;
+                    handleRightClick();
+                    virtualMousePos = null;
+                },
+
+                // Single finger drag = selection box
+                onDragStart: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    selectStartX = x;
+                    selectStartY = y;
+                    selectEndX = x;
+                    selectEndY = y;
+                    isSelecting = true;
+                },
+
+                onDragMove: (x, y, dx, dy) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    selectEndX = x;
+                    selectEndY = y;
+                },
+
+                onDragEnd: (x, y, wasDrag) => {
+                    if (gameState.gameOver) return;
+                    if (wasDrag && isSelecting) {
+                        handleSelectionBox();
+                    }
+                    isSelecting = false;
+                },
+
+                // Pinch = zoom
+                onPinchStart: () => {
+                    touchZoomBase = zoom;
+                },
+
+                onPinchMove: (scale, centerX, centerY) => {
+                    // Calculate new zoom, clamped to valid range
+                    const newZoom = Math.max(0.3, Math.min(1, touchZoomBase * scale));
+                    zoom = newZoom;
+                },
+
+                onPinchEnd: () => {
+                    // Pinch ended, zoom is already set
+                },
+
+                // Two-finger pan = camera movement
+                onTwoFingerPanStart: (x, y) => {
+                    touchPanCameraX = cameraX;
+                    touchPanCameraY = cameraY;
+                },
+
+                onTwoFingerPanMove: (dx, dy) => {
+                    cameraX = touchPanCameraX - dx / zoom;
+                    cameraY = touchPanCameraY - dy / zoom;
+                    clampCamera();
+                },
+
+                onTwoFingerPanEnd: () => {
+                    // Pan ended
+                },
+            });
+
+            console.log("Mobile touch controls enabled");
         }
 
         // Center camera on starting position (or map center if no start)
