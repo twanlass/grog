@@ -1017,37 +1017,51 @@ k.scene("title", () => {
         }
     });
 
-    // Vertical offset to center menu content (content spans ~425px total)
-    const menuOffsetY = -60;
+    // Responsive layout for mobile landscape
+    const screenW = k.width();
+    const screenH = k.height();
+    const isMobileScreen = screenH < 500;  // Mobile landscape typically ~390px high
+
+    // Adjust sizes for mobile
+    const titleSize = isMobileScreen ? 36 : 64;
+    const subtitleSize = isMobileScreen ? 14 : 20;
+    const cardWidth = isMobileScreen ? 140 : 220;
+    const cardHeight = isMobileScreen ? 65 : 100;
+    const cardSpacing = isMobileScreen ? 15 : 30;
+    const labelSize = isMobileScreen ? 11 : 16;
+    const cardTitleSize = isMobileScreen ? 13 : 18;
+    const cardDescSize = isMobileScreen ? 9 : 12;
+
+    // Vertical spacing - more compact on mobile
+    const titleY = isMobileScreen ? 35 : screenH * 0.15;
+    const subtitleY = titleY + (isMobileScreen ? 25 : 50);
+    const cardLabelY = subtitleY + (isMobileScreen ? 30 : 50);
+    const cardY = cardLabelY + (isMobileScreen ? 45 : 60);
 
     // Title text
     k.add([
-        k.text("Grog", { size: 64 }),
-        k.pos(k.center().x, k.center().y - 100 + menuOffsetY),
+        k.text("Grog", { size: titleSize }),
+        k.pos(screenW / 2, titleY),
         k.anchor("center"),
         k.color(255, 255, 255),
     ]);
 
     // Subtitle
     k.add([
-        k.text("A fun lil' retro RTS game", { size: 20 }),
-        k.pos(k.center().x, k.center().y - 50 + menuOffsetY),
+        k.text("A fun lil' retro RTS game", { size: subtitleSize }),
+        k.pos(screenW / 2, subtitleY),
         k.anchor("center"),
         k.color(200, 220, 255),
     ]);
 
     // Scenario cards layout
-    const cardWidth = 220;
-    const cardHeight = 100;
-    const cardSpacing = 30;
     const totalWidth = SCENARIOS.length * cardWidth + (SCENARIOS.length - 1) * cardSpacing;
-    const startX = k.center().x - totalWidth / 2 + cardWidth / 2;
-    const cardY = k.center().y + 143 + menuOffsetY;
+    const startX = screenW / 2 - totalWidth / 2 + cardWidth / 2;
 
     // Mode selection label
     k.add([
-        k.text("Choose your mode:", { size: 16 }),
-        k.pos(startX - cardWidth / 2, cardY - cardHeight / 2 - 15),
+        k.text("Choose your mode:", { size: labelSize }),
+        k.pos(startX - cardWidth / 2, cardLabelY),
         k.anchor("left"),
         k.color(255, 255, 255),
     ]);
@@ -1081,16 +1095,16 @@ k.scene("title", () => {
 
         // Scenario name
         k.add([
-            k.text(scenario.name.toUpperCase(), { size: 18 }),
-            k.pos(cardX, cardY - 15),
+            k.text(scenario.name.toUpperCase(), { size: cardTitleSize }),
+            k.pos(cardX, cardY - (isMobileScreen ? 8 : 15)),
             k.anchor("center"),
             k.color(255, 255, 255),
         ]);
 
         // Scenario description
         k.add([
-            k.text(scenario.description, { size: 12 }),
-            k.pos(cardX, cardY + 15),
+            k.text(scenario.description, { size: cardDescSize }),
+            k.pos(cardX, cardY + (isMobileScreen ? 10 : 15)),
             k.anchor("center"),
             k.color(180, 200, 220),
         ]);
@@ -1111,12 +1125,13 @@ k.scene("title", () => {
         });
     });
 
-    // Dropdown button and menu dimensions
-    const difficultyBtnWidth = 80;
-    const aiCountBtnWidth = 105;
-    const dropdownBtnHeight = 28;
-    const dropdownBtnSpacing = 10;
-    const dropdownY = cardY + cardHeight / 2 + 15;
+    // Dropdown button and menu dimensions - responsive
+    const difficultyBtnWidth = isMobileScreen ? 60 : 80;
+    const aiCountBtnWidth = isMobileScreen ? 80 : 105;
+    const dropdownBtnHeight = isMobileScreen ? 22 : 28;
+    const dropdownBtnSpacing = isMobileScreen ? 6 : 10;
+    const dropdownY = cardY + cardHeight / 2 + (isMobileScreen ? 8 : 15);
+    const dropdownFontSize = isMobileScreen ? 10 : 12;
 
     // Total width of both buttons for centering
     const totalDropdownWidth = difficultyBtnWidth + dropdownBtnSpacing + aiCountBtnWidth;
@@ -1150,13 +1165,14 @@ k.scene("title", () => {
         updateStartButton();
     }
 
-    // Start button
-    const playY = cardY + cardHeight / 2 + 70;
-    const startBtnWidth = 120;
-    const startBtnHeight = 60;
+    // Start button - responsive
+    const playY = cardY + cardHeight / 2 + (isMobileScreen ? 38 : 70);
+    const startBtnWidth = isMobileScreen ? 80 : 120;
+    const startBtnHeight = isMobileScreen ? 36 : 60;
+    const startBtnFontSize = isMobileScreen ? 16 : 22;
     const startBtnBg = k.add([
         k.rect(startBtnWidth, startBtnHeight, { radius: 6 }),
-        k.pos(k.center().x, playY),
+        k.pos(screenW / 2, playY),
         k.anchor("center"),
         k.color(0, 0, 0),
         k.outline(1, k.rgb(50, 50, 60)),
@@ -1164,8 +1180,8 @@ k.scene("title", () => {
         "playBtn",
     ]);
     const startBtnText = k.add([
-        k.text("Start", { size: 22 }),
-        k.pos(k.center().x, playY),
+        k.text("Start", { size: startBtnFontSize }),
+        k.pos(screenW / 2, playY),
         k.anchor("center"),
         k.color(80, 80, 80), // Dimmed initially
     ]);
@@ -1181,29 +1197,32 @@ k.scene("title", () => {
         }
     }
 
-    // Copyright
-    const copyrightY = k.height() - 20;
-    k.add([
-        k.text("v0.05 | (c) 2026", { size: 14 }),
-        k.pos(k.center().x - 69, copyrightY),
-        k.anchor("center"),
-        k.color(255, 255, 255),
-    ]);
-    const authorLink = k.add([
-        k.text("Tyler Wanlass", { size: 14 }),
-        k.pos(k.center().x + 67, copyrightY),
-        k.anchor("center"),
-        k.color(255, 255, 255),
-        k.area(),
-        "copyrightLink",
-    ]);
-    // Underline for author name
-    k.add([
-        k.rect(105, 1),
-        k.pos(k.center().x + 67, copyrightY + 8),
-        k.anchor("center"),
-        k.color(255, 255, 255),
-    ]);
+    // Copyright - responsive (hide on very small screens)
+    const copyrightY = screenH - (isMobileScreen ? 12 : 20);
+    const copyrightSize = isMobileScreen ? 10 : 14;
+    if (!isMobileScreen || screenH > 350) {
+        k.add([
+            k.text("v0.05 | (c) 2026", { size: copyrightSize }),
+            k.pos(screenW / 2 - (isMobileScreen ? 50 : 69), copyrightY),
+            k.anchor("center"),
+            k.color(255, 255, 255),
+        ]);
+        const authorLink = k.add([
+            k.text("Tyler Wanlass", { size: copyrightSize }),
+            k.pos(screenW / 2 + (isMobileScreen ? 48 : 67), copyrightY),
+            k.anchor("center"),
+            k.color(255, 255, 255),
+            k.area(),
+            "copyrightLink",
+        ]);
+        // Underline for author name
+        k.add([
+            k.rect(isMobileScreen ? 75 : 105, 1),
+            k.pos(screenW / 2 + (isMobileScreen ? 48 : 67), copyrightY + (isMobileScreen ? 6 : 8)),
+            k.anchor("center"),
+            k.color(255, 255, 255),
+        ]);
+    }
 
     k.onClick("copyrightLink", () => {
         window.open("https://tyler.cv", "_blank");
@@ -1304,7 +1323,7 @@ k.scene("title", () => {
         k.drawText({
             text: AI_DIFFICULTY[selectedDifficulty].label,
             pos: k.vec2(diffBounds.x + diffBounds.width / 2, diffBounds.y + diffBounds.height / 2),
-            size: 12,
+            size: dropdownFontSize,
             anchor: "center",
             color: diffHovered || difficultyMenuOpen ? k.rgb(255, 255, 255) : k.rgb(180, 200, 220),
         });
@@ -1333,7 +1352,7 @@ k.scene("title", () => {
         k.drawText({
             text: `${selectedAICount} ${selectedAICount === 1 ? 'Opponent' : 'Opponents'}`,
             pos: k.vec2(aiBounds.x + aiBounds.width / 2, aiBounds.y + aiBounds.height / 2),
-            size: 12,
+            size: dropdownFontSize,
             anchor: "center",
             color: aiHovered || aiCountMenuOpen ? k.rgb(255, 255, 255) : k.rgb(180, 200, 220),
         });
@@ -1381,7 +1400,7 @@ k.scene("title", () => {
                 k.drawText({
                     text: AI_DIFFICULTY[diff].label,
                     pos: k.vec2(menuX + diffBounds.width / 2, itemY + menuItemHeight / 2),
-                    size: 12,
+                    size: dropdownFontSize,
                     anchor: "center",
                     color: isSelected ? k.rgb(255, 200, 0) : k.rgb(200, 210, 220),
                 });
@@ -1431,7 +1450,7 @@ k.scene("title", () => {
                 k.drawText({
                     text: `${count} ${count === 1 ? 'Opponent' : 'Opponents'}`,
                     pos: k.vec2(menuX + aiBounds.width / 2, itemY + menuItemHeight / 2),
-                    size: 12,
+                    size: dropdownFontSize,
                     anchor: "center",
                     color: isSelected ? k.rgb(255, 200, 0) : k.rgb(200, 210, 220),
                 });
