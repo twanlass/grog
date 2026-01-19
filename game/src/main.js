@@ -1022,21 +1022,21 @@ k.scene("title", () => {
     const screenH = k.height();
     const isMobileScreen = screenH < 500;  // Mobile landscape typically ~390px high
 
-    // Adjust sizes for mobile
-    const titleSize = isMobileScreen ? 36 : 64;
-    const subtitleSize = isMobileScreen ? 14 : 20;
-    const cardWidth = isMobileScreen ? 140 : 220;
-    const cardHeight = isMobileScreen ? 65 : 100;
-    const cardSpacing = isMobileScreen ? 15 : 30;
-    const labelSize = isMobileScreen ? 11 : 16;
-    const cardTitleSize = isMobileScreen ? 13 : 18;
-    const cardDescSize = isMobileScreen ? 9 : 12;
+    // Adjust sizes for mobile - much more compact
+    const titleSize = isMobileScreen ? 28 : 64;
+    const subtitleSize = isMobileScreen ? 11 : 20;
+    const cardWidth = isMobileScreen ? 110 : 220;
+    const cardHeight = isMobileScreen ? 50 : 100;
+    const cardSpacing = isMobileScreen ? 10 : 30;
+    const labelSize = isMobileScreen ? 10 : 16;
+    const cardTitleSize = isMobileScreen ? 11 : 18;
+    const cardDescSize = isMobileScreen ? 8 : 12;
 
-    // Vertical spacing - more compact on mobile
-    const titleY = isMobileScreen ? 35 : screenH * 0.15;
-    const subtitleY = titleY + (isMobileScreen ? 25 : 50);
-    const cardLabelY = subtitleY + (isMobileScreen ? 30 : 50);
-    const cardY = cardLabelY + (isMobileScreen ? 45 : 60);
+    // Vertical spacing - much more compact on mobile
+    const titleY = isMobileScreen ? 25 : screenH * 0.15;
+    const subtitleY = titleY + (isMobileScreen ? 18 : 50);
+    const cardLabelY = subtitleY + (isMobileScreen ? 22 : 50);
+    const cardY = cardLabelY + (isMobileScreen ? 35 : 60);
 
     // Title text
     k.add([
@@ -1058,11 +1058,11 @@ k.scene("title", () => {
     const totalWidth = SCENARIOS.length * cardWidth + (SCENARIOS.length - 1) * cardSpacing;
     const startX = screenW / 2 - totalWidth / 2 + cardWidth / 2;
 
-    // Mode selection label
+    // Mode selection label - centered on mobile
     k.add([
         k.text("Choose your mode:", { size: labelSize }),
-        k.pos(startX - cardWidth / 2, cardLabelY),
-        k.anchor("left"),
+        k.pos(isMobileScreen ? screenW / 2 : startX - cardWidth / 2, cardLabelY),
+        k.anchor(isMobileScreen ? "center" : "left"),
         k.color(255, 255, 255),
     ]);
 
@@ -1096,7 +1096,7 @@ k.scene("title", () => {
         // Scenario name
         k.add([
             k.text(scenario.name.toUpperCase(), { size: cardTitleSize }),
-            k.pos(cardX, cardY - (isMobileScreen ? 8 : 15)),
+            k.pos(cardX, cardY - (isMobileScreen ? 6 : 15)),
             k.anchor("center"),
             k.color(255, 255, 255),
         ]);
@@ -1104,7 +1104,7 @@ k.scene("title", () => {
         // Scenario description
         k.add([
             k.text(scenario.description, { size: cardDescSize }),
-            k.pos(cardX, cardY + (isMobileScreen ? 10 : 15)),
+            k.pos(cardX, cardY + (isMobileScreen ? 8 : 15)),
             k.anchor("center"),
             k.color(180, 200, 220),
         ]);
@@ -1126,12 +1126,12 @@ k.scene("title", () => {
     });
 
     // Dropdown button and menu dimensions - responsive
-    const difficultyBtnWidth = isMobileScreen ? 60 : 80;
-    const aiCountBtnWidth = isMobileScreen ? 80 : 105;
-    const dropdownBtnHeight = isMobileScreen ? 22 : 28;
-    const dropdownBtnSpacing = isMobileScreen ? 6 : 10;
-    const dropdownY = cardY + cardHeight / 2 + (isMobileScreen ? 8 : 15);
-    const dropdownFontSize = isMobileScreen ? 10 : 12;
+    const difficultyBtnWidth = isMobileScreen ? 50 : 80;
+    const aiCountBtnWidth = isMobileScreen ? 65 : 105;
+    const dropdownBtnHeight = isMobileScreen ? 18 : 28;
+    const dropdownBtnSpacing = isMobileScreen ? 4 : 10;
+    const dropdownY = cardY + cardHeight / 2 + (isMobileScreen ? 5 : 15);
+    const dropdownFontSize = isMobileScreen ? 8 : 12;
 
     // Total width of both buttons for centering
     const totalDropdownWidth = difficultyBtnWidth + dropdownBtnSpacing + aiCountBtnWidth;
@@ -1166,10 +1166,10 @@ k.scene("title", () => {
     }
 
     // Start button - responsive
-    const playY = cardY + cardHeight / 2 + (isMobileScreen ? 38 : 70);
-    const startBtnWidth = isMobileScreen ? 80 : 120;
-    const startBtnHeight = isMobileScreen ? 36 : 60;
-    const startBtnFontSize = isMobileScreen ? 16 : 22;
+    const playY = cardY + cardHeight / 2 + (isMobileScreen ? 28 : 70);
+    const startBtnWidth = isMobileScreen ? 70 : 120;
+    const startBtnHeight = isMobileScreen ? 28 : 60;
+    const startBtnFontSize = isMobileScreen ? 14 : 22;
     const startBtnBg = k.add([
         k.rect(startBtnWidth, startBtnHeight, { radius: 6 }),
         k.pos(screenW / 2, playY),
