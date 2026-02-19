@@ -1054,8 +1054,13 @@ k.scene("title", () => {
         k.color(200, 220, 255),
     ]);
 
+    // Filter scenarios for mobile (hide sandbox mode)
+    const displayedScenarios = isMobileScreen
+        ? SCENARIOS.filter(s => s.id !== 'sandbox')
+        : SCENARIOS;
+
     // Scenario cards layout
-    const totalWidth = SCENARIOS.length * cardWidth + (SCENARIOS.length - 1) * cardSpacing;
+    const totalWidth = displayedScenarios.length * cardWidth + (displayedScenarios.length - 1) * cardSpacing;
     const startX = screenW / 2 - totalWidth / 2 + cardWidth / 2;
 
     // Mode selection label - centered on mobile
@@ -1077,7 +1082,7 @@ k.scene("title", () => {
     let versusCardX = 0;
 
     // Create scenario cards
-    SCENARIOS.forEach((scenario, index) => {
+    displayedScenarios.forEach((scenario, index) => {
         const cardX = startX + index * (cardWidth + cardSpacing);
         const isSelected = scenario.id === selectedScenarioId;
 
