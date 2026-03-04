@@ -1523,12 +1523,31 @@ let multiplayerConfig = null;
 // Pass selected scenario and AI strategy to game scene
 k.scene("game", createGameScene(k, () => selectedScenarioId, () => selectedAIStrategy, () => selectedDifficulty, () => selectedAICount, () => multiplayerConfig));
 
+// Check for ?join= URL param (from shared join link)
+let pendingJoinCode = null;
+const urlParams = new URLSearchParams(window.location.search);
+const joinParam = urlParams.get('join');
+if (joinParam) {
+    pendingJoinCode = joinParam.toUpperCase();
+    // Clean the URL so refreshing doesn't re-join
+    window.history.replaceState({}, '', window.location.pathname);
+}
+
 // Multiplayer lobby scene — handles host/join flow, then transitions to game
 k.scene("multiplayer-lobby", createMultiplayerLobbyScene(k, (mpConfig) => {
     multiplayerConfig = mpConfig;
     selectedScenarioId = 'multiplayer';
     k.go("game");
+}, () => {
+    // Return and consume the pending join code
+    const code = pendingJoinCode;
+    pendingJoinCode = null;
+    return code;
 }));
 
-// Start with title screen
-k.go("title");
+// Start with title screen, or go straight to lobby if join link was used
+if (joinParam) {
+    k.go("multiplayer-lobby");
+} else {
+    k.go("title");
+}

@@ -2,7 +2,7 @@
 import { createHost, joinHost, disconnect, getPeerCode, getConnectionState, CONNECTION_STATE, sendMessage } from '../networking/peerConnection.js';
 import { MESSAGE_TYPES, createMessage } from '../networking/commands.js';
 
-export function createMultiplayerLobbyScene(k, onStartGame) {
+export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) {
     return function multiplayerLobbyScene() {
         k.setCursor("url('/sprites/assets/cursor.png'), auto");
 
@@ -14,6 +14,16 @@ export function createMultiplayerLobbyScene(k, onStartGame) {
         let countdown = 3;
         let countdownActive = false;
         let connection = null;
+        let copyFeedbackTimer = 0; // shows "Copied!" briefly
+
+        // Auto-join if launched via ?join= link
+        const initialJoinCode = getInitialJoinCode ? getInitialJoinCode() : null;
+        if (initialJoinCode) {
+            inputCode = initialJoinCode;
+            mode = 'joining';
+            // Defer joinGame() to after scene is fully initialized
+            k.wait(0.05, () => joinGame());
+        }
 
         // Network callback holders (will be wired to game scene)
         let pendingGuestCommands = [];
@@ -175,6 +185,10 @@ export function createMultiplayerLobbyScene(k, onStartGame) {
         k.onUpdate(() => {
             elapsed += k.dt();
 
+            if (copyFeedbackTimer > 0) {
+                copyFeedbackTimer -= k.dt();
+            }
+
             if (countdownActive) {
                 countdown -= k.dt();
                 if (countdown <= 0) {
@@ -253,6 +267,30 @@ export function createMultiplayerLobbyScene(k, onStartGame) {
                     size: 40, pos: k.vec2(cx, cy - 20), anchor: "center",
                     color: accentColor,
                 });
+
+                // Copy link button (right of game code)
+                if (gameCode) {
+                    const codeWidth = gameCode.length * 22; // rough text width
+                    const btnX = cx + codeWidth / 2 + 20;
+                    const btnY = cy - 20;
+                    const btnW = 120;
+                    const btnH = 34;
+                    const copyHover = isMouseInRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH);
+                    const showCopied = copyFeedbackTimer > 0;
+
+                    k.drawRect({
+                        width: btnW, height: btnH, radius: 6,
+                        pos: k.vec2(btnX, btnY), anchor: "center",
+                        color: showCopied ? k.rgb(40, 100, 40) : (copyHover ? k.rgb(40, 55, 75) : panelColor),
+                        outline: { width: 1.5, color: showCopied ? k.rgb(100, 255, 100) : accentColor },
+                    });
+                    k.drawText({
+                        text: showCopied ? "Copied!" : "Copy Link",
+                        size: 14, pos: k.vec2(btnX, btnY), anchor: "center",
+                        color: showCopied ? k.rgb(100, 255, 100) : textColor,
+                    });
+                }
+
                 // Pulsing dots
                 const dots = '.'.repeat(1 + Math.floor(elapsed * 2) % 3);
                 k.drawText({
@@ -261,7 +299,7 @@ export function createMultiplayerLobbyScene(k, onStartGame) {
                     color: dimColor,
                 });
                 k.drawText({
-                    text: "Share this code with your friend",
+                    text: "Share the link with your friend",
                     size: 12, pos: k.vec2(cx, cy + 60), anchor: "center",
                     color: dimColor,
                 });
@@ -357,7 +395,31 @@ export function createMultiplayerLobbyScene(k, onStartGame) {
                     inputCode = '';
                 }
             }
+
+            if (mode === 'hosting' && gameCode) {
+                // Copy link button hit test
+                const codeWidth = gameCode.length * 22;
+                const btnX = cx + codeWidth / 2 + 20;
+                const btnY = cy - 20;
+                const btnW = 120;
+                const btnH = 34;
+                if (isMouseInRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH)) {
+                    copyJoinLink();
+                }
+            }
         });
+
+        function copyJoinLink() {
+            if (!gameCode) return;
+            const url = `${window.location.origin}${window.location.pathname}?join=${gameCode}`;
+            navigator.clipboard.writeText(url).then(() => {
+                copyFeedbackTimer = 2; // show "Copied!" for 2 seconds
+            }).catch(() => {
+                // Fallback: try copying just the code
+                navigator.clipboard.writeText(gameCode).catch(() => {});
+                copyFeedbackTimer = 2;
+            });
+        }
 
         function isMouseInRect(x, y, w, h) {
             const mp = k.mousePos();
