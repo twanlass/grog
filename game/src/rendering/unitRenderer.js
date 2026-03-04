@@ -6,6 +6,14 @@ import { getShipVisualPos } from "../systems/shipMovement.js";
 import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js";
 import { isAIOwner } from "../gameState.js";
 
+// Check if an entity is "non-local" (should show enemy faction indicator)
+// Uses fogState.localPlayerId to determine the local player
+function isEnemyOwner(owner, fogState) {
+    const localId = fogState?.localPlayerId || 'player';
+    if (!owner || owner === localId) return false;
+    return true;
+}
+
 /**
  * Convert ship heading (radians) to sprite direction for 5-row sprites with mirroring
  * Sprite rows: 0=S, 1=NE, 2=SE, 3=N, 4=E
@@ -100,7 +108,7 @@ export function drawPorts(ctx, gameState, map, fogState) {
         const isConstructing = port.construction !== null;
 
         // Draw hex indicator for AI ports (enemy faction marker)
-        if (isAIOwner(port.owner)) {
+        if (isEnemyOwner(port.owner, fogState)) {
             drawFactionHex(k, screenX, screenY, 22 * zoom, getFactionColor(port.owner, k), 0.4);
         }
 
@@ -180,7 +188,7 @@ export function drawSettlements(ctx, gameState, fogState) {
         const isConstructing = settlement.construction !== null;
 
         // Draw hex indicator for AI settlements (enemy faction marker)
-        if (isAIOwner(settlement.owner)) {
+        if (isEnemyOwner(settlement.owner, fogState)) {
             drawFactionHex(k, screenX, screenY, 16 * zoom, getFactionColor(settlement.owner, k), 0.4);
         }
 
@@ -241,7 +249,7 @@ export function drawTowers(ctx, gameState, fogState) {
         const isConstructing = tower.construction !== null;
 
         // Draw hex indicator for AI towers (enemy faction marker)
-        if (isAIOwner(tower.owner)) {
+        if (isEnemyOwner(tower.owner, fogState)) {
             drawFactionHex(k, screenX, screenY, 18 * zoom, getFactionColor(tower.owner, k), 0.4);
         }
 
@@ -310,7 +318,7 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
         const shipData = SHIPS[ship.type];
 
         // Draw hex indicator for AI ships (enemy faction marker)
-        if (isAIOwner(ship.owner)) {
+        if (isEnemyOwner(ship.owner, fogState)) {
             drawFactionHex(k, screenX, screenY, 18 * zoom, getFactionColor(ship.owner, k), 0.75);
         }
 

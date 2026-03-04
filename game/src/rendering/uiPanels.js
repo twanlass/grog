@@ -1,6 +1,7 @@
 // UI panel rendering: resource panel, build panels, ship info panel
 import { drawSprite, drawSpriteHealthTint, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew, isAIOwner } from "../gameState.js";
+import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew, isAIOwner, getResourcesForOwner } from "../gameState.js";
+import { getLocalPlayerId } from "../systems/inputHandler.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
 import {
     drawPanelContainer,
@@ -11,6 +12,11 @@ import {
     drawSectionHeader,
     PANEL_COLORS,
 } from "./uiPrimitives.js";
+
+// Helper to get local player's resources for UI display
+function getLocalRes(gameState) {
+    return getResourcesForOwner(gameState, getLocalPlayerId()) || getLocalRes(gameState);
+}
 
 /**
  * Draw the resource panel (top left)
@@ -27,9 +33,10 @@ export function drawResourcePanel(ctx, gameState) {
     const valueFontSize = 18;
     const sectionGap = 16; // Gap between wood and crew sections
 
-    // Resource values
-    const res = gameState.resources;
-    const crewStatus = computeCrewStatus(gameState);
+    // Resource values — show local player's resources
+    const localPlayer = getLocalPlayerId();
+    const res = getLocalRes(gameState);
+    const crewStatus = computeCrewStatus(gameState, localPlayer);
 
     // Estimate text widths (approximate character width for the font)
     const charWidth = valueFontSize * 0.6;
@@ -842,8 +849,8 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
         if (canUpgrade) {
             const nextTowerData = TOWERS[nextTowerType];
             const crewDiff = (nextTowerData.crewCost || 0) - (towerData.crewCost || 0);
-            const upgradeAffordable = canAfford(gameState.resources, nextTowerData.cost) &&
-                                      canAffordCrew(gameState, crewDiff);
+            const upgradeAffordable = canAfford(getLocalRes(gameState), nextTowerData.cost) &&
+                                      canAffordCrew(gameState, crewDiff, getLocalPlayerId());
 
             const upgradeBtnY = currentY;
             const upgradeBtnHeight = bpRowHeight - 4;
@@ -880,7 +887,7 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
         // Repair button (only if damaged and not repairing - repair bar shows above unit)
         if (isDamaged && !isRepairing) {
             const repairCost = getRepairCost('tower', tower);
-            const canAffordRepair = gameState.resources.wood >= repairCost.wood;
+            const canAffordRepair = getLocalRes(gameState).wood >= repairCost.wood;
 
             const btnY = currentY + 5;
             const btnHeight = 36;
@@ -1001,7 +1008,7 @@ export function drawSettlementInfoPanel(ctx, settlement, gameState) {
         // Repair button (only if damaged and not repairing)
         if (isDamaged && !isRepairing) {
             const repairCost = getRepairCost('settlement', settlement);
-            const canAffordRepair = gameState.resources.wood >= repairCost.wood;
+            const canAffordRepair = getLocalRes(gameState).wood >= repairCost.wood;
 
             const repairY = infoPanelY + baseHeight - 5;
 
@@ -1374,7 +1381,7 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
         const portData = PORTS[portType];
         const btnY = currentY + i * sbpRowHeight;
         const btnHeight = sbpRowHeight - 4;
-        const portAffordable = canAfford(gameState.resources, portData.cost);
+        const portAffordable = canAfford(getLocalRes(gameState), portData.cost);
 
         bounds.buttons.push({ y: btnY, height: btnHeight, portType: portType });
 
@@ -1403,8 +1410,8 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
     // Watchtower button
     const towerBtnY = currentY;
     const towerBtnHeight = sbpRowHeight - 4;
-    const towerAffordable = canAfford(gameState.resources, watchtowerData.cost) &&
-                            canAffordCrew(gameState, watchtowerData.crewCost || 0);
+    const towerAffordable = canAfford(getLocalRes(gameState), watchtowerData.cost) &&
+                            canAffordCrew(gameState, watchtowerData.crewCost || 0, getLocalPlayerId());
 
     bounds.towerButton = { y: towerBtnY, height: towerBtnHeight };
 
@@ -1537,7 +1544,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     if (showSettlement) {
         const settlementData = SETTLEMENTS.settlement;
         const alreadyBuildingSettlement = isBuildingSettlement;
-        const settlementAffordable = canAfford(gameState.resources, settlementData.cost);
+        const settlementAffordable = canAfford(getLocalRes(gameState), settlementData.cost);
         const canBuildSettlementNow = canBuildSettlement && settlementAffordable && !alreadyBuildingSettlement;
 
         const settlementBtnY = currentY;
@@ -1578,8 +1585,8 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
             const shipData = SHIPS[shipType];
             const btnY = currentY + i * bpRowHeight;
             const btnHeight = bpRowHeight - 4;
-            const affordable = canAfford(gameState.resources, shipData.cost) &&
-                               canAffordCrew(gameState, shipData.crewCost || 0);
+            const affordable = canAfford(getLocalRes(gameState), shipData.cost) &&
+                               canAffordCrew(gameState, shipData.crewCost || 0, getLocalPlayerId());
             // Can build if queue not full and not repairing (affordability only matters for first item)
             const canBuildShip = !isQueueFull && !isRepairing && (isBuilding || affordable);
 
@@ -1613,8 +1620,8 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     // 3. Defense section (Watchtower only - always visible)
     if (showDefense) {
         const watchtowerData = TOWERS.watchtower;
-        const towerAffordable = canBuildDefense && canAfford(gameState.resources, watchtowerData.cost) &&
-                                canAffordCrew(gameState, watchtowerData.crewCost || 0);
+        const towerAffordable = canBuildDefense && canAfford(getLocalRes(gameState), watchtowerData.cost) &&
+                                canAffordCrew(gameState, watchtowerData.crewCost || 0, getLocalPlayerId());
 
         if (hasPreviousSection) {
             currentY += sectionGap;
@@ -1648,7 +1655,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     // 4. Upgrade section (only if there's an upgrade available)
     if (showUpgrade) {
         const nextPortData = PORTS[nextPortType];
-        const upgradeAffordable = canUpgrade && canAfford(gameState.resources, nextPortData.cost);
+        const upgradeAffordable = canUpgrade && canAfford(getLocalRes(gameState), nextPortData.cost);
 
         if (hasPreviousSection) {
             currentY += sectionGap;
@@ -1685,7 +1692,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     if (isDamaged && !isRepairing) {
         // Show repair button
         const repairCost = getRepairCost('port', port);
-        const canAffordRepair = gameState.resources.wood >= repairCost.wood;
+        const canAffordRepair = getLocalRes(gameState).wood >= repairCost.wood;
 
         if (hasPreviousSection) {
             currentY += sectionGap;
@@ -2286,7 +2293,7 @@ export function drawSelectedShipsPanel(ctx, gameState) {
     const selectedShips = gameState.selectedUnits
         .filter(u => u.type === 'ship')
         .map(u => ({ ship: gameState.ships[u.index], index: u.index }))
-        .filter(({ ship }) => ship && ship.type !== 'pirate' && !isAIOwner(ship.owner));
+        .filter(({ ship }) => ship && ship.type !== 'pirate' && ship.owner === getLocalPlayerId());
 
     if (selectedShips.length === 0) return null;
 
@@ -2391,12 +2398,12 @@ export function drawActionButtons(ctx, gameState) {
     const selectedShips = gameState.selectedUnits
         .filter(u => u.type === 'ship')
         .map(u => gameState.ships[u.index])
-        .filter(ship => ship && ship.type !== 'pirate' && !isAIOwner(ship.owner));
+        .filter(ship => ship && ship.type !== 'pirate' && ship.owner === getLocalPlayerId());
 
     const selectedPorts = gameState.selectedUnits
         .filter(u => u.type === 'port')
         .map(u => gameState.ports[u.index])
-        .filter(port => port && !isAIOwner(port.owner));
+        .filter(port => port && port.owner === getLocalPlayerId());
 
     // Determine which buttons to show
     let buttons;

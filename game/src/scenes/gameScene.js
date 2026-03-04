@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner } from "../gameState.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations, isHexVisible } from "../fogOfWar.js";
 
@@ -43,6 +43,14 @@ import {
 
 // Default scenario config (used if none provided)
 import { getScenario, DEFAULT_SCENARIO_ID } from "../scenarios/index.js";
+
+// Networking (multiplayer)
+import { extractNetworkState, applyNetworkState } from "../networking/stateSync.js";
+import { processGuestCommand } from "../networking/commandProcessor.js";
+import { sendStateSnapshot, sendPlayerCommand, isConnected, getLatency, getConnectionState, CONNECTION_STATE, disconnect } from "../networking/peerConnection.js";
+import { COMMAND_TYPES, createCommand } from "../networking/commands.js";
+import { setLocalPlayerId, drainPendingNetworkCommands } from "../systems/inputHandler.js";
+import { markVisibilityDirty } from "../fogOfWar.js";
 
 // Decoration generation config
 const GRASS_MIN = 3;           // Minimum grass patches per hex
@@ -114,7 +122,7 @@ function drawHexRangeOutline(k, centerQ, centerR, range, cameraX, cameraY, zoom,
     }
 }
 
-export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, getAIStrategy = () => null, getDifficulty = () => 'normal', getAICount = () => 3) {
+export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, getAIStrategy = () => null, getDifficulty = () => 'normal', getAICount = () => 3, getMultiplayerConfig = () => null) {
     return function gameScene() {
         // Prevent browser context menu on right-click
         k.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -123,15 +131,43 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const scenarioId = getScenarioId();
         const scenario = getScenario(scenarioId);
 
+        // Multiplayer config: { isHost, isGuest, mapSeed, connection }
+        const mpConfig = getMultiplayerConfig();
+        const isMultiplayer = !!mpConfig;
+        const isHost = mpConfig?.isHost || false;
+        const isGuest = mpConfig?.isGuest || false;
+        const localPlayerId = isGuest ? 'player2' : 'player';
+
+        // Set local player identity for input handler
+        setLocalPlayerId(localPlayerId);
+
+        // Reset entity ID counter for deterministic IDs
+        resetEntityIdCounter();
+
+        // Pending guest commands (host only) - populated by network callbacks
+        const pendingGuestCommands = [];
+
+        // Latest state snapshot (guest only) - populated by network callbacks
+        let latestSnapshot = null;
+
+        // State sync timer (host sends snapshots at 10Hz)
+        let stateSyncTimer = 0;
+        const STATE_SYNC_INTERVAL = 0.1; // 100ms
+
+        // Disconnect overlay state
+        let disconnectOverlay = false;
+
         // Get AI strategy override (null = random) and difficulty
         const aiStrategyOverride = getAIStrategy();
         const difficultyOverride = getDifficulty();
 
-        // Generate the map (random each time)
+        // Generate the map — use shared seed in multiplayer for identical maps
+        const mapSeed = mpConfig?.mapSeed || undefined;
         const map = generateMap({
             width: scenario.mapSize.width,
             height: scenario.mapSize.height,
-            versusMode: scenario.gameMode === 'versus',  // Enable fair starting islands
+            versusMode: scenario.gameMode === 'versus' || scenario.gameMode === 'multiplayer',
+            seed: mapSeed,
         });
 
         // Initialize game state with scenario config
@@ -142,8 +178,47 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Store scenario reference for wave system
         gameState.scenario = scenario;
 
+        // Multiplayer: track the game mode and roles
+        gameState.isMultiplayer = isMultiplayer;
+        gameState.localPlayerId = localPlayerId;
+
         // Handle initialization based on game mode
-        if (scenario.gameMode === 'versus') {
+        if (scenario.gameMode === 'multiplayer') {
+            // Multiplayer 1v1: two human players, no AI, no pirates
+            if (map.starterPositions) {
+                // Position 0 = host ('player'), Position 1 = guest ('player2')
+                const hostPort = findPortSiteOnStarterIsland(map, map.starterPositions[0]);
+                const guestPort = findPortSiteOnStarterIsland(map, map.starterPositions[1]);
+
+                gameState.ports.push(createPort('dock', hostPort.q, hostPort.r, false, null, 'player'));
+                gameState.homeIslandHex = { q: hostPort.q, r: hostPort.r };
+
+                gameState.ports.push(createPort('dock', guestPort.q, guestPort.r, false, null, 'player2'));
+                gameState.player2HomeIslandHex = { q: guestPort.q, r: guestPort.r };
+
+                // Initialize player2 resources
+                gameState.player2Resources = { wood: scenario.startingResources.wood };
+
+                // No AI players in multiplayer
+                gameState.aiPlayers = [];
+                gameState.aiHomeIslandHexes = [];
+
+                console.log('Multiplayer: initialized 1v1 with host at', hostPort, 'guest at', guestPort);
+            }
+
+            // Fixed time scale in multiplayer — no pause or speed changes
+            gameState.timeScale = 1;
+
+            // Set up network callbacks (unconditional — lobby sets these to null initially)
+            if (mpConfig) {
+                // Host receives guest commands
+                mpConfig.onGuestCommand = (cmd) => { pendingGuestCommands.push(cmd); };
+                // Guest receives state snapshots
+                mpConfig.onStateSnapshot = (snapshot) => { latestSnapshot = snapshot; };
+                // Either side disconnects
+                mpConfig.onDisconnect = () => { disconnectOverlay = true; };
+            }
+        } else if (scenario.gameMode === 'versus') {
             // Get the selected number of AI opponents (1-3)
             const aiCount = getAICount();
 
@@ -279,6 +354,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Initialize fog of war
         const fogState = createFogState();
+        fogState.localPlayerId = localPlayerId;
         initializeFog(fogState, gameState);
 
         // Initialize minimap
@@ -458,6 +534,61 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Pre-compute islands for wave rendering
         const islands = computeIslands(map);
 
+        // ============================================================
+        // Multiplayer Guest: Command sending helpers
+        // The guest runs input locally (optimistic) AND sends commands to host.
+        // Host state snapshots at 10Hz will correct any drift.
+        // ============================================================
+        function sendGuestMoveCommand(shipIds, waypoints, append = false) {
+            if (!isMultiplayer || !isGuest) return;
+            sendPlayerCommand(createCommand(COMMAND_TYPES.MOVE_SHIPS, { shipIds, waypoints, append }));
+        }
+
+        function sendGuestAttackCommand(shipIds, targetType, targetId) {
+            if (!isMultiplayer || !isGuest) return;
+            sendPlayerCommand(createCommand(COMMAND_TYPES.ATTACK, { shipIds, targetType, targetId }));
+        }
+
+        function sendGuestBuildShipCommand(portId, shipType) {
+            if (!isMultiplayer || !isGuest) return;
+            sendPlayerCommand(createCommand(COMMAND_TYPES.BUILD_SHIP, { portId, shipType }));
+        }
+
+        function sendGuestBuildPortCommand(builderShipId, portType, q, r) {
+            if (!isMultiplayer || !isGuest) return;
+            sendPlayerCommand(createCommand(COMMAND_TYPES.BUILD_PORT, { builderShipId, portType, q, r }));
+        }
+
+        // Generic command sender for any command type
+        function sendGuestGenericCommand(type, data) {
+            if (!isMultiplayer || !isGuest) return;
+            sendPlayerCommand(createCommand(type, data));
+        }
+
+        // Drain any commands queued by input handler functions and send them
+        function flushGuestCommands() {
+            if (!isMultiplayer || !isGuest) return;
+            for (const cmd of drainPendingNetworkCommands()) {
+                sendPlayerCommand(createCommand(cmd.type, cmd));
+            }
+        }
+
+        // After input handlers mutate state, send the corresponding command to host
+        // This captures what selected ships are doing and sends their IDs + actions
+        function sendGuestCommandForSelectedShips(commandType, extraData = {}) {
+            if (!isMultiplayer || !isGuest) return;
+            const selectedShipIds = [];
+            for (const sel of gameState.selectedUnits) {
+                if (sel.type !== 'ship') continue;
+                const ship = gameState.ships[sel.index];
+                if (ship && ship.owner === localPlayerId) {
+                    selectedShipIds.push(ship.id);
+                }
+            }
+            if (selectedShipIds.length === 0) return;
+            sendPlayerCommand(createCommand(commandType, { shipIds: selectedShipIds, ...extraData }));
+        }
+
         // Main game update loop - delegates to system modules
         k.onUpdate(() => {
             const rawDt = k.dt();
@@ -484,6 +615,79 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Skip game updates when game is over or surrender pending
             if (gameState.gameOver || gameState.surrenderPending) return;
+
+            // ===== MULTIPLAYER GUEST PATH: Apply state from host, skip simulation =====
+            if (isMultiplayer && isGuest) {
+                if (latestSnapshot) {
+                    applyNetworkState(gameState, latestSnapshot);
+                    latestSnapshot = null;
+                    // Recalculate fog for guest's perspective
+                    markVisibilityDirty(fogState);
+                }
+
+                // Guest still needs fog recalculation and visual updates
+                fogRecalcCooldown = Math.max(0, fogRecalcCooldown - rawDt);
+                if (isVisibilityDirty(fogState) && fogRecalcCooldown <= 0) {
+                    recalculateVisibility(fogState, gameState, gameTime, localPlayerId);
+                    fogRecalcCooldown = FOG_RECALC_INTERVAL;
+                }
+
+                // Guest visual updates (hit flash decay, explosions, camera shake)
+                for (const ship of gameState.ships) {
+                    if (ship.hitFlash > 0) ship.hitFlash -= rawDt;
+                }
+                for (const port of gameState.ports) {
+                    if (port.hitFlash > 0) port.hitFlash -= rawDt;
+                }
+                for (const tower of gameState.towers) {
+                    if (tower.hitFlash > 0) tower.hitFlash -= rawDt;
+                }
+                for (const settlement of gameState.settlements) {
+                    if (settlement.hitFlash > 0) settlement.hitFlash -= rawDt;
+                }
+
+                // Camera shake from explosions
+                const gHalfW = k.width() / 2;
+                const gHalfH = k.height() / 2;
+                for (let i = gameState.shipExplosions.length - 1; i >= 0; i--) {
+                    const explosion = gameState.shipExplosions[i];
+                    if (explosion.age < rawDt * 2) {
+                        const pos = hexToPixel(explosion.q, explosion.r);
+                        const screenX = (pos.x - cameraX) * zoom + gHalfW;
+                        const screenY = (pos.y - cameraY) * zoom + gHalfH;
+                        const margin = 100;
+                        if (screenX >= -margin && screenX <= k.width() + margin &&
+                            screenY >= -margin && screenY <= k.height() + margin) {
+                            cameraShake = Math.max(cameraShake, 8);
+                        }
+                    }
+                    explosion.age += dt;
+                    if (explosion.age >= explosion.duration) {
+                        gameState.shipExplosions.splice(i, 1);
+                    }
+                }
+                if (cameraShake > 0) {
+                    cameraShakeX = (Math.random() - 0.5) * cameraShake * 2;
+                    cameraShakeY = (Math.random() - 0.5) * cameraShake * 2;
+                    cameraShake *= 0.92;
+                    if (cameraShake < 0.1) cameraShake = 0;
+                } else {
+                    cameraShakeX = 0;
+                    cameraShakeY = 0;
+                }
+
+                return; // Guest skips full simulation
+            }
+
+            // ===== HOST / SINGLE-PLAYER PATH: Full simulation =====
+
+            // Process pending guest commands (multiplayer host only)
+            if (isMultiplayer && isHost) {
+                while (pendingGuestCommands.length > 0) {
+                    const cmd = pendingGuestCommands.shift();
+                    processGuestCommand(cmd, gameState, map, fogState);
+                }
+            }
 
             // Delegate to game systems
             updateShipMovement(hexToPixel, gameState, map, fogState, dt, floatingNumbers);
@@ -532,8 +736,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Recalculate fog visibility if any vision source changed (throttled for performance)
             fogRecalcCooldown = Math.max(0, fogRecalcCooldown - rawDt);
             if (isVisibilityDirty(fogState) && fogRecalcCooldown <= 0) {
-                recalculateVisibility(fogState, gameState, gameTime);
+                recalculateVisibility(fogState, gameState, gameTime, localPlayerId);
                 fogRecalcCooldown = FOG_RECALC_INTERVAL;
+            }
+
+            // Multiplayer host: send state snapshots at 10Hz
+            if (isMultiplayer && isHost && isConnected()) {
+                stateSyncTimer += rawDt;
+                if (stateSyncTimer >= STATE_SYNC_INTERVAL) {
+                    stateSyncTimer = 0;
+                    sendStateSnapshot(extractNetworkState(gameState));
+                }
             }
 
             // Decay hit flash timers
@@ -620,6 +833,21 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const homePortIndex = getHomePortIndex(gameState, map);
                 if (homePortIndex === null) {
                     gameState.gameOver = 'lose';
+                }
+            }
+
+            // Multiplayer mode: total elimination 1v1
+            if (scenario && scenario.gameMode === 'multiplayer' && !gameState.gameOver) {
+                const p1Counts = countEntitiesForOwner(gameState, 'player');
+                const p2Counts = countEntitiesForOwner(gameState, 'player2');
+
+                if (p2Counts.total === 0 && p1Counts.total > 0) {
+                    // Host (player) wins — from host's perspective
+                    gameState.gameOver = isHost ? 'win' : 'lose';
+                }
+                if (p1Counts.total === 0 && p2Counts.total > 0) {
+                    // Guest (player2) wins — from host's perspective
+                    gameState.gameOver = isHost ? 'lose' : 'win';
                 }
             }
 
@@ -1053,6 +1281,48 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 });
             }
 
+            // Multiplayer disconnect overlay
+            if (isMultiplayer && disconnectOverlay) {
+                const screenWidth = k.width();
+                const screenHeight = k.height();
+                k.drawRect({
+                    pos: k.vec2(0, 0),
+                    width: screenWidth, height: screenHeight,
+                    color: k.rgb(0, 0, 0), opacity: 0.75,
+                });
+                k.drawText({
+                    text: isHost ? "Opponent disconnected." : "Host disconnected.",
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 - 20),
+                    size: 24, anchor: "center",
+                    color: k.rgb(255, 80, 80),
+                });
+                k.drawText({
+                    text: "Press SPACE to return to menu",
+                    pos: k.vec2(screenWidth / 2, screenHeight / 2 + 20),
+                    size: 14, anchor: "center",
+                    color: k.rgb(150, 150, 150),
+                });
+            }
+
+            // Multiplayer connection status indicator
+            if (isMultiplayer && !gameState.gameOver && !disconnectOverlay) {
+                const connState = getConnectionState();
+                const lat = getLatency();
+                let statusColor = k.rgb(100, 255, 100); // green
+                let statusText = `P2P ${lat}ms`;
+                if (lat > 200) { statusColor = k.rgb(255, 200, 0); } // yellow
+                if (connState !== CONNECTION_STATE.CONNECTED) {
+                    statusColor = k.rgb(255, 80, 80); // red
+                    statusText = 'Disconnected';
+                }
+                k.drawText({
+                    text: statusText,
+                    pos: k.vec2(k.width() - 10, 10),
+                    size: 11, anchor: "topright",
+                    color: statusColor,
+                });
+            }
+
             // Draw birds at the very top (above all UI)
             drawBirds(ctx, birdStates);
 
@@ -1255,9 +1525,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const worldX = (mouse.x - halfW) / zoom + cameraX;
                 const worldY = (mouse.y - halfH) / zoom + cameraY;
 
-                // Check if hovering over an enemy ship (pirate or AI-owned)
+                // Check if hovering over an enemy ship (pirate or non-local)
                 for (const ship of gameState.ships) {
-                    const isEnemy = ship.type === 'pirate' || isAIOwner(ship.owner);
+                    const isEnemy = ship.type === 'pirate' || ship.owner !== localPlayerId;
                     if (!isEnemy) continue;
                     const pos = hexToPixel(ship.q, ship.r);
                     const dx = worldX - pos.x;
@@ -1272,7 +1542,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (newCursor === CURSOR_DEFAULT) {
                     const allStructures = [...gameState.towers, ...gameState.ports, ...gameState.settlements];
                     for (const structure of allStructures) {
-                        if (!isAIOwner(structure.owner)) continue;
+                        if (structure.owner === localPlayerId) continue;
                         const pos = hexToPixel(structure.q, structure.r);
                         const dx = worldX - pos.x;
                         const dy = worldY - pos.y;
@@ -1300,8 +1570,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // Time scale controls (+ to increase, - to decrease)
+        // Time scale controls (+ to increase, - to decrease) — disabled in multiplayer
         k.onKeyPress("=", () => {
+            if (isMultiplayer) return; // Fixed speed in multiplayer
             const oldSpeed = gameState.timeScale;
             gameState.timeScale = Math.min(gameState.timeScale + 1, 5);
             if (gameState.timeScale !== oldSpeed) {
@@ -1311,6 +1582,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             speedSubmenuOpen = false;
         });
         k.onKeyPress("-", () => {
+            if (isMultiplayer) return; // Fixed speed in multiplayer
             const oldSpeed = gameState.timeScale;
             gameState.timeScale = Math.max(gameState.timeScale - 1, 1);
             if (gameState.timeScale !== oldSpeed) {
@@ -1320,6 +1592,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             speedSubmenuOpen = false;
         });
         k.onKeyPress(".", () => {
+            if (isMultiplayer) return; // Fixed speed in multiplayer
             if (gameState.timeScale === 0) {
                 gameState.timeScale = lastNonZeroSpeed;
             } else {
@@ -1382,7 +1655,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         k.onKeyPress("m", () => {
             const selectedShips = getSelectedShips(gameState);
             const playerShips = selectedShips.filter(ship =>
-                ship && ship.type !== 'pirate' && !isAIOwner(ship.owner)
+                ship && ship.type !== 'pirate' && ship.owner === localPlayerId
             );
             if (playerShips.length > 0) {
                 if (gameState.actionMode.active === 'move') {
@@ -1398,7 +1671,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         k.onKeyPress("a", () => {
             const selectedShips = getSelectedShips(gameState);
             const playerShips = selectedShips.filter(ship =>
-                ship && ship.type !== 'pirate' && !isAIOwner(ship.owner)
+                ship && ship.type !== 'pirate' && ship.owner === localPlayerId
             );
             if (playerShips.length > 0) {
                 if (gameState.actionMode.active === 'attack') {
@@ -1415,7 +1688,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const selectedShips = getSelectedShips(gameState);
             // Filter to only player-controlled ships
             const playerShips = selectedShips.filter(ship =>
-                ship && ship.type !== 'pirate' && !isAIOwner(ship.owner)
+                ship && ship.type !== 'pirate' && ship.owner === localPlayerId
             );
             if (playerShips.length > 0) {
                 if (gameState.actionMode.active === 'patrol') {
@@ -1444,7 +1717,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         k.onKeyPress("r", () => {
             const selectedShips = getSelectedShips(gameState);
             const hasPlayerShips = selectedShips.some(ship =>
-                ship && ship.type !== 'pirate' && !isAIOwner(ship.owner)
+                ship && ship.type !== 'pirate' && ship.owner === localPlayerId
             );
             // Only allow rally mode if no ships are selected
             if (hasPlayerShips) return;
@@ -1452,7 +1725,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const selectedPorts = gameState.selectedUnits
                 .filter(u => u.type === 'port')
                 .map(u => gameState.ports[u.index])
-                .filter(port => port && !isAIOwner(port.owner));
+                .filter(port => port && port.owner === localPlayerId);
 
             if (selectedPorts.length > 0) {
                 if (gameState.actionMode.active === 'rally') {
@@ -1476,11 +1749,14 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // Space to return to title when game over
+        // Space to return to title when game over or disconnected
         k.onKeyPress("space", () => {
-            if (gameState.gameOver) {
+            if (gameState.gameOver || disconnectOverlay) {
                 ambientOcean.stop();
                 ambientMusic.stop();
+                if (isMultiplayer) {
+                    disconnect();
+                }
                 k.go("title");
             }
         });
@@ -1538,7 +1814,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (buildPanelBounds?.settlementButton &&
                 port && !port.repair &&
                 !isPortBuildingSettlement(buildPanelBounds.portIndex, gameState.settlements) &&
-                canAfford(gameState.resources, SETTLEMENTS.settlement.cost)) {
+                canAfford(getResourcesForOwner(gameState, localPlayerId), SETTLEMENTS.settlement.cost)) {
                 enterSettlementBuildMode(gameState, buildPanelBounds.portIndex);
                 console.log("Settlement placement mode (hotkey S)");
             }
@@ -1548,17 +1824,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         k.onKeyPress("t", () => {
             const watchtowerData = TOWERS.watchtower;
             // Ship panel takes priority if both are somehow open
-            if (shipBuildPanelBounds?.towerButton && canAfford(gameState.resources, watchtowerData.cost)) {
-                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+            const tRes = getResourcesForOwner(gameState, localPlayerId);
+            if (shipBuildPanelBounds?.towerButton && canAfford(tRes, watchtowerData.cost)) {
+                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0, localPlayerId)) {
                     showNotification(gameState, "Max crew reached. Build more settlements.");
                 } else {
                     enterTowerBuildMode(gameState, shipBuildPanelBounds.shipIndex, 'ship');
                     console.log("Watchtower placement mode from ship (hotkey T)");
                 }
-            } else if (buildPanelBounds?.towerButton && canAfford(gameState.resources, watchtowerData.cost)) {
+            } else if (buildPanelBounds?.towerButton && canAfford(tRes, watchtowerData.cost)) {
                 const port = gameState.ports[buildPanelBounds.portIndex];
                 if (!port.repair) {
-                    if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+                    if (!canAffordCrew(gameState, watchtowerData.crewCost || 0, localPlayerId)) {
                         showNotification(gameState, "Max crew reached. Build more settlements.");
                     } else {
                         enterTowerBuildMode(gameState, buildPanelBounds.portIndex, 'port');
@@ -1600,18 +1877,22 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (port.construction) continue;
 
                 // Check affordability only if queue empty
+                const cRes = getResourcesForOwner(gameState, localPlayerId);
                 if (port.buildQueue.length === 0) {
-                    if (!canAfford(gameState.resources, shipData.cost)) continue;
-                    if (!canAffordCrew(gameState, shipData.crewCost || 0)) {
+                    if (!canAfford(cRes, shipData.cost)) continue;
+                    if (!canAffordCrew(gameState, shipData.crewCost || 0, localPlayerId)) {
                         showNotification(gameState, "Max crew reached.");
                         continue;
                     }
-                    deductCost(gameState.resources, shipData.cost);
-                    addToBuildQueue(port, 'cutter', gameState.resources, true);
+                    deductCost(cRes, shipData.cost);
+                    addToBuildQueue(port, 'cutter', cRes, true);
                     port.buildQueue[0].progress = 0;
                 } else {
                     // Queue has items - just add without resource check
-                    addToBuildQueue(port, 'cutter', gameState.resources, false);
+                    addToBuildQueue(port, 'cutter', cRes, false);
+                }
+                if (isMultiplayer && isGuest) {
+                    sendGuestGenericCommand(COMMAND_TYPES.BUILD_SHIP, { portId: port.id, shipType: 'cutter' });
                 }
                 lastBuildPortOffset = offset; // Remember which port we used
                 break; // One ship per keypress
@@ -1627,16 +1908,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const tower = gameState.towers[selectedTowerIndices[0].index];
                     const currentTowerData = TOWERS[tower.type];
                     const crewDiff = (nextTowerData.crewCost || 0) - (currentTowerData.crewCost || 0);
-                    if (!tower.construction && canAfford(gameState.resources, nextTowerData.cost)) {
-                        if (!canAffordCrew(gameState, crewDiff)) {
+                    const uRes = getResourcesForOwner(gameState, localPlayerId);
+                    if (!tower.construction && canAfford(uRes, nextTowerData.cost)) {
+                        if (!canAffordCrew(gameState, crewDiff, localPlayerId)) {
                             showNotification(gameState, "Max crew reached. Build more settlements.");
                         } else {
-                            deductCost(gameState.resources, nextTowerData.cost);
+                            deductCost(uRes, nextTowerData.cost);
                             tower.construction = {
                                 progress: 0,
                                 buildTime: nextTowerData.buildTime,
                                 upgradeTo: towerInfoPanelBounds.upgradeButton.towerType,
                             };
+                            if (isMultiplayer && isGuest) {
+                                sendGuestGenericCommand(COMMAND_TYPES.UPGRADE_TOWER, { towerId: tower.id });
+                            }
                             console.log(`Started upgrading tower to: ${towerInfoPanelBounds.upgradeButton.towerType} (hotkey U)`);
                         }
                     }
@@ -1646,11 +1931,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Hotkey 'R' to repair selected unit (ships cannot repair themselves)
         k.onKeyPress("r", () => {
+            const rRes = getResourcesForOwner(gameState, localPlayerId);
             // Tower repair
             const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
             if (selectedTowerIndices.length === 1 && towerInfoPanelBounds?.repairButton) {
                 const tower = gameState.towers[selectedTowerIndices[0].index];
-                if (startRepair('tower', tower, gameState.resources)) {
+                if (startRepair('tower', tower, rRes)) {
+                    if (isMultiplayer && isGuest) sendGuestGenericCommand(COMMAND_TYPES.REPAIR, { entityType: 'tower', entityId: tower.id });
                     console.log("Started repairing tower (hotkey R)");
                 }
                 return;
@@ -1660,7 +1947,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const selectedSettlementIndices = gameState.selectedUnits.filter(u => u.type === 'settlement');
             if (selectedSettlementIndices.length === 1 && settlementInfoPanelBounds?.repairButton) {
                 const settlement = gameState.settlements[selectedSettlementIndices[0].index];
-                if (startRepair('settlement', settlement, gameState.resources)) {
+                if (startRepair('settlement', settlement, rRes)) {
+                    if (isMultiplayer && isGuest) sendGuestGenericCommand(COMMAND_TYPES.REPAIR, { entityType: 'settlement', entityId: settlement.id });
                     console.log("Started repairing settlement (hotkey R)");
                 }
                 return;
@@ -1670,7 +1958,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
             if (selectedPortIndices.length === 1 && buildPanelBounds?.repairButton) {
                 const port = gameState.ports[selectedPortIndices[0].index];
-                if (startRepair('port', port, gameState.resources)) {
+                if (startRepair('port', port, rRes)) {
+                    if (isMultiplayer && isGuest) sendGuestGenericCommand(COMMAND_TYPES.REPAIR, { entityType: 'port', entityId: port.id });
                     console.log("Started repairing port (hotkey R)");
                 }
                 return;
@@ -1756,9 +2045,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Handle placement mode clicks first
-            if (handlePortPlacementClick(gameState)) { playUIClick(); return; }
-            if (handleSettlementPlacementClick(gameState)) { playUIClick(); return; }
-            if (handleTowerPlacementClick(gameState)) { playUIClick(); return; }
+            if (handlePortPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleSettlementPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleTowerPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
 
             // Check game menu clicks first (when open)
             if (gameMenuBounds) {
@@ -1838,11 +2127,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Check UI panel clicks
-            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) { playUIClick(); return; }
-            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) { playUIClick(); return; }
-            if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); return; }
-            if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) { playUIClick(); return; }
-            if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); return; }
+            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
             if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) { playUIClick(); return; }
 
             // Check action button clicks (Move, Attack, Patrol)
@@ -1902,6 +2191,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (gameState.actionMode.active === 'move') {
                 // Move mode: set waypoint and exit
                 handleWaypointClick(gameState, map, clickedHex, isShiftHeld);
+                if (isMultiplayer && isGuest) {
+                    sendGuestCommandForSelectedShips(COMMAND_TYPES.MOVE_SHIPS, {
+                        waypoints: [{ q: clickedHex.q, r: clickedHex.r }], append: isShiftHeld,
+                    });
+                }
                 exitActionMode(gameState);
                 return;
             }
@@ -1909,6 +2203,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (gameState.actionMode.active === 'attack') {
                 // Attack mode: try to attack enemy first
                 if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
+                    if (isMultiplayer && isGuest) {
+                        const selShips = getSelectedShips(gameState);
+                        if (selShips.length > 0 && selShips[0].attackTarget) {
+                            const at = selShips[0].attackTarget;
+                            const targetEntity = (at.type === 'ship' ? gameState.ships : at.type === 'port' ? gameState.ports : at.type === 'settlement' ? gameState.settlements : gameState.towers)[at.index];
+                            if (targetEntity) {
+                                sendGuestCommandForSelectedShips(COMMAND_TYPES.ATTACK, { targetType: at.type, targetId: targetEntity.id });
+                            }
+                        }
+                    }
                     exitActionMode(gameState);
                     return;
                 }
@@ -1917,6 +2221,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const selectedShips = getSelectedShips(gameState);
                 for (const ship of selectedShips) {
                     ship.guardMode = true;
+                }
+                if (isMultiplayer && isGuest) {
+                    sendGuestCommandForSelectedShips(COMMAND_TYPES.MOVE_SHIPS, {
+                        waypoints: [{ q: clickedHex.q, r: clickedHex.r }], append: false,
+                    });
                 }
                 exitActionMode(gameState);
                 return;
@@ -1934,12 +2243,30 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
                 // No unit clicked - add patrol waypoint (stay in mode for multiple points)
                 handlePatrolWaypointClick(gameState, map, clickedHex);
+                if (isMultiplayer && isGuest) {
+                    const selShips = getSelectedShips(gameState);
+                    if (selShips.length > 0 && selShips[0].patrolRoute) {
+                        sendGuestCommandForSelectedShips(COMMAND_TYPES.SET_PATROL, { waypoints: selShips[0].patrolRoute });
+                    }
+                }
                 return;
             }
 
             if (gameState.actionMode.active === 'rally') {
                 // Rally mode: set rally point for selected port(s)
                 handlePortRallyPointClick(gameState, map, clickedHex);
+                if (isMultiplayer && isGuest) {
+                    for (const sel of gameState.selectedUnits) {
+                        if (sel.type === 'port') {
+                            const port = gameState.ports[sel.index];
+                            if (port && port.owner === localPlayerId) {
+                                sendGuestGenericCommand(COMMAND_TYPES.SET_RALLY, {
+                                    portId: port.id, q: clickedHex.q, r: clickedHex.r,
+                                });
+                            }
+                        }
+                    }
+                }
                 exitActionMode(gameState);
                 return;
             }
@@ -1950,14 +2277,32 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (isCommandHeld) {
                 // Attack pirate ship
                 if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
+                    if (isMultiplayer && isGuest) {
+                        const selShips = getSelectedShips(gameState);
+                        if (selShips.length > 0 && selShips[0].attackTarget) {
+                            const at = selShips[0].attackTarget;
+                            const targetEntity = (at.type === 'ship' ? gameState.ships : at.type === 'port' ? gameState.ports : at.type === 'settlement' ? gameState.settlements : gameState.towers)[at.index];
+                            if (targetEntity) {
+                                sendGuestCommandForSelectedShips(COMMAND_TYPES.ATTACK, { targetType: at.type, targetId: targetEntity.id });
+                            }
+                        }
+                    }
                     return;  // Attack command handled
                 }
-                // Trade route to foreign port
+                // Trade route to foreign port (plunder)
                 if (handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
+                    if (isMultiplayer && isGuest) {
+                        sendGuestCommandForSelectedShips(COMMAND_TYPES.PLUNDER, {
+                            targetQ: clickedHex.q, targetR: clickedHex.r,
+                        });
+                    }
                     clickedOnUnit = true;
                 }
                 // Unload at home port
                 else if (handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
+                    if (isMultiplayer && isGuest) {
+                        sendGuestCommandForSelectedShips(COMMAND_TYPES.UNLOAD_CARGO, {});
+                    }
                     clickedOnUnit = true;
                 }
             }
@@ -2046,28 +2391,74 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Attack enemy (skips ports if shift held for plundering)
             if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal, isShiftHeld)) {
+                // MP guest: send attack command with the target info
+                if (isMultiplayer && isGuest) {
+                    // Find what got targeted by checking selected ships' attackTarget
+                    const selShips = getSelectedShips(gameState);
+                    if (selShips.length > 0 && selShips[0].attackTarget) {
+                        const at = selShips[0].attackTarget;
+                        const targetEntity = (at.type === 'ship' ? gameState.ships : at.type === 'port' ? gameState.ports : at.type === 'settlement' ? gameState.settlements : gameState.towers)[at.index];
+                        if (targetEntity) {
+                            sendGuestCommandForSelectedShips(COMMAND_TYPES.ATTACK, { targetType: at.type, targetId: targetEntity.id });
+                        }
+                    }
+                }
                 return;
             }
 
             // Plunder route to enemy port (requires shift)
             if (handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld)) {
+                if (isMultiplayer && isGuest) {
+                    sendGuestCommandForSelectedShips(COMMAND_TYPES.PLUNDER, {
+                        targetQ: clickedHex.q, targetR: clickedHex.r,
+                    });
+                }
                 return;
             }
 
             // Unload at home port
             if (handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS)) {
+                if (isMultiplayer && isGuest) {
+                    sendGuestCommandForSelectedShips(COMMAND_TYPES.UNLOAD_CARGO, {});
+                }
                 return;
             }
 
             // Patrol mode - add waypoints to patrol route
             if (gameState.patrolMode.active) {
                 handlePatrolWaypointClick(gameState, map, clickedHex);
+                // MP guest: send patrol command
+                if (isMultiplayer && isGuest) {
+                    const selShips = getSelectedShips(gameState);
+                    if (selShips.length > 0 && selShips[0].patrolRoute) {
+                        sendGuestCommandForSelectedShips(COMMAND_TYPES.SET_PATROL, { waypoints: selShips[0].patrolRoute });
+                    }
+                }
                 return;
             }
 
             // Set waypoint (try port rally point first, then ship waypoint)
             if (!handlePortRallyPointClick(gameState, map, clickedHex)) {
                 handleWaypointClick(gameState, map, clickedHex, isShiftHeld);
+                // MP guest: send move command
+                if (isMultiplayer && isGuest) {
+                    sendGuestCommandForSelectedShips(COMMAND_TYPES.MOVE_SHIPS, {
+                        waypoints: [{ q: clickedHex.q, r: clickedHex.r }],
+                        append: isShiftHeld,
+                    });
+                }
+            } else if (isMultiplayer && isGuest) {
+                // Rally point set for a port
+                for (const sel of gameState.selectedUnits) {
+                    if (sel.type === 'port') {
+                        const port = gameState.ports[sel.index];
+                        if (port && port.owner === localPlayerId) {
+                            sendGuestGenericCommand(COMMAND_TYPES.SET_RALLY, {
+                                portId: port.id, q: clickedHex.q, r: clickedHex.r,
+                            });
+                        }
+                    }
+                }
             }
         }
 
@@ -2092,11 +2483,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Track if any ships are selected for sound
             let shipsSelected = false;
 
-            // Check each ship (skip pirate and AI-owned ships)
+            // Check each ship (skip pirate and non-local ships)
             for (let i = 0; i < gameState.ships.length; i++) {
                 const ship = gameState.ships[i];
                 if (ship.type === 'pirate') continue;
-                if (isAIOwner(ship.owner)) continue;
+                if (ship.owner !== localPlayerId) continue;
                 const pos = getShipVisualPosLocal(ship);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
@@ -2108,10 +2499,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Check each port (skip AI-owned ports)
+            // Check each port (skip non-local ports)
             for (let i = 0; i < gameState.ports.length; i++) {
                 const port = gameState.ports[i];
-                if (isAIOwner(port.owner)) continue;
+                if (port.owner !== localPlayerId) continue;
                 const pos = hexToPixel(port.q, port.r);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
@@ -2122,10 +2513,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Check each settlement (skip AI-owned settlements)
+            // Check each settlement (skip non-local settlements)
             for (let i = 0; i < gameState.settlements.length; i++) {
                 const settlement = gameState.settlements[i];
-                if (isAIOwner(settlement.owner)) continue;
+                if (settlement.owner !== localPlayerId) continue;
                 const pos = hexToPixel(settlement.q, settlement.r);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
                 const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
@@ -2163,7 +2554,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const ship = gameState.ships[i];
                     if (ship.type !== subType) continue;
                     if (ship.type === 'pirate') continue;  // Don't select pirate ships
-                    if (isAIOwner(ship.owner)) continue;   // Don't select AI ships
+                    if (ship.owner !== localPlayerId) continue;   // Don't select non-local ships
                     // Exclude ships that are currently building something
                     if (isShipBuildingPort(i, gameState.ports)) continue;
                     if (isShipBuildingTower(i, gameState.towers)) continue;
@@ -2180,7 +2571,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (let i = 0; i < gameState.ports.length; i++) {
                     const port = gameState.ports[i];
                     if (port.type !== subType) continue;
-                    if (isAIOwner(port.owner)) continue;   // Don't select AI ports
+                    if (port.owner !== localPlayerId) continue;   // Don't select non-local ports
 
                     const pos = hexToPixel(port.q, port.r);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -2194,7 +2585,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (let i = 0; i < gameState.towers.length; i++) {
                     const tower = gameState.towers[i];
                     if (tower.type !== subType) continue;
-                    if (isAIOwner(tower.owner)) continue;   // Don't select AI towers
+                    if (tower.owner !== localPlayerId) continue;   // Don't select non-local towers
 
                     const pos = hexToPixel(tower.q, tower.r);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -2207,7 +2598,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             } else if (unitType === 'settlement') {
                 for (let i = 0; i < gameState.settlements.length; i++) {
                     const settlement = gameState.settlements[i];
-                    if (isAIOwner(settlement.owner)) continue;  // Don't select AI settlements
+                    if (settlement.owner !== localPlayerId) continue;  // Don't select non-local settlements
 
                     const pos = hexToPixel(settlement.q, settlement.r);
                     const screenX = (pos.x - cameraX) * zoom + halfWidth;
