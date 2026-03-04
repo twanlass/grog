@@ -16,13 +16,17 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
         let connection = null;
         let copyFeedbackTimer = 0; // shows "Copied!" briefly
 
+        let joiningTimer = 0; // tracks how long we've been in 'joining' state
+        const JOIN_TIMEOUT = 15; // seconds before showing timeout error
+
         // Auto-join if launched via ?join= link
         const initialJoinCode = getInitialJoinCode ? getInitialJoinCode() : null;
         if (initialJoinCode) {
             inputCode = initialJoinCode;
             mode = 'joining';
+            console.log(`[Grog MP] Auto-joining with code: ${initialJoinCode}`);
             // Defer joinGame() to after scene is fully initialized
-            k.wait(0.05, () => joinGame());
+            k.wait(0.1, () => joinGame());
         }
 
         // Network callback holders (will be wired to game scene)
@@ -100,7 +104,9 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
             if (inputCode.length < 5) return;
 
             const fullCode = inputCode.includes('-') ? inputCode.toUpperCase() : `GROG-${inputCode.toUpperCase()}`;
+            console.log(`[Grog MP] joinGame() called with code: ${fullCode}`);
             mode = 'joining';
+            joiningTimer = 0;
 
             joinHost(fullCode, {
                 onConnected: () => {
@@ -187,6 +193,18 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
 
             if (copyFeedbackTimer > 0) {
                 copyFeedbackTimer -= k.dt();
+            }
+
+            // Track joining timeout
+            if (mode === 'joining') {
+                joiningTimer += k.dt();
+                if (joiningTimer >= JOIN_TIMEOUT) {
+                    mode = 'error';
+                    errorMessage = 'Connection timed out. Host may not be available.';
+                    disconnect();
+                }
+            } else {
+                joiningTimer = 0;
             }
 
             if (countdownActive) {
@@ -367,9 +385,27 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                     size: 18, pos: k.vec2(cx, cy - 15), anchor: "center",
                     color: errorColor,
                 });
+
+                // Retry button (if we have a code to retry with)
+                if (inputCode) {
+                    const retryBtnY = cy + 30;
+                    const retryHover = isMouseInRect(cx - 80, retryBtnY - 18, 160, 36);
+                    k.drawRect({
+                        width: 160, height: 36, radius: 6,
+                        pos: k.vec2(cx, retryBtnY), anchor: "center",
+                        color: retryHover ? k.rgb(40, 55, 75) : panelColor,
+                        outline: { width: 1.5, color: accentColor },
+                    });
+                    k.drawText({
+                        text: "Retry",
+                        size: 16, pos: k.vec2(cx, retryBtnY), anchor: "center",
+                        color: textColor,
+                    });
+                }
+
                 k.drawText({
                     text: "Press ESC to return to menu",
-                    size: 14, pos: k.vec2(cx, cy + 25), anchor: "center",
+                    size: 14, pos: k.vec2(cx, cy + 75), anchor: "center",
                     color: dimColor,
                 });
             }
@@ -393,6 +429,16 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                 if (isMouseInRect(cx - 120, cy + 10 - 25, 240, 50)) {
                     mode = 'joining_input';
                     inputCode = '';
+                }
+            }
+
+            if (mode === 'error' && inputCode) {
+                // Retry button hit test
+                const retryBtnY = cy + 30;
+                if (isMouseInRect(cx - 80, retryBtnY - 18, 160, 36)) {
+                    disconnect();
+                    joiningTimer = 0;
+                    joinGame();
                 }
             }
 

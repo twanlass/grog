@@ -50,16 +50,20 @@ export function createHost(cbs = {}) {
         // Use the game code as the PeerJS peer ID (lowercase for PeerJS compatibility)
         const peerId = gameCode.toLowerCase().replace('-', '');
 
+        console.log(`[Grog MP] Hosting as peer: ${peerId}`);
+
         peer = new Peer(peerId, {
-            debug: 0, // Minimal logging
+            debug: 1,
         });
 
-        peer.on('open', () => {
+        peer.on('open', (id) => {
+            console.log(`[Grog MP] Host peer open with id: ${id}`);
             connectionState = CONNECTION_STATE.CONNECTING; // Waiting for guest
             resolve(gameCode);
         });
 
         peer.on('connection', (conn) => {
+            console.log(`[Grog MP] Guest connected! Setting up DataChannel...`);
             connection = conn;
             setupConnection(conn);
         });
@@ -87,11 +91,14 @@ export function joinHost(hostCode, cbs = {}) {
         const peerId = `guest-${Date.now()}`;
         const hostPeerId = gameCode.toLowerCase().replace('-', '');
 
+        console.log(`[Grog MP] Joining as ${peerId}, looking for host ${hostPeerId}`);
+
         peer = new Peer(peerId, {
-            debug: 0,
+            debug: 1, // Log errors + warnings from PeerJS
         });
 
-        peer.on('open', () => {
+        peer.on('open', (id) => {
+            console.log(`[Grog MP] Guest peer open with id: ${id}, connecting to host...`);
             connectionState = CONNECTION_STATE.CONNECTING;
             connection = peer.connect(hostPeerId, {
                 reliable: true,
@@ -100,6 +107,7 @@ export function joinHost(hostCode, cbs = {}) {
         });
 
         peer.on('error', (err) => {
+            console.error(`[Grog MP] Peer error:`, err.type, err.message);
             connectionState = CONNECTION_STATE.ERROR;
             if (callbacks.onError) callbacks.onError(err);
             reject(err);
@@ -175,6 +183,7 @@ export function isConnected() { return connectionState === CONNECTION_STATE.CONN
 
 function setupConnection(conn, resolvePromise, rejectPromise) {
     conn.on('open', () => {
+        console.log(`[Grog MP] DataChannel open! Connected successfully.`);
         connectionState = CONNECTION_STATE.CONNECTED;
         startHeartbeat();
 
