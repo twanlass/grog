@@ -182,7 +182,9 @@ export function isConnected() { return connectionState === CONNECTION_STATE.CONN
 // ============================================================
 
 function setupConnection(conn, resolvePromise, rejectPromise) {
-    conn.on('open', () => {
+    function handleOpen() {
+        // Guard against firing twice (listener + already-open check)
+        if (connectionState === CONNECTION_STATE.CONNECTED) return;
         console.log(`[Grog MP] DataChannel open! Connected successfully.`);
         connectionState = CONNECTION_STATE.CONNECTED;
         startHeartbeat();
@@ -194,7 +196,16 @@ function setupConnection(conn, resolvePromise, rejectPromise) {
             callbacks.onConnected();
         }
         if (resolvePromise) resolvePromise();
-    });
+    }
+
+    conn.on('open', handleOpen);
+
+    // PeerJS race condition: connection may already be open by the time
+    // we attach the listener (common on the host side)
+    if (conn.open) {
+        console.log(`[Grog MP] Connection already open when listener attached`);
+        handleOpen();
+    }
 
     conn.on('data', (data) => {
         // Handle heartbeat internally
