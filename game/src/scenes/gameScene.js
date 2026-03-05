@@ -1337,8 +1337,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 });
             }
 
-            // Draw birds at the very top (above all UI)
-            drawBirds(ctx, birdStates);
+            // Draw birds at the very top (above all UI) - only if their hex is visible
+            const visibleBirds = birdStates.filter(b => isHexVisible(fogState, b.q, b.r));
+            drawBirds(ctx, visibleBirds);
 
             // Draw menu panel last (above birds) when open
             if (menuPanelOpen) {
