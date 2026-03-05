@@ -2022,3 +2022,25 @@ Using join link
 
 ## 463. User prompt
 > /ship-it 
+
+## 464. User prompt
+> /update-docs multiplayer 
+
+## 465. User prompt
+> create a pr and ship (don't update captains log)
+
+## 466. User prompt
+> let's update the multiplayer mode to show a success screen if the other player (client or host) leaves (closes browser tab, exits games, etc)
+
+## 467. User prompt
+> start it locally 
+
+## 468. User prompt
+> using the quit menu item in game doesn't trigger the victory / defeated screens
+
+## 469. User prompt
+> client used exit menu, caused crash: kaplay.js?v=83b30aed:5276 ReferenceError: disconnectVictory is not defined
+    at Object.<anonymous> (gameScene.js:1286:17)
+
+## 470. User prompt
+> /ship-it 

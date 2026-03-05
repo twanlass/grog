@@ -156,6 +156,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Disconnect overlay state
         let disconnectOverlay = false;
+        let disconnectVictory = false;
 
         // Get AI strategy override (null = random) and difficulty
         const aiStrategyOverride = getAIStrategy();
@@ -215,8 +216,14 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 mpConfig.onGuestCommand = (cmd) => { pendingGuestCommands.push(cmd); };
                 // Guest receives state snapshots
                 mpConfig.onStateSnapshot = (snapshot) => { latestSnapshot = snapshot; };
-                // Either side disconnects
-                mpConfig.onDisconnect = () => { disconnectOverlay = true; };
+                // Either side disconnects — treat as victory
+                mpConfig.onDisconnect = () => {
+                    disconnectOverlay = true;
+                    if (!gameState.gameOver) {
+                        gameState.gameOver = 'win';
+                        disconnectVictory = true;
+                    }
+                };
             }
         } else if (scenario.gameMode === 'versus') {
             // Get the selected number of AI opponents (1-3)
@@ -1276,7 +1283,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const isLose = gameState.gameOver === 'lose';
                 const title = isLose ? "DEFEATED" : "VICTORY";
                 let subtitle;
-                if (scenario && scenario.gameMode === 'versus') {
+                if (disconnectVictory) {
+                    subtitle = isHost ? "Opponent fled the battle!" : "Opponent disconnected";
+                } else if (scenario && scenario.gameMode === 'versus') {
                     subtitle = isLose ? "Your forces were eliminated" : "Enemy forces eliminated!";
                 } else {
                     subtitle = isLose ? "Your home port was destroyed" : "You survived!";
@@ -1308,28 +1317,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 });
             }
 
-            // Multiplayer disconnect overlay
-            if (isMultiplayer && disconnectOverlay) {
-                const screenWidth = k.width();
-                const screenHeight = k.height();
-                k.drawRect({
-                    pos: k.vec2(0, 0),
-                    width: screenWidth, height: screenHeight,
-                    color: k.rgb(0, 0, 0), opacity: 0.75,
-                });
-                k.drawText({
-                    text: isHost ? "Opponent disconnected." : "Host disconnected.",
-                    pos: k.vec2(screenWidth / 2, screenHeight / 2 - 20),
-                    size: 24, anchor: "center",
-                    color: k.rgb(255, 80, 80),
-                });
-                k.drawText({
-                    text: "Press SPACE to return to menu",
-                    pos: k.vec2(screenWidth / 2, screenHeight / 2 + 20),
-                    size: 14, anchor: "center",
-                    color: k.rgb(150, 150, 150),
-                });
-            }
 
             // Multiplayer connection status indicator
             if (isMultiplayer && !gameState.gameOver && !disconnectOverlay) {
@@ -2120,6 +2107,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         } else if (item.id === 'quit') {
                             ambientOcean.stop();
                             ambientMusic.stop();
+                            if (isMultiplayer) {
+                                disconnect();
+                            }
                             k.go("title");
                         }
                         return;

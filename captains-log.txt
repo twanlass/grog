@@ -1,6 +1,15 @@
 CAPTAIN'S LOG
 =============
 
+2026-03-05 | Show victory screen when opponent disconnects
+-----------------------------------------------------------
+### Improved
+- Opponent disconnect now shows VICTORY screen instead of plain "disconnected" overlay
+- Quit menu properly disconnects peer connection so opponent sees result immediately
+
+### Fixed
+- Quit menu in multiplayer didn't call disconnect(), leaving opponent waiting for heartbeat timeout
+
 2026-03-04 | Fix multiplayer connection, sync, and UX issues
 --------------------------------------------------------------
 ### New
