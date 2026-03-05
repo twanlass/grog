@@ -1,5 +1,6 @@
 import kaplay from "kaplay";
 import { createGameScene } from "./scenes/gameScene.js";
+import { createMultiplayerLobbyScene } from "./scenes/multiplayerLobbyScene.js";
 import { SCENARIOS, DEFAULT_SCENARIO_ID } from "./scenarios/index.js";
 import { AI_DIFFICULTY } from "./systems/aiPlayer.js";
 import { generateMap, getTileColor, getStippleColors, placeIslandTemplate } from "./mapGenerator.js";
@@ -1217,6 +1218,15 @@ k.scene("title", () => {
         if (titleMusic) {
             titleMusic.stop();
         }
+
+        // Multiplayer goes to lobby first
+        if (selectedScenarioId === 'multiplayer') {
+            multiplayerConfig = null; // Reset
+            k.go("multiplayer-lobby");
+            return;
+        }
+
+        multiplayerConfig = null; // Ensure clean state for non-MP modes
         k.go("game");
     }
 
@@ -1236,7 +1246,7 @@ k.scene("title", () => {
         if (currentModeSound) {
             currentModeSound.stop();
         }
-        const soundMap = { versus: 'mode-skirmish', defend: 'mode-defend', sandbox: 'mode-sandbox' };
+        const soundMap = { multiplayer: 'mode-skirmish', versus: 'mode-skirmish', defend: 'mode-defend', sandbox: 'mode-sandbox' };
         const soundName = soundMap[scenarioId];
         if (soundName) {
             currentModeSound = k.play(soundName, { volume: 0.6 });
@@ -1507,8 +1517,37 @@ k.scene("title", () => {
     });
 });
 
-// Pass selected scenario and AI strategy to game scene
-k.scene("game", createGameScene(k, () => selectedScenarioId, () => selectedAIStrategy, () => selectedDifficulty, () => selectedAICount));
+// Multiplayer config (set by lobby scene before transitioning to game)
+let multiplayerConfig = null;
 
-// Start with title screen
-k.go("title");
+// Pass selected scenario and AI strategy to game scene
+k.scene("game", createGameScene(k, () => selectedScenarioId, () => selectedAIStrategy, () => selectedDifficulty, () => selectedAICount, () => multiplayerConfig));
+
+// Check for ?join= URL param (from shared join link)
+let pendingJoinCode = null;
+const urlParams = new URLSearchParams(window.location.search);
+const joinParam = urlParams.get('join');
+if (joinParam) {
+    pendingJoinCode = joinParam.toUpperCase();
+    // Clean the URL so refreshing doesn't re-join
+    window.history.replaceState({}, '', window.location.pathname);
+}
+
+// Multiplayer lobby scene — handles host/join flow, then transitions to game
+k.scene("multiplayer-lobby", createMultiplayerLobbyScene(k, (mpConfig) => {
+    multiplayerConfig = mpConfig;
+    selectedScenarioId = 'multiplayer';
+    k.go("game");
+}, () => {
+    // Return and consume the pending join code
+    const code = pendingJoinCode;
+    pendingJoinCode = null;
+    return code;
+}));
+
+// Start with title screen, or go straight to lobby if join link was used
+if (joinParam) {
+    k.go("multiplayer-lobby");
+} else {
+    k.go("title");
+}

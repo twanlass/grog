@@ -2,6 +2,21 @@
 
 export const SCENARIOS = [
     {
+        id: 'multiplayer',
+        name: 'Multiplayer',
+        description: 'Play against a friend (P2P)',
+        gameMode: 'multiplayer',
+        mapSize: { width: 60, height: 60 },
+        startingResources: { wood: 25 },
+        pirateConfig: {
+            startingCount: 0,  // No pirates in multiplayer
+        },
+        aiConfig: {
+            enabled: false,
+            aiCount: 0,
+        },
+    },
+    {
         id: 'versus',
         name: 'Skirmish',
         description: 'Play against AI opponents',

@@ -1980,3 +1980,45 @@ Read the output file to retrieve the result: /var/folders/w1/p9hw508901lfyy97dhl
 
 ## 454. User prompt
 > ship it 
+
+## 455. User prompt
+> I want to add multiplayer support. It should be simple peer-to-peer, no central server or matching. Do a deep dive into the codebase and prepre a comprehensive plan for how we might achieve this. When done, write it to a .md file for me to review. 
+
+## 456. User prompt
+> I want to add multiplayer support. It should be simple peer-to-peer, no central server or matching. Do a deep dive into the codebase and prepre a comprehensive plan for how we might achieve this. When done, write it to a .md file for me to review. 
+
+## 457. User prompt
+> let's make the game code easy to copy + share: add a copy icon / button to right that on click copies to clipboard. OR maybe it copies a link w/ the code as aparam that just takes the otherperson right to the game to play ? 
+
+## 458. User prompt
+> testing this, the link seems to work but it hangs on the "connecting..." text. Can you try testing this w/ two browsers locally to debug why it might not be working / connecting? 
+
+## 459. User prompt
+> can you update the PR ?
+
+## 460. User prompt
+> client timesout; host logs show: [Grog MP] Hosting as peer: grogn7bsy
+index-0DVLE7ib.js:41 [Grog MP] Host peer open with id: grogn7bsy
+index-0DVLE7ib.js:41 [Grog MP] Guest connected! Setting up DataChannel...
+
+## 461. User prompt
+> let's run this locally 
+
+## 462. User prompt
+> still no working. 
+
+Client logs: 
+[Grog MP] Auto-joining with code: GROG-T7WC4
+multiplayerLobbyScene.js:107 [Grog MP] joinGame() called with code: GROG-T7WC4
+peerConnection.js:94 [Grog MP] Joining as guest-1772657426209, looking for host grogt7wc4
+peerConnection.js:101 [Grog MP] Guest peer open with id: guest-1772657426209, connecting to host...
+
+Server logs:
+[Grog MP] Hosting as peer: grogt7wc4
+peerConnection.js:60 [Grog MP] Host peer open with id: grogt7wc4
+peerConnection.js:66 [Grog MP] Guest connected! Setting up DataChannel...
+
+Using join link 
+
+## 463. User prompt
+> /ship-it 

@@ -8,11 +8,40 @@ import {
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute, exitPatrolMode,
     findFreeAdjacentWater, findNearestWaterInRange, findNearbyWaitingHex, getHomePortIndex,
-    canAffordCrew, showNotification, isAIOwner
+    canAffordCrew, showNotification, isAIOwner, getResourcesForOwner
 } from "../gameState.js";
 import { hexKey } from "../hex.js";
 import { findNearestWater, distributeDestinations } from "../pathfinding.js";
 import { startRepair } from "./repair.js";
+import { COMMAND_TYPES } from "../networking/commands.js";
+
+// Local player identity — set via setLocalPlayerId() for multiplayer
+let localPlayerId = 'player';
+export function setLocalPlayerId(id) { localPlayerId = id; }
+export function getLocalPlayerId() { return localPlayerId; }
+
+// Check if an entity is non-local (enemy from local player's perspective)
+function isNonLocal(owner) {
+    return owner !== localPlayerId;
+}
+
+// Get the local player's resource object (player or player2)
+function getLocalResources(gameState) {
+    return getResourcesForOwner(gameState, localPlayerId) || gameState.resources;
+}
+
+// Network command queue — guest actions are queued here and drained by gameScene
+let pendingNetworkCommands = [];
+export function drainPendingNetworkCommands() {
+    const cmds = pendingNetworkCommands;
+    pendingNetworkCommands = [];
+    return cmds;
+}
+function queueNetCmd(type, data) {
+    if (localPlayerId !== 'player') {
+        pendingNetworkCommands.push({ type, ...data });
+    }
+}
 
 /**
  * Handle click in port placement mode
@@ -26,16 +55,22 @@ export function handlePortPlacementClick(gameState) {
         const portType = gameState.portBuildMode.portType;
         const builderShipIndex = gameState.portBuildMode.builderShipIndex;
         const portData = PORTS[portType];
+        const res = getLocalResources(gameState);
 
-        if (!canAfford(gameState.resources, portData.cost)) {
+        if (!canAfford(res, portData.cost)) {
             console.log(`Can't afford ${portType}`);
             exitPortBuildMode(gameState);
             return true;
         }
-        deductCost(gameState.resources, portData.cost);
+        deductCost(res, portData.cost);
 
-        const newPort = createPort(portType, hex.q, hex.r, true, builderShipIndex);
+        const builderShip = gameState.ships[builderShipIndex];
+        const newPort = createPort(portType, hex.q, hex.r, true, builderShipIndex, localPlayerId);
         gameState.ports.push(newPort);
+
+        queueNetCmd(COMMAND_TYPES.BUILD_PORT, {
+            builderShipId: builderShip?.id, portType, q: hex.q, r: hex.r,
+        });
 
         console.log(`Started building ${portType} at (${hex.q}, ${hex.r}) by ship ${builderShipIndex}`);
         exitPortBuildMode(gameState);
@@ -54,16 +89,22 @@ export function handleSettlementPlacementClick(gameState) {
         const hex = gameState.settlementBuildMode.hoveredHex;
         const builderPortIndex = gameState.settlementBuildMode.builderPortIndex;
         const settlementData = SETTLEMENTS.settlement;
+        const res = getLocalResources(gameState);
 
-        if (!canAfford(gameState.resources, settlementData.cost)) {
+        if (!canAfford(res, settlementData.cost)) {
             console.log(`Can't afford settlement`);
             exitSettlementBuildMode(gameState);
             return true;
         }
-        deductCost(gameState.resources, settlementData.cost);
+        deductCost(res, settlementData.cost);
 
-        const newSettlement = createSettlement(hex.q, hex.r, true, builderPortIndex);
+        const builderPort = gameState.ports[builderPortIndex];
+        const newSettlement = createSettlement(hex.q, hex.r, true, builderPortIndex, localPlayerId);
         gameState.settlements.push(newSettlement);
+
+        queueNetCmd(COMMAND_TYPES.BUILD_SETTLEMENT, {
+            builderPortId: builderPort?.id, q: hex.q, r: hex.r,
+        });
 
         console.log(`Started building settlement at (${hex.q}, ${hex.r}) by port ${builderPortIndex}`);
         exitSettlementBuildMode(gameState);
@@ -83,21 +124,30 @@ export function handleTowerPlacementClick(gameState) {
         const builderShipIndex = gameState.towerBuildMode.builderShipIndex;
         const builderPortIndex = gameState.towerBuildMode.builderPortIndex;
         const watchtowerData = TOWERS.watchtower;
+        const res = getLocalResources(gameState);
 
-        if (!canAfford(gameState.resources, watchtowerData.cost)) {
+        if (!canAfford(res, watchtowerData.cost)) {
             console.log(`Can't afford ${watchtowerData.name}`);
             exitTowerBuildMode(gameState);
             return true;
         }
-        if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+        if (!canAffordCrew(gameState, watchtowerData.crewCost || 0, localPlayerId)) {
             console.log(`Not enough crew for ${watchtowerData.name}`);
             exitTowerBuildMode(gameState);
             return true;
         }
-        deductCost(gameState.resources, watchtowerData.cost);
+        deductCost(res, watchtowerData.cost);
 
-        const newTower = createTower('watchtower', hex.q, hex.r, true, builderShipIndex, builderPortIndex);
+        const builderShip = builderShipIndex !== null ? gameState.ships[builderShipIndex] : null;
+        const builderPort = builderPortIndex !== null ? gameState.ports[builderPortIndex] : null;
+        const newTower = createTower('watchtower', hex.q, hex.r, true, builderShipIndex, builderPortIndex, localPlayerId);
         gameState.towers.push(newTower);
+
+        queueNetCmd(COMMAND_TYPES.BUILD_TOWER, {
+            builderShipId: builderShip?.id || null,
+            builderPortId: builderPort?.id || null,
+            q: hex.q, r: hex.r,
+        });
 
         const builderType = builderShipIndex !== null ? `ship ${builderShipIndex}` : `port ${builderPortIndex}`;
         console.log(`Started building ${watchtowerData.name} at (${hex.q}, ${hex.r}) by ${builderType}`);
@@ -122,7 +172,7 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
     for (const btn of sbp.buttons) {
         if (mouseY >= btn.y && mouseY <= btn.y + btn.height) {
             const portData = PORTS[btn.portType];
-            if (canAfford(gameState.resources, portData.cost)) {
+            if (canAfford(getLocalResources(gameState), portData.cost)) {
                 enterPortBuildMode(gameState, sbp.shipIndex, btn.portType);
                 console.log(`Entering port placement mode: ${btn.portType}`);
             }
@@ -135,8 +185,8 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
         const tbtn = sbp.towerButton;
         if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
             const watchtowerData = TOWERS.watchtower;
-            if (canAfford(gameState.resources, watchtowerData.cost)) {
-                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+            if (canAfford(getLocalResources(gameState), watchtowerData.cost)) {
+                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0, localPlayerId)) {
                     showNotification(gameState, "Max crew reached. Build more settlements.");
                 } else {
                     enterTowerBuildMode(gameState, sbp.shipIndex, 'ship');
@@ -164,6 +214,7 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
     }
 
     // Check ship build buttons
+    const res = getLocalResources(gameState);
     for (const btn of bp.buttons) {
         if (mouseY >= btn.y && mouseY <= btn.y + btn.height) {
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
@@ -186,23 +237,25 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
 
                 // If queue is empty, check affordability and start immediately
                 if (port.buildQueue.length === 0) {
-                    if (!canAfford(gameState.resources, shipData.cost)) {
+                    if (!canAfford(res, shipData.cost)) {
                         return true; // Can't afford
                     }
-                    if (!canAffordCrew(gameState, shipData.crewCost || 0)) {
+                    if (!canAffordCrew(gameState, shipData.crewCost || 0, localPlayerId)) {
                         showNotification(gameState, "Max crew reached. Build more settlements.");
                         return true;
                     }
                     // Deduct resources and start building
-                    deductCost(gameState.resources, shipData.cost);
-                    addToBuildQueue(port, btn.shipType, gameState.resources, true);
+                    deductCost(res, shipData.cost);
+                    addToBuildQueue(port, btn.shipType, res, true);
                     port.buildQueue[0].progress = 0; // Mark as active
                     console.log(`Started building: ${btn.shipType}`);
                 } else {
                     // Queue has items - just add to queue without resource check
-                    addToBuildQueue(port, btn.shipType, gameState.resources, false);
+                    addToBuildQueue(port, btn.shipType, res, false);
                     console.log(`Queued: ${btn.shipType} (position ${port.buildQueue.length})`);
                 }
+
+                queueNetCmd(COMMAND_TYPES.BUILD_SHIP, { portId: port.id, shipType: btn.shipType });
             }
             return true;
         }
@@ -218,9 +271,10 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
                 const port = gameState.ports[portIdx];
                 const nextPortData = PORTS[ubtn.portType];
                 const portBusy = port.buildQueue.length > 0 || port.repair || isPortBuildingSettlement(portIdx, gameState.settlements);
-                if (!portBusy && !port.construction && canAfford(gameState.resources, nextPortData.cost)) {
-                    deductCost(gameState.resources, nextPortData.cost);
+                if (!portBusy && !port.construction && canAfford(res, nextPortData.cost)) {
+                    deductCost(res, nextPortData.cost);
                     startPortUpgrade(port);
+                    queueNetCmd(COMMAND_TYPES.UPGRADE_PORT, { portId: port.id });
                     console.log(`Started upgrading to: ${ubtn.portType}`);
                 }
             }
@@ -234,7 +288,7 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         if (mouseY >= sbtn.y && mouseY <= sbtn.y + sbtn.height) {
             const settlementData = SETTLEMENTS.settlement;
             const port = gameState.ports[bp.portIndex];
-            if (!port.repair && !isPortBuildingSettlement(bp.portIndex, gameState.settlements) && canAfford(gameState.resources, settlementData.cost)) {
+            if (!port.repair && !isPortBuildingSettlement(bp.portIndex, gameState.settlements) && canAfford(res, settlementData.cost)) {
                 enterSettlementBuildMode(gameState, bp.portIndex);
                 console.log(`Entering settlement placement mode from port ${bp.portIndex}`);
             }
@@ -249,8 +303,8 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
             const watchtowerData = TOWERS.watchtower;
             const port = gameState.ports[bp.portIndex];
             const portBusy = port.repair || isPortBuildingTower(bp.portIndex, gameState.towers);
-            if (!portBusy && canAfford(gameState.resources, watchtowerData.cost)) {
-                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0)) {
+            if (!portBusy && canAfford(res, watchtowerData.cost)) {
+                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0, localPlayerId)) {
                     showNotification(gameState, "Max crew reached. Build more settlements.");
                 } else {
                     enterTowerBuildMode(gameState, bp.portIndex, 'port');
@@ -266,7 +320,8 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         const rbtn = bp.repairButton;
         if (mouseY >= rbtn.y && mouseY <= rbtn.y + rbtn.height) {
             const port = gameState.ports[bp.portIndex];
-            if (startRepair('port', port, gameState.resources)) {
+            if (startRepair('port', port, res)) {
+                queueNetCmd(COMMAND_TYPES.REPAIR, { entityType: 'port', entityId: port.id });
                 console.log(`Started repairing port`);
             }
             return true;
@@ -290,6 +345,7 @@ export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, 
     }
 
     // Check upgrade button
+    const res = getLocalResources(gameState);
     if (tip.upgradeButton) {
         const ubtn = tip.upgradeButton;
         if (mouseY >= ubtn.y && mouseY <= ubtn.y + ubtn.height) {
@@ -300,12 +356,13 @@ export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, 
                 const nextTowerData = TOWERS[ubtn.towerType];
                 const currentTowerData = TOWERS[tower.type];
                 const crewDiff = (nextTowerData.crewCost || 0) - (currentTowerData.crewCost || 0);
-                if (!tower.construction && canAfford(gameState.resources, nextTowerData.cost)) {
-                    if (!canAffordCrew(gameState, crewDiff)) {
+                if (!tower.construction && canAfford(res, nextTowerData.cost)) {
+                    if (!canAffordCrew(gameState, crewDiff, localPlayerId)) {
                         showNotification(gameState, "Max crew reached. Build more settlements.");
                     } else {
-                        deductCost(gameState.resources, nextTowerData.cost);
+                        deductCost(res, nextTowerData.cost);
                         startTowerUpgrade(tower);
+                        queueNetCmd(COMMAND_TYPES.UPGRADE_TOWER, { towerId: tower.id });
                         console.log(`Started upgrading tower to: ${ubtn.towerType}`);
                     }
                 }
@@ -322,7 +379,8 @@ export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, 
             if (selectedTowerIndices.length === 1) {
                 const towerIdx = selectedTowerIndices[0].index;
                 const tower = gameState.towers[towerIdx];
-                if (startRepair('tower', tower, gameState.resources)) {
+                if (startRepair('tower', tower, res)) {
+                    queueNetCmd(COMMAND_TYPES.REPAIR, { entityType: 'tower', entityId: tower.id });
                     console.log(`Started repairing tower`);
                 }
             }
@@ -354,7 +412,8 @@ export function handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPan
             if (selectedSettlementIndices.length === 1) {
                 const settlementIdx = selectedSettlementIndices[0].index;
                 const settlement = gameState.settlements[settlementIdx];
-                if (startRepair('settlement', settlement, gameState.resources)) {
+                if (startRepair('settlement', settlement, getLocalResources(gameState))) {
+                    queueNetCmd(COMMAND_TYPES.REPAIR, { entityType: 'settlement', entityId: settlement.id });
                     console.log(`Started repairing settlement`);
                 }
             }
@@ -520,8 +579,8 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
         const ship = gameState.ships[i];
         // Don't allow selecting pirate ships like player units
         if (ship.type === 'pirate') continue;
-        // Don't allow selecting AI-owned ships
-        if (isAIOwner(ship.owner)) continue;
+        // Don't allow selecting non-local ships (AI or remote player)
+        if (isNonLocal(ship.owner)) continue;
         // Use visual position if available (smooth movement), fallback to hex position
         const shipPos = getShipVisualPos ? getShipVisualPos(ship) : hexToPixel(ship.q, ship.r);
         const dx = worldX - shipPos.x;
@@ -542,8 +601,8 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     // Check ports
     for (let i = 0; i < gameState.ports.length; i++) {
         const port = gameState.ports[i];
-        // Don't allow selecting AI-owned ports
-        if (isAIOwner(port.owner)) continue;
+        // Don't allow selecting non-local ports
+        if (isNonLocal(port.owner)) continue;
         const portPos = hexToPixel(port.q, port.r);
         const dx = worldX - portPos.x;
         const dy = worldY - portPos.y;
@@ -563,8 +622,8 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     // Check settlements
     for (let i = 0; i < gameState.settlements.length; i++) {
         const settlement = gameState.settlements[i];
-        // Don't allow selecting AI-owned settlements
-        if (isAIOwner(settlement.owner)) continue;
+        // Don't allow selecting non-local settlements
+        if (isNonLocal(settlement.owner)) continue;
         const settlementPos = hexToPixel(settlement.q, settlement.r);
         const dx = worldX - settlementPos.x;
         const dy = worldY - settlementPos.y;
@@ -584,8 +643,8 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     // Check towers
     for (let i = 0; i < gameState.towers.length; i++) {
         const tower = gameState.towers[i];
-        // Don't allow selecting AI-owned towers
-        if (isAIOwner(tower.owner)) continue;
+        // Don't allow selecting non-local towers
+        if (isNonLocal(tower.owner)) continue;
         const towerPos = hexToPixel(tower.q, tower.r);
         const dx = worldX - towerPos.x;
         const dy = worldY - towerPos.y;
@@ -640,7 +699,7 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         const ship = gameState.ships[sel.index];
         if (!ship) continue;
         if (ship.type === 'pirate') continue;
-        if (isAIOwner(ship.owner)) continue;
+        if (isNonLocal(ship.owner)) continue;
 
         validShips.push(ship);
         shipIndexMap.push(sel.index);
@@ -741,7 +800,7 @@ export function handlePatrolWaypointClick(gameState, map, clickedHex) {
         const ship = gameState.ships[sel.index];
         if (!ship) continue; // Ship may have been destroyed
         if (ship.type === 'pirate') continue; // Can't control enemy ships
-        if (isAIOwner(ship.owner)) continue; // Can't control AI ships
+        if (isNonLocal(ship.owner)) continue; // Can't control non-local ships
 
         // Cancel any existing trade route
         if (ship.tradeRoute) {
@@ -802,7 +861,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
             if (isShipBuildingTower(sel.index, gameState.towers)) continue;
             const ship = gameState.ships[sel.index];
             if (ship.type === 'pirate') continue;  // Can't control pirate ships
-            if (isAIOwner(ship.owner)) continue;  // Can't control AI ships
+            if (isNonLocal(ship.owner)) continue;  // Can't control non-local ships
 
             ship.attackTarget = { type: targetType, index: targetIndex };
             // Only allow immediate fire if not on active cooldown (prevents rapid fire exploit)
@@ -827,8 +886,8 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
     // Find clicked enemy ship (pirate or AI-owned)
     for (let i = 0; i < gameState.ships.length; i++) {
         const target = gameState.ships[i];
-        // Target must be an enemy: pirate or AI-owned
-        const isEnemy = target.type === 'pirate' || isAIOwner(target.owner);
+        // Target must be an enemy: pirate or non-local
+        const isEnemy = target.type === 'pirate' || isNonLocal(target.owner);
         if (!isEnemy) continue;
 
         const pos = getShipVisualPos ? getShipVisualPos(target) : hexToPixel(target.q, target.r);
@@ -845,12 +904,12 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
         }
     }
 
-    // Find clicked enemy port (AI-owned)
+    // Find clicked enemy port (non-local)
     // Skip if shift is held - that's for plundering instead of attacking
     if (!isShiftHeld) {
     for (let i = 0; i < gameState.ports.length; i++) {
         const target = gameState.ports[i];
-        if (!isAIOwner(target.owner)) continue;
+        if (!isNonLocal(target.owner)) continue;
 
         const pos = hexToPixel(target.q, target.r);
         const dx = worldX - pos.x;
@@ -868,10 +927,10 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
     }
     }
 
-    // Find clicked enemy settlement (AI-owned)
+    // Find clicked enemy settlement (non-local)
     for (let i = 0; i < gameState.settlements.length; i++) {
         const target = gameState.settlements[i];
-        if (!isAIOwner(target.owner)) continue;
+        if (!isNonLocal(target.owner)) continue;
 
         const pos = hexToPixel(target.q, target.r);
         const dx = worldX - pos.x;
@@ -888,10 +947,10 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
         }
     }
 
-    // Find clicked enemy tower (AI-owned)
+    // Find clicked enemy tower (non-local)
     for (let i = 0; i < gameState.towers.length; i++) {
         const target = gameState.towers[i];
-        if (!isAIOwner(target.owner)) continue;
+        if (!isNonLocal(target.owner)) continue;
 
         const pos = hexToPixel(target.q, target.r);
         const dx = worldX - pos.x;
@@ -986,8 +1045,9 @@ export function handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gam
             const port = gameState.ports[portIndex];
 
             // Cancel the build item
-            if (cancelBuildItem(port, item.index, gameState.resources)) {
+            if (cancelBuildItem(port, item.index, getLocalResources(gameState))) {
                 const shipData = SHIPS[item.shipType];
+                queueNetCmd(COMMAND_TYPES.CANCEL_BUILD, { portId: port.id, queueIndex: item.index });
                 if (item.isActive) {
                     console.log(`Cancelled active build: ${item.shipType} (refunded ${shipData.cost.wood} wood)`);
                 } else {
