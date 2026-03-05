@@ -220,9 +220,18 @@ export function isShipBuildingPort(shipIndex, ports) {
     );
 }
 
+// Helper: get entity ID for a selection entry
+function getEntityId(gameState, type, index) {
+    const entity = type === 'ship' ? gameState.ships[index]
+        : type === 'port' ? gameState.ports[index]
+        : type === 'settlement' ? gameState.settlements[index]
+        : gameState.towers[index];
+    return entity?.id || null;
+}
+
 // Select a single unit (clears other selections)
 export function selectUnit(gameState, type, index) {
-    gameState.selectedUnits = [{ type, index }];
+    gameState.selectedUnits = [{ type, index, entityId: getEntityId(gameState, type, index) }];
     gameState.attackTargetShipIndex = null; // Clear attack target when selecting a unit
 }
 
@@ -230,7 +239,7 @@ export function selectUnit(gameState, type, index) {
 export function addToSelection(gameState, type, index) {
     // Don't add duplicates
     if (!isSelected(gameState, type, index)) {
-        gameState.selectedUnits.push({ type, index });
+        gameState.selectedUnits.push({ type, index, entityId: getEntityId(gameState, type, index) });
     }
 }
 
@@ -240,7 +249,7 @@ export function toggleSelection(gameState, type, index) {
     if (idx >= 0) {
         gameState.selectedUnits.splice(idx, 1);
     } else {
-        gameState.selectedUnits.push({ type, index });
+        gameState.selectedUnits.push({ type, index, entityId: getEntityId(gameState, type, index) });
     }
 }
 

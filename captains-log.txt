@@ -1,6 +1,27 @@
 CAPTAIN'S LOG
 =============
 
+2026-03-04 | Fix multiplayer connection, sync, and UX issues
+--------------------------------------------------------------
+### New
+- TURN server support via Metered for reliable WebRTC connections across networks
+- Guest-side interpolation for smooth ship movement and projectile animation between snapshots
+- Defeat screen now shows for guest player when game ends
+
+### Improved
+- Selection tracking uses entity IDs so selections survive state reconciliation
+- Hit flash synced from host so guest sees combat damage feedback
+- Guest camera centers on their own home island instead of host's
+- Copy-link button repositioned below game code to avoid overlap
+- Pause/speed menu items hidden in multiplayer (not applicable)
+- Lobby input field accepts dashes and longer codes
+
+### Fixed
+- distributeDestinations crash in command processor (wrong argument order)
+- Camera shake no longer gets stuck in a loop after game over on guest
+- Host continues sending state snapshots after game over so guest receives final result
+
+
 2026-01-11 | Increase cannonball speed
 ---------------------------------------
 ### Improved

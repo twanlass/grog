@@ -39,6 +39,7 @@ export function extractNetworkState(gameState) {
             guardMode: s.guardMode,
             aiState: s.aiState,
             aiTarget: s.aiTarget,
+            hitFlash: s.hitFlash || 0,
         })),
 
         // Ports
@@ -54,6 +55,7 @@ export function extractNetworkState(gameState) {
             construction: p.construction,
             health: p.health,
             repair: p.repair,
+            hitFlash: p.hitFlash || 0,
         })),
 
         // Settlements
@@ -66,6 +68,7 @@ export function extractNetworkState(gameState) {
             generationTimer: s.generationTimer,
             health: s.health,
             construction: s.construction,
+            hitFlash: s.hitFlash || 0,
         })),
 
         // Towers
@@ -79,6 +82,7 @@ export function extractNetworkState(gameState) {
             attackCooldown: t.attackCooldown,
             construction: t.construction,
             repair: t.repair,
+            hitFlash: t.hitFlash || 0,
         })),
 
         // Projectiles
@@ -176,12 +180,13 @@ function reconcileEntities(localEntities, snapshotEntities) {
         const local = localById.get(snapEntity.id);
         if (local) {
             // Merge: snapshot fields override, but keep local-only rendering fields
+            // Use max of local/snapshot hitFlash so hits don't flicker
             return {
                 ...snapEntity,
                 // Preserve local-only rendering state
                 animFrame: local.animFrame || 0,
                 animTimer: local.animTimer || 0,
-                hitFlash: local.hitFlash || 0,
+                hitFlash: Math.max(local.hitFlash || 0, snapEntity.hitFlash || 0),
             };
         }
         // New entity from host — add with default rendering state
@@ -189,35 +194,44 @@ function reconcileEntities(localEntities, snapshotEntities) {
             ...snapEntity,
             animFrame: 0,
             animTimer: 0,
-            hitFlash: 0,
         };
     });
 }
 
 /**
  * After reconciliation, selection indices may be stale (entities reordered/removed).
- * Update selectedUnits indices based on entity IDs.
+ * Remap selectedUnits indices using stored entity IDs.
  */
 function updateSelectionIndices(gameState) {
     if (!gameState.selectedUnits || gameState.selectedUnits.length === 0) return;
 
     // Build ID→index maps
-    const shipIdToIndex = new Map();
-    gameState.ships.forEach((s, i) => { if (s.id) shipIdToIndex.set(s.id, i); });
-    const portIdToIndex = new Map();
-    gameState.ports.forEach((p, i) => { if (p.id) portIdToIndex.set(p.id, i); });
-    const settlementIdToIndex = new Map();
-    gameState.settlements.forEach((s, i) => { if (s.id) settlementIdToIndex.set(s.id, i); });
-    const towerIdToIndex = new Map();
-    gameState.towers.forEach((t, i) => { if (t.id) towerIdToIndex.set(t.id, i); });
+    const idMaps = {
+        ship: new Map(),
+        port: new Map(),
+        settlement: new Map(),
+        tower: new Map(),
+    };
+    gameState.ships.forEach((s, i) => { if (s.id) idMaps.ship.set(s.id, i); });
+    gameState.ports.forEach((p, i) => { if (p.id) idMaps.port.set(p.id, i); });
+    gameState.settlements.forEach((s, i) => { if (s.id) idMaps.settlement.set(s.id, i); });
+    gameState.towers.forEach((t, i) => { if (t.id) idMaps.tower.set(t.id, i); });
 
-    // We need to store entity IDs on selection entries for this to work
-    // For now, just validate that indices are still in range
     gameState.selectedUnits = gameState.selectedUnits.filter(sel => {
-        if (sel.type === 'ship') return sel.index < gameState.ships.length;
-        if (sel.type === 'port') return sel.index < gameState.ports.length;
-        if (sel.type === 'settlement') return sel.index < gameState.settlements.length;
-        if (sel.type === 'tower') return sel.index < gameState.towers.length;
-        return false;
+        const map = idMaps[sel.type];
+        if (!map) return false;
+
+        // Remap by entity ID if available
+        if (sel.entityId && map.has(sel.entityId)) {
+            sel.index = map.get(sel.entityId);
+            return true;
+        }
+
+        // Fallback: validate index is in range (legacy entries without entityId)
+        const len = sel.type === 'ship' ? gameState.ships.length
+            : sel.type === 'port' ? gameState.ports.length
+            : sel.type === 'settlement' ? gameState.settlements.length
+            : gameState.towers.length;
+        return sel.index < len;
     });
 }

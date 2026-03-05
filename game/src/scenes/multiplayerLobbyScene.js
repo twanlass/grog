@@ -163,7 +163,7 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
         k.onKeyPress((key) => {
             if (mode === 'choose' || mode === 'joining_input') {
                 // Code input
-                if (key.length === 1 && /[a-zA-Z0-9]/.test(key) && inputCode.length < 10) {
+                if (key.length === 1 && /[a-zA-Z0-9\-]/.test(key) && inputCode.length < 15) {
                     inputCode += key.toUpperCase();
                 }
                 if (key === 'backspace' && inputCode.length > 0) {
@@ -286,13 +286,12 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                     color: accentColor,
                 });
 
-                // Copy link button (right of game code)
+                // Copy link button (centered below game code)
                 if (gameCode) {
-                    const codeWidth = gameCode.length * 22; // rough text width
-                    const btnX = cx + codeWidth / 2 + 20;
-                    const btnY = cy - 20;
+                    const btnX = cx;
+                    const btnY = cy + 15;
                     const btnW = 120;
-                    const btnH = 34;
+                    const btnH = 30;
                     const copyHover = isMouseInRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH);
                     const showCopied = copyFeedbackTimer > 0;
 
@@ -313,17 +312,17 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                 const dots = '.'.repeat(1 + Math.floor(elapsed * 2) % 3);
                 k.drawText({
                     text: `Waiting for opponent${dots}`,
-                    size: 16, pos: k.vec2(cx, cy + 30), anchor: "center",
+                    size: 16, pos: k.vec2(cx, cy + 50), anchor: "center",
                     color: dimColor,
                 });
                 k.drawText({
                     text: "Share the link with your friend",
-                    size: 12, pos: k.vec2(cx, cy + 60), anchor: "center",
+                    size: 12, pos: k.vec2(cx, cy + 80), anchor: "center",
                     color: dimColor,
                 });
                 k.drawText({
                     text: "Press ESC to cancel",
-                    size: 12, pos: k.vec2(cx, cy + 100), anchor: "center",
+                    size: 12, pos: k.vec2(cx, cy + 120), anchor: "center",
                     color: dimColor,
                 });
 
@@ -443,12 +442,11 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
             }
 
             if (mode === 'hosting' && gameCode) {
-                // Copy link button hit test
-                const codeWidth = gameCode.length * 22;
-                const btnX = cx + codeWidth / 2 + 20;
-                const btnY = cy - 20;
+                // Copy link button hit test (centered below game code)
+                const btnX = cx;
+                const btnY = cy + 15;
                 const btnW = 120;
-                const btnH = 34;
+                const btnH = 30;
                 if (isMouseInRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH)) {
                     copyJoinLink();
                 }

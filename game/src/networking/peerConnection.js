@@ -20,6 +20,29 @@ function generateGameCode() {
     return `GROG-${code}`;
 }
 
+// Fetch TURN credentials from Metered, fall back to STUN-only
+async function fetchIceServers() {
+    const fallback = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+    ];
+    try {
+        const resp = await fetch(
+            'https://grog-rts.metered.live/api/v1/turn/credentials?apiKey=1e0da7d4dc827b3c1b80bb97f47bf0be3886',
+        );
+        const servers = await resp.json();
+        console.log(`[Grog MP] Fetched ${servers.length} TURN servers from Metered`);
+        return [...fallback, ...servers];
+    } catch (e) {
+        console.warn('[Grog MP] Failed to fetch TURN servers, using STUN only:', e);
+        return fallback;
+    }
+}
+
+function makePeerConfig(iceServers) {
+    return { debug: 1, config: { iceServers } };
+}
+
 // Singleton state
 let peer = null;
 let connection = null;
@@ -41,7 +64,8 @@ let callbacks = {};
  * @param {Object} cbs - Callbacks: { onGuestConnected, onData, onDisconnect, onError }
  * @returns {Promise<string>} - The game code for the guest to use
  */
-export function createHost(cbs = {}) {
+export async function createHost(cbs = {}) {
+    const iceServers = await fetchIceServers();
     return new Promise((resolve, reject) => {
         callbacks = cbs;
         isHost = true;
@@ -52,9 +76,7 @@ export function createHost(cbs = {}) {
 
         console.log(`[Grog MP] Hosting as peer: ${peerId}`);
 
-        peer = new Peer(peerId, {
-            debug: 1,
-        });
+        peer = new Peer(peerId, makePeerConfig(iceServers));
 
         peer.on('open', (id) => {
             console.log(`[Grog MP] Host peer open with id: ${id}`);
@@ -82,7 +104,8 @@ export function createHost(cbs = {}) {
  * @param {Object} cbs - Callbacks: { onConnected, onData, onDisconnect, onError }
  * @returns {Promise<void>}
  */
-export function joinHost(hostCode, cbs = {}) {
+export async function joinHost(hostCode, cbs = {}) {
+    const iceServers = await fetchIceServers();
     return new Promise((resolve, reject) => {
         callbacks = cbs;
         isHost = false;
@@ -93,15 +116,14 @@ export function joinHost(hostCode, cbs = {}) {
 
         console.log(`[Grog MP] Joining as ${peerId}, looking for host ${hostPeerId}`);
 
-        peer = new Peer(peerId, {
-            debug: 1, // Log errors + warnings from PeerJS
-        });
+        peer = new Peer(peerId, makePeerConfig(iceServers));
 
         peer.on('open', (id) => {
             console.log(`[Grog MP] Guest peer open with id: ${id}, connecting to host...`);
             connectionState = CONNECTION_STATE.CONNECTING;
             connection = peer.connect(hostPeerId, {
                 reliable: true,
+                serialization: 'json',
             });
             setupConnection(connection, resolve, reject);
         });
@@ -205,6 +227,37 @@ function setupConnection(conn, resolvePromise, rejectPromise) {
     if (conn.open) {
         console.log(`[Grog MP] Connection already open when listener attached`);
         handleOpen();
+    }
+
+    // Diagnostic: monitor underlying WebRTC connection state + ICE candidates
+    // IMPORTANT: Use addEventListener (not property assignment) to avoid overriding
+    // PeerJS's internal handlers — especially onicecandidate which exchanges ICE candidates.
+    function monitorRTC(pc) {
+        console.log(`[Grog MP] RTCPeerConnection state: ${pc.connectionState}, ICE: ${pc.iceConnectionState}`);
+        pc.addEventListener('iceconnectionstatechange', () => console.log(`[Grog MP] ICE state: ${pc.iceConnectionState}`));
+        pc.addEventListener('connectionstatechange', () => console.log(`[Grog MP] Connection state: ${pc.connectionState}`));
+        pc.addEventListener('icecandidate', (e) => {
+            if (e.candidate) {
+                console.log(`[Grog MP] ICE candidate: ${e.candidate.candidate}`);
+            } else {
+                console.log(`[Grog MP] ICE gathering complete`);
+            }
+        });
+    }
+
+    const pc = conn.peerConnection;
+    if (pc) {
+        monitorRTC(pc);
+    } else {
+        let pollCount = 0;
+        const pollInterval = setInterval(() => {
+            pollCount++;
+            if (conn.peerConnection) {
+                monitorRTC(conn.peerConnection);
+                clearInterval(pollInterval);
+            }
+            if (pollCount > 50) clearInterval(pollInterval);
+        }, 100);
     }
 
     conn.on('data', (data) => {

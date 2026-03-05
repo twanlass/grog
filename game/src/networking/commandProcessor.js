@@ -109,15 +109,18 @@ function handleMoveShips(command, gameState, map) {
 
     // Distribute destinations if multiple ships going to same hex
     const lastWaypoint = waypoints[waypoints.length - 1];
+    const ships = validShipIndices.map(i => gameState.ships[i]);
+    const occupiedHexes = new Set();
+    for (const s of gameState.ships) {
+        occupiedHexes.add(hexKey(s.q, s.r));
+    }
     const destinations = distributeDestinations(
-        validShipIndices.map(i => gameState.ships[i]),
-        lastWaypoint,
-        map
+        map, lastWaypoint.q, lastWaypoint.r, ships, occupiedHexes
     );
 
     for (let i = 0; i < validShipIndices.length; i++) {
         const ship = gameState.ships[validShipIndices[i]];
-        const dest = destinations[i] || lastWaypoint;
+        const dest = (destinations[i] ? { q: destinations[i].q, r: destinations[i].r } : lastWaypoint);
 
         // Cancel trade route if active
         if (ship.tradeRoute) {

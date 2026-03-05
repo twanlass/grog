@@ -194,10 +194,13 @@ export function drawGameMenu(ctx, gameState, menuState) {
     const menuX = screenWidth - menuWidth - 15;
     const menuY = 15 + 36 + 8;  // Below button
 
+    const isMP = menuState.isMultiplayer;
     const menuItems = [
         { id: 'controls', label: 'Controls', hotkey: '?' },
-        { id: 'speed', label: 'Speed', hotkey: '>', showSubmenu: true },
-        { id: 'pause', label: gameState.timeScale === 0 ? 'Resume' : 'Pause', hotkey: '.' },
+        ...(!isMP ? [
+            { id: 'speed', label: 'Speed', hotkey: '>', showSubmenu: true },
+            { id: 'pause', label: gameState.timeScale === 0 ? 'Resume' : 'Pause', hotkey: '.' },
+        ] : []),
         { id: 'debug', label: 'Debug', hotkey: '' },
         { id: 'quit', label: 'Quit', hotkey: '' },
     ];

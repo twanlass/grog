@@ -613,14 +613,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Update notification timer (always runs)
             updateNotification(gameState, rawDt);
 
-            // Skip game updates when game is over or surrender pending
-            if (gameState.gameOver || gameState.surrenderPending) return;
-
             // ===== MULTIPLAYER GUEST PATH: Apply state from host, skip simulation =====
+            // Must run before gameOver early-return so guest receives the final snapshot
             if (isMultiplayer && isGuest) {
                 if (latestSnapshot) {
                     applyNetworkState(gameState, latestSnapshot);
                     latestSnapshot = null;
+                    // Invert game over perspective (host sends from its own POV)
+                    if (gameState.gameOver === 'win') gameState.gameOver = 'lose';
+                    else if (gameState.gameOver === 'lose') gameState.gameOver = 'win';
                     // Recalculate fog for guest's perspective
                     markVisibilityDirty(fogState);
                 }
@@ -630,6 +631,23 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (isVisibilityDirty(fogState) && fogRecalcCooldown <= 0) {
                     recalculateVisibility(fogState, gameState, gameTime, localPlayerId);
                     fogRecalcCooldown = FOG_RECALC_INTERVAL;
+                }
+
+                // Guest-side interpolation: advance ship movement and projectiles
+                // between snapshots so visuals are smooth (snapshots correct drift at 10Hz)
+                for (const ship of gameState.ships) {
+                    if (ship.path && ship.path.length > 0 && ship.waypoints.length > 0) {
+                        const shipData = SHIPS[ship.type];
+                        const speed = shipData ? shipData.speed : 1;
+                        ship.moveProgress += speed * rawDt;
+                    }
+                }
+                for (let i = gameState.projectiles.length - 1; i >= 0; i--) {
+                    const proj = gameState.projectiles[i];
+                    proj.progress += proj.speed * rawDt;
+                    if (proj.progress >= 1) {
+                        gameState.projectiles.splice(i, 1);
+                    }
                 }
 
                 // Guest visual updates (hit flash decay, explosions, camera shake)
@@ -646,24 +664,28 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     if (settlement.hitFlash > 0) settlement.hitFlash -= rawDt;
                 }
 
-                // Camera shake from explosions
-                const gHalfW = k.width() / 2;
-                const gHalfH = k.height() / 2;
-                for (let i = gameState.shipExplosions.length - 1; i >= 0; i--) {
-                    const explosion = gameState.shipExplosions[i];
-                    if (explosion.age < rawDt * 2) {
-                        const pos = hexToPixel(explosion.q, explosion.r);
-                        const screenX = (pos.x - cameraX) * zoom + gHalfW;
-                        const screenY = (pos.y - cameraY) * zoom + gHalfH;
-                        const margin = 100;
-                        if (screenX >= -margin && screenX <= k.width() + margin &&
-                            screenY >= -margin && screenY <= k.height() + margin) {
-                            cameraShake = Math.max(cameraShake, 8);
+                // Camera shake from explosions (skip when game over — host sends stale explosions)
+                if (gameState.gameOver) {
+                    gameState.shipExplosions = [];
+                } else {
+                    const gHalfW = k.width() / 2;
+                    const gHalfH = k.height() / 2;
+                    for (let i = gameState.shipExplosions.length - 1; i >= 0; i--) {
+                        const explosion = gameState.shipExplosions[i];
+                        if (explosion.age < rawDt * 2) {
+                            const pos = hexToPixel(explosion.q, explosion.r);
+                            const screenX = (pos.x - cameraX) * zoom + gHalfW;
+                            const screenY = (pos.y - cameraY) * zoom + gHalfH;
+                            const margin = 100;
+                            if (screenX >= -margin && screenX <= k.width() + margin &&
+                                screenY >= -margin && screenY <= k.height() + margin) {
+                                cameraShake = Math.max(cameraShake, 8);
+                            }
                         }
-                    }
-                    explosion.age += dt;
-                    if (explosion.age >= explosion.duration) {
-                        gameState.shipExplosions.splice(i, 1);
+                        explosion.age += dt;
+                        if (explosion.age >= explosion.duration) {
+                            gameState.shipExplosions.splice(i, 1);
+                        }
                     }
                 }
                 if (cameraShake > 0) {
@@ -680,6 +702,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // ===== HOST / SINGLE-PLAYER PATH: Full simulation =====
+
+            // Host keeps sending snapshots even after game over (so guest sees the result)
+            if (isMultiplayer && isHost && isConnected()) {
+                stateSyncTimer += rawDt;
+                if (stateSyncTimer >= STATE_SYNC_INTERVAL) {
+                    stateSyncTimer = 0;
+                    sendStateSnapshot(extractNetworkState(gameState));
+                }
+            }
+
+            // Skip simulation when game is over or surrender pending
+            if (gameState.gameOver || gameState.surrenderPending) return;
 
             // Process pending guest commands (multiplayer host only)
             if (isMultiplayer && isHost) {
@@ -740,14 +774,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 fogRecalcCooldown = FOG_RECALC_INTERVAL;
             }
 
-            // Multiplayer host: send state snapshots at 10Hz
-            if (isMultiplayer && isHost && isConnected()) {
-                stateSyncTimer += rawDt;
-                if (stateSyncTimer >= STATE_SYNC_INTERVAL) {
-                    stateSyncTimer = 0;
-                    sendStateSnapshot(extractNetworkState(gameState));
-                }
-            }
+            // (Snapshot sending moved above gameOver check so guest always receives state)
 
             // Decay hit flash timers
             for (const ship of gameState.ships) {
@@ -1021,7 +1048,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             topButtonBounds = drawSimpleUIPanels(ctx, gameState, waveStatus);
 
             // Draw game menu dropdown
-            gameMenuBounds = drawGameMenu(ctx, gameState, { open: gameMenuOpen, speedSubmenuOpen });
+            gameMenuBounds = drawGameMenu(ctx, gameState, { open: gameMenuOpen, speedSubmenuOpen, isMultiplayer });
 
             // Draw minimap (pass camera position for viewport indicator, gameState and islands for attack alerts)
             minimapBounds = drawMinimap(ctx, minimapState, map, fogState, cameraX, cameraY, zoom, gameState, islands);
@@ -2617,8 +2644,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         }
 
         // Center camera on starting position (or map center if no start)
-        if (gameState.homeIslandHex) {
-            const startPos = hexToPixel(gameState.homeIslandHex.q, gameState.homeIslandHex.r);
+        // Guest uses their own home island, not the host's
+        const cameraHome = (isMultiplayer && isGuest && gameState.player2HomeIslandHex)
+            ? gameState.player2HomeIslandHex
+            : gameState.homeIslandHex;
+        if (cameraHome) {
+            const startPos = hexToPixel(cameraHome.q, cameraHome.r);
             cameraX = startPos.x;
             cameraY = startPos.y;
         } else {
