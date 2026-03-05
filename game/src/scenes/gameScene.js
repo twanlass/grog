@@ -136,7 +136,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const isMultiplayer = !!mpConfig;
         const isHost = mpConfig?.isHost || false;
         const isGuest = mpConfig?.isGuest || false;
-        const localPlayerId = isGuest ? 'player2' : 'player';
+        const localPlayerId = mpConfig?.localPlayerId || (isGuest ? 'player2' : 'player');
 
         // Set local player identity for input handler
         setLocalPlayerId(localPlayerId);
@@ -185,26 +185,35 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Handle initialization based on game mode
         if (scenario.gameMode === 'multiplayer') {
-            // Multiplayer 1v1: two human players, no AI, no pirates
+            // Multiplayer: N human players (2-4), no AI, no pirates
+            const playerOwners = mpConfig?.playerOwners || ['player', 'player2'];
+            gameState.playerOwners = playerOwners;
+
             if (map.starterPositions) {
-                // Position 0 = host ('player'), Position 1 = guest ('player2')
-                const hostPort = findPortSiteOnStarterIsland(map, map.starterPositions[0]);
-                const guestPort = findPortSiteOnStarterIsland(map, map.starterPositions[1]);
+                for (let i = 0; i < playerOwners.length; i++) {
+                    const owner = playerOwners[i];
+                    const portSite = findPortSiteOnStarterIsland(map, map.starterPositions[i]);
 
-                gameState.ports.push(createPort('dock', hostPort.q, hostPort.r, false, null, 'player'));
-                gameState.homeIslandHex = { q: hostPort.q, r: hostPort.r };
+                    gameState.ports.push(createPort('dock', portSite.q, portSite.r, false, null, owner));
 
-                gameState.ports.push(createPort('dock', guestPort.q, guestPort.r, false, null, 'player2'));
-                gameState.player2HomeIslandHex = { q: guestPort.q, r: guestPort.r };
-
-                // Initialize player2 resources
-                gameState.player2Resources = { wood: scenario.startingResources.wood };
+                    if (owner === 'player') {
+                        gameState.homeIslandHex = { q: portSite.q, r: portSite.r };
+                    } else {
+                        gameState.playerHomeIslandHexes[owner] = { q: portSite.q, r: portSite.r };
+                        gameState.playerResources[owner] = { wood: scenario.startingResources.wood };
+                        // Backward compat for 2-player
+                        if (owner === 'player2') {
+                            gameState.player2HomeIslandHex = { q: portSite.q, r: portSite.r };
+                            gameState.player2Resources = gameState.playerResources[owner];
+                        }
+                    }
+                }
 
                 // No AI players in multiplayer
                 gameState.aiPlayers = [];
                 gameState.aiHomeIslandHexes = [];
 
-                console.log('Multiplayer: initialized 1v1 with host at', hostPort, 'guest at', guestPort);
+                console.log(`Multiplayer: initialized ${playerOwners.length}-player game`);
             }
 
             // Fixed time scale in multiplayer — no pause or speed changes
@@ -212,11 +221,22 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Set up network callbacks (unconditional — lobby sets these to null initially)
             if (mpConfig) {
-                // Host receives guest commands
-                mpConfig.onGuestCommand = (cmd) => { pendingGuestCommands.push(cmd); };
+                // Host receives guest commands (with playerId for routing)
+                mpConfig.onGuestCommand = (cmd, playerId) => { pendingGuestCommands.push({ command: cmd, playerId }); };
                 // Guest receives state snapshots
                 mpConfig.onStateSnapshot = (snapshot) => { latestSnapshot = snapshot; };
-                // Either side disconnects — treat as victory
+                // Host: a specific guest disconnects — remove their entities
+                mpConfig.onGuestDisconnected = (playerId) => {
+                    console.log(`[Grog MP] Player ${playerId} disconnected, removing their entities`);
+                    // Remove all entities owned by the disconnected player
+                    gameState.ships = gameState.ships.filter(s => s.owner !== playerId);
+                    gameState.ports = gameState.ports.filter(p => p.owner !== playerId);
+                    gameState.settlements = gameState.settlements.filter(s => s.owner !== playerId);
+                    gameState.towers = gameState.towers.filter(t => t.owner !== playerId);
+                    // Mark visibility dirty so fog updates
+                    markVisibilityDirty(fogState);
+                };
+                // Guest: host disconnects — treat as game over
                 mpConfig.onDisconnect = () => {
                     disconnectOverlay = true;
                     if (!gameState.gameOver) {
@@ -725,8 +745,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Process pending guest commands (multiplayer host only)
             if (isMultiplayer && isHost) {
                 while (pendingGuestCommands.length > 0) {
-                    const cmd = pendingGuestCommands.shift();
-                    processGuestCommand(cmd, gameState, map, fogState);
+                    const entry = pendingGuestCommands.shift();
+                    processGuestCommand(entry.command, gameState, map, fogState, entry.playerId);
                 }
             }
 
@@ -870,18 +890,19 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Multiplayer mode: total elimination 1v1
+            // Multiplayer mode: last player standing (N-player free-for-all)
             if (scenario && scenario.gameMode === 'multiplayer' && !gameState.gameOver) {
-                const p1Counts = countEntitiesForOwner(gameState, 'player');
-                const p2Counts = countEntitiesForOwner(gameState, 'player2');
+                const owners = gameState.playerOwners.length > 0 ? gameState.playerOwners : ['player', 'player2'];
+                const alive = owners.filter(owner => countEntitiesForOwner(gameState, owner).total > 0);
 
-                if (p2Counts.total === 0 && p1Counts.total > 0) {
-                    // Host (player) wins — from host's perspective
-                    gameState.gameOver = isHost ? 'win' : 'lose';
-                }
-                if (p1Counts.total === 0 && p2Counts.total > 0) {
-                    // Guest (player2) wins — from host's perspective
-                    gameState.gameOver = isHost ? 'lose' : 'win';
+                if (alive.length <= 1) {
+                    const winner = alive[0] || null;
+                    gameState.winner = winner;
+                    if (winner === localPlayerId) {
+                        gameState.gameOver = 'win';
+                    } else {
+                        gameState.gameOver = 'lose';
+                    }
                 }
             }
 

@@ -1,5 +1,5 @@
 // Trade route system - handles loading, unloading, and docking at ports
-import { findFreeAdjacentWater, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex } from "../gameState.js";
+import { findFreeAdjacentWater, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, getResourcesForOwner } from "../gameState.js";
 import { SHIPS } from "../sprites/index.js";
 import { hexDistance } from "../hex.js";
 
@@ -11,19 +11,6 @@ const DOCK_RETRY_INTERVAL = 2.0;
 
 // Max time AI ships will wait at a blocked dock before giving up
 const MAX_DOCK_WAIT_TIME = 5.0;
-
-/**
- * Get the global resources object for a given owner
- */
-function getResourcesForOwner(gameState, owner) {
-    if (owner === 'ai1' && gameState.aiPlayers?.[0]) {
-        return gameState.aiPlayers[0].resources;
-    } else if (owner === 'ai2' && gameState.aiPlayers?.[1]) {
-        return gameState.aiPlayers[1].resources;
-    } else {
-        return gameState.resources;
-    }
-}
 
 /**
  * Updates all trade route logic including loading, unloading, and dock waiting
@@ -126,17 +113,11 @@ export function updateTradeRoutes(gameState, map, dt) {
             if (unitsToUnload > ship.dockingState.unitsTransferred) {
                 const toUnload = unitsToUnload - ship.dockingState.unitsTransferred;
                 const shipOwner = ship.owner || 'player';
+                const ownerResources = getResourcesForOwner(gameState, shipOwner);
                 for (let i = 0; i < toUnload; i++) {
                     if (ship.cargo.wood > 0) {
                         ship.cargo.wood--;
-                        // Route to correct owner's resources
-                        if (shipOwner === 'ai1' && gameState.aiPlayers?.[0]) {
-                            gameState.aiPlayers[0].resources.wood++;
-                        } else if (shipOwner === 'ai2' && gameState.aiPlayers?.[1]) {
-                            gameState.aiPlayers[1].resources.wood++;
-                        } else {
-                            gameState.resources.wood++;
-                        }
+                        if (ownerResources) ownerResources.wood++;
                         ship.dockingState.unitsTransferred++;
                     }
                 }
@@ -282,17 +263,11 @@ function updatePendingUnloads(gameState, map, dt) {
             if (unitsToUnload > ship.dockingState.unitsTransferred) {
                 const toUnload = unitsToUnload - ship.dockingState.unitsTransferred;
                 const shipOwner = ship.owner || 'player';
+                const ownerResources = getResourcesForOwner(gameState, shipOwner);
                 for (let i = 0; i < toUnload; i++) {
                     if (ship.cargo.wood > 0) {
                         ship.cargo.wood--;
-                        // Route to correct owner's resources
-                        if (shipOwner === 'ai1' && gameState.aiPlayers?.[0]) {
-                            gameState.aiPlayers[0].resources.wood++;
-                        } else if (shipOwner === 'ai2' && gameState.aiPlayers?.[1]) {
-                            gameState.aiPlayers[1].resources.wood++;
-                        } else {
-                            gameState.resources.wood++;
-                        }
+                        if (ownerResources) ownerResources.wood++;
                         ship.dockingState.unitsTransferred++;
                     }
                 }

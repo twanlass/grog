@@ -1,5 +1,5 @@
 // Construction system - handles port, settlement, and tower building progress
-import { createShip, findFreeAdjacentWater, canAfford, deductCost, canAffordCrew } from "../gameState.js";
+import { createShip, findFreeAdjacentWater, canAfford, deductCost, canAffordCrew, getResourcesForOwner, isRemotePlayer } from "../gameState.js";
 import { SHIPS, SETTLEMENTS, TOWERS, PORTS } from "../sprites/index.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
 
@@ -40,10 +40,9 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
 
         const portData = PORTS[port.type];
         const parallelSlots = portData?.parallelBuildSlots || 1;
-        const resources = port.owner === 'player' ? gameState.resources
-            : port.owner === 'player2' ? gameState.player2Resources
-            : gameState.aiResources?.[port.owner];
-        const isHuman = !port.owner || port.owner === 'player' || port.owner === 'player2';
+        const portOwner = port.owner || 'player';
+        const resources = getResourcesForOwner(gameState, portOwner);
+        const isHuman = !port.owner || port.owner === 'player' || isRemotePlayer(port.owner);
 
         // Count currently active builds
         let activeCount = port.buildQueue.filter(item => item.progress !== null).length;

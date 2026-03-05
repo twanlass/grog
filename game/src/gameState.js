@@ -110,8 +110,14 @@ export function createGameState(config = {}) {
         // AI player states (for versus mode - one per AI player)
         aiPlayers: [],  // Array of AI player states, initialized in versus mode only
 
+        // Multiplayer human player tracking (for 3-4 player games)
+        playerOwners: [],  // List of human player IDs in this match (e.g., ['player', 'player2', 'player3'])
+        playerResources: {},  // { 'player2': {wood:25}, 'player3': {wood:25}, ... }
+        playerHomeIslandHexes: {},  // { 'player2': {q,r}, 'player3': {q,r}, ... }
+
         // Game over state (for defend mode)
         gameOver: null,  // null = playing, 'win' = victory, 'lose' = defeated
+        winner: null,  // Owner string of the winner (for multi-player resolution)
 
         // AI surrender state (for versus mode)
         surrenderPending: null,  // 'ai1' or 'ai2' when surrender offered
@@ -1405,18 +1411,7 @@ export function getPortIndicesByOwner(gameState, owner) {
 
 // Get home port index for a specific owner
 export function getHomePortIndexForOwner(gameState, map, owner) {
-    let homeHex = null;
-    if (owner === 'player') {
-        homeHex = gameState.homeIslandHex;
-    } else if (owner === 'player2') {
-        homeHex = gameState.player2HomeIslandHex;
-    } else if (owner === 'ai1') {
-        homeHex = gameState.aiHomeIslandHexes[0];
-    } else if (owner === 'ai2') {
-        homeHex = gameState.aiHomeIslandHexes[1];
-    } else if (owner === 'ai3') {
-        homeHex = gameState.aiHomeIslandHexes[2];
-    }
+    let homeHex = getHomeIslandHexForOwner(gameState, owner);
     if (!homeHex) return null;
 
     for (let i = 0; i < gameState.ports.length; i++) {
@@ -1446,7 +1441,7 @@ export function isAIOwner(owner) {
 
 // Check if an owner is a remote human player (multiplayer)
 export function isRemotePlayer(owner) {
-    return owner === 'player2';
+    return owner && owner.startsWith('player') && owner !== 'player';
 }
 
 // Check if an owner is the local player for a given localPlayerId
@@ -1469,7 +1464,10 @@ export function isNonLocalOwner(owner, localPlayerId = 'player') {
 // Get resources for a specific owner
 export function getResourcesForOwner(gameState, owner) {
     if (owner === 'player') return gameState.resources;
-    if (owner === 'player2') return gameState.player2Resources;
+    // Check multiplayer human players (player2, player3, player4)
+    if (gameState.playerResources[owner]) return gameState.playerResources[owner];
+    // Legacy fallback for player2
+    if (owner === 'player2' && gameState.player2Resources) return gameState.player2Resources;
     // AI resources are in aiPlayers array
     if (owner === 'ai1' && gameState.aiPlayers?.[0]) return gameState.aiPlayers[0].resources;
     if (owner === 'ai2' && gameState.aiPlayers?.[1]) return gameState.aiPlayers[1].resources;
@@ -1485,7 +1483,10 @@ export function getAIOwners() {
 // Get home island hex for a specific owner
 export function getHomeIslandHexForOwner(gameState, owner) {
     if (owner === 'player') return gameState.homeIslandHex;
-    if (owner === 'player2') return gameState.player2HomeIslandHex || null;
+    // Check multiplayer human players (player2, player3, player4)
+    if (gameState.playerHomeIslandHexes[owner]) return gameState.playerHomeIslandHexes[owner];
+    // Legacy fallback for player2
+    if (owner === 'player2' && gameState.player2HomeIslandHex) return gameState.player2HomeIslandHex;
     if (owner === 'ai1') return gameState.aiHomeIslandHexes[0];
     if (owner === 'ai2') return gameState.aiHomeIslandHexes[1];
     if (owner === 'ai3') return gameState.aiHomeIslandHexes[2];

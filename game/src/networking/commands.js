@@ -39,9 +39,10 @@ export const COMMAND_TYPES = {
 
 export const MESSAGE_TYPES = {
     // Connection lifecycle
-    GAME_INIT: 'GAME_INIT',             // Host → Guest: map seed, config, positions
+    GAME_INIT: 'GAME_INIT',             // Host → Guest: map seed, config, positions, playerId
     STATE_SNAPSHOT: 'STATE_SNAPSHOT',     // Host → Guest: full game state snapshot
     PLAYER_COMMAND: 'PLAYER_COMMAND',     // Guest → Host: player action command
+    LOBBY_STATE: 'LOBBY_STATE',          // Host → All Guests: lobby player list updates
 
     // Heartbeat
     PING: 'PING',                        // Either → Either

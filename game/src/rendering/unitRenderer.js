@@ -45,15 +45,18 @@ function headingToSpriteDirection(heading) {
 function getDirectionalSprite(shipData, owner) {
     if (!shipData.directionalSprite) return null;
     // Map owner to colored sprite
-    if (owner === 'ai1') return 'cutter-green';
-    if (owner === 'ai2') return 'cutter-blue';
-    if (owner === 'ai3') return 'cutter-orange';
-    return 'cutter-red';  // Player default
+    if (owner === 'ai1' || owner === 'player2') return 'cutter-green';
+    if (owner === 'ai2' || owner === 'player3') return 'cutter-blue';
+    if (owner === 'ai3' || owner === 'player4') return 'cutter-orange';
+    return 'cutter-red';  // Player (host) default
 }
 
 // Faction colors for visual differentiation (matches cutter sprite colors)
 const FACTION_COLORS = {
     player: { r: 180, g: 60, b: 60 },    // Red (matches cutter-red sprite)
+    player2: { r: 60, g: 160, b: 80 },   // Green (reuses ai1/cutter-green)
+    player3: { r: 60, g: 120, b: 200 },  // Blue (reuses ai2/cutter-blue)
+    player4: { r: 220, g: 140, b: 40 },  // Orange (reuses ai3/cutter-orange)
     ai1: { r: 60, g: 160, b: 80 },       // Green (matches cutter-green sprite)
     ai2: { r: 60, g: 120, b: 200 },      // Blue (matches cutter-blue sprite)
     ai3: { r: 220, g: 140, b: 40 },       // Orange (matches cutter-orange sprite)

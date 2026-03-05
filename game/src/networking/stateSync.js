@@ -12,6 +12,12 @@ export function extractNetworkState(gameState) {
         // Resources
         resources: { ...gameState.resources },
         player2Resources: gameState.player2Resources ? { ...gameState.player2Resources } : null,
+        // Multi-player resources and state
+        playerResources: Object.fromEntries(
+            Object.entries(gameState.playerResources || {}).map(([k, v]) => [k, { ...v }])
+        ),
+        playerHomeIslandHexes: { ...(gameState.playerHomeIslandHexes || {}) },
+        playerOwners: [...(gameState.playerOwners || [])],
 
         // Ships (strip rendering-only fields)
         ships: gameState.ships.map(s => ({
@@ -109,6 +115,7 @@ export function extractNetworkState(gameState) {
 
         // Game state
         gameOver: gameState.gameOver,
+        winner: gameState.winner,
         notification: gameState.notification,
         homeIslandHex: gameState.homeIslandHex,
 
@@ -128,6 +135,16 @@ export function applyNetworkState(gameState, snapshot) {
     gameState.resources = snapshot.resources;
     if (snapshot.player2Resources) {
         gameState.player2Resources = snapshot.player2Resources;
+    }
+    // Multi-player resources and state
+    if (snapshot.playerResources) {
+        gameState.playerResources = snapshot.playerResources;
+    }
+    if (snapshot.playerHomeIslandHexes) {
+        gameState.playerHomeIslandHexes = snapshot.playerHomeIslandHexes;
+    }
+    if (snapshot.playerOwners) {
+        gameState.playerOwners = snapshot.playerOwners;
     }
 
     // Reconcile ships by ID
@@ -153,6 +170,7 @@ export function applyNetworkState(gameState, snapshot) {
 
     // Game state
     gameState.gameOver = snapshot.gameOver;
+    gameState.winner = snapshot.winner;
     gameState.notification = snapshot.notification;
     gameState.homeIslandHex = snapshot.homeIslandHex;
     gameState.pirateKills = snapshot.pirateKills;

@@ -7,13 +7,11 @@ import {
     canAfford, deductCost, createPort, createSettlement, createTower,
     addToBuildQueue, cancelBuildItem, startPortUpgrade, startTowerUpgrade,
     findFreeAdjacentWater, findNearestWaterInRange,
-    canAffordCrew, cancelTradeRoute, getHomePortIndexForOwner,
+    canAffordCrew, cancelTradeRoute, getHomePortIndexForOwner, getResourcesForOwner,
 } from '../gameState.js';
 import { findPath, findNearestWater, distributeDestinations } from '../pathfinding.js';
 import { startRepair } from '../systems/repair.js';
 import { hexKey } from '../hex.js';
-
-const GUEST_OWNER = 'player2';
 
 /**
  * Process a guest command on the host side.
@@ -22,42 +20,43 @@ const GUEST_OWNER = 'player2';
  * @param {Object} gameState - The host's game state
  * @param {Object} map - The game map
  * @param {Object} fogState - Fog of war state (for visibility dirty marking)
+ * @param {string} guestOwner - The owner ID for this guest (e.g. 'player2', 'player3', 'player4')
  * @returns {boolean} - True if command was valid and applied
  */
-export function processGuestCommand(command, gameState, map, fogState) {
+export function processGuestCommand(command, gameState, map, fogState, guestOwner = 'player2') {
     switch (command.type) {
         case COMMAND_TYPES.MOVE_SHIPS:
-            return handleMoveShips(command, gameState, map);
+            return handleMoveShips(command, gameState, map, guestOwner);
         case COMMAND_TYPES.ATTACK:
-            return handleAttack(command, gameState, map);
+            return handleAttack(command, gameState, map, guestOwner);
         case COMMAND_TYPES.BUILD_PORT:
-            return handleBuildPort(command, gameState, map);
+            return handleBuildPort(command, gameState, map, guestOwner);
         case COMMAND_TYPES.BUILD_SETTLEMENT:
-            return handleBuildSettlement(command, gameState, map);
+            return handleBuildSettlement(command, gameState, map, guestOwner);
         case COMMAND_TYPES.BUILD_TOWER:
-            return handleBuildTower(command, gameState, map);
+            return handleBuildTower(command, gameState, map, guestOwner);
         case COMMAND_TYPES.BUILD_SHIP:
-            return handleBuildShip(command, gameState);
+            return handleBuildShip(command, gameState, guestOwner);
         case COMMAND_TYPES.CANCEL_BUILD:
-            return handleCancelBuild(command, gameState);
+            return handleCancelBuild(command, gameState, guestOwner);
         case COMMAND_TYPES.SET_TRADE_ROUTE:
-            return handleSetTradeRoute(command, gameState);
+            return handleSetTradeRoute(command, gameState, guestOwner);
         case COMMAND_TYPES.SET_PATROL:
-            return handleSetPatrol(command, gameState, map);
+            return handleSetPatrol(command, gameState, map, guestOwner);
         case COMMAND_TYPES.SET_RALLY:
-            return handleSetRally(command, gameState, map);
+            return handleSetRally(command, gameState, map, guestOwner);
         case COMMAND_TYPES.UNLOAD_CARGO:
-            return handleUnloadCargo(command, gameState, map);
+            return handleUnloadCargo(command, gameState, map, guestOwner);
         case COMMAND_TYPES.PLUNDER:
-            return handlePlunder(command, gameState, map);
+            return handlePlunder(command, gameState, map, guestOwner);
         case COMMAND_TYPES.UPGRADE_PORT:
-            return handleUpgradePort(command, gameState);
+            return handleUpgradePort(command, gameState, guestOwner);
         case COMMAND_TYPES.UPGRADE_TOWER:
-            return handleUpgradeTower(command, gameState);
+            return handleUpgradeTower(command, gameState, guestOwner);
         case COMMAND_TYPES.REPAIR:
-            return handleRepair(command, gameState);
+            return handleRepair(command, gameState, guestOwner);
         case COMMAND_TYPES.CANCEL_TRADE_ROUTE:
-            return handleCancelTradeRoute(command, gameState);
+            return handleCancelTradeRoute(command, gameState, guestOwner);
         default:
             console.warn(`Unknown command type: ${command.type}`);
             return false;
@@ -68,18 +67,18 @@ export function processGuestCommand(command, gameState, map, fogState) {
 // Helper: resolve entity ID to index with ownership validation
 // ============================================================
 
-function findShipByIdForGuest(gameState, shipId) {
-    const index = gameState.ships.findIndex(s => s.id === shipId && s.owner === GUEST_OWNER);
+function findShipByIdForOwner(gameState, shipId, owner) {
+    const index = gameState.ships.findIndex(s => s.id === shipId && s.owner === owner);
     return index >= 0 ? index : -1;
 }
 
-function findPortByIdForGuest(gameState, portId) {
-    const index = gameState.ports.findIndex(p => p.id === portId && p.owner === GUEST_OWNER);
+function findPortByIdForOwner(gameState, portId, owner) {
+    const index = gameState.ports.findIndex(p => p.id === portId && p.owner === owner);
     return index >= 0 ? index : -1;
 }
 
-function findTowerByIdForGuest(gameState, towerId) {
-    const index = gameState.towers.findIndex(t => t.id === towerId && t.owner === GUEST_OWNER);
+function findTowerByIdForOwner(gameState, towerId, owner) {
+    const index = gameState.towers.findIndex(t => t.id === towerId && t.owner === owner);
     return index >= 0 ? index : -1;
 }
 
@@ -88,21 +87,17 @@ function findEntityById(collection, id) {
     return index >= 0 ? index : -1;
 }
 
-function getGuestResources(gameState) {
-    return gameState.player2Resources;
-}
-
 // ============================================================
 // Command Handlers
 // ============================================================
 
-function handleMoveShips(command, gameState, map) {
+function handleMoveShips(command, gameState, map, owner) {
     const { shipIds, waypoints, append } = command;
     if (!shipIds || !waypoints || waypoints.length === 0) return false;
 
     const validShipIndices = [];
     for (const id of shipIds) {
-        const idx = findShipByIdForGuest(gameState, id);
+        const idx = findShipByIdForOwner(gameState, id, owner);
         if (idx >= 0) validShipIndices.push(idx);
     }
     if (validShipIndices.length === 0) return false;
@@ -140,7 +135,7 @@ function handleMoveShips(command, gameState, map) {
     return true;
 }
 
-function handleAttack(command, gameState, map) {
+function handleAttack(command, gameState, map, owner) {
     const { shipIds, targetType, targetId } = command;
     if (!shipIds || !targetType || !targetId) return false;
 
@@ -157,15 +152,15 @@ function handleAttack(command, gameState, map) {
     }
     if (targetIndex < 0) return false;
 
-    // Validate target is an enemy (not owned by guest)
+    // Validate target is an enemy (not owned by this guest)
     const target = (targetType === 'ship' ? gameState.ships :
                     targetType === 'port' ? gameState.ports :
                     targetType === 'settlement' ? gameState.settlements :
                     gameState.towers)[targetIndex];
-    if (target.owner === GUEST_OWNER) return false;
+    if (target.owner === owner) return false;
 
     for (const id of shipIds) {
-        const idx = findShipByIdForGuest(gameState, id);
+        const idx = findShipByIdForOwner(gameState, id, owner);
         if (idx < 0) continue;
 
         const ship = gameState.ships[idx];
@@ -189,67 +184,67 @@ function handleAttack(command, gameState, map) {
     return true;
 }
 
-function handleBuildPort(command, gameState, map) {
+function handleBuildPort(command, gameState, map, owner) {
     const { builderShipId, portType, q, r } = command;
-    const shipIdx = findShipByIdForGuest(gameState, builderShipId);
+    const shipIdx = findShipByIdForOwner(gameState, builderShipId, owner);
     if (shipIdx < 0) return false;
 
     const portData = PORTS[portType];
     if (!portData) return false;
 
-    const resources = getGuestResources(gameState);
-    if (!canAfford(resources, portData.cost)) return false;
+    const resources = getResourcesForOwner(gameState, owner);
+    if (!resources || !canAfford(resources, portData.cost)) return false;
 
     deductCost(resources, portData.cost);
-    const newPort = createPort(portType, q, r, true, shipIdx, GUEST_OWNER);
+    const newPort = createPort(portType, q, r, true, shipIdx, owner);
     gameState.ports.push(newPort);
     return true;
 }
 
-function handleBuildSettlement(command, gameState, map) {
+function handleBuildSettlement(command, gameState, map, owner) {
     const { builderPortId, q, r } = command;
-    const portIdx = findPortByIdForGuest(gameState, builderPortId);
+    const portIdx = findPortByIdForOwner(gameState, builderPortId, owner);
     if (portIdx < 0) return false;
 
     const settlementData = SETTLEMENTS.settlement;
-    const resources = getGuestResources(gameState);
-    if (!canAfford(resources, settlementData.cost)) return false;
+    const resources = getResourcesForOwner(gameState, owner);
+    if (!resources || !canAfford(resources, settlementData.cost)) return false;
 
     deductCost(resources, settlementData.cost);
-    const newSettlement = createSettlement(q, r, true, portIdx, GUEST_OWNER);
+    const newSettlement = createSettlement(q, r, true, portIdx, owner);
     gameState.settlements.push(newSettlement);
     return true;
 }
 
-function handleBuildTower(command, gameState, map) {
+function handleBuildTower(command, gameState, map, owner) {
     const { builderShipId, builderPortId, q, r } = command;
 
     // Validate builder ownership
     if (builderShipId) {
-        const idx = findShipByIdForGuest(gameState, builderShipId);
+        const idx = findShipByIdForOwner(gameState, builderShipId, owner);
         if (idx < 0) return false;
     }
     if (builderPortId) {
-        const idx = findPortByIdForGuest(gameState, builderPortId);
+        const idx = findPortByIdForOwner(gameState, builderPortId, owner);
         if (idx < 0) return false;
     }
 
     const towerData = TOWERS.watchtower;
-    const resources = getGuestResources(gameState);
-    if (!canAfford(resources, towerData.cost)) return false;
+    const resources = getResourcesForOwner(gameState, owner);
+    if (!resources || !canAfford(resources, towerData.cost)) return false;
     if (!canAffordCrew(gameState, towerData.crewCost || 0)) return false;
 
     deductCost(resources, towerData.cost);
-    const shipIdx = builderShipId ? findShipByIdForGuest(gameState, builderShipId) : null;
-    const portIdx = builderPortId ? findPortByIdForGuest(gameState, builderPortId) : null;
-    const newTower = createTower('watchtower', q, r, true, shipIdx, portIdx, GUEST_OWNER);
+    const shipIdx = builderShipId ? findShipByIdForOwner(gameState, builderShipId, owner) : null;
+    const portIdx = builderPortId ? findPortByIdForOwner(gameState, builderPortId, owner) : null;
+    const newTower = createTower('watchtower', q, r, true, shipIdx, portIdx, owner);
     gameState.towers.push(newTower);
     return true;
 }
 
-function handleBuildShip(command, gameState) {
+function handleBuildShip(command, gameState, owner) {
     const { portId, shipType } = command;
-    const portIdx = findPortByIdForGuest(gameState, portId);
+    const portIdx = findPortByIdForOwner(gameState, portId, owner);
     if (portIdx < 0) return false;
 
     const port = gameState.ports[portIdx];
@@ -264,28 +259,30 @@ function handleBuildShip(command, gameState) {
     // Queue limit
     if (port.buildQueue.length >= 5) return false;
 
-    addToBuildQueue(port, shipType, getGuestResources(gameState));
+    const resources = getResourcesForOwner(gameState, owner);
+    addToBuildQueue(port, shipType, resources);
     return true;
 }
 
-function handleCancelBuild(command, gameState) {
+function handleCancelBuild(command, gameState, owner) {
     const { portId, queueIndex } = command;
-    const portIdx = findPortByIdForGuest(gameState, portId);
+    const portIdx = findPortByIdForOwner(gameState, portId, owner);
     if (portIdx < 0) return false;
 
-    return cancelBuildItem(gameState.ports[portIdx], queueIndex, getGuestResources(gameState));
+    const resources = getResourcesForOwner(gameState, owner);
+    return cancelBuildItem(gameState.ports[portIdx], queueIndex, resources);
 }
 
-function handleSetTradeRoute(command, gameState) {
+function handleSetTradeRoute(command, gameState, owner) {
     const { shipIds, foreignPortId, homePortId, isPlunder } = command;
     if (!shipIds) return false;
 
     const foreignPortIdx = findEntityById(gameState.ports, foreignPortId);
-    const homePortIdx = findPortByIdForGuest(gameState, homePortId);
+    const homePortIdx = findPortByIdForOwner(gameState, homePortId, owner);
     if (foreignPortIdx < 0 || homePortIdx < 0) return false;
 
     for (const id of shipIds) {
-        const idx = findShipByIdForGuest(gameState, id);
+        const idx = findShipByIdForOwner(gameState, id, owner);
         if (idx < 0) continue;
         const ship = gameState.ships[idx];
         ship.tradeRoute = { foreignPortIndex: foreignPortIdx, homePortIndex: homePortIdx };
@@ -297,12 +294,12 @@ function handleSetTradeRoute(command, gameState) {
     return true;
 }
 
-function handleSetPatrol(command, gameState, map) {
+function handleSetPatrol(command, gameState, map, owner) {
     const { shipIds, waypoints } = command;
     if (!shipIds || !waypoints || waypoints.length === 0) return false;
 
     for (const id of shipIds) {
-        const idx = findShipByIdForGuest(gameState, id);
+        const idx = findShipByIdForOwner(gameState, id, owner);
         if (idx < 0) continue;
         const ship = gameState.ships[idx];
         ship.patrolRoute = [...waypoints];
@@ -315,9 +312,9 @@ function handleSetPatrol(command, gameState, map) {
     return true;
 }
 
-function handleSetRally(command, gameState, map) {
+function handleSetRally(command, gameState, map, owner) {
     const { portId, q, r } = command;
-    const portIdx = findPortByIdForGuest(gameState, portId);
+    const portIdx = findPortByIdForOwner(gameState, portId, owner);
     if (portIdx < 0) return false;
 
     const tile = map.tiles.get(hexKey(q, r));
@@ -327,19 +324,19 @@ function handleSetRally(command, gameState, map) {
     return true;
 }
 
-function handleUnloadCargo(command, gameState, map) {
+function handleUnloadCargo(command, gameState, map, owner) {
     const { shipIds } = command;
     if (!shipIds) return false;
 
     // Find guest's home port
-    const homePortIdx = getHomePortIndexForOwner(gameState, map, GUEST_OWNER);
+    const homePortIdx = getHomePortIndexForOwner(gameState, map, owner);
     if (homePortIdx === null || homePortIdx < 0) return false;
     const homePort = gameState.ports[homePortIdx];
 
     const adjacentWater = findFreeAdjacentWater(map, homePort.q, homePort.r, gameState.ships);
 
     for (const id of shipIds) {
-        const idx = findShipByIdForGuest(gameState, id);
+        const idx = findShipByIdForOwner(gameState, id, owner);
         if (idx < 0) continue;
         const ship = gameState.ships[idx];
         if ((ship.cargo?.wood || 0) <= 0) continue;
@@ -357,7 +354,7 @@ function handleUnloadCargo(command, gameState, map) {
     return true;
 }
 
-function handlePlunder(command, gameState, map) {
+function handlePlunder(command, gameState, map, owner) {
     const { shipIds, targetQ, targetR } = command;
     if (!shipIds || targetQ == null || targetR == null) return false;
 
@@ -365,7 +362,7 @@ function handlePlunder(command, gameState, map) {
     let targetPortIdx = -1;
     for (let i = 0; i < gameState.ports.length; i++) {
         const port = gameState.ports[i];
-        if (port.owner === GUEST_OWNER) continue; // Skip own ports
+        if (port.owner === owner) continue; // Skip own ports
         if (port.construction) continue;
         if (port.q === targetQ && port.r === targetR) {
             targetPortIdx = i;
@@ -377,7 +374,7 @@ function handlePlunder(command, gameState, map) {
         let minDist = Infinity;
         for (let i = 0; i < gameState.ports.length; i++) {
             const port = gameState.ports[i];
-            if (port.owner === GUEST_OWNER) continue;
+            if (port.owner === owner) continue;
             if (port.construction) continue;
             const dq = port.q - targetQ;
             const dr = port.r - targetR;
@@ -391,13 +388,13 @@ function handlePlunder(command, gameState, map) {
     if (targetPortIdx < 0) return false;
 
     const targetPort = gameState.ports[targetPortIdx];
-    const homePortIdx = getHomePortIndexForOwner(gameState, map, GUEST_OWNER);
+    const homePortIdx = getHomePortIndexForOwner(gameState, map, owner);
     if (homePortIdx === null || homePortIdx < 0) return false;
 
     const adjacentWater = findFreeAdjacentWater(map, targetPort.q, targetPort.r, gameState.ships);
 
     for (const id of shipIds) {
-        const idx = findShipByIdForGuest(gameState, id);
+        const idx = findShipByIdForOwner(gameState, id, owner);
         if (idx < 0) continue;
         const ship = gameState.ships[idx];
         ship.tradeRoute = { foreignPortIndex: targetPortIdx, homePortIndex: homePortIdx };
@@ -413,9 +410,9 @@ function handlePlunder(command, gameState, map) {
     return true;
 }
 
-function handleUpgradePort(command, gameState) {
+function handleUpgradePort(command, gameState, owner) {
     const { portId } = command;
-    const portIdx = findPortByIdForGuest(gameState, portId);
+    const portIdx = findPortByIdForOwner(gameState, portId, owner);
     if (portIdx < 0) return false;
 
     const port = gameState.ports[portIdx];
@@ -423,16 +420,16 @@ function handleUpgradePort(command, gameState) {
     if (!nextType) return false;
 
     const portData = PORTS[nextType];
-    const resources = getGuestResources(gameState);
-    if (!canAfford(resources, portData.cost)) return false;
+    const resources = getResourcesForOwner(gameState, owner);
+    if (!resources || !canAfford(resources, portData.cost)) return false;
 
     deductCost(resources, portData.cost);
     return startPortUpgrade(port);
 }
 
-function handleUpgradeTower(command, gameState) {
+function handleUpgradeTower(command, gameState, owner) {
     const { towerId } = command;
-    const towerIdx = findTowerByIdForGuest(gameState, towerId);
+    const towerIdx = findTowerByIdForOwner(gameState, towerId, owner);
     if (towerIdx < 0) return false;
 
     const tower = gameState.towers[towerIdx];
@@ -440,39 +437,40 @@ function handleUpgradeTower(command, gameState) {
     if (!nextType) return false;
 
     const towerData = TOWERS[nextType];
-    const resources = getGuestResources(gameState);
-    if (!canAfford(resources, towerData.cost)) return false;
+    const resources = getResourcesForOwner(gameState, owner);
+    if (!resources || !canAfford(resources, towerData.cost)) return false;
 
     deductCost(resources, towerData.cost);
     return startTowerUpgrade(tower);
 }
 
-function handleRepair(command, gameState) {
+function handleRepair(command, gameState, owner) {
     const { entityType, entityId } = command;
-    const resources = getGuestResources(gameState);
+    const resources = getResourcesForOwner(gameState, owner);
+    if (!resources) return false;
 
     if (entityType === 'port') {
-        const idx = findPortByIdForGuest(gameState, entityId);
+        const idx = findPortByIdForOwner(gameState, entityId, owner);
         if (idx < 0) return false;
         return startRepair('port', gameState.ports[idx], resources);
     } else if (entityType === 'tower') {
-        const idx = findTowerByIdForGuest(gameState, entityId);
+        const idx = findTowerByIdForOwner(gameState, entityId, owner);
         if (idx < 0) return false;
         return startRepair('tower', gameState.towers[idx], resources);
     } else if (entityType === 'settlement') {
-        const idx = gameState.settlements.findIndex(s => s.id === entityId && s.owner === GUEST_OWNER);
+        const idx = gameState.settlements.findIndex(s => s.id === entityId && s.owner === owner);
         if (idx < 0) return false;
         return startRepair('settlement', gameState.settlements[idx], resources);
     }
     return false;
 }
 
-function handleCancelTradeRoute(command, gameState) {
+function handleCancelTradeRoute(command, gameState, owner) {
     const { shipIds } = command;
     if (!shipIds) return false;
 
     for (const id of shipIds) {
-        const idx = findShipByIdForGuest(gameState, id);
+        const idx = findShipByIdForOwner(gameState, id, owner);
         if (idx < 0) continue;
         cancelTradeRoute(gameState.ships[idx]);
     }
