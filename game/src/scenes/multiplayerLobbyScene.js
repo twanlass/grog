@@ -1,6 +1,6 @@
 // Multiplayer lobby scene — host/join pre-game connection screen
 // Supports 2-4 player multiplayer via host waiting room
-import { createHost, joinHost, disconnect, getPeerCode, getConnectionState, CONNECTION_STATE, sendMessage, sendLobbyState, getConnectedPlayerIds, getConnectedPlayerCount, getLocalPlayerId } from '../networking/peerConnection.js';
+import { createHost, joinHost, disconnect, getPeerCode, getConnectionState, CONNECTION_STATE, sendMessage, sendLobbyState, sendGameInitToAll, getConnectedPlayerIds, getConnectedPlayerCount, getLocalPlayerId } from '../networking/peerConnection.js';
 import { MESSAGE_TYPES, createMessage } from '../networking/commands.js';
 
 export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) {
@@ -126,12 +126,12 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                 onGuestDisconnected: null,
             };
 
-            // Broadcast GAME_INIT to all guests
-            sendMessage(createMessage(MESSAGE_TYPES.GAME_INIT, {
+            // Send personalized GAME_INIT to each guest (includes their playerId)
+            sendGameInitToAll({
                 mapSeed,
                 config: { startingResources: { wood: 25 } },
                 playerOwners: playerIds,
-            }));
+            });
 
             startCountdown();
         }

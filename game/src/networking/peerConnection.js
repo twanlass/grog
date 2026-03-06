@@ -224,6 +224,22 @@ export function sendLobbyState(lobbyState) {
 }
 
 /**
+ * Send personalized GAME_INIT to each guest (host only).
+ * Each guest receives their assigned playerId in the message.
+ * @param {Object} initData - Shared init data (mapSeed, config, playerOwners)
+ */
+export function sendGameInitToAll(initData) {
+    for (const connState of connections.values()) {
+        if (connState.conn?.open) {
+            connState.conn.send(createMessage(MESSAGE_TYPES.GAME_INIT, {
+                ...initData,
+                playerId: connState.playerId,
+            }));
+        }
+    }
+}
+
+/**
  * Disconnect and clean up all resources.
  */
 export function disconnect() {

@@ -2097,3 +2097,9 @@ The user has attached these files. Read them before proceeding.
 
 
 Create a PR
+
+## 474. User prompt
+> it appears that the second and third client to connect (all using the same code copied and shared by the host) are the same player. A 3rd player isn't created.
+
+## 475. User prompt
+> Commit and push all changes
