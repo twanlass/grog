@@ -25,8 +25,14 @@ game/
       combat.js            # Combat, projectiles, damage
       aiPlayer.js          # AI opponent decisions (versus mode)
       inputHandler.js      # Click interaction handlers
+    networking/
+      peerConnection.js    # WebRTC/PeerJS connection lifecycle
+      commands.js          # Command/message type definitions
+      commandProcessor.js  # Host-side guest command execution
+      stateSync.js         # State snapshot extraction/application
     scenes/
       gameScene.js    # Main game loop and rendering
+      multiplayerLobbyScene.js # Multiplayer lobby UI
       galleryScene.js # Unit showcase
     sprites/
       ships.js        # Ship definitions and pixel art
@@ -41,6 +47,7 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [Adding Features](docs/features/adding-features.md) - Where to add new game features
 - [AI Opponent](docs/features/ai-opponent.md) - Versus mode AI
 - [Fog of War](docs/features/fog-of-war.md)
+- [Multiplayer](docs/features/multiplayer.md) - P2P WebRTC multiplayer via PeerJS
 - [Ship Building](docs/features/ship-building.md)
 - [Port Building](docs/features/port-building.md)
 - [Settlement Building](docs/features/settlement-building.md)

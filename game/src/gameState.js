@@ -138,10 +138,15 @@ export function createGameState(config = {}) {
     };
 }
 
+// Deterministic entity ID counter (resets each game session)
+let entityIdCounter = 0;
+export function resetEntityIdCounter() { entityIdCounter = 0; }
+function nextEntityId(prefix) { return `${prefix}-${++entityIdCounter}`; }
+
 // Create a new ship with navigation support
 export function createShip(type, q, r, owner = 'player') {
     return {
-        id: `ship-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: nextEntityId('ship'),
         owner,  // 'player' | 'ai1' | 'ai2'
         type,
         q,
@@ -186,7 +191,7 @@ export function createShip(type, q, r, owner = 'player') {
 // Create a new port (optionally under construction)
 export function createPort(type, q, r, isConstructing = false, builderShipIndex = null, owner = 'player') {
     return {
-        id: `port-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: nextEntityId('port'),
         owner,  // 'player' | 'ai1' | 'ai2'
         type,
         q,
@@ -215,9 +220,18 @@ export function isShipBuildingPort(shipIndex, ports) {
     );
 }
 
+// Helper: get entity ID for a selection entry
+function getEntityId(gameState, type, index) {
+    const entity = type === 'ship' ? gameState.ships[index]
+        : type === 'port' ? gameState.ports[index]
+        : type === 'settlement' ? gameState.settlements[index]
+        : gameState.towers[index];
+    return entity?.id || null;
+}
+
 // Select a single unit (clears other selections)
 export function selectUnit(gameState, type, index) {
-    gameState.selectedUnits = [{ type, index }];
+    gameState.selectedUnits = [{ type, index, entityId: getEntityId(gameState, type, index) }];
     gameState.attackTargetShipIndex = null; // Clear attack target when selecting a unit
 }
 
@@ -225,7 +239,7 @@ export function selectUnit(gameState, type, index) {
 export function addToSelection(gameState, type, index) {
     // Don't add duplicates
     if (!isSelected(gameState, type, index)) {
-        gameState.selectedUnits.push({ type, index });
+        gameState.selectedUnits.push({ type, index, entityId: getEntityId(gameState, type, index) });
     }
 }
 
@@ -235,7 +249,7 @@ export function toggleSelection(gameState, type, index) {
     if (idx >= 0) {
         gameState.selectedUnits.splice(idx, 1);
     } else {
-        gameState.selectedUnits.push({ type, index });
+        gameState.selectedUnits.push({ type, index, entityId: getEntityId(gameState, type, index) });
     }
 }
 
@@ -894,7 +908,7 @@ export function startPortUpgrade(port) {
 // Create a new settlement (optionally under construction)
 export function createSettlement(q, r, isConstructing = false, builderPortIndex = null, owner = 'player') {
     return {
-        id: `settlement-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: nextEntityId('settlement'),
         owner,  // 'player' | 'ai1' | 'ai2'
         q,
         r,
@@ -1047,7 +1061,7 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
 // Create a new tower (optionally under construction)
 export function createTower(type, q, r, isConstructing = false, builderShipIndex = null, builderPortIndex = null, owner = 'player') {
     return {
-        id: `tower-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: nextEntityId('tower'),
         owner,  // 'player' | 'ai1' | 'ai2'
         type,
         q,
@@ -1239,8 +1253,8 @@ export function computeCrewStatus(gameState, owner = 'player') {
 }
 
 // Check if player can afford crew cost
-export function canAffordCrew(gameState, crewCost) {
-    const status = computeCrewStatus(gameState);
+export function canAffordCrew(gameState, crewCost, owner = 'player') {
+    const status = computeCrewStatus(gameState, owner);
     return status.available >= crewCost;
 }
 
@@ -1394,6 +1408,8 @@ export function getHomePortIndexForOwner(gameState, map, owner) {
     let homeHex = null;
     if (owner === 'player') {
         homeHex = gameState.homeIslandHex;
+    } else if (owner === 'player2') {
+        homeHex = gameState.player2HomeIslandHex;
     } else if (owner === 'ai1') {
         homeHex = gameState.aiHomeIslandHexes[0];
     } else if (owner === 'ai2') {
@@ -1423,9 +1439,42 @@ export function countEntitiesForOwner(gameState, owner) {
     return { ships, ports, settlements, towers, total: ships + ports + settlements + towers };
 }
 
-// Check if an owner is an AI (ai1, ai2, or ai3)
+// Check if an owner is an AI (ai1, ai2, or ai3) — NOT player2 (human multiplayer)
 export function isAIOwner(owner) {
     return owner === 'ai1' || owner === 'ai2' || owner === 'ai3';
+}
+
+// Check if an owner is a remote human player (multiplayer)
+export function isRemotePlayer(owner) {
+    return owner === 'player2';
+}
+
+// Check if an owner is the local player for a given localPlayerId
+export function isLocalPlayer(owner, localPlayerId = 'player') {
+    return owner === localPlayerId;
+}
+
+// Check if two owners are enemies
+export function isEnemyOf(ownerA, ownerB) {
+    if (!ownerA || !ownerB) return false;
+    return ownerA !== ownerB;
+}
+
+// Check if an owner is non-local (AI or remote player) from local player's perspective
+export function isNonLocalOwner(owner, localPlayerId = 'player') {
+    if (!owner || owner === localPlayerId) return false;
+    return true;
+}
+
+// Get resources for a specific owner
+export function getResourcesForOwner(gameState, owner) {
+    if (owner === 'player') return gameState.resources;
+    if (owner === 'player2') return gameState.player2Resources;
+    // AI resources are in aiPlayers array
+    if (owner === 'ai1' && gameState.aiPlayers?.[0]) return gameState.aiPlayers[0].resources;
+    if (owner === 'ai2' && gameState.aiPlayers?.[1]) return gameState.aiPlayers[1].resources;
+    if (owner === 'ai3' && gameState.aiPlayers?.[2]) return gameState.aiPlayers[2].resources;
+    return null;
 }
 
 // Get all AI owner identifiers
@@ -1436,6 +1485,7 @@ export function getAIOwners() {
 // Get home island hex for a specific owner
 export function getHomeIslandHexForOwner(gameState, owner) {
     if (owner === 'player') return gameState.homeIslandHex;
+    if (owner === 'player2') return gameState.player2HomeIslandHex || null;
     if (owner === 'ai1') return gameState.aiHomeIslandHexes[0];
     if (owner === 'ai2') return gameState.aiHomeIslandHexes[1];
     if (owner === 'ai3') return gameState.aiHomeIslandHexes[2];

@@ -4,7 +4,6 @@ import { SHIPS } from "./sprites/ships.js";
 import { PORTS } from "./sprites/ports.js";
 import { SETTLEMENTS } from "./sprites/settlements.js";
 import { TOWERS } from "./sprites/towers.js";
-import { isAIOwner } from "./gameState.js";
 
 // Animation constants
 const RING_DELAY = 0.06;      // Seconds between each ring reveal
@@ -63,6 +62,7 @@ export function createFogState() {
         exploredHexes: new Set(),  // Hexes ever seen (permanent)
         visibleHexes: new Set(),   // Hexes currently visible (recalculated)
         isDirty: true,             // Flag to trigger recalculation
+        localPlayerId: 'player',   // Which player this fog belongs to (for rendering)
         // Animation state
         revealingHexes: new Map(), // hexKey -> { startTime, ringDelay }
         shroudingHexes: new Map(), // hexKey -> { startTime, ringDelay }
@@ -117,22 +117,20 @@ export function isHexRevealed(fogState, q, r) {
 
 /**
  * Check if an entity should be rendered based on fog of war.
- * Player units are always visible. AI/pirate units only visible if their hex is visible.
+ * Local player units are always visible. Other units only visible if their hex is visible.
  * @param {Object} fogState - Fog of war state
  * @param {Object} entity - Entity with owner, q, r properties (and optionally type for ships)
+ * @param {string} localPlayerId - The local player's owner ID (default: 'player')
  * @returns {boolean} - True if entity should be rendered
  */
 export function shouldRenderEntity(fogState, entity) {
     // Debug mode: show all entities
     if (fogState.debugHideFog) return true;
-    // Player units always visible
-    if (!entity.owner || entity.owner === 'player') return true;
-    // Pirates (type check for ships)
-    if (entity.type === 'pirate') return isHexVisible(fogState, entity.q, entity.r);
-    // AI units only visible if hex is visible
-    if (isAIOwner(entity.owner)) return isHexVisible(fogState, entity.q, entity.r);
-    // Default: render
-    return true;
+    // Local player units always visible
+    const lpId = fogState.localPlayerId || 'player';
+    if (!entity.owner || entity.owner === lpId) return true;
+    // All other units (AI, pirates, remote player) only visible if hex is visible
+    return isHexVisible(fogState, entity.q, entity.r);
 }
 
 // Mark fog as needing recalculation
@@ -155,7 +153,8 @@ function addRadiusToSet(targetSet, q, r, radius) {
 }
 
 // Recalculate all currently visible hexes from all vision sources
-export function recalculateVisibility(fogState, gameState, currentTime = 0) {
+// viewAsOwner: only entities owned by this owner grant vision (default: 'player')
+export function recalculateVisibility(fogState, gameState, currentTime = 0, viewAsOwner = 'player') {
     // Store previous visibility to detect changes
     const previousVisible = new Set(fogState.visibleHexes);
 
@@ -164,36 +163,36 @@ export function recalculateVisibility(fogState, gameState, currentTime = 0) {
     // Collect all vision sources for animation calculations
     const visionSources = [];
 
-    // Player ships (pirates and AI don't grant vision)
+    // Ships owned by viewAsOwner grant vision
     for (const ship of gameState.ships) {
-        if (ship.type === 'pirate' || isAIOwner(ship.owner)) continue;
+        if (ship.owner !== viewAsOwner) continue;
         const sightDistance = SHIPS[ship.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, ship.q, ship.r, sightDistance);
         visionSources.push({ q: ship.q, r: ship.r });
     }
 
-    // Completed player ports (ports being upgraded still grant vision)
+    // Completed ports owned by viewAsOwner (ports being upgraded still grant vision)
     for (const port of gameState.ports) {
-        if (port.construction && !port.construction.upgradeTo) continue;  // Skip new construction, not upgrades
-        if (isAIOwner(port.owner)) continue;
+        if (port.construction && !port.construction.upgradeTo) continue;
+        if (port.owner !== viewAsOwner) continue;
         const sightDistance = PORTS[port.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, port.q, port.r, sightDistance);
         visionSources.push({ q: port.q, r: port.r });
     }
 
-    // Completed player settlements
+    // Completed settlements owned by viewAsOwner
     for (const settlement of gameState.settlements) {
         if (settlement.construction) continue;
-        if (isAIOwner(settlement.owner)) continue;
+        if (settlement.owner !== viewAsOwner) continue;
         const sightDistance = SETTLEMENTS.settlement.sightDistance;
         addRadiusToSet(fogState.visibleHexes, settlement.q, settlement.r, sightDistance);
         visionSources.push({ q: settlement.q, r: settlement.r });
     }
 
-    // Completed player towers (towers being upgraded still grant vision)
+    // Completed towers owned by viewAsOwner (towers being upgraded still grant vision)
     for (const tower of gameState.towers) {
-        if (tower.construction && !tower.construction.upgradeTo) continue;  // Skip new construction, not upgrades
-        if (isAIOwner(tower.owner)) continue;
+        if (tower.construction && !tower.construction.upgradeTo) continue;
+        if (tower.owner !== viewAsOwner) continue;
         const sightDistance = TOWERS[tower.type].sightDistance;
         addRadiusToSet(fogState.visibleHexes, tower.q, tower.r, sightDistance);
         visionSources.push({ q: tower.q, r: tower.r });
@@ -236,7 +235,7 @@ export function recalculateVisibility(fogState, gameState, currentTime = 0) {
 // Initialize fog with starting visibility around ships and ports
 export function initializeFog(fogState, gameState) {
     // Use recalculateVisibility to set up initial state
-    recalculateVisibility(fogState, gameState);
+    recalculateVisibility(fogState, gameState, 0, fogState.localPlayerId || 'player');
 }
 
 // Parse hex key back to coordinates

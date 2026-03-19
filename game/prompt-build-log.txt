@@ -699,3 +699,112 @@ only show a single waypoint X; it should be rendered at the location of the clic
 
 ## 196. User prompt
 > ship it
+
+## 197. User prompt
+> cool. prep a new branch and push that so we can test. 
+
+## 198. User prompt
+> fixed 
+
+## 199. User prompt
+> update the pr 
+
+## 200. User prompt
+> Still failing. 
+
+HOst: 
+[Grog MP] Hosting as peer: grogsd6nr
+peerConnection.js:69 [Grog MP] Host peer open with id: grogsd6nr
+peerConnection.js:75 [Grog MP] Guest connected! Setting up DataChannel...
+peerConnection.js:221 [Grog MP] RTCPeerConnection state: new, ICE: new
+peerConnection.js:223 [Grog MP] ICE state: checking
+peerConnection.js:226 [Grog MP] Connection state: connecting
+peerConnection.js:223 [Grog MP] ICE state: disconnected
+peerConnection.js:226 [Grog MP] Connection state: failed
+
+Client:
+[Grog MP] Auto-joining with code: GROG-SD6NR
+multiplayerLobbyScene.js:107 [Grog MP] joinGame() called with code: GROG-SD6NR
+peerConnection.js:103 [Grog MP] Joining as guest-1772657718941, looking for host grogsd6nr
+peerConnection.js:108 [Grog MP] Guest peer open with id: guest-1772657718941, connecting to host...
+peerConnection.js:221 [Grog MP] RTCPeerConnection state: new, ICE: new
+peerConnection.js:223 [Grog MP] ICE state: checking
+peerConnection.js:226 [Grog MP] Connection state: connecting
+
+## 201. User prompt
+> ahh so muliple servers are needed. Is there a way to do the connection/matching without the PeerJS server? What does that actually do? 
+
+## 202. User prompt
+> can you start/restart the dev server
+
+## 203. User prompt
+> okay, same browser, diff tabs. 
+
+Host: 
+[Grog MP] Hosting as peer: grogy484s
+peerConnection.js:68 [Grog MP] Host peer open with id: grogy484s
+peerConnection.js:74 [Grog MP] Guest connected! Setting up DataChannel...
+peerConnection.js:221 [Grog MP] RTCPeerConnection state: new, ICE: new
+peerConnection.js:226 [Grog MP] ICE candidate: candidate:545953028 1 udp 2113937151 7d4db989-2c6d-4a1a-a4c0-6c5b06b573b5.local 62984 typ host generation 0 ufrag DsBm network-cost 999
+peerConnection.js:222 [Grog MP] ICE state: checking
+peerConnection.js:223 [Grog MP] Connection state: connecting
+peerConnection.js:226 [Grog MP] ICE candidate: candidate:375764580 1 udp 1677729535 75.172.34.10 62984 typ srflx raddr 0.0.0.0 rport 0 generation 0 ufrag DsBm network-cost 999
+peerConnection.js:222 [Grog MP] ICE state: disconnected
+peerConnection.js:223 [Grog MP] Connection state: failed
+
+Client:
+[Grog MP] Auto-joining with code: GROG-Y484S
+multiplayerLobbyScene.js:107 [Grog MP] joinGame() called with code: GROG-Y484S
+peerConnection.js:102 [Grog MP] Joining as guest-1772665371653, looking for host grogy484s
+peerConnection.js:107 [Grog MP] Guest peer open with id: guest-1772665371653, connecting to host...
+peerConnection.js:221 [Grog MP] RTCPeerConnection state: new, ICE: new
+peerConnection.js:226 [Grog MP] ICE candidate: candidate:3051716864 1 udp 2113937151 c074c9ff-7f6f-4414-8f81-9d661e71a66c.local 50608 typ host generation 0 ufrag iRNv network-cost 999
+peerConnection.js:226 [Grog MP] ICE candidate: candidate:2198512224 1 udp 1677729535 75.172.34.10 50608 typ srflx raddr 0.0.0.0 rport 0 generation 0 ufrag iRNv network-cost 999
+peerConnection.js:222 [Grog MP] ICE state: checking
+peerConnection.js:223 [Grog MP] Connection state: connecting
+peerConnection.js:222 [Grog MP] ICE state: disconnected
+peerConnection.js:223 [Grog MP] Connection state: failed
+
+## 204. User prompt
+> okay, created a metered account. what creds do we need? 
+
+## 205. User prompt
+> 1. grog-rts 
+2. 1e0da7d4dc827b3c1b80bb97f47bf0be3886
+
+## 206. User prompt
+> connection worked! Okay, host crashed: 
+Set rally point at (25, 16) for 1 port(s)
+construction.js:100 Ship built: cutter at (25, 15)
+inputHandler.js:596 Selected ship: cutter
+construction.js:100 Ship built: cutter at (33, 28)
+inputHandler.js:764 Set waypoint at (43, 31) for 1 ship(s)
+inputHandler.js:764 Set waypoint at (38, 32) for 1 ship(s)
+kaplay.js?v=2ea5adcf:5276 TypeError: Cannot read properties of undefined (reading 'length')
+    at distributeDestinations (pathfinding.js:261:15)
+    at handleMoveShips (commandProcessor.js:112:26)
+    at processGuestCommand (commandProcessor.js:30:20)
+    at Object.<anonymous> (gameScene.js:688:21)
+
+## 207. User prompt
+> Okay, next, server seems to play fine. Client however isn't. Don't see progress bars when buildinga cutter, can't move selected cutter, not seeing realtime updates when being attackd by server, etc
+
+## 208. User prompt
+> ah I think it's because chrome pauses updates when the tab isn't visible (tab away). when i have them in seprate windows side by side things look good. 
+
+Okay, a few quick nits: 
+- Loser should see defeat screen
+- hide the pause and speed menu items in  multiplayer only as they aren't applicable 
+- game code copy link button is sitting on top of the code 
+
+## 209. User prompt
+> on start, client map is positioned over host home port (see mini map screenshot) 
+
+## 210. User prompt
+> when trying to manually enter the multiplayer host code I'm unable to type a dash (can't type in something like GROG-NRW6W
+
+## 211. User prompt
+> sweet! Okay, still not seeing a defeat screen for the client: 
+
+## 212. User prompt
+> client now shows defeat screen. it ended though with camera shake getting stuck in a loop (home port was destroyed)

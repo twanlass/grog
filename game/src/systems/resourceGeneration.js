@@ -35,14 +35,16 @@ export function updateResourceGeneration(gameState, floatingNumbers, dt, map) {
             settlement.generationTimer = 0;
 
             // All settlements contribute directly to owner's global resources
-            if (settlementOwner === 'ai1' && gameState.aiPlayers && gameState.aiPlayers[0]) {
+            if (settlementOwner === 'player') {
+                gameState.resources.wood += woodAmount;
+            } else if (settlementOwner === 'player2' && gameState.player2Resources) {
+                gameState.player2Resources.wood += woodAmount;
+            } else if (settlementOwner === 'ai1' && gameState.aiPlayers && gameState.aiPlayers[0]) {
                 gameState.aiPlayers[0].resources.wood += woodAmount;
             } else if (settlementOwner === 'ai2' && gameState.aiPlayers && gameState.aiPlayers[1]) {
                 gameState.aiPlayers[1].resources.wood += woodAmount;
             } else if (settlementOwner === 'ai3' && gameState.aiPlayers && gameState.aiPlayers[2]) {
                 gameState.aiPlayers[2].resources.wood += woodAmount;
-            } else if (settlementOwner === 'player') {
-                gameState.resources.wood += woodAmount;
             }
 
             // Spawn floating number (only for player settlements for now)
