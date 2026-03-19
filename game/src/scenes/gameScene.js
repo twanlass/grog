@@ -1259,6 +1259,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (const ship of gameState.ships) {
                     const isEnemy = ship.type === 'pirate' || isAIOwner(ship.owner);
                     if (!isEnemy) continue;
+                    if (!isHexVisible(fogState, ship.q, ship.r)) continue;
                     const pos = hexToPixel(ship.q, ship.r);
                     const dx = worldX - pos.x;
                     const dy = worldY - pos.y;
@@ -1273,6 +1274,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const allStructures = [...gameState.towers, ...gameState.ports, ...gameState.settlements];
                     for (const structure of allStructures) {
                         if (!isAIOwner(structure.owner)) continue;
+                        if (!isHexVisible(fogState, structure.q, structure.r)) continue;
                         const pos = hexToPixel(structure.q, structure.r);
                         const dx = worldX - pos.x;
                         const dy = worldY - pos.y;
