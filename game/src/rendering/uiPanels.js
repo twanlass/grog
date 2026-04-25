@@ -2286,6 +2286,60 @@ export function drawBuildQueuePanel(ctx, port, mousePos) {
     return bounds;
 }
 
+function healthToDotColor(k, healthPercent) {
+    if (healthPercent > 0.66) return k.rgb(80, 200, 100);
+    if (healthPercent > 0.33) return k.rgb(220, 180, 60);
+    return k.rgb(220, 70, 60);
+}
+
+function drawSelectedShipsDots(ctx, selectedShips) {
+    const { k, screenWidth, screenHeight } = ctx;
+
+    const dotSize = 8;
+    const dotSpacing = 4;
+    const panelPadding = 8;
+    const shipCount = selectedShips.length;
+
+    const panelWidth = shipCount * dotSize + (shipCount - 1) * dotSpacing + panelPadding * 2;
+    const panelHeight = dotSize + panelPadding * 2;
+    const panelX = screenWidth / 2 - panelWidth / 2;
+    // Lift above the mobile action buttons (32 high + 6 gap below them)
+    const bottomOffset = 15 + 32 + 6;
+    const panelY = screenHeight - panelHeight - bottomOffset;
+
+    k.drawRect({
+        pos: k.vec2(panelX, panelY),
+        width: panelWidth,
+        height: panelHeight,
+        color: k.rgb(0, 0, 0),
+        radius: 4,
+        opacity: 0.85,
+    });
+
+    for (let i = 0; i < shipCount; i++) {
+        const { ship } = selectedShips[i];
+        const shipData = SHIPS[ship.type];
+        const maxHealth = shipData.health;
+        const healthPercent = Math.max(0, Math.min(1, ship.health / maxHealth));
+
+        const dx = panelX + panelPadding + i * (dotSize + dotSpacing) + dotSize / 2;
+        const dy = panelY + panelPadding + dotSize / 2;
+
+        k.drawCircle({
+            pos: k.vec2(dx, dy),
+            radius: dotSize / 2,
+            color: healthToDotColor(k, healthPercent),
+        });
+    }
+
+    return {
+        x: panelX,
+        y: panelY,
+        width: panelWidth,
+        height: panelHeight,
+    };
+}
+
 /**
  * Draw the selected ships panel at bottom center of screen
  * Shows all selected player ships with health-based color tinting
@@ -2300,6 +2354,11 @@ export function drawSelectedShipsPanel(ctx, gameState) {
         .filter(({ ship }) => ship && ship.type !== 'pirate' && ship.owner === getLocalPlayerId());
 
     if (selectedShips.length === 0) return null;
+
+    // Mobile: render a compact single row of health-colored dots instead of ship sprites
+    if (isTouchDevice()) {
+        return drawSelectedShipsDots(ctx, selectedShips);
+    }
 
     const itemSize = 36;  // 75% of 48
     const itemSpacing = 6;
