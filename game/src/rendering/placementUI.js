@@ -3,6 +3,7 @@ import { hexToPixel, hexCorners, hexDistance, HEX_SIZE } from "../hex.js";
 import { isHexExplored } from "../fogOfWar.js";
 import { TOWERS } from "../sprites/index.js";
 import { drawHexRangeFilled, drawHexRangeOutline } from "./renderHelpers.js";
+import { isTouchDevice } from "../systems/touchHandler.js";
 
 /**
  * Draw a placement highlight for a single hex
@@ -38,17 +39,45 @@ function drawPlacementHighlight(ctx, screenX, screenY, isHovered) {
 }
 
 /**
- * Draw hint text at bottom of screen
+ * Draw hint text at bottom of screen.
+ * On touch devices, also draws a tappable Cancel button and returns its bounds.
  */
-function drawPlacementHint(ctx, text) {
+function drawPlacementHint(ctx, desktopText, mobileText) {
     const { k, screenWidth, screenHeight } = ctx;
+    const isMobile = isTouchDevice();
+
     k.drawText({
-        text,
+        text: isMobile ? mobileText : desktopText,
         pos: k.vec2(screenWidth / 2, screenHeight - 60),
         size: 14,
         anchor: "center",
         color: k.rgb(255, 255, 200),
     });
+
+    if (!isMobile) return null;
+
+    // Cancel button (mobile only) - placed below the hint text
+    const btnWidth = 110;
+    const btnHeight = 36;
+    const btnX = screenWidth / 2 - btnWidth / 2;
+    const btnY = screenHeight - 40;
+    k.drawRect({
+        pos: k.vec2(btnX, btnY),
+        width: btnWidth,
+        height: btnHeight,
+        color: k.rgb(40, 40, 50),
+        radius: 8,
+        opacity: 0.92,
+        outline: { width: 2, color: k.rgb(180, 80, 80) },
+    });
+    k.drawText({
+        text: "✕ Cancel",
+        pos: k.vec2(screenWidth / 2, btnY + btnHeight / 2),
+        size: 14,
+        anchor: "center",
+        color: k.rgb(255, 220, 220),
+    });
+    return { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
 }
 
 /**
@@ -103,7 +132,7 @@ export function drawPortPlacementMode(ctx, gameState, map, tilePositions, fogSta
         drawPlacementHighlight(ctx, screenX, screenY, isHovered);
     }
 
-    drawPlacementHint(ctx, "Click to place port | ESC to cancel");
+    return drawPlacementHint(ctx, "Click to place port | ESC to cancel", "Tap a green hex to place port");
 }
 
 /**
@@ -158,7 +187,7 @@ export function drawSettlementPlacementMode(ctx, gameState, map, tilePositions, 
         drawPlacementHighlight(ctx, screenX, screenY, isHovered);
     }
 
-    drawPlacementHint(ctx, "Click to place settlement | ESC to cancel");
+    return drawPlacementHint(ctx, "Click to place settlement | ESC to cancel", "Tap a green hex to place settlement");
 }
 
 /**
@@ -237,16 +266,20 @@ export function drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogSt
         drawHexRangeOutline(ctx, hoverQ, hoverR, sightRange, rangeColor, 2);
     }
 
-    drawPlacementHint(ctx, "Click to place watchtower | ESC to cancel");
+    return drawPlacementHint(ctx, "Click to place watchtower | ESC to cancel", "Tap a green hex to place watchtower");
 }
 
 /**
- * Draw all placement mode UI elements
+ * Draw all placement mode UI elements.
+ * Returns the cancel button bounds (mobile only) when a placement mode is active.
  */
 export function drawAllPlacementUI(ctx, gameState, map, tilePositions, fogState, pixelToHex, validators) {
     const { isValidPortSite, isValidSettlementSite, isValidTowerSite } = validators;
 
-    drawPortPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, isValidPortSite);
-    drawSettlementPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, isValidSettlementSite);
-    drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, isValidTowerSite);
+    return (
+        drawPortPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, isValidPortSite) ||
+        drawSettlementPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, isValidSettlementSite) ||
+        drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, isValidTowerSite) ||
+        null
+    );
 }
