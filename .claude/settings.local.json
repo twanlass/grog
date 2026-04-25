@@ -1,16 +1,4 @@
 {
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/session-context.sh"
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
       "Bash(git pull:*)",
@@ -86,7 +74,16 @@
       "Bash(git -C /Users/tylerwanlass/code/grog commit -m \"Add color-coded directional cutter sprites\")",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(npx eslint:*)",
-      "Bash(sips:*)"
+      "Bash(sips:*)",
+      "Bash(cd /Users/tylerwanlass/code/grog/game && mkdir -p src/networking)",
+      "Bash(npx vite build --logLevel error 2>&1 | head -30)",
+      "Bash(cd /Users/tylerwanlass/code/grog && /usr/bin/git status)",
+      "Bash(which git && git --version 2>&1)",
+      "Bash(git config http.postBuffer 524288000 && git push -u origin feat/p2p-multiplayer 2>&1)",
+      "Bash(gh pr list --head feat/p2p-multiplayer)",
+      "Bash(pkill -f \"vite\" 2>/dev/null; pkill -f \"peerjs\" 2>/dev/null; sleep 1 && echo \"killed\")",
+      "WebFetch(domain:www.metered.ca)",
+      "WebFetch(domain:www.expressturn.com)"
     ]
   },
   "enableAllProjectMcpServers": true,
@@ -95,5 +92,17 @@
   ],
   "disabledMcpjsonServers": [
     "bear-notes"
-  ]
+  ],
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-context.sh"
+          }
+        ]
+      }
+    ]
+  }
 }

@@ -40,8 +40,10 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
 
         const portData = PORTS[port.type];
         const parallelSlots = portData?.parallelBuildSlots || 1;
-        const resources = port.owner === 'player' ? gameState.resources : gameState.aiResources?.[port.owner];
-        const isPlayer = !port.owner || port.owner === 'player';
+        const resources = port.owner === 'player' ? gameState.resources
+            : port.owner === 'player2' ? gameState.player2Resources
+            : gameState.aiResources?.[port.owner];
+        const isHuman = !port.owner || port.owner === 'player' || port.owner === 'player2';
 
         // Count currently active builds
         let activeCount = port.buildQueue.filter(item => item.progress !== null).length;
@@ -54,14 +56,14 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
             const shipData = SHIPS[item.shipType];
 
             // Check if we can afford to start this build
-            if (isPlayer && resources) {
+            if (isHuman && resources) {
                 if (canAfford(resources, shipData.cost) && canAffordCrew(gameState, shipData.crewCost || 0)) {
                     deductCost(resources, shipData.cost);
                     item.progress = 0;
                     activeCount++;
                 }
                 // If can't afford, item stays queued (progress remains null)
-            } else if (!isPlayer) {
+            } else if (!isHuman) {
                 // AI always starts building (resources handled elsewhere)
                 item.progress = 0;
                 activeCount++;
