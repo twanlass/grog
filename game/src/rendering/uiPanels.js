@@ -3,6 +3,7 @@ import { drawSprite, drawSpriteHealthTint, getSpriteSize, SHIPS, PORTS, SETTLEME
 import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew, isAIOwner, getResourcesForOwner } from "../gameState.js";
 import { getLocalPlayerId } from "../systems/inputHandler.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
+import { isMobile } from "../mobile.js";
 import {
     drawPanelContainer,
     drawStatusBadge,
@@ -2289,6 +2290,31 @@ export function drawBuildQueuePanel(ctx, port, mousePos) {
  * Draw the selected ships panel at bottom center of screen
  * Shows all selected player ships with health-based color tinting
  */
+// Layout constants shared by drawSelectedShipsPanel and drawActionButtons,
+// so action buttons can stack above the ships panel on mobile.
+const SHIP_PANEL_ITEM_SIZE = 36;
+const SHIP_PANEL_ITEM_SPACING = 6;
+const SHIP_PANEL_PADDING = 10;
+const SHIP_PANEL_ITEMS_PER_ROW = 6;
+const SHIP_PANEL_BOTTOM_MARGIN = 15;
+
+function getSelectedPlayerShipCount(gameState) {
+    let count = 0;
+    for (const u of gameState.selectedUnits) {
+        if (u.type !== 'ship') continue;
+        const ship = gameState.ships[u.index];
+        if (ship && ship.type !== 'pirate' && ship.owner === getLocalPlayerId()) count++;
+    }
+    return count;
+}
+
+function getSelectedShipsPanelHeight(gameState) {
+    const count = getSelectedPlayerShipCount(gameState);
+    if (count === 0) return 0;
+    const numRows = Math.ceil(count / SHIP_PANEL_ITEMS_PER_ROW);
+    return numRows * SHIP_PANEL_ITEM_SIZE + (numRows - 1) * SHIP_PANEL_ITEM_SPACING + SHIP_PANEL_PADDING * 2;
+}
+
 export function drawSelectedShipsPanel(ctx, gameState) {
     const { k, screenWidth, screenHeight } = ctx;
 
@@ -2300,10 +2326,10 @@ export function drawSelectedShipsPanel(ctx, gameState) {
 
     if (selectedShips.length === 0) return null;
 
-    const itemSize = 36;  // 75% of 48
-    const itemSpacing = 6;
-    const panelPadding = 10;
-    const itemsPerRow = 6;
+    const itemSize = SHIP_PANEL_ITEM_SIZE;
+    const itemSpacing = SHIP_PANEL_ITEM_SPACING;
+    const panelPadding = SHIP_PANEL_PADDING;
+    const itemsPerRow = SHIP_PANEL_ITEMS_PER_ROW;
     const shipCount = selectedShips.length;
 
     // Calculate rows and columns
@@ -2314,7 +2340,7 @@ export function drawSelectedShipsPanel(ctx, gameState) {
     const panelWidth = numCols * itemSize + (numCols - 1) * itemSpacing + panelPadding * 2;
     const panelHeight = numRows * itemSize + (numRows - 1) * itemSpacing + panelPadding * 2;
     const panelX = screenWidth / 2 - panelWidth / 2;
-    const panelY = screenHeight - panelHeight - 15;
+    const panelY = screenHeight - panelHeight - SHIP_PANEL_BOTTOM_MARGIN;
 
     // Draw panel background
     k.drawRect({
@@ -2397,6 +2423,13 @@ export function drawActionButtons(ctx, gameState) {
     const { k, screenWidth, screenHeight } = ctx;
     const mousePos = k.mousePos();
 
+    // On mobile, hide action buttons while a placement mode is active so they
+    // don't overlap the placement Cancel button at the bottom of the screen.
+    if (isMobile() && (gameState.portBuildMode.active ||
+        gameState.settlementBuildMode.active || gameState.towerBuildMode.active)) {
+        return null;
+    }
+
     // Check what's selected
     const selectedShips = gameState.selectedUnits
         .filter(u => u.type === 'ship')
@@ -2431,12 +2464,24 @@ export function drawActionButtons(ctx, gameState) {
     const buttonHeight = 32;
     const buttonGap = 6;
 
-    // Position to the left of minimap (minimap is 200px diameter, 15px margin)
-    const minimapLeftEdge = screenWidth - 15 - 200;
-    const buttonsRightEdge = minimapLeftEdge - 10;  // 10px gap from minimap
     const totalWidth = buttons.length * buttonWidth + (buttons.length - 1) * buttonGap;
-    const startX = buttonsRightEdge - totalWidth;
-    const y = screenHeight - 15 - buttonHeight;
+
+    let startX;
+    let y;
+    if (isMobile()) {
+        // On narrow screens, the bottom-right slot collides with the centered
+        // ships panel. Stack the buttons centered above the ships panel instead.
+        startX = screenWidth / 2 - totalWidth / 2;
+        const shipsPanelHeight = getSelectedShipsPanelHeight(gameState);
+        const stackGap = shipsPanelHeight > 0 ? 6 : 0;
+        y = screenHeight - SHIP_PANEL_BOTTOM_MARGIN - shipsPanelHeight - stackGap - buttonHeight;
+    } else {
+        // Position to the left of minimap (minimap is 200px diameter, 15px margin)
+        const minimapLeftEdge = screenWidth - 15 - 200;
+        const buttonsRightEdge = minimapLeftEdge - 10;  // 10px gap from minimap
+        startX = buttonsRightEdge - totalWidth;
+        y = screenHeight - 15 - buttonHeight;
+    }
 
     const bounds = { buttons: [] };
 

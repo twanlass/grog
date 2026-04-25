@@ -3,6 +3,7 @@ import { hexToPixel, hexCorners, hexDistance, HEX_SIZE } from "../hex.js";
 import { isHexExplored } from "../fogOfWar.js";
 import { TOWERS } from "../sprites/index.js";
 import { drawHexRangeFilled, drawHexRangeOutline } from "./renderHelpers.js";
+import { isMobile } from "../mobile.js";
 
 /**
  * Draw a placement highlight for a single hex
@@ -38,9 +39,12 @@ function drawPlacementHighlight(ctx, screenX, screenY, isHovered) {
 }
 
 /**
- * Draw hint text at bottom of screen
+ * Draw hint text at bottom of screen.
+ * On mobile, drawPlacementCancelButton replaces the hint with a tappable button
+ * (since ESC isn't reachable on a touchscreen).
  */
 function drawPlacementHint(ctx, text) {
+    if (isMobile()) return;
     const { k, screenWidth, screenHeight } = ctx;
     k.drawText({
         text,
@@ -49,6 +53,57 @@ function drawPlacementHint(ctx, text) {
         anchor: "center",
         color: k.rgb(255, 255, 200),
     });
+}
+
+/**
+ * Draw a Cancel button (mobile only) when any placement mode is active.
+ * Returns the button bounds so the click handler can dismiss the mode.
+ */
+export function drawPlacementCancelButton(ctx, gameState) {
+    if (!isMobile()) return null;
+    if (!gameState.portBuildMode.active &&
+        !gameState.settlementBuildMode.active &&
+        !gameState.towerBuildMode.active) {
+        return null;
+    }
+
+    const { k, screenWidth, screenHeight } = ctx;
+    const mousePos = k.mousePos();
+
+    const width = 110;
+    const height = 40;
+    const x = screenWidth / 2 - width / 2;
+    const y = screenHeight - 20 - height;
+
+    const isHovered = mousePos.x >= x && mousePos.x <= x + width &&
+                      mousePos.y >= y && mousePos.y <= y + height;
+
+    k.drawRect({
+        pos: k.vec2(x, y),
+        width,
+        height,
+        color: isHovered ? k.rgb(80, 30, 30) : k.rgb(0, 0, 0),
+        radius: 6,
+        opacity: 0.9,
+    });
+    k.drawRect({
+        pos: k.vec2(x, y),
+        width,
+        height,
+        color: k.rgb(0, 0, 0),
+        radius: 6,
+        fill: false,
+        outline: { width: 1, color: k.rgb(180, 80, 80) },
+    });
+    k.drawText({
+        text: "Cancel",
+        pos: k.vec2(x + width / 2, y + height / 2),
+        size: 14,
+        anchor: "center",
+        color: k.rgb(240, 200, 200),
+    });
+
+    return { x, y, width, height };
 }
 
 /**

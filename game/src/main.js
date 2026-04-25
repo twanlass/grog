@@ -11,6 +11,7 @@ import { hexToPixel, pixelToHex, HEX_SIZE } from "./hex.js";
 import { createRenderContext } from "./rendering/renderContext.js";
 import { drawTiles, drawDecorations } from "./rendering/tileRenderer.js";
 import { computeIslands, drawIslandWaves } from "./rendering/waveRenderer.js";
+import { isMobile } from "./mobile.js";
 
 const k = kaplay({
     background: [0, 0, 0], // Pitch black - edge of the world
@@ -1568,6 +1569,14 @@ k.scene("multiplayer-lobby", createMultiplayerLobbyScene(k, (mpConfig) => {
     pendingJoinCode = null;
     return code;
 }));
+
+// Resume audio when the page becomes visible again (mobile suspends AudioContext on background)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (k.audioCtx && k.audioCtx.state === 'suspended') {
+        k.audioCtx.resume().catch(() => {});
+    }
+});
 
 // Start with title screen, or go straight to lobby if join link was used
 if (joinParam) {

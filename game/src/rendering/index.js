@@ -17,7 +17,7 @@ export { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes,
 export { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI } from "./selectionUI.js";
 
 // Placement UI
-export { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "./placementUI.js";
+export { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI, drawPlacementCancelButton } from "./placementUI.js";
 
 // UI Panels
 export { drawResourcePanel, drawGameTitle, drawTimeIndicator, drawShipInfoPanel, drawPanelButton, drawPanelSeparator, drawPanelHeader, drawConstructionStatusPanel, drawPortStorage, drawShipBuildingStatus, drawSimpleUIPanels } from "./uiPanels.js";
