@@ -1024,21 +1024,29 @@ k.scene("title", () => {
     // Treat as mobile if either dimension is small (landscape ~390 high, portrait ~390 wide)
     const isMobileScreen = screenH < 500 || screenW < 700;
 
+    // Filter scenarios for mobile (hide sandbox mode)
+    const displayedScenarios = isMobileScreen
+        ? SCENARIOS.filter(s => s.id !== 'sandbox')
+        : SCENARIOS;
+
     // Adjust sizes for mobile - much more compact
-    const titleSize = isMobileScreen ? 28 : 64;
-    const subtitleSize = isMobileScreen ? 11 : 20;
-    const cardWidth = isMobileScreen ? 110 : 220;
-    const cardHeight = isMobileScreen ? 50 : 100;
-    const cardSpacing = isMobileScreen ? 10 : 30;
-    const labelSize = isMobileScreen ? 10 : 16;
-    const cardTitleSize = isMobileScreen ? 11 : 18;
-    const cardDescSize = isMobileScreen ? 8 : 12;
+    const titleSize = isMobileScreen ? 32 : 64;
+    const subtitleSize = isMobileScreen ? 12 : 20;
+    // Size cards to use available horizontal space on mobile so descriptions fit
+    const cardSpacing = isMobileScreen ? 8 : 30;
+    const cardWidth = isMobileScreen
+        ? Math.min(180, Math.max(110, Math.floor((screenW * 0.92 - (displayedScenarios.length - 1) * cardSpacing) / displayedScenarios.length)))
+        : 220;
+    const cardHeight = isMobileScreen ? 64 : 100;
+    const labelSize = isMobileScreen ? 11 : 16;
+    const cardTitleSize = isMobileScreen ? 12 : 18;
+    const cardDescSize = isMobileScreen ? 9 : 12;
 
     // Vertical spacing - much more compact on mobile
-    const titleY = isMobileScreen ? 25 : screenH * 0.15;
-    const subtitleY = titleY + (isMobileScreen ? 18 : 50);
-    const cardLabelY = subtitleY + (isMobileScreen ? 22 : 50);
-    const cardY = cardLabelY + (isMobileScreen ? 35 : 60);
+    const titleY = isMobileScreen ? 28 : screenH * 0.15;
+    const subtitleY = titleY + (isMobileScreen ? 20 : 50);
+    const cardLabelY = subtitleY + (isMobileScreen ? 24 : 50);
+    const cardY = cardLabelY + (isMobileScreen ? 42 : 60);
 
     // Title text
     k.add([
@@ -1055,11 +1063,6 @@ k.scene("title", () => {
         k.anchor("center"),
         k.color(200, 220, 255),
     ]);
-
-    // Filter scenarios for mobile (hide sandbox mode)
-    const displayedScenarios = isMobileScreen
-        ? SCENARIOS.filter(s => s.id !== 'sandbox')
-        : SCENARIOS;
 
     // Scenario cards layout
     const totalWidth = displayedScenarios.length * cardWidth + (displayedScenarios.length - 1) * cardSpacing;
@@ -1108,10 +1111,14 @@ k.scene("title", () => {
             k.color(255, 255, 255),
         ]);
 
-        // Scenario description
+        // Scenario description (wraps if it would overflow the card)
         k.add([
-            k.text(scenario.description, { size: cardDescSize }),
-            k.pos(cardX, cardY + (isMobileScreen ? 8 : 15)),
+            k.text(scenario.description, {
+                size: cardDescSize,
+                width: cardWidth - 12,
+                align: "center",
+            }),
+            k.pos(cardX, cardY + (isMobileScreen ? 10 : 15)),
             k.anchor("center"),
             k.color(180, 200, 220),
         ]);

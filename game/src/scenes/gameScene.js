@@ -2767,7 +2767,30 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             initTouchHandlers(k.canvas, {
                 // Single tap = left click (select units, tap UI buttons)
                 onTap: (x, y) => {
-                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    if (gameState.gameOver) return;
+
+                    // Handle surrender button taps before blocking other input
+                    if (gameState.surrenderPending) {
+                        if (surrenderButtonBounds) {
+                            const accept = surrenderButtonBounds.accept;
+                            const decline = surrenderButtonBounds.decline;
+                            if (x >= accept.x && x <= accept.x + accept.width &&
+                                y >= accept.y && y <= accept.y + accept.height) {
+                                const aiOwner = gameState.surrenderPending;
+                                gameState.settlements = gameState.settlements.filter(s => s.owner !== aiOwner);
+                                gameState.surrenderPending = null;
+                                return;
+                            }
+                            if (x >= decline.x && x <= decline.x + decline.width &&
+                                y >= decline.y && y <= decline.y + decline.height) {
+                                gameState.surrenderDeclined[gameState.surrenderPending] = true;
+                                gameState.surrenderPending = null;
+                                return;
+                            }
+                        }
+                        return;
+                    }
+
                     // Set virtual mouse position for the click handler
                     virtualMousePos = { x, y };
                     selectStartX = x;
