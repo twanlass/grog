@@ -1836,17 +1836,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // H to center camera on home port
-        k.onKeyPress("h", () => {
+        // Snap camera to home port and reset zoom (used by H key and mobile minimap double-tap)
+        function snapCameraHome() {
             const homePortIndex = getHomePortIndex(gameState, map);
             if (homePortIndex !== null) {
                 const homePort = gameState.ports[homePortIndex];
                 const pos = hexToPixel(homePort.q, homePort.r);
                 cameraX = pos.x;
                 cameraY = pos.y;
-                zoom = 1;  // Reset zoom when snapping home
+                zoom = 1;
             }
-        });
+        }
+
+        // H to center camera on home port
+        k.onKeyPress("h", snapCameraHome);
 
         // Space to return to title when game over or disconnected
         k.onKeyPress("space", () => {
@@ -2763,6 +2766,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // === MOBILE TOUCH SUPPORT ===
         // Initialize touch handlers for mobile devices
+        let lastMinimapTapTime = 0;
+        const MINIMAP_DOUBLE_TAP_THRESHOLD = 400;  // ms
         if (isMobile) {
             initTouchHandlers(k.canvas, {
                 // Single tap = left click (select units, tap UI buttons)
@@ -2787,6 +2792,21 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                                 gameState.surrenderPending = null;
                                 return;
                             }
+                        }
+                        return;
+                    }
+
+                    // Tap on minimap: single tap navigates camera, double tap snaps home
+                    const minimapClick = minimapClickToWorld(x, y, minimapBounds, minimapState);
+                    if (minimapClick.hit) {
+                        const now = Date.now();
+                        if (now - lastMinimapTapTime < MINIMAP_DOUBLE_TAP_THRESHOLD) {
+                            snapCameraHome();
+                            lastMinimapTapTime = 0;
+                        } else {
+                            cameraX = minimapClick.worldX;
+                            cameraY = minimapClick.worldY;
+                            lastMinimapTapTime = now;
                         }
                         return;
                     }
