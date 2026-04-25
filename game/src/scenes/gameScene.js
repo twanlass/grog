@@ -19,7 +19,7 @@ function seededRandom(seed) {
 import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
 import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
-import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
+import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI, drawPlacementCancelButton } from "../rendering/placementUI.js";
 import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
@@ -394,6 +394,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let selectStartY = 0;
         let selectEndX = 0;
         let selectEndY = 0;
+        // Threshold for distinguishing a click from a drag on left-mouse. Mobile
+        // input is dispatched via the touch handler instead, so this stays small.
         const DRAG_THRESHOLD = 5;
 
         // Double-click state (for selecting all units of same type)
@@ -421,6 +423,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let surrenderButtonBounds = null;  // For surrender Accept/Decline buttons
         let minimapBounds = null;  // For minimap click-to-navigate
         let actionButtonBounds = null;  // For action buttons (Move, Attack, Patrol)
+        let placementCancelBounds = null;  // For mobile cancel button during placement modes
         let gameMenuOpen = false;  // Game menu dropdown state
         let speedSubmenuOpen = false;  // Speed submenu state
         let gameMenuBounds = null;  // For game menu click detection
@@ -1061,6 +1064,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Draw placement mode UI (migrated to rendering module)
             const placementValidators = { isValidPortSite, isValidSettlementSite, isValidTowerSite };
             drawAllPlacementUI(ctx, gameState, map, tilePositions, fogState, pixelToHex, placementValidators);
+            placementCancelBounds = drawPlacementCancelButton(ctx, gameState);
 
             // Draw selection box (migrated to rendering module)
             drawSelectionBox(ctx, isSelecting, selectStartX, selectStartY, selectEndX, selectEndY);
@@ -2106,6 +2110,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                 // Click outside panel - close it
                 debugPanelOpen = false;
+                return;
+            }
+
+            // Mobile cancel button for placement modes (no ESC key on touch devices)
+            if (placementCancelBounds &&
+                mouseX >= placementCancelBounds.x && mouseX <= placementCancelBounds.x + placementCancelBounds.width &&
+                mouseY >= placementCancelBounds.y && mouseY <= placementCancelBounds.y + placementCancelBounds.height) {
+                playUIClick();
+                if (gameState.portBuildMode.active) exitPortBuildMode(gameState);
+                else if (gameState.settlementBuildMode.active) exitSettlementBuildMode(gameState);
+                else if (gameState.towerBuildMode.active) exitTowerBuildMode(gameState);
                 return;
             }
 
