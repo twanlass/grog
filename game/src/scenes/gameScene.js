@@ -1362,7 +1362,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 });
 
                 k.drawText({
-                    text: "Press SPACE to continue",
+                    text: isMobile ? "Tap to continue" : "Press SPACE to continue",
                     pos: k.vec2(screenWidth / 2, screenHeight / 2 + 60),
                     size: 14,
                     anchor: "center",
@@ -2772,7 +2772,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             initTouchHandlers(k.canvas, {
                 // Single tap = left click (select units, tap UI buttons)
                 onTap: (x, y) => {
-                    if (gameState.gameOver) return;
+                    // Tap to dismiss game-over / disconnect overlay (mobile has no SPACE key)
+                    if (gameState.gameOver || disconnectOverlay) {
+                        cleanupAudio();
+                        if (isMultiplayer) {
+                            disconnect();
+                        }
+                        k.go("title");
+                        return;
+                    }
 
                     // Handle surrender button taps before blocking other input
                     if (gameState.surrenderPending) {
