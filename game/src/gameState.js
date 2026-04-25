@@ -1206,10 +1206,10 @@ export function computeCrewStatus(gameState, owner = 'player') {
     let cap = 0;
     let used = 0;
 
-    // Ports contribute to cap (only completed ports owned by this player)
+    // Ports contribute to cap (completed ports, plus ports mid-upgrade keep their current tier's contribution)
     for (const port of gameState.ports) {
         if (port.owner !== owner) continue;
-        if (!port.construction) {
+        if (!port.construction || port.construction.upgradeTo) {
             const portData = PORTS[port.type];
             cap += portData.crewCapContribution || 0;
         }
