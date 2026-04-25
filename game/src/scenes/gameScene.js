@@ -374,6 +374,40 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const ambientOcean = k.play("ambient-ocean", { loop: true, volume: 0.25 });
         const ambientMusic = k.play("ambient-music", { loop: true, volume: 0.25 });
 
+        // Mobile/tab switching: resume audio when page becomes visible again.
+        // iOS/Safari suspends the AudioContext when the app is backgrounded, and Kaplay's
+        // audio handles need a kick to resume looped playback.
+        let audioListenerActive = true;
+        function handleVisibilityChange() {
+            if (!audioListenerActive) return;
+            if (document.visibilityState !== 'visible') return;
+            try {
+                // Resume the underlying AudioContext if suspended
+                const ctx = k.audioCtx || (k.audio && k.audio.ctx);
+                if (ctx && typeof ctx.resume === 'function' && ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+                // Re-apply paused state to nudge handles back into playback
+                const shouldPauseAudio = gameState.timeScale === 0;
+                ambientOcean.paused = true;
+                ambientMusic.paused = true;
+                ambientOcean.paused = shouldPauseAudio;
+                ambientMusic.paused = shouldPauseAudio;
+            } catch (e) {
+                audioListenerActive = false;
+            }
+        }
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pageshow', handleVisibilityChange);
+
+        function cleanupAudio() {
+            audioListenerActive = false;
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pageshow', handleVisibilityChange);
+            ambientOcean.stop();
+            ambientMusic.stop();
+        }
+
         // Selection hit detection radius (in world units)
         const SELECTION_RADIUS = HEX_SIZE * 1.2;
 
@@ -421,6 +455,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let surrenderButtonBounds = null;  // For surrender Accept/Decline buttons
         let minimapBounds = null;  // For minimap click-to-navigate
         let actionButtonBounds = null;  // For action buttons (Move, Attack, Patrol)
+        let placementCancelBounds = null;  // Mobile-only Cancel button shown during placement modes
         let gameMenuOpen = false;  // Game menu dropdown state
         let speedSubmenuOpen = false;  // Speed submenu state
         let gameMenuBounds = null;  // For game menu click detection
@@ -1060,7 +1095,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Draw placement mode UI (migrated to rendering module)
             const placementValidators = { isValidPortSite, isValidSettlementSite, isValidTowerSite };
-            drawAllPlacementUI(ctx, gameState, map, tilePositions, fogState, pixelToHex, placementValidators);
+            placementCancelBounds = drawAllPlacementUI(ctx, gameState, map, tilePositions, fogState, pixelToHex, placementValidators);
 
             // Draw selection box (migrated to rendering module)
             drawSelectionBox(ctx, isSelecting, selectStartX, selectStartY, selectEndX, selectEndY);
@@ -1816,8 +1851,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Space to return to title when game over or disconnected
         k.onKeyPress("space", () => {
             if (gameState.gameOver || disconnectOverlay) {
-                ambientOcean.stop();
-                ambientMusic.stop();
+                cleanupAudio();
                 if (isMultiplayer) {
                     disconnect();
                 }
@@ -2109,6 +2143,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 return;
             }
 
+            // Mobile cancel button (shown during placement modes) - check before placement clicks
+            if (placementCancelBounds &&
+                mouseX >= placementCancelBounds.x && mouseX <= placementCancelBounds.x + placementCancelBounds.width &&
+                mouseY >= placementCancelBounds.y && mouseY <= placementCancelBounds.y + placementCancelBounds.height) {
+                if (gameState.portBuildMode.active) exitPortBuildMode(gameState);
+                else if (gameState.settlementBuildMode.active) exitSettlementBuildMode(gameState);
+                else if (gameState.towerBuildMode.active) exitTowerBuildMode(gameState);
+                playUIClick();
+                return;
+            }
+
             // Handle placement mode clicks first
             if (handlePortPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
             if (handleSettlementPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
@@ -2156,8 +2201,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                             gameMenuOpen = false;
                             speedSubmenuOpen = false;
                         } else if (item.id === 'quit') {
-                            ambientOcean.stop();
-                            ambientMusic.stop();
+                            cleanupAudio();
                             if (isMultiplayer) {
                                 disconnect();
                             }
@@ -2198,15 +2242,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) {
                 playUIClick();
                 flushGuestCommands();
-                // On mobile, close panel after tapping a build option
-                if (isMobile) clearSelection(gameState);
+                // On mobile, close panel only when entering a placement mode (so the map is visible)
+                if (isMobile && (gameState.portBuildMode.active || gameState.towerBuildMode.active)) {
+                    clearSelection(gameState);
+                }
                 return;
             }
             if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) {
                 playUIClick();
                 flushGuestCommands();
-                // On mobile, close panel after tapping a build option
-                if (isMobile) clearSelection(gameState);
+                // On mobile, close panel only when entering a placement mode. Keep the dock
+                // selected after queueing a ship so the player can queue more without re-tapping.
+                if (isMobile && (gameState.settlementBuildMode.active || gameState.towerBuildMode.active || gameState.portBuildMode.active)) {
+                    clearSelection(gameState);
+                }
                 return;
             }
             if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
@@ -2459,6 +2508,21 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Right-click handler for commands (attack, waypoint, trade route, unload)
         // Acts like Command+click but without needing the modifier key
         function handleRightClick() {
+            // Cancel any active placement mode (matches desktop right-click behavior;
+            // on mobile this is reached via long-press)
+            if (gameState.portBuildMode.active) {
+                exitPortBuildMode(gameState);
+                return;
+            }
+            if (gameState.settlementBuildMode.active) {
+                exitSettlementBuildMode(gameState);
+                return;
+            }
+            if (gameState.towerBuildMode.active) {
+                exitTowerBuildMode(gameState);
+                return;
+            }
+
             const mousePos = getMousePos();
             const mouseX = mousePos.x;
             const mouseY = mousePos.y;

@@ -3,6 +3,7 @@ import { drawSprite, drawSpriteHealthTint, getSpriteSize, SHIPS, PORTS, SETTLEME
 import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew, isAIOwner, getResourcesForOwner } from "../gameState.js";
 import { getLocalPlayerId } from "../systems/inputHandler.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
+import { isTouchDevice } from "../systems/touchHandler.js";
 import {
     drawPanelContainer,
     drawStatusBadge,
@@ -2314,7 +2315,10 @@ export function drawSelectedShipsPanel(ctx, gameState) {
     const panelWidth = numCols * itemSize + (numCols - 1) * itemSpacing + panelPadding * 2;
     const panelHeight = numRows * itemSize + (numRows - 1) * itemSpacing + panelPadding * 2;
     const panelX = screenWidth / 2 - panelWidth / 2;
-    const panelY = screenHeight - panelHeight - 15;
+    // On mobile, lift the panel above the action buttons (32 high + 6 gap below them)
+    // so the centered HUD doesn't cover Move/Attack/Patrol when many ships are selected.
+    const bottomOffset = isTouchDevice() ? 15 + 32 + 6 : 15;
+    const panelY = screenHeight - panelHeight - bottomOffset;
 
     // Draw panel background
     k.drawRect({

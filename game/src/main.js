@@ -1018,10 +1018,11 @@ k.scene("title", () => {
         }
     });
 
-    // Responsive layout for mobile landscape
+    // Responsive layout for mobile (landscape and portrait)
     const screenW = k.width();
     const screenH = k.height();
-    const isMobileScreen = screenH < 500;  // Mobile landscape typically ~390px high
+    // Treat as mobile if either dimension is small (landscape ~390 high, portrait ~390 wide)
+    const isMobileScreen = screenH < 500 || screenW < 700;
 
     // Adjust sizes for mobile - much more compact
     const titleSize = isMobileScreen ? 28 : 64;
