@@ -2767,6 +2767,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // === MOBILE TOUCH SUPPORT ===
         // Initialize touch handlers for mobile devices
         let lastMinimapTapTime = 0;
+        let pendingMinimapTap = null;
         const MINIMAP_DOUBLE_TAP_THRESHOLD = 400;  // ms
         if (isMobile) {
             initTouchHandlers(k.canvas, {
@@ -2808,13 +2809,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const minimapClick = minimapClickToWorld(x, y, minimapBounds, minimapState);
                     if (minimapClick.hit) {
                         const now = Date.now();
-                        if (now - lastMinimapTapTime < MINIMAP_DOUBLE_TAP_THRESHOLD) {
-                            snapCameraHome();
+                        if (pendingMinimapTap !== null && now - lastMinimapTapTime < MINIMAP_DOUBLE_TAP_THRESHOLD) {
+                            clearTimeout(pendingMinimapTap);
+                            pendingMinimapTap = null;
                             lastMinimapTapTime = 0;
+                            snapCameraHome();
                         } else {
-                            cameraX = minimapClick.worldX;
-                            cameraY = minimapClick.worldY;
+                            const targetX = minimapClick.worldX;
+                            const targetY = minimapClick.worldY;
                             lastMinimapTapTime = now;
+                            pendingMinimapTap = setTimeout(() => {
+                                cameraX = targetX;
+                                cameraY = targetY;
+                                pendingMinimapTap = null;
+                            }, MINIMAP_DOUBLE_TAP_THRESHOLD);
                         }
                         return;
                     }
