@@ -1029,24 +1029,32 @@ k.scene("title", () => {
         ? SCENARIOS.filter(s => s.id !== 'sandbox')
         : SCENARIOS;
 
-    // Adjust sizes for mobile - much more compact
-    const titleSize = isMobileScreen ? 32 : 64;
-    const subtitleSize = isMobileScreen ? 12 : 20;
+    // Adjust sizes for mobile - readable on small screens
+    const isVeryNarrow = isMobileScreen && screenW < 460;
+    const titleSize = isMobileScreen ? (isVeryNarrow ? 34 : 40) : 64;
+    const subtitleSize = isMobileScreen ? 14 : 20;
     // Size cards to use available horizontal space on mobile so descriptions fit
-    const cardSpacing = isMobileScreen ? 8 : 30;
+    const cardSpacing = isMobileScreen ? (isVeryNarrow ? 6 : 12) : 30;
+    const cardMinWidth = isVeryNarrow ? 100 : 140;
     const cardWidth = isMobileScreen
-        ? Math.min(180, Math.max(110, Math.floor((screenW * 0.92 - (displayedScenarios.length - 1) * cardSpacing) / displayedScenarios.length)))
+        ? Math.min(220, Math.max(cardMinWidth, Math.floor((screenW * 0.96 - (displayedScenarios.length - 1) * cardSpacing) / displayedScenarios.length)))
         : 220;
-    const cardHeight = isMobileScreen ? 64 : 100;
-    const labelSize = isMobileScreen ? 11 : 16;
-    const cardTitleSize = isMobileScreen ? 12 : 18;
-    const cardDescSize = isMobileScreen ? 9 : 12;
+    const cardHeight = isMobileScreen ? 80 : 100;
+    const labelSize = isMobileScreen ? 14 : 16;
+    const cardTitleSize = isMobileScreen ? (isVeryNarrow ? 13 : 15) : 18;
+    const cardDescSize = isMobileScreen ? (isVeryNarrow ? 10 : 11) : 12;
 
-    // Vertical spacing - much more compact on mobile
-    const titleY = isMobileScreen ? 28 : screenH * 0.15;
-    const subtitleY = titleY + (isMobileScreen ? 20 : 50);
-    const cardLabelY = subtitleY + (isMobileScreen ? 24 : 50);
-    const cardY = cardLabelY + (isMobileScreen ? 42 : 60);
+    // Vertical spacing - center content block on mobile to use space evenly
+    // Content: title, subtitle, label, cards, start button (with copyright at bottom)
+    const startBtnHeightMobile = 40;
+    const contentHeightMobile = titleSize + 8 + subtitleSize + 22 + labelSize + 16 + cardHeight + 22 + startBtnHeightMobile;
+    const bottomReserveMobile = 40; // reserve for copyright/breathing room
+    const contentTopMobile = Math.max(20, (screenH - contentHeightMobile - bottomReserveMobile) / 2);
+
+    const titleY = isMobileScreen ? contentTopMobile + titleSize / 2 : screenH * 0.15;
+    const subtitleY = titleY + (isMobileScreen ? titleSize / 2 + 8 + subtitleSize / 2 : 50);
+    const cardLabelY = subtitleY + (isMobileScreen ? subtitleSize / 2 + 22 + labelSize / 2 : 50);
+    const cardY = cardLabelY + (isMobileScreen ? labelSize / 2 + 16 + cardHeight / 2 : 60);
 
     // Title text
     k.add([
@@ -1106,7 +1114,7 @@ k.scene("title", () => {
         // Scenario name
         k.add([
             k.text(scenario.name.toUpperCase(), { size: cardTitleSize }),
-            k.pos(cardX, cardY - (isMobileScreen ? 6 : 15)),
+            k.pos(cardX, cardY - (isMobileScreen ? 14 : 15)),
             k.anchor("center"),
             k.color(255, 255, 255),
         ]);
@@ -1118,7 +1126,7 @@ k.scene("title", () => {
                 width: cardWidth - 12,
                 align: "center",
             }),
-            k.pos(cardX, cardY + (isMobileScreen ? 10 : 15)),
+            k.pos(cardX, cardY + (isMobileScreen ? 14 : 15)),
             k.anchor("center"),
             k.color(180, 200, 220),
         ]);
@@ -1140,12 +1148,12 @@ k.scene("title", () => {
     });
 
     // Dropdown button and menu dimensions - responsive
-    const difficultyBtnWidth = isMobileScreen ? 50 : 80;
-    const aiCountBtnWidth = isMobileScreen ? 65 : 105;
-    const dropdownBtnHeight = isMobileScreen ? 18 : 28;
-    const dropdownBtnSpacing = isMobileScreen ? 4 : 10;
-    const dropdownY = cardY + cardHeight / 2 + (isMobileScreen ? 5 : 15);
-    const dropdownFontSize = isMobileScreen ? 8 : 12;
+    const difficultyBtnWidth = isMobileScreen ? 70 : 80;
+    const aiCountBtnWidth = isMobileScreen ? 95 : 105;
+    const dropdownBtnHeight = isMobileScreen ? 22 : 28;
+    const dropdownBtnSpacing = isMobileScreen ? 6 : 10;
+    const dropdownY = cardY + cardHeight / 2 + (isMobileScreen ? 6 : 15);
+    const dropdownFontSize = isMobileScreen ? 11 : 12;
 
     // Total width of both buttons for centering
     const totalDropdownWidth = difficultyBtnWidth + dropdownBtnSpacing + aiCountBtnWidth;
@@ -1180,10 +1188,10 @@ k.scene("title", () => {
     }
 
     // Start button - responsive
-    const playY = cardY + cardHeight / 2 + (isMobileScreen ? 28 : 70);
-    const startBtnWidth = isMobileScreen ? 70 : 120;
-    const startBtnHeight = isMobileScreen ? 28 : 60;
-    const startBtnFontSize = isMobileScreen ? 14 : 22;
+    const playY = cardY + cardHeight / 2 + (isMobileScreen ? 22 + startBtnHeightMobile / 2 : 70);
+    const startBtnWidth = isMobileScreen ? 110 : 120;
+    const startBtnHeight = isMobileScreen ? startBtnHeightMobile : 60;
+    const startBtnFontSize = isMobileScreen ? 18 : 22;
     const startBtnBg = k.add([
         k.rect(startBtnWidth, startBtnHeight, { radius: 6 }),
         k.pos(screenW / 2, playY),
