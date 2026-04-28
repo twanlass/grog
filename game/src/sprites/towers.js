@@ -89,6 +89,7 @@ export const TOWERS = {
         damage: 5,
         projectileCount: 1,
         sightDistance: 6,
+        splash: { minRadius: 1, maxRadius: 3, bonusDamage: 0.25 },
         description: "Single cannon tower",
     },
     cannonBattery: {
@@ -103,6 +104,7 @@ export const TOWERS = {
         damage: 5,
         projectileCount: 2,
         sightDistance: 8,
+        splash: { minRadius: 1, maxRadius: 3, bonusDamage: 0.25 },
         description: "Dual cannon tower",
     },
 };

@@ -22,6 +22,10 @@ Ships can construct defensive towers on nearby land. Towers automatically attack
 - Completed towers automatically fire at pirates within 3 hexes
 - Towers fire every 4 seconds (fireCooldown)
 - Each shot deals 5 damage (same as ships)
+- **Splash damage** (Mortar Tower, Cannon Battery only):
+  - On hit, damages nearby enemy ships within random radius (1-3 hexes)
+  - Splash damage = base damage × random multiplier (1.0 to 1.25)
+  - Visual feedback: wood splinter particles on splash-hit ships
 - Towers have 30 HP and can be destroyed by pirates
 - Towers show a health bar when selected or in combat
 - Hit flash effect when taking damage
@@ -93,16 +97,21 @@ gameState.towerBuildMode = {
 ### Tower metadata (sprites/towers.js)
 ```javascript
 TOWERS = {
-    tower: {
-        name: "Tower",
-        sprite: TOWER,
+    mortarTower: {
+        name: "Mortar Tower",
         buildTime: 15,
-        health: 30,
+        health: 60,
         cost: { wood: 25 },
-        attackRange: 3,      // hexes
+        attackRange: 4,      // hexes
         fireCooldown: 4,     // seconds between shots
         damage: 5,
-        sightDistance: 3,
+        projectileCount: 1,
+        sightDistance: 6,
+        splash: { minRadius: 1, maxRadius: 3, bonusDamage: 0.25 },
+    },
+    cannonBattery: {
+        // ... similar with projectileCount: 2
+        splash: { minRadius: 1, maxRadius: 3, bonusDamage: 0.25 },
     },
 }
 ```
