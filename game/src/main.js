@@ -178,34 +178,53 @@ k.loadShader("healthOverlay", null, `
     }
 `);
 
+// === TITLE MUSIC (module-scoped so it persists across title-scene re-entry on resize) ===
+let titleMusic = null;
+let musicStarted = false;
+
+function playTitleMusic() {
+    titleMusic = k.play("title-music", { volume: 0.5 });
+    titleMusic.onEnd(() => {
+        // 10 second delay before repeating
+        k.wait(10, () => {
+            playTitleMusic();
+        });
+    });
+}
+
+function startTitleMusicIfNeeded() {
+    if (!musicStarted) {
+        musicStarted = true;
+        playTitleMusic();
+    }
+}
+
+// Re-render the title scene on viewport resize / device rotation. Layout is
+// computed once at scene start (entities placed via k.add()/k.pos()), so the
+// simplest correct fix is to rebuild the scene when dimensions change.
+let titleSceneActive = false;
+let resizeRerunPending = false;
+function scheduleTitleRerun() {
+    if (!titleSceneActive || resizeRerunPending) return;
+    resizeRerunPending = true;
+    // Defer slightly so iOS/Android settle on final dimensions after rotation.
+    setTimeout(() => {
+        resizeRerunPending = false;
+        if (titleSceneActive) k.go("title");
+    }, 150);
+}
+window.addEventListener("resize", scheduleTitleRerun);
+window.addEventListener("orientationchange", scheduleTitleRerun);
+
 // Register scenes
 k.scene("title", () => {
+    titleSceneActive = true;
+
     // Set custom cursor
     k.setCursor("url('/sprites/assets/cursor.png'), auto");
 
-    // === TITLE MUSIC ===
-    let titleMusic = null;
-    let musicStarted = false;
-
-    function playTitleMusic() {
-        titleMusic = k.play("title-music", { volume: 0.5 });
-        titleMusic.onEnd(() => {
-            // 10 second delay before repeating
-            k.wait(10, () => {
-                playTitleMusic();
-            });
-        });
-    }
-
-    // Start music on first user interaction (browsers block autoplay)
-    function startMusicOnInteraction() {
-        if (!musicStarted) {
-            musicStarted = true;
-            playTitleMusic();
-        }
-    }
-    k.onClick(() => startMusicOnInteraction());
-    k.onKeyPress(() => startMusicOnInteraction());
+    k.onClick(() => startTitleMusicIfNeeded());
+    k.onKeyPress(() => startTitleMusicIfNeeded());
 
     // === GENERATE MAP FOR BACKGROUND ===
     // Extra tall map to cover the parallelogram shape of hex grid
@@ -1257,7 +1276,10 @@ k.scene("title", () => {
 
         if (titleMusic) {
             titleMusic.stop();
+            titleMusic = null;
         }
+        musicStarted = false;
+        titleSceneActive = false;
 
         // Multiplayer goes to lobby first
         if (selectedScenarioId === 'multiplayer') {
