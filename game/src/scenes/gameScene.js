@@ -1578,14 +1578,23 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let currentCursor = CURSOR_DEFAULT;
         k.setCursor(currentCursor);
 
-        // Calculate camera bounds based on map size (with some padding)
-        const mapMinPos = hexToPixel(0, 0);
-        const mapMaxPos = hexToPixel(map.width - 1, map.height - 1);
+        // Calculate camera bounds from actual tile positions.
+        // The map is generated as a rectangle in offset coords (q = col - floor(row/2)),
+        // so its pixel extent doesn't match hexToPixel(0,0)..hexToPixel(width-1,height-1).
+        let mapMinXPx = Infinity, mapMaxXPx = -Infinity;
+        let mapMinYPx = Infinity, mapMaxYPx = -Infinity;
+        for (const tile of map.tiles.values()) {
+            const pos = hexToPixel(tile.q, tile.r);
+            if (pos.x < mapMinXPx) mapMinXPx = pos.x;
+            if (pos.x > mapMaxXPx) mapMaxXPx = pos.x;
+            if (pos.y < mapMinYPx) mapMinYPx = pos.y;
+            if (pos.y > mapMaxYPx) mapMaxYPx = pos.y;
+        }
         const cameraPadding = HEX_SIZE * 4; // Allow some padding beyond map edges
-        const cameraMinX = mapMinPos.x - cameraPadding;
-        const cameraMaxX = mapMaxPos.x + cameraPadding;
-        const cameraMinY = mapMinPos.y - cameraPadding;
-        const cameraMaxY = mapMaxPos.y + cameraPadding;
+        const cameraMinX = mapMinXPx - cameraPadding;
+        const cameraMaxX = mapMaxXPx + cameraPadding;
+        const cameraMinY = mapMinYPx - cameraPadding;
+        const cameraMaxY = mapMaxYPx + cameraPadding;
 
         // Helper to clamp camera position within bounds
         function clampCamera() {
