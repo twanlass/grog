@@ -89,6 +89,24 @@ The `updateCombat()` function handles:
 - Projectile movement and hit detection
 - Damage application and unit destruction
 - Pirate respawn timers
+- `pendingShots` queue draining (staggered bursts)
+- `burstCooldown` decrement
+
+#### Special Abilities (Burst Attacks)
+
+Ships can opt into a special-button ability by adding a `burstAttack` block in `sprites/ships.js`:
+
+```js
+SHIPS.cutter.burstAttack = {
+    name: "Broadside",
+    shots: 5,
+    staggerDelay: 0.2,
+    cooldown: 60,
+    hotkey: "B",
+};
+```
+
+The action button, hotkey wiring, cooldown UI, and host-side multiplayer command (`BROADSIDE`) all key off this config — no per-ship-type code changes required. Use `triggerBroadside()` for the fire logic. See [Combat](combat.md) for the full pattern.
 
 ### AI Opponent
 **File:** `src/systems/aiPlayer.js`

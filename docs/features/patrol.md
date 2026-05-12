@@ -29,6 +29,15 @@ Patrolling ships automatically engage nearby enemies (pirates and AI ships):
 4. If chase exceeds `maxChaseDistance`, ship gives up and enters cooldown
 5. When enemy is destroyed OR chase limit reached, ship resumes patrol from its route
 
+### Patrol vs Attack-Move
+
+`handlePatrolAutoAttack()` is shared by two behaviors:
+
+- **Patrolling** ships (`ship.isPatrolling`) scan only for enemy **ships** (pirates / opposing ships)
+- **Attack-move** ships (`ship.guardMode`, set by A-click) additionally scan enemy **ports, settlements, and towers**, so they cascade through a base after destroying the initial target
+
+Structure scanning is gated on `guardMode` specifically so patrol behavior is unchanged. Cmd+click / right-click attack-target orders leave `guardMode = false` and the ship stops on kill. See [Combat](combat.md) for full semantics.
+
 ### Detection and Chase Limits
 
 | Ship | sightDistance | maxChaseDistance |
@@ -101,7 +110,7 @@ Patrol routes always show the complete loop connecting all waypoints, including 
 - `drawPatrolWaypointMarker()` - Draws dot markers
 
 ### combat.js
-- `handlePatrolAutoAttack(gameState)` - Detects pirates within sightDistance, sets `attackTarget`
+- `handlePatrolAutoAttack(gameState, map)` - Detects pirates within sightDistance, sets `attackTarget`. For `guardMode` ships also scans ports/settlements/towers (requires `map` to check that a water tile exists within attack range)
 - `handlePatrolChase(gameState)` - Navigates patrolling ships toward attack targets
 - `cleanupStaleReferences()` - Resumes patrol when target destroyed (restores `waypoints` from `patrolRoute`)
 

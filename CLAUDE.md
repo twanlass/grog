@@ -44,8 +44,9 @@ game/
 ## Feature Documentation
 See `docs/features/` for detailed feature docs. **Read the relevant feature doc before modifying a feature** to understand the data structures, key functions, and edge cases.
 
-- [Adding Features](docs/features/adding-features.md) - Where to add new game features
+- [Adding Features](docs/features/_adding-features.md) - Where to add new game features
 - [AI Opponent](docs/features/ai-opponent.md) - Versus mode AI
+- [Combat](docs/features/combat.md) - Action modes, attack-move, Broadside burst attacks
 - [Fog of War](docs/features/fog-of-war.md)
 - [Multiplayer](docs/features/multiplayer.md) - P2P WebRTC multiplayer via PeerJS
 - [Ship Building](docs/features/ship-building.md)
@@ -54,6 +55,8 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [Tower Building](docs/features/tower-building.md)
 - [Trade Routes](docs/features/trade-routes.md)
 - [Patrol Routes](docs/features/patrol.md)
+- [Pirates](docs/features/pirates.md)
+- [Sea Birds](docs/features/sea-birds.md)
 - [Repair](docs/features/repair.md)
 - [Tooltips](docs/features/tooltips.md)
 
