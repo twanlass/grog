@@ -10,9 +10,10 @@ import {
     findFreeAdjacentWater, findNearestWaterInRange, findNearbyWaitingHex, getHomePortIndex,
     canAffordCrew, showNotification, isAIOwner, getResourcesForOwner
 } from "../gameState.js";
-import { hexKey } from "../hex.js";
+import { hexKey, hexDistance } from "../hex.js";
 import { findNearestWater, distributeDestinations } from "../pathfinding.js";
 import { startRepair } from "./repair.js";
+import { triggerBroadside } from "./combat.js";
 import { COMMAND_TYPES } from "../networking/commands.js";
 
 // Local player identity — set via setLocalPlayerId() for multiplayer
@@ -968,6 +969,115 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
     }
 
     return false;
+}
+
+/**
+ * Handle a click while in Broadside targeting mode.
+ * Searches the click location for an enemy ship/port/settlement/tower and,
+ * if found, fires a burst from every selected player Cutter currently in
+ * range and off-cooldown.
+ *
+ * Returns one of:
+ *   - null if no enemy was clicked (stay in mode, no notification)
+ *   - { fired: true, targetType, targetId } if at least one ship fired
+ *   - { fired: false, reason: 'out-of-range' } if a target was clicked but
+ *     no eligible ship was in attack range
+ */
+export function handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPos) {
+    // Eligible ships: player-owned, has burstAttack config, off-cooldown, not building
+    const eligibleShips = [];
+    for (const sel of gameState.selectedUnits) {
+        if (sel.type !== 'ship') continue;
+        const ship = gameState.ships[sel.index];
+        if (!ship || ship.type === 'pirate') continue;
+        if (isNonLocal(ship.owner)) continue;
+        if (isShipBuildingPort(sel.index, gameState.ports)) continue;
+        if (isShipBuildingTower(sel.index, gameState.towers)) continue;
+        const shipData = SHIPS[ship.type];
+        if (!shipData || !shipData.burstAttack) continue;
+        if (ship.burstCooldown > 0) continue;
+        eligibleShips.push({ ship, index: sel.index });
+    }
+    if (eligibleShips.length === 0) return null;
+
+    // Helper to attempt firing at a found target.
+    // Returns { fired: number, anyInRange: boolean }.
+    function fireAt(targetType, targetIndex, target) {
+        let fired = 0;
+        let anyInRange = false;
+        for (const { ship, index } of eligibleShips) {
+            const shipData = SHIPS[ship.type];
+            const attackDistance = shipData.attackDistance || 2;
+            if (hexDistance(ship.q, ship.r, target.q, target.r) > attackDistance) continue;
+            anyInRange = true;
+            // Set attackTarget so the red-highlight + post-burst auto-fire takes over
+            ship.attackTarget = { type: targetType, index: targetIndex };
+            if (triggerBroadside(gameState, index, targetType, targetIndex)) {
+                fired++;
+            }
+        }
+        return { fired, anyInRange };
+    }
+
+    // Walk ships → ports → settlements → towers, same order as handleAttackClick
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const target = gameState.ships[i];
+        const isEnemy = target.type === 'pirate' || isNonLocal(target.owner);
+        if (!isEnemy) continue;
+        const pos = getShipVisualPos ? getShipVisualPos(target) : hexToPixel(target.q, target.r);
+        const dx = worldX - pos.x;
+        const dy = worldY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+            const result = fireAt('ship', i, target);
+            if (result.fired > 0) {
+                gameState.attackTargetShipIndex = i;
+                return { fired: true, targetType: 'ship', targetId: target.id };
+            }
+            if (result.anyInRange) continue;
+            return { fired: false, reason: 'out-of-range' };
+        }
+    }
+
+    for (let i = 0; i < gameState.ports.length; i++) {
+        const target = gameState.ports[i];
+        if (!isNonLocal(target.owner)) continue;
+        const pos = hexToPixel(target.q, target.r);
+        const dx = worldX - pos.x;
+        const dy = worldY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+            const result = fireAt('port', i, target);
+            if (result.fired > 0) return { fired: true, targetType: 'port', targetId: target.id };
+            return { fired: false, reason: 'out-of-range' };
+        }
+    }
+
+    for (let i = 0; i < gameState.settlements.length; i++) {
+        const target = gameState.settlements[i];
+        if (!isNonLocal(target.owner)) continue;
+        const pos = hexToPixel(target.q, target.r);
+        const dx = worldX - pos.x;
+        const dy = worldY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+            const result = fireAt('settlement', i, target);
+            if (result.fired > 0) return { fired: true, targetType: 'settlement', targetId: target.id };
+            return { fired: false, reason: 'out-of-range' };
+        }
+    }
+
+    for (let i = 0; i < gameState.towers.length; i++) {
+        const target = gameState.towers[i];
+        if (!isNonLocal(target.owner)) continue;
+        const pos = hexToPixel(target.q, target.r);
+        const dx = worldX - pos.x;
+        const dy = worldY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
+            const result = fireAt('tower', i, target);
+            if (result.fired > 0) return { fired: true, targetType: 'tower', targetId: target.id };
+            return { fired: false, reason: 'out-of-range' };
+        }
+    }
+
+    return null;
 }
 
 /**

@@ -71,9 +71,9 @@ export function createGameState(config = {}) {
             active: false,
         },
 
-        // Action button targeting mode (move, attack, patrol)
+        // Action button targeting mode (move, attack, patrol, broadside)
         actionMode: {
-            active: null,  // null | 'move' | 'attack' | 'patrol'
+            active: null,  // null | 'move' | 'attack' | 'patrol' | 'broadside' | 'rally'
         },
 
         // Pirate respawn queue: [{ timer }]
@@ -170,6 +170,7 @@ export function createShip(type, q, r, owner = 'player') {
         // Combat state
         health: SHIPS[type].health,  // Current health (from ship metadata)
         attackCooldown: 0,           // Timer for shot cooldown
+        burstCooldown: 0,            // Timer for special burst attack (e.g. Cutter Broadside)
         attackTarget: null,          // { type: 'ship', index } for player ships attacking pirates
         // Repair state
         repair: null,  // { progress, totalTime, healthToRestore } | null

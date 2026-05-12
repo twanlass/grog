@@ -32,6 +32,7 @@ export function extractNetworkState(gameState) {
             waitingForDock: s.waitingForDock,
             health: s.health,
             attackCooldown: s.attackCooldown,
+            burstCooldown: s.burstCooldown,
             attackTarget: s.attackTarget,
             repair: s.repair,
             patrolRoute: s.patrolRoute,

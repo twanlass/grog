@@ -2480,6 +2480,28 @@ export function drawActionButtons(ctx, gameState) {
             { id: 'attack', label: 'Attack', hotkey: 'A' },
             { id: 'patrol', label: 'Patrol', hotkey: 'P' },
         ];
+
+        // Burst-attack button (e.g. Cutter "Broadside"): only show when every
+        // selected ship has a burstAttack config. Per-ship-type label.
+        const burstConfigs = selectedShips.map(s => SHIPS[s.type] && SHIPS[s.type].burstAttack);
+        if (burstConfigs.length > 0 && burstConfigs.every(cfg => cfg)) {
+            // Worst-case cooldown across the group, normalized to that ship's max
+            let cooldownProgress = 1;  // 1 = ready
+            for (let i = 0; i < selectedShips.length; i++) {
+                const cfg = burstConfigs[i];
+                const remaining = selectedShips[i].burstCooldown || 0;
+                if (remaining > 0 && cfg.cooldown > 0) {
+                    const p = 1 - (remaining / cfg.cooldown);
+                    if (p < cooldownProgress) cooldownProgress = p;
+                }
+            }
+            buttons.push({
+                id: 'broadside',
+                label: burstConfigs[0].name || 'Broadside',
+                hotkey: burstConfigs[0].hotkey || 'B',
+                cooldownProgress,
+            });
+        }
     } else if (selectedPorts.length > 0) {
         // Port buttons
         buttons = [
@@ -2507,7 +2529,9 @@ export function drawActionButtons(ctx, gameState) {
         const btn = buttons[i];
         const x = startX + i * (buttonWidth + buttonGap);
 
-        const isHovered = mousePos.x >= x && mousePos.x <= x + buttonWidth &&
+        const hasCooldown = btn.cooldownProgress !== undefined;
+        const isOnCooldown = hasCooldown && btn.cooldownProgress < 1;
+        const isHovered = !isOnCooldown && mousePos.x >= x && mousePos.x <= x + buttonWidth &&
                           mousePos.y >= y && mousePos.y <= y + buttonHeight;
         const isActive = gameState.actionMode.active === btn.id;
 
@@ -2523,6 +2547,21 @@ export function drawActionButtons(ctx, gameState) {
             opacity: 0.85,
         });
 
+        // Cooldown fill (blue bar growing left-to-right behind the label)
+        if (isOnCooldown) {
+            const fillWidth = buttonWidth * btn.cooldownProgress;
+            if (fillWidth > 0) {
+                k.drawRect({
+                    pos: k.vec2(x, y),
+                    width: fillWidth,
+                    height: buttonHeight,
+                    color: k.rgb(40, 90, 140),
+                    radius: 6,
+                    opacity: 0.85,
+                });
+            }
+        }
+
         // Border when active
         if (isActive) {
             k.drawRect({
@@ -2537,7 +2576,8 @@ export function drawActionButtons(ctx, gameState) {
         }
 
         // Label text
-        const textColor = isActive ? k.rgb(255, 255, 255) :
+        const textColor = isOnCooldown ? k.rgb(120, 130, 140) :
+                          isActive ? k.rgb(255, 255, 255) :
                           isHovered ? k.rgb(220, 230, 240) : k.rgb(150, 160, 170);
         k.drawText({
             text: btn.label,
@@ -2552,6 +2592,7 @@ export function drawActionButtons(ctx, gameState) {
             x, y,
             width: buttonWidth,
             height: buttonHeight,
+            disabled: isOnCooldown,
         });
     }
 

@@ -650,6 +650,11 @@ function handlePlayerAttacks(gameState, dt, fogState) {
             ship.attackCooldown = Math.max(0, ship.attackCooldown - dt);
         }
 
+        // Decrement special burst-attack cooldown (e.g. Cutter Broadside)
+        if (ship.burstCooldown > 0) {
+            ship.burstCooldown = Math.max(0, ship.burstCooldown - dt);
+        }
+
         // Decrement chase cooldown timer
         if (ship.chaseCooldownTimer > 0) {
             ship.chaseCooldownTimer = Math.max(0, ship.chaseCooldownTimer - dt);
@@ -719,6 +724,68 @@ function handlePlayerAttacks(gameState, dt, fogState) {
             ship.attackCooldown = shipData.fireCooldown + (Math.random() - 0.5) * 0.04;
         }
     }
+}
+
+/**
+ * Trigger a Broadside-style burst attack from one ship at a single target.
+ * Fires the first shot immediately and queues the rest in ship.pendingShots
+ * with staggered delays. Sets ship.burstCooldown.
+ *
+ * Returns true if the burst was fired, false if the ship is ineligible (no
+ * burstAttack config, on cooldown, target missing, or out of range).
+ */
+export function triggerBroadside(gameState, shipIndex, targetType, targetIndex) {
+    const ship = gameState.ships[shipIndex];
+    if (!ship) return false;
+    const shipData = SHIPS[ship.type];
+    const burstCfg = shipData && shipData.burstAttack;
+    if (!burstCfg) return false;
+    if (ship.burstCooldown > 0) return false;
+
+    let target;
+    if (targetType === 'ship') {
+        target = gameState.ships[targetIndex];
+    } else if (targetType === 'port') {
+        target = gameState.ports[targetIndex];
+    } else if (targetType === 'tower') {
+        target = gameState.towers[targetIndex];
+    } else if (targetType === 'settlement') {
+        target = gameState.settlements[targetIndex];
+    }
+    if (!target) return false;
+    if (target.health !== undefined && target.health <= 0) return false;
+
+    const attackDistance = shipData.attackDistance || 2;
+    if (hexDistance(ship.q, ship.r, target.q, target.r) > attackDistance) return false;
+
+    // Fire first shot immediately
+    gameState.projectiles.push({
+        sourceShipIndex: shipIndex,
+        targetType,
+        targetIndex,
+        fromQ: ship.q,
+        fromR: ship.r,
+        toQ: target.q,
+        toR: target.r,
+        progress: 0,
+        damage: CANNON_DAMAGE,
+        speed: PROJECTILE_SPEED,
+    });
+    queueCannonSound(gameState, ship.q, ship.r);
+
+    // Queue remaining shots with stagger delay
+    if (!ship.pendingShots) ship.pendingShots = [];
+    for (let i = 1; i < burstCfg.shots; i++) {
+        ship.pendingShots.push({
+            targetType,
+            targetIndex,
+            damage: CANNON_DAMAGE,
+            delay: i * burstCfg.staggerDelay,
+        });
+    }
+
+    ship.burstCooldown = burstCfg.cooldown;
+    return true;
 }
 
 /**

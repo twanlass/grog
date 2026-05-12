@@ -11,6 +11,7 @@ import {
 } from '../gameState.js';
 import { findPath, findNearestWater, distributeDestinations } from '../pathfinding.js';
 import { startRepair } from '../systems/repair.js';
+import { triggerBroadside } from '../systems/combat.js';
 import { hexKey } from '../hex.js';
 
 const GUEST_OWNER = 'player2';
@@ -30,6 +31,8 @@ export function processGuestCommand(command, gameState, map, fogState) {
             return handleMoveShips(command, gameState, map);
         case COMMAND_TYPES.ATTACK:
             return handleAttack(command, gameState, map);
+        case COMMAND_TYPES.BROADSIDE:
+            return handleBroadside(command, gameState);
         case COMMAND_TYPES.BUILD_PORT:
             return handleBuildPort(command, gameState, map);
         case COMMAND_TYPES.BUILD_SETTLEMENT:
@@ -187,6 +190,43 @@ function handleAttack(command, gameState, map) {
         ship.isPatrolling = false;
     }
     return true;
+}
+
+function handleBroadside(command, gameState) {
+    const { shipIds, targetType, targetId } = command;
+    if (!shipIds || !targetType || !targetId) return false;
+
+    // Resolve target by id
+    let targetIndex = -1;
+    if (targetType === 'ship') {
+        targetIndex = findEntityById(gameState.ships, targetId);
+    } else if (targetType === 'port') {
+        targetIndex = findEntityById(gameState.ports, targetId);
+    } else if (targetType === 'settlement') {
+        targetIndex = findEntityById(gameState.settlements, targetId);
+    } else if (targetType === 'tower') {
+        targetIndex = findEntityById(gameState.towers, targetId);
+    }
+    if (targetIndex < 0) return false;
+
+    const target = (targetType === 'ship' ? gameState.ships :
+                    targetType === 'port' ? gameState.ports :
+                    targetType === 'settlement' ? gameState.settlements :
+                    gameState.towers)[targetIndex];
+    if (!target || target.owner === GUEST_OWNER) return false;
+
+    let firedAny = false;
+    for (const id of shipIds) {
+        const idx = findShipByIdForGuest(gameState, id);
+        if (idx < 0) continue;
+        const ship = gameState.ships[idx];
+        // Mirror local behavior: set attackTarget so red highlight + auto-fire resume
+        ship.attackTarget = { type: targetType, index: targetIndex };
+        if (triggerBroadside(gameState, idx, targetType, targetIndex)) {
+            firedAny = true;
+        }
+    }
+    return firedAny;
 }
 
 function handleBuildPort(command, gameState, map) {
