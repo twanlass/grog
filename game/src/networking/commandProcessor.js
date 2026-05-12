@@ -141,7 +141,7 @@ function handleMoveShips(command, gameState, map) {
 }
 
 function handleAttack(command, gameState, map) {
-    const { shipIds, targetType, targetId } = command;
+    const { shipIds, targetType, targetId, isAttackMove } = command;
     if (!shipIds || !targetType || !targetId) return false;
 
     // Resolve target
@@ -185,6 +185,7 @@ function handleAttack(command, gameState, map) {
         ship.moveProgress = 0;
         if (ship.tradeRoute) cancelTradeRoute(ship);
         ship.isPatrolling = false;
+        ship.guardMode = !!isAttackMove;
     }
     return true;
 }

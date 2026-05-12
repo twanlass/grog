@@ -802,7 +802,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
             updatePirateAI(gameState, map, piratePatrolCenter, dt);
             updateAIPlayer(gameState, map, fogState, dt); // AI opponent decisions (versus mode)
-            handlePatrolAutoAttack(gameState);  // Patrolling ships detect and target pirates
+            handlePatrolAutoAttack(gameState, map);  // Patrolling ships detect and target pirates
             updateTradeRoutes(gameState, map, dt);
             updateConstruction(gameState, map, fogState, dt, floatingNumbers);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
@@ -2342,15 +2342,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             if (gameState.actionMode.active === 'attack') {
-                // Attack mode: try to attack enemy first
-                if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal)) {
+                // Attack mode (A-click): attack-move semantics - keep guardMode so ship
+                // auto-acquires next target after destroying the clicked one
+                if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal, isShiftHeld, true)) {
                     if (isMultiplayer && isGuest) {
                         const selShips = getSelectedShips(gameState);
                         if (selShips.length > 0 && selShips[0].attackTarget) {
                             const at = selShips[0].attackTarget;
                             const targetEntity = (at.type === 'ship' ? gameState.ships : at.type === 'port' ? gameState.ports : at.type === 'settlement' ? gameState.settlements : gameState.towers)[at.index];
                             if (targetEntity) {
-                                sendGuestCommandForSelectedShips(COMMAND_TYPES.ATTACK, { targetType: at.type, targetId: targetEntity.id });
+                                sendGuestCommandForSelectedShips(COMMAND_TYPES.ATTACK, { targetType: at.type, targetId: targetEntity.id, isAttackMove: true });
                             }
                         }
                     }

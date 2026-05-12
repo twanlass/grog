@@ -838,7 +838,7 @@ export function handlePatrolWaypointClick(gameState, map, clickedHex) {
  * @param {function} getShipVisualPos - Function to get ship visual position for smooth hit detection
  * @returns {boolean} true if attack target was set
  */
-export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPos, isShiftHeld = false) {
+export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPos, isShiftHeld = false, isAttackMove = false) {
     const selectedShips = getSelectedShips(gameState);
     if (selectedShips.length === 0) return false;
 
@@ -874,10 +874,11 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
             // Navigate to waypoint (water tile near target for structures)
             ship.waypoints = [{ q: waypointQ, r: waypointR }];
             ship.path = null;
-            // Clear patrol and guard state - manual attack takes priority
+            // Clear patrol state - manual attack takes priority
             ship.patrolRoute = [];
             ship.isPatrolling = false;
-            ship.guardMode = false;
+            // Attack-move (A-click) keeps guardMode so ship auto-acquires next target after kill
+            ship.guardMode = isAttackMove;
             attackCount++;
         }
         return attackCount;
