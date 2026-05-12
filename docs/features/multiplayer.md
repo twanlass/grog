@@ -66,7 +66,8 @@ Guest commands use **entity IDs** (not array indices) for network safety. The ho
 | Command | Data |
 |---------|------|
 | `MOVE_SHIPS` | `shipIds[], waypoints[], append` |
-| `ATTACK` | `shipIds[], targetType, targetId` |
+| `ATTACK` | `shipIds[], targetType, targetId, isAttackMove` |
+| `BROADSIDE` | `shipIds[], targetType, targetId` |
 | `BUILD_PORT` | `builderShipId, portType, q, r` |
 | `BUILD_SETTLEMENT` | `builderPortId, q, r` |
 | `BUILD_TOWER` | `builderShipId?, builderPortId?, q, r` |

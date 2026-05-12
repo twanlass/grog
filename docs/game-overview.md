@@ -21,7 +21,7 @@ Wave-based survival. Start with extra resources and fortify your position agains
 
 | Ship | Role | Notes |
 |------|------|-------|
-| **Cutter** | Scout | Fast, cheap, low cargo. Good for early exploration |
+| **Cutter** | Scout | Fast, cheap, low cargo. Has a **Broadside** burst attack (B) on a 60s cooldown |
 | **Schooner** | Trader | Balanced speed and cargo. Backbone of trade routes |
 | **Brigantine** | Warship | Strong in combat, moderate cargo |
 | **Galleon** | Capital | Slow but massive cargo and firepower |
@@ -30,6 +30,8 @@ Ships can:
 - Navigate via waypoints (click to set destination, right-click to add waypoints)
 - Patrol routes continuously (P key)
 - Auto-attack enemies while patrolling
+- Attack-move (A then click) — engage the clicked target, then cascade to nearby enemies including structures
+- Fire special bursts when equipped (Cutter's Broadside; see [Combat](features/combat.md))
 - Establish trade routes between ports
 - Build ports and towers when docked at shore
 - Be repaired when damaged
@@ -91,13 +93,25 @@ The AI scouts to find your base, coordinates group attacks, and retreats to defe
 | Input | Action |
 |-------|--------|
 | Click | Select unit / Set destination |
-| Right-click | Add waypoint |
-| Cmd+Click | Attack / Trade route |
+| Right-click | Add waypoint / Attack target |
+| Cmd+Click | Attack-target (stop on kill) / Trade route |
+| A | Enter attack-move mode (cascade through targets after kill) |
+| B | Enter Broadside mode (Cutters only; click target to fire burst) |
 | P | Enter patrol mode |
 | R | Repair selected unit |
 | H | Snap camera to home port |
 | Escape | Cancel current mode |
 | . (period) | Pause game |
+
+### Mobile
+
+The game also runs on touch devices. Notable touch behaviors:
+
+- **Minimap**: single tap pans, double-tap snaps the camera back to your home port (mirrors the `H` key)
+- **Victory / defeat overlay**: tap anywhere to return to the title (mirrors the `SPACE` flow on desktop)
+- **Surrender prompt**: Accept/Decline accept taps
+- **Selected ships HUD**: shown as a row of small health-colored dots to save screen space
+- **Title screen**: re-renders on rotation/resize so portrait↔landscape switches don't break the layout
 
 ## The Vibe
 
