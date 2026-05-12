@@ -409,7 +409,7 @@ function handleAutoReturnFire(gameState) {
  * Now owner-aware: player ships attack pirates and AI ships, AI ships attack player ships
  * Performance: Uses spatial index for efficient enemy detection
  */
-export function handlePatrolAutoAttack(gameState) {
+export function handlePatrolAutoAttack(gameState, map) {
     // Build spatial index if not already built (in case called outside updateCombat)
     const spatialIndex = shipSpatialIndex || buildShipSpatialIndex(gameState);
 
@@ -464,6 +464,40 @@ export function handlePatrolAutoAttack(gameState) {
             // Don't null path directly - let movement system handle transition smoothly
             // to prevent visual snapping mid-movement
             continue;
+        }
+
+        // Attack-move ships (guardMode) also seek enemy structures so they cascade
+        // through a base after destroying their initial target
+        if (ship.guardMode) {
+            const shipData = SHIPS[ship.type];
+            const attackDistance = shipData.attackDistance || 2;
+            let nearestStructure = null;
+            let nearestStructureDist = Infinity;
+
+            const scanStructures = (list, type) => {
+                for (let idx = 0; idx < list.length; idx++) {
+                    const s = list[idx];
+                    if (!s.owner || s.owner === shipOwner) continue;
+                    const d = hexDistance(ship.q, ship.r, s.q, s.r);
+                    if (d > detectRange) continue;
+                    if (d >= nearestStructureDist) continue;
+                    // Must have a water tile within attack range so ship can engage
+                    if (!findNearestWaterInRange(map, s.q, s.r, attackDistance)) continue;
+                    nearestStructureDist = d;
+                    nearestStructure = { type, index: idx };
+                }
+            };
+            scanStructures(gameState.ports, 'port');
+            scanStructures(gameState.settlements, 'settlement');
+            scanStructures(gameState.towers, 'tower');
+
+            if (nearestStructure) {
+                ship.chaseStartHex = { q: ship.q, r: ship.r };
+                ship.chaseDistanceTraveled = 0;
+                ship.attackTarget = nearestStructure;
+                ship.waypoints = [];
+                continue;
+            }
         }
 
         // Check if nearby friendly structures are under attack and defend them
