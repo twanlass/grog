@@ -37,7 +37,7 @@ import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick, handleBuildQueueClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
-    handleUnitSelection, handleWaypointClick, handleAttackClick, handlePortRallyPointClick,
+    handleUnitSelection, handleWaypointClick, handleAttackClick, handleBroadsideClick, handlePortRallyPointClick,
     handlePatrolWaypointClick
 } from "../systems/inputHandler.js";
 
@@ -1800,6 +1800,25 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
+        // B to enter Broadside burst-attack mode (when ALL selected ships have a burstAttack and at least one is off-cooldown)
+        k.onKeyPress("b", () => {
+            const selectedShips = getSelectedShips(gameState);
+            const playerShips = selectedShips.filter(ship =>
+                ship && ship.type !== 'pirate' && ship.owner === localPlayerId
+            );
+            if (playerShips.length === 0) return;
+            const allHaveBurst = playerShips.every(s => SHIPS[s.type] && SHIPS[s.type].burstAttack);
+            if (!allHaveBurst) return;
+            const anyReady = playerShips.some(s => (s.burstCooldown || 0) <= 0);
+            if (!anyReady) return;
+            if (gameState.actionMode.active === 'broadside') {
+                exitActionMode(gameState);
+            } else {
+                enterActionMode(gameState, 'broadside');
+                showNotification(gameState, "Choose Broadside target");
+            }
+        });
+
         // P to enter patrol mode (when ships selected)
         k.onKeyPress("p", () => {
             const selectedShips = getSelectedShips(gameState);
@@ -2284,12 +2303,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
             if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) { playUIClick(); return; }
 
-            // Check action button clicks (Move, Attack, Patrol)
+            // Check action button clicks (Move, Attack, Patrol, Broadside)
             if (actionButtonBounds) {
                 for (const btn of actionButtonBounds.buttons) {
                     if (mouseX >= btn.x && mouseX <= btn.x + btn.width &&
                         mouseY >= btn.y && mouseY <= btn.y + btn.height) {
                         playUIClick();
+                        if (btn.disabled) return;  // On cooldown — consume click, do nothing
 
                         if (gameState.actionMode.active === btn.id) {
                             // Toggle off if clicking same button
@@ -2306,6 +2326,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                                 showNotification(gameState, "Choose destination");
                             } else if (btn.id === 'attack') {
                                 showNotification(gameState, "Choose target");
+                            } else if (btn.id === 'broadside') {
+                                showNotification(gameState, "Choose Broadside target");
                             } else if (btn.id === 'patrol') {
                                 // Enter patrol mode and set up initial state
                                 enterPatrolMode(gameState);
@@ -2378,6 +2400,22 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     });
                 }
                 exitActionMode(gameState);
+                return;
+            }
+
+            if (gameState.actionMode.active === 'broadside') {
+                const result = handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal);
+                if (result && result.fired) {
+                    if (isMultiplayer && isGuest) {
+                        sendGuestCommandForSelectedShips(COMMAND_TYPES.BROADSIDE, {
+                            targetType: result.targetType, targetId: result.targetId,
+                        });
+                    }
+                    exitActionMode(gameState);
+                } else if (result && !result.fired) {
+                    showNotification(gameState, "Out of range");
+                }
+                // If result is null (no enemy clicked), stay in mode for another try
                 return;
             }
 

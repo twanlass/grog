@@ -9,6 +9,7 @@ export const COMMAND_TYPES = {
     // Ship movement
     MOVE_SHIPS: 'MOVE_SHIPS',           // { shipIds[], waypoints[], append }
     ATTACK: 'ATTACK',                   // { shipIds[], targetType, targetId }
+    BROADSIDE: 'BROADSIDE',             // { shipIds[], targetType, targetId }
 
     // Building
     BUILD_PORT: 'BUILD_PORT',           // { builderShipId, portType, q, r }

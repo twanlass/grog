@@ -129,6 +129,13 @@ export const SHIPS = {
         wakeSize: 8,                    // Base size of water trail wake
         cost: { wood: 10 },             // Build resource costs (object: wood)
         crewCost: 5,                    // Crew required to operate
+        burstAttack: {                  // Special ability: rapid burst of cannon shots
+            name: "Broadside",
+            shots: 5,
+            staggerDelay: 0.2,
+            cooldown: 60,
+            hotkey: "B",
+        },
         description: "Small, scrappy starter", // Description for UI/tooltips
     },
     schooner: {
