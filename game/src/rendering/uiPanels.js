@@ -2113,23 +2113,35 @@ export function drawNotification(ctx, notification) {
 }
 
 /**
- * Draw the build queue panel at bottom center of screen
- * Shows active build + queued items for the selected port
- * Returns bounds for click detection (cancel buttons)
+ * Draw the build queue panel at bottom center of screen.
+ * Accepts an array of `{ port, portIndex }` entries. When more than one entry
+ * has a non-empty build queue, the queues are rendered horizontally side-by-side
+ * separated by a thin divider.
+ * Returns bounds for click detection (cancel buttons).
  */
-export function drawBuildQueuePanel(ctx, port, mousePos) {
-    if (!port || port.buildQueue.length === 0) return null;
+export function drawBuildQueuePanel(ctx, portEntries, mousePos) {
+    if (!Array.isArray(portEntries)) return null;
+
+    const buildingEntries = portEntries.filter(({ port }) => port && port.buildQueue.length > 0);
+    if (buildingEntries.length === 0) return null;
 
     const { k, screenWidth, screenHeight } = ctx;
 
     const itemSize = 48; // Size of ship sprite area
     const itemSpacing = 8;
+    const queueSeparator = 24; // Gap between different ports' queues
     const progressBarHeight = 6;
     const panelPadding = 12;
-    const queueCount = port.buildQueue.length;
 
-    // Calculate panel dimensions
-    const panelWidth = queueCount * itemSize + (queueCount - 1) * itemSpacing + panelPadding * 2;
+    // Calculate panel width across all queues
+    let totalContentWidth = 0;
+    for (let p = 0; p < buildingEntries.length; p++) {
+        const qc = buildingEntries[p].port.buildQueue.length;
+        totalContentWidth += qc * itemSize + (qc - 1) * itemSpacing;
+        if (p < buildingEntries.length - 1) totalContentWidth += queueSeparator;
+    }
+
+    const panelWidth = totalContentWidth + panelPadding * 2;
     const panelHeight = itemSize + progressBarHeight + panelPadding * 2 + 8;
     const panelX = screenWidth / 2 - panelWidth / 2;
     const panelY = screenHeight - panelHeight - 15;
@@ -2152,135 +2164,142 @@ export function drawBuildQueuePanel(ctx, port, mousePos) {
         items: [],
     };
 
-    // Draw each queue item
-    for (let i = 0; i < port.buildQueue.length; i++) {
-        const item = port.buildQueue[i];
-        const shipData = SHIPS[item.shipType];
-        const isActive = item.progress !== null;  // Any item with progress is active (parallel builds)
+    let currentX = panelX + panelPadding;
 
-        // Calculate item position (active on left, queued to the right)
-        const itemX = panelX + panelPadding + i * (itemSize + itemSpacing);
-        const itemY = panelY + panelPadding;
+    for (let p = 0; p < buildingEntries.length; p++) {
+        const { port, portIndex } = buildingEntries[p];
 
-        // Store bounds for click detection
-        bounds.items.push({
-            index: i,
-            x: itemX,
-            y: itemY,
-            width: itemSize,
-            height: itemSize,
-            shipType: item.shipType,
-            isActive,
-        });
-
-        // Check if mouse is hovering this item
-        const isHovered = mousePos &&
-            mousePos.x >= itemX && mousePos.x <= itemX + itemSize &&
-            mousePos.y >= itemY && mousePos.y <= itemY + itemSize;
-
-        // Draw item background
-        k.drawRect({
-            pos: k.vec2(itemX, itemY),
-            width: itemSize,
-            height: itemSize,
-            color: isHovered ? k.rgb(80, 40, 40) : k.rgb(40, 45, 55),
-            radius: 4,
-        });
-
-        // Draw ship sprite (use PNG sprite if available)
-        const spriteX = itemX + itemSize / 2;
-        const spriteY = itemY + itemSize / 2;
-
-        if (shipData.directionalSprite) {
-            // For directional sprites, use player's red variant, SE facing (row 2, frame 0)
-            const frame = 2 * 3 + 0;  // row 2 (SE) * 3 cols + frame 0
-            const pngScale = (shipData.spriteScale || 1) * 1.0;
-            k.drawSprite({
-                sprite: 'cutter-red',  // Always show player's color in build queue
-                frame: frame,
-                pos: k.vec2(spriteX, spriteY),
-                anchor: "center",
-                scale: pngScale,
-                opacity: isActive ? 1.0 : 0.5,
-            });
-        } else if (shipData.imageSprite) {
-            const pngScale = (shipData.spriteScale || 1) * 1.0;
-            k.drawSprite({
-                sprite: shipData.imageSprite,
-                frame: 0,
-                pos: k.vec2(spriteX, spriteY),
-                anchor: "center",
-                scale: pngScale,
-                opacity: isActive ? 1.0 : 0.5,
-            });
-        } else {
-            // Fallback to pixel art sprite
-            const spriteScale = 1;
-            const spriteSize = getSpriteSize(shipData.sprite);
-            const sx = itemX + (itemSize - spriteSize.width * spriteScale) / 2;
-            const sy = itemY + (itemSize - spriteSize.height * spriteScale) / 2;
-            drawSprite(k, shipData.sprite, sx, sy, spriteScale, isActive ? 1.0 : 0.5);
-        }
-
-        // Draw red X on hover (cancel indicator)
-        if (isHovered) {
-            const xSize = 12;
-            const xThickness = 2;
-            const xColor = k.rgb(220, 60, 60);
-            const cx = itemX + itemSize / 2;
-            const cy = itemY + itemSize / 2;
-
-            // Draw X with two lines
+        // Vertical divider between queues
+        if (p > 0) {
+            const divX = currentX - queueSeparator / 2;
             k.drawLine({
-                p1: k.vec2(cx - xSize / 2, cy - xSize / 2),
-                p2: k.vec2(cx + xSize / 2, cy + xSize / 2),
-                width: xThickness,
-                color: xColor,
-            });
-            k.drawLine({
-                p1: k.vec2(cx + xSize / 2, cy - xSize / 2),
-                p2: k.vec2(cx - xSize / 2, cy + xSize / 2),
-                width: xThickness,
-                color: xColor,
+                p1: k.vec2(divX, panelY + 10),
+                p2: k.vec2(divX, panelY + panelHeight - 10),
+                width: 1,
+                color: k.rgb(60, 70, 80),
             });
         }
 
-        // Draw progress bar for active item
-        if (isActive) {
-            const barY = itemY + itemSize + 4;
-            const progress = Math.min(item.progress / item.buildTime, 1);
+        for (let i = 0; i < port.buildQueue.length; i++) {
+            const item = port.buildQueue[i];
+            const shipData = SHIPS[item.shipType];
+            const isActive = item.progress !== null;  // Any item with progress is active (parallel builds)
 
-            // Background
-            k.drawRect({
-                pos: k.vec2(itemX, barY),
+            const itemX = currentX + i * (itemSize + itemSpacing);
+            const itemY = panelY + panelPadding;
+
+            bounds.items.push({
+                index: i,
+                portIndex,
+                x: itemX,
+                y: itemY,
                 width: itemSize,
-                height: progressBarHeight,
-                color: k.rgb(40, 40, 40),
-                radius: 2,
+                height: itemSize,
+                shipType: item.shipType,
+                isActive,
             });
 
-            // Fill
-            if (progress > 0) {
+            const isHovered = mousePos &&
+                mousePos.x >= itemX && mousePos.x <= itemX + itemSize &&
+                mousePos.y >= itemY && mousePos.y <= itemY + itemSize;
+
+            k.drawRect({
+                pos: k.vec2(itemX, itemY),
+                width: itemSize,
+                height: itemSize,
+                color: isHovered ? k.rgb(80, 40, 40) : k.rgb(40, 45, 55),
+                radius: 4,
+            });
+
+            const spriteX = itemX + itemSize / 2;
+            const spriteY = itemY + itemSize / 2;
+
+            if (shipData.directionalSprite) {
+                const frame = 2 * 3 + 0;  // row 2 (SE) * 3 cols + frame 0
+                const pngScale = (shipData.spriteScale || 1) * 1.0;
+                k.drawSprite({
+                    sprite: 'cutter-red',
+                    frame: frame,
+                    pos: k.vec2(spriteX, spriteY),
+                    anchor: "center",
+                    scale: pngScale,
+                    opacity: isActive ? 1.0 : 0.5,
+                });
+            } else if (shipData.imageSprite) {
+                const pngScale = (shipData.spriteScale || 1) * 1.0;
+                k.drawSprite({
+                    sprite: shipData.imageSprite,
+                    frame: 0,
+                    pos: k.vec2(spriteX, spriteY),
+                    anchor: "center",
+                    scale: pngScale,
+                    opacity: isActive ? 1.0 : 0.5,
+                });
+            } else {
+                const spriteScale = 1;
+                const spriteSize = getSpriteSize(shipData.sprite);
+                const sx = itemX + (itemSize - spriteSize.width * spriteScale) / 2;
+                const sy = itemY + (itemSize - spriteSize.height * spriteScale) / 2;
+                drawSprite(k, shipData.sprite, sx, sy, spriteScale, isActive ? 1.0 : 0.5);
+            }
+
+            if (isHovered) {
+                const xSize = 12;
+                const xThickness = 2;
+                const xColor = k.rgb(220, 60, 60);
+                const cx = itemX + itemSize / 2;
+                const cy = itemY + itemSize / 2;
+                k.drawLine({
+                    p1: k.vec2(cx - xSize / 2, cy - xSize / 2),
+                    p2: k.vec2(cx + xSize / 2, cy + xSize / 2),
+                    width: xThickness,
+                    color: xColor,
+                });
+                k.drawLine({
+                    p1: k.vec2(cx + xSize / 2, cy - xSize / 2),
+                    p2: k.vec2(cx - xSize / 2, cy + xSize / 2),
+                    width: xThickness,
+                    color: xColor,
+                });
+            }
+
+            if (isActive) {
+                const barY = itemY + itemSize + 4;
+                const progress = Math.min(item.progress / item.buildTime, 1);
+
                 k.drawRect({
                     pos: k.vec2(itemX, barY),
-                    width: itemSize * progress,
+                    width: itemSize,
                     height: progressBarHeight,
-                    color: k.rgb(80, 180, 220),
+                    color: k.rgb(40, 40, 40),
                     radius: 2,
+                });
+
+                if (progress > 0) {
+                    k.drawRect({
+                        pos: k.vec2(itemX, barY),
+                        width: itemSize * progress,
+                        height: progressBarHeight,
+                        color: k.rgb(80, 180, 220),
+                        radius: 2,
+                    });
+                }
+            }
+
+            if (!isActive) {
+                k.drawText({
+                    text: `${i}`,
+                    pos: k.vec2(itemX + itemSize - 8, itemY + 10),
+                    size: 10,
+                    anchor: "center",
+                    color: k.rgb(150, 150, 150),
                 });
             }
         }
 
-        // Draw queue position number for non-active items
-        if (!isActive) {
-            k.drawText({
-                text: `${i}`,
-                pos: k.vec2(itemX + itemSize - 8, itemY + 10),
-                size: 10,
-                anchor: "center",
-                color: k.rgb(150, 150, 150),
-            });
-        }
+        const qc = port.buildQueue.length;
+        currentX += qc * itemSize + (qc - 1) * itemSpacing;
+        if (p < buildingEntries.length - 1) currentX += queueSeparator;
     }
 
     return bounds;

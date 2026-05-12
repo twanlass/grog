@@ -1127,7 +1127,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 buildPanelBounds = drawPortBuildPanel(ctx, port, portIndex, gameState, { isPortBuildingSettlement });
 
                 // Draw build queue panel at bottom center (if port has items in queue)
-                buildQueuePanelBounds = drawBuildQueuePanel(ctx, port, k.mousePos());
+                buildQueuePanelBounds = drawBuildQueuePanel(ctx, [{ port, portIndex }], k.mousePos());
+            } else if (selectedPortIndices.length > 1 && !isTouchDevice()) {
+                // Desktop multi-select: show side-by-side queues when 2+ selected ports are actively building
+                const buildingEntries = selectedPortIndices
+                    .map(u => ({ port: gameState.ports[u.index], portIndex: u.index }))
+                    .filter(({ port }) => port && port.buildQueue.length > 0);
+
+                if (buildingEntries.length >= 2) {
+                    buildQueuePanelBounds = drawBuildQueuePanel(ctx, buildingEntries, k.mousePos());
+                }
             }
 
             // Draw selected ships panel at bottom center (when ships selected and no port build queue showing)

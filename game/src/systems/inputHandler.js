@@ -1037,12 +1037,8 @@ export function handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gam
         if (mouseX >= item.x && mouseX <= item.x + item.width &&
             mouseY >= item.y && mouseY <= item.y + item.height) {
 
-            // Get the selected port
-            const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
-            if (selectedPortIndices.length !== 1) return true;
-
-            const portIndex = selectedPortIndices[0].index;
-            const port = gameState.ports[portIndex];
+            const port = gameState.ports[item.portIndex];
+            if (!port) return true;
 
             // Cancel the build item
             if (cancelBuildItem(port, item.index, getLocalResources(gameState))) {

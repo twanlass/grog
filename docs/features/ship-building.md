@@ -85,3 +85,6 @@ port.buildQueue = {
 - **Can't afford**: Button greyed out, costs shown in red
 - **Port busy (building settlement)**: All ship buttons greyed out
 - **Game paused**: Build progress pauses (uses timeScale)
+
+## Multi-Port Queue Display
+On desktop, when multiple ports are selected and 2+ of them have non-empty build queues, the bottom-center build queue panel renders each port's queue horizontally side-by-side, separated by a thin divider. Clicking a queued item cancels it on the correct port (the `portIndex` is stored on each item bounds). On touch devices, only the single-port queue panel is shown (when exactly one port is selected).
