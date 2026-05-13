@@ -142,6 +142,8 @@ export const SHIPS = {
         name: "Schooner",
         sprite: SCHOONER,
         imageSprite: "schooner",
+        directionalSprite: "schooner", // 3x5 directional sprite (5 dirs, mirror for 3 more)
+        animFrames: 3,
         spriteScale: 1,
         build_time: 10,
         speed: 2,

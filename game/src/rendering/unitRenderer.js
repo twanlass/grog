@@ -37,23 +37,32 @@ function headingToSpriteDirection(heading) {
 }
 
 /**
- * Get the colored directional sprite name based on ship owner
+ * Get the colored directional sprite name based on ship type and owner
  * @param {object} shipData - Ship metadata
- * @param {string} owner - Ship owner ('player', 'ai1', 'ai2')
+ * @param {string} owner - Ship owner ('player', 'ai1', 'ai2', 'ai3')
  * @returns {string|null} Sprite name or null if no directional sprite
  */
-function getDirectionalSprite(shipData, owner) {
+export function getDirectionalSprite(shipData, owner) {
     if (!shipData.directionalSprite) return null;
-    // Map owner to colored sprite
+    if (shipData.directionalSprite === 'schooner') {
+        if (owner === 'ai1') return 'schooner-green';
+        if (owner === 'ai2') return 'schooner-blue';
+        if (owner === 'ai3') return 'schooner-orange';
+        if (owner === 'player2') return 'schooner-blue';
+        return 'schooner-red';
+    }
+    // Cutter (cutter-v2) color variants
     if (owner === 'ai1') return 'cutter-green';
     if (owner === 'ai2') return 'cutter-blue';
     if (owner === 'ai3') return 'cutter-orange';
+    if (owner === 'player2') return 'cutter-blue';
     return 'cutter-red';  // Player default
 }
 
 // Faction colors for visual differentiation (matches cutter sprite colors)
 const FACTION_COLORS = {
     player: { r: 180, g: 60, b: 60 },    // Red (matches cutter-red sprite)
+    player2: { r: 60, g: 120, b: 200 },  // Blue (matches cutter-blue sprite, multiplayer guest)
     ai1: { r: 60, g: 160, b: 80 },       // Green (matches cutter-green sprite)
     ai2: { r: 60, g: 120, b: 200 },      // Blue (matches cutter-blue sprite)
     ai3: { r: 220, g: 140, b: 40 },       // Orange (matches cutter-orange sprite)
