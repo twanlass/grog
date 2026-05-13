@@ -67,6 +67,23 @@ k.loadSprite("schooner", "sprites/assets/schooner.png", {
     sliceX: 2,
     sliceY: 1,
 });
+// Colored schooner variants (3x5: 3 anim frames, 5 directions)
+k.loadSprite("schooner-red", "sprites/assets/schooner-red.png", {
+    sliceX: 3,
+    sliceY: 5,
+});
+k.loadSprite("schooner-green", "sprites/assets/schooner-green.png", {
+    sliceX: 3,
+    sliceY: 5,
+});
+k.loadSprite("schooner-blue", "sprites/assets/schooner-blue.png", {
+    sliceX: 3,
+    sliceY: 5,
+});
+k.loadSprite("schooner-orange", "sprites/assets/schooner-orange.png", {
+    sliceX: 3,
+    sliceY: 5,
+});
 k.loadSprite("pirate", "sprites/assets/pirate.png", {
     sliceX: 2,
     sliceY: 1,

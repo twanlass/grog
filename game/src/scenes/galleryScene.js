@@ -71,8 +71,19 @@ export function createGalleryScene(k) {
                     color: k.rgb(255, 255, 255),
                 });
 
-                // Draw sprite (PNG if available, otherwise pixel art)
-                if (ship.imageSprite) {
+                // Draw sprite (directional > PNG > pixel art)
+                if (ship.directionalSprite) {
+                    const dirSpriteName = ship.directionalSprite === 'schooner' ? 'schooner-red' : 'cutter-red';
+                    const frame = 2 * 3 + 0;  // SE facing, frame 0
+                    const pngScale = scale * (ship.spriteScale || 1);
+                    k.drawSprite({
+                        sprite: dirSpriteName,
+                        frame: frame,
+                        pos: k.vec2(cardX + cardWidth / 2, cardY + 65),
+                        anchor: "center",
+                        scale: pngScale,
+                    });
+                } else if (ship.imageSprite) {
                     const pngScale = scale * (ship.spriteScale || 1);
                     k.drawSprite({
                         sprite: ship.imageSprite,

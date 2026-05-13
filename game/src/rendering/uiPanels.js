@@ -1,5 +1,6 @@
 // UI panel rendering: resource panel, build panels, ship info panel
 import { drawSprite, drawSpriteHealthTint, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
+import { getDirectionalSprite } from "./unitRenderer.js";
 import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew, isAIOwner, getResourcesForOwner } from "../gameState.js";
 import { getLocalPlayerId } from "../systems/inputHandler.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
@@ -1097,7 +1098,7 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
         const pngScale = (spriteData.spriteScale || 1) * 0.8;
         const spriteY = btnY + btnHeight / 2;
         k.drawSprite({
-            sprite: 'cutter-red',  // Always show player's color in build menu
+            sprite: getDirectionalSprite(spriteData, getLocalPlayerId()),  // Show local player's color in build menu
             frame: frame,
             pos: k.vec2(spriteX + 14, spriteY),
             anchor: "center",
@@ -2218,7 +2219,7 @@ export function drawBuildQueuePanel(ctx, portEntries, mousePos) {
                 const frame = 2 * 3 + 0;  // row 2 (SE) * 3 cols + frame 0
                 const pngScale = (shipData.spriteScale || 1) * 1.0;
                 k.drawSprite({
-                    sprite: 'cutter-red',
+                    sprite: getDirectionalSprite(shipData, getLocalPlayerId()),
                     frame: frame,
                     pos: k.vec2(spriteX, spriteY),
                     anchor: "center",
@@ -2433,7 +2434,7 @@ export function drawSelectedShipsPanel(ctx, gameState) {
             const frame = 2 * 3 + 0;
             const pngScale = (shipData.spriteScale || 1) * 0.75;
             k.drawSprite({
-                sprite: 'cutter-red',
+                sprite: getDirectionalSprite(shipData, ship.owner),
                 frame: frame,
                 pos: k.vec2(spriteX, spriteY),
                 anchor: "center",
