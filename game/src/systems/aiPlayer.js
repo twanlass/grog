@@ -897,7 +897,7 @@ function findSettlementSite(map, port, gameState) {
         if (!tile || tile.type !== 'land') continue;
 
         // Check if valid settlement site
-        if (isValidSettlementSite(map, current.q, current.r, gameState.settlements, gameState.ports, port)) {
+        if (isValidSettlementSite(map, current.q, current.r, gameState.settlements, gameState.ports, gameState.towers, port)) {
             return current;
         }
 
