@@ -146,7 +146,7 @@ export const SHIPS = {
         animFrames: 3,
         spriteScale: 1,
         build_time: 10,
-        speed: 2,
+        speed: 1.25,
         cargo: 50,
         combat: 2.5,
         health: 60,
