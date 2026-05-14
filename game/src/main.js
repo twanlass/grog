@@ -14,6 +14,8 @@ import { computeIslands, drawIslandWaves } from "./rendering/waveRenderer.js";
 
 const k = kaplay({
     background: [0, 0, 0], // Pitch black - edge of the world
+    pixelDensity: window.devicePixelRatio || 1,
+    crisp: true,
 });
 
 // Selected scenario ID (persists between title screen visits)
