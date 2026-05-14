@@ -1034,7 +1034,7 @@ export function getHomePortIndex(gameState, map) {
 }
 
 // Check if a hex is a valid settlement site (land hex, not occupied, connected to builder port)
-export function isValidSettlementSite(map, q, r, existingSettlements, existingPorts, builderPort = null) {
+export function isValidSettlementSite(map, q, r, existingSettlements, existingPorts, existingTowers, builderPort = null) {
     const tile = map.tiles.get(hexKey(q, r));
     if (!tile || tile.type !== 'land') return false;
 
@@ -1049,6 +1049,11 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
     // Check if already occupied by a port
     for (const port of existingPorts) {
         if (port.q === q && port.r === r) return false;
+    }
+
+    // Check if already occupied by a tower (including in-construction)
+    for (const tower of existingTowers) {
+        if (tower.q === q && tower.r === r) return false;
     }
 
     // Check if connected by land to the builder port

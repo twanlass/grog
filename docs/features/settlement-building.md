@@ -54,7 +54,7 @@ Ports can construct settlements on nearby land. Settlements generate wood and fo
 - `createSettlement(q, r, isConstructing, builderPortIndex)` - Creates settlement with `parentPortIndex` and `generationTimer`
 - `enterSettlementBuildMode(gameState, portIndex)` - Activates placement mode
 - `exitSettlementBuildMode(gameState)` - Cancels/exits placement mode
-- `isValidSettlementSite(map, q, r, settlements, ports)` - Checks if hex is valid
+- `isValidSettlementSite(map, q, r, settlements, ports, towers, builderPort)` - Checks if hex is valid
 - `isPortBuildingSettlement(portIndex, settlements)` - Returns true if port is building a settlement
 
 ## Data Structures

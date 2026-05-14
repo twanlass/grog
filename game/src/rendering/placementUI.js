@@ -157,7 +157,7 @@ export function drawSettlementPlacementMode(ctx, gameState, map, tilePositions, 
 
     // Check if hovered hex is valid (including land connectivity check)
     const hoverDistance = hexDistance(builderPort.q, builderPort.r, hoverHex.q, hoverHex.r);
-    const isValidHover = isValidSettlementSite(map, hoverHex.q, hoverHex.r, gameState.settlements, gameState.ports, builderPort) &&
+    const isValidHover = isValidSettlementSite(map, hoverHex.q, hoverHex.r, gameState.settlements, gameState.ports, gameState.towers, builderPort) &&
                          hoverDistance <= MAX_SETTLEMENT_BUILD_DISTANCE;
     gameState.settlementBuildMode.hoveredHex = isValidHover ? hoverHex : null;
 
@@ -170,7 +170,7 @@ export function drawSettlementPlacementMode(ctx, gameState, map, tilePositions, 
         if (dist > MAX_SETTLEMENT_BUILD_DISTANCE) continue;
 
         // Use full validation including land connectivity
-        if (!isValidSettlementSite(map, tile.q, tile.r, gameState.settlements, gameState.ports, builderPort)) continue;
+        if (!isValidSettlementSite(map, tile.q, tile.r, gameState.settlements, gameState.ports, gameState.towers, builderPort)) continue;
 
         const pos = tilePositions.get(tile);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
