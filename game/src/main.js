@@ -1082,14 +1082,23 @@ k.scene("title", () => {
     const cardTitleSize = isMobileScreen ? (isVeryNarrow ? 13 : 15) : 18;
     const cardDescSize = isMobileScreen ? (isVeryNarrow ? 10 : 11) : 12;
 
-    // Vertical spacing - center content block on mobile to use space evenly
-    // Content: title, subtitle, label, cards, start button (with copyright at bottom)
+    // Vertical spacing - center content block on screen
+    // Content: title, subtitle, label, cards, dropdown row (always reserved), start button
     const startBtnHeightMobile = 40;
-    const contentHeightMobile = titleSize + 8 + subtitleSize + 22 + labelSize + 16 + cardHeight + 22 + startBtnHeightMobile;
-    const bottomReserveMobile = 40; // reserve for copyright/breathing room
-    const contentTopMobile = Math.max(20, (screenH - contentHeightMobile - bottomReserveMobile) / 2);
+    const startBtnHeightDesktop = 60;
+    // Dropdown row sits under the Skirmish card; reserve space for it whether or not Skirmish is selected
+    // so the Start button stays put when switching modes
+    const dropdownRowHeight = isMobileScreen ? 22 : 28;
+    const cardToDropdownGap = isMobileScreen ? 6 : 15;
+    const dropdownToStartGap = 22;
 
-    const titleY = isMobileScreen ? contentTopMobile + titleSize / 2 : screenH * 0.15;
+    const contentHeightMobile = titleSize + 8 + subtitleSize + 22 + labelSize + 16 + cardHeight + cardToDropdownGap + dropdownRowHeight + dropdownToStartGap + startBtnHeightMobile;
+    const contentHeightDesktop = titleSize / 2 + 50 + 50 + 60 + cardHeight / 2 + cardToDropdownGap + dropdownRowHeight + dropdownToStartGap + startBtnHeightDesktop;
+    const contentHeight = isMobileScreen ? contentHeightMobile : contentHeightDesktop;
+    const bottomReserve = isMobileScreen ? 40 : 60; // reserve for copyright/breathing room
+    const contentTop = Math.max(isMobileScreen ? 20 : 40, (screenH - contentHeight - bottomReserve) / 2);
+
+    const titleY = contentTop + titleSize / 2;
     const subtitleY = titleY + (isMobileScreen ? titleSize / 2 + 8 + subtitleSize / 2 : 50);
     const cardLabelY = subtitleY + (isMobileScreen ? subtitleSize / 2 + 22 + labelSize / 2 : 50);
     const cardY = cardLabelY + (isMobileScreen ? labelSize / 2 + 16 + cardHeight / 2 : 60);
@@ -1225,10 +1234,11 @@ k.scene("title", () => {
         updateStartButton();
     }
 
-    // Start button - responsive
-    const playY = cardY + cardHeight / 2 + (isMobileScreen ? 22 + startBtnHeightMobile / 2 : 70);
+    // Start button - responsive. Sits below the (always-reserved) dropdown row so the
+    // Skirmish dropdowns don't overlap the Start button.
+    const startBtnHeight = isMobileScreen ? startBtnHeightMobile : startBtnHeightDesktop;
+    const playY = cardY + cardHeight / 2 + cardToDropdownGap + dropdownRowHeight + dropdownToStartGap + startBtnHeight / 2;
     const startBtnWidth = isMobileScreen ? 110 : 120;
-    const startBtnHeight = isMobileScreen ? startBtnHeightMobile : 60;
     const startBtnFontSize = isMobileScreen ? 18 : 22;
     const startBtnBg = k.add([
         k.rect(startBtnWidth, startBtnHeight, { radius: 6 }),
