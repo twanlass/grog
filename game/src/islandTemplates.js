@@ -1,81 +1,94 @@
 // Island templates for fair starting islands in versus mode
-// Each template guarantees exactly 4 inland hexes (settlement spots)
+// Each template guarantees at least 6 inland hexes (settlement spots)
 
 import { hexNeighbors, hexKey } from "./hex.js";
+
+const MIN_INLAND_HEXES = 6;
 
 /**
  * Starter island templates.
  * Each template is an array of relative hex offsets from the island center.
- * Templates are designed so that exactly 4 hexes end up as inland (no water neighbors)
- * when placed and surrounded by water.
+ * Templates are designed so that at least 6 hexes end up as inland (no water neighbors)
+ * when placed and surrounded by water. Inland hexes become settlement spots.
  */
 export const STARTER_ISLAND_TEMPLATES = [
     {
         name: "compact",
-        // Compact cluster: 4 inner hexes surrounded by coastal ring
+        // Hexagonal blob (radius 2): 7 inland hexes (center + first ring)
         hexes: [
-            // Inner hexes (will be inland - all neighbors are land)
+            // Center + ring 1 (all inland)
             { q: 0, r: 0 },
+            { q: 1, r: 0 },
             { q: 1, r: -1 },
             { q: 0, r: -1 },
+            { q: -1, r: 0 },
             { q: -1, r: 1 },
-            // Outer ring (will be coastal - have water neighbors)
-            { q: 1, r: 0 },
+            { q: 0, r: 1 },
+            // Ring 2 (coastal)
+            { q: 2, r: 0 },
             { q: 2, r: -1 },
             { q: 2, r: -2 },
             { q: 1, r: -2 },
             { q: 0, r: -2 },
             { q: -1, r: -1 },
-            { q: -1, r: 0 },
+            { q: -2, r: 0 },
             { q: -2, r: 1 },
             { q: -2, r: 2 },
             { q: -1, r: 2 },
-            { q: 0, r: 1 },
+            { q: 0, r: 2 },
+            { q: 1, r: 1 },
         ],
     },
     {
         name: "crescent",
-        // Crescent shape: 4 inland hexes in a curved pattern
+        // Elongated shape: 6 inland hexes in a stretched curve
         hexes: [
             // Inner hexes (inland)
             { q: 0, r: 0 },
+            { q: 0, r: 1 },
+            { q: 1, r: -1 },
             { q: 1, r: 0 },
             { q: 2, r: -1 },
-            { q: 2, r: 0 },
-            // Outer hexes (coastal)
-            { q: -1, r: 0 },
-            { q: -1, r: 1 },
-            { q: 0, r: 1 },
-            { q: 1, r: 1 },
-            { q: 2, r: 1 },
-            { q: 3, r: 0 },
-            { q: 3, r: -1 },
-            { q: 3, r: -2 },
             { q: 2, r: -2 },
-            { q: 1, r: -1 },
-            { q: 0, r: -1 },
-        ],
-    },
-    {
-        name: "chunky",
-        // Wider/blockier shape: 4 inland hexes in a 2x2-ish pattern
-        hexes: [
-            // Inner hexes (inland)
-            { q: 0, r: 0 },
-            { q: 1, r: 0 },
-            { q: 0, r: 1 },
-            { q: 1, r: -1 },
             // Outer ring (coastal)
+            { q: 0, r: -1 },
             { q: -1, r: 0 },
             { q: -1, r: 1 },
             { q: -1, r: 2 },
             { q: 0, r: 2 },
             { q: 1, r: 1 },
-            { q: 2, r: 0 },
-            { q: 2, r: -1 },
-            { q: 2, r: -2 },
             { q: 1, r: -2 },
+            { q: 2, r: 0 },
+            { q: 3, r: -1 },
+            { q: 3, r: -2 },
+            { q: 3, r: -3 },
+            { q: 2, r: -3 },
+        ],
+    },
+    {
+        name: "chunky",
+        // Clustered shape: 6 inland hexes spread across a wider body
+        hexes: [
+            // Inner hexes (inland)
+            { q: 0, r: 0 },
+            { q: 1, r: -1 },
+            { q: 1, r: 0 },
+            { q: 2, r: -1 },
+            { q: -1, r: 1 },
+            { q: 0, r: 1 },
+            // Outer ring (coastal)
             { q: 0, r: -1 },
+            { q: -1, r: 0 },
+            { q: 1, r: -2 },
+            { q: 2, r: -2 },
+            { q: 2, r: 0 },
+            { q: 1, r: 1 },
+            { q: 3, r: -1 },
+            { q: 3, r: -2 },
+            { q: -2, r: 1 },
+            { q: -2, r: 2 },
+            { q: -1, r: 2 },
+            { q: 0, r: 2 },
         ],
     },
 ];
@@ -117,14 +130,14 @@ export function countInlandHexes(template) {
 }
 
 /**
- * Validate all templates have exactly 4 inland hexes
+ * Validate all templates have at least MIN_INLAND_HEXES inland hexes
  * @returns {boolean} True if all templates are valid
  */
 export function validateAllTemplates() {
     for (const template of STARTER_ISLAND_TEMPLATES) {
         const inlandCount = countInlandHexes(template);
-        if (inlandCount !== 4) {
-            console.warn(`Template "${template.name}" has ${inlandCount} inland hexes, expected 4`);
+        if (inlandCount < MIN_INLAND_HEXES) {
+            console.warn(`Template "${template.name}" has ${inlandCount} inland hexes, expected at least ${MIN_INLAND_HEXES}`);
             return false;
         }
     }
