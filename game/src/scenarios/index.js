@@ -72,6 +72,26 @@ export const SCENARIOS = [
             initialDelay: 120,  // seconds before first pirates spawn
         },
     },
+    {
+        // Hidden debug/testing scenario — entered from the title footer link, not the cards
+        id: 'debug',
+        name: 'Debug',
+        description: 'Sandbox for testing features',
+        gameMode: 'debug',
+        mapSize: { width: 60, height: 60 },
+        startingResources: { wood: 1000 },
+        crewCapOverride: 1000,   // Force player crew cap to 1000 regardless of buildings
+        instantBuild: true,      // Ships, structures and upgrades complete instantly
+        pirateConfig: {
+            startingCount: 0,
+        },
+        aiConfig: {
+            enabled: true,
+            aiCount: 1,
+            difficulty: 'normal',
+            startingResources: { wood: 25 },
+        },
+    },
 ];
 
 // Get scenario by ID
