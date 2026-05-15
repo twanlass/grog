@@ -159,6 +159,18 @@ k.loadShader("whiteFlash", null, `
     }
 `);
 
+// Red flash variant for the TNT fuse telegraph — same opacity-as-intensity
+// trick as whiteFlash, but mixes toward red instead of white.
+k.loadShader("redFlash", null, `
+    vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
+        vec4 texColor = texture2D(tex, uv);
+        float flash = 1.0 - color.a;
+        vec4 result = mix(texColor, vec4(1.0, 0.15, 0.1, texColor.a), flash);
+        result.a = texColor.a;
+        return result;
+    }
+`);
+
 // Health overlay shader - grayscales sprite and applies health-based color tint
 // Pass health percentage (0-1) via opacity property
 k.loadShader("healthOverlay", null, `

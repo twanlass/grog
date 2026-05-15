@@ -107,10 +107,12 @@ export function drawSpriteHealthTint(k, sprite, x, y, scale = 4, healthPercent =
     }
 }
 
-// Draw a white flash overlay on a sprite (for hit feedback)
-export function drawSpriteFlash(k, sprite, x, y, scale = 4, flashIntensity = 1.0) {
+// Draw a flash overlay on a sprite (for hit feedback or TNT fuse telegraph).
+// `color` defaults to white; pass an `[r, g, b]` triple for other tints.
+export function drawSpriteFlash(k, sprite, x, y, scale = 4, flashIntensity = 1.0, color = [255, 255, 255]) {
     const height = sprite.length;
     const width = sprite[0].length;
+    const tint = k.rgb(color[0], color[1], color[2]);
 
     for (let row = 0; row < height; row++) {
         for (let col = 0; col < width; col++) {
@@ -120,7 +122,7 @@ export function drawSpriteFlash(k, sprite, x, y, scale = 4, flashIntensity = 1.0
                     pos: k.vec2(x + col * scale, y + row * scale),
                     width: scale,
                     height: scale,
-                    color: k.rgb(255, 255, 255),
+                    color: tint,
                     opacity: flashIntensity * 0.8,
                 });
             }

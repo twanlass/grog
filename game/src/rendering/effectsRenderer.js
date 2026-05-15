@@ -72,8 +72,9 @@ export function drawFloatingDebris(ctx, floatingDebris, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
     for (const debris of floatingDebris) {
-        // Hide debris in fog
-        if (!isHexVisible(fogState, debris.q, debris.r)) continue;
+        // Hide debris in fog (TNT-spawned debris bypasses fog so the player
+        // always sees the destruction they triggered, even after vision lapses)
+        if (!debris.ignoreFog && !isHexVisible(fogState, debris.q, debris.r)) continue;
 
         const pos = hexToPixel(debris.q, debris.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
@@ -284,8 +285,9 @@ export function drawExplosions(ctx, gameState, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
 
     for (const explosion of gameState.shipExplosions) {
-        // Hide explosions in fog
-        if (!isHexVisible(fogState, explosion.q, explosion.r)) continue;
+        // Hide explosions in fog (TNT detonations and victim explosions bypass
+        // fog so the kamikaze payoff is visible even after vision lapses)
+        if (!explosion.ignoreFog && !isHexVisible(fogState, explosion.q, explosion.r)) continue;
 
         const pos = hexToPixel(explosion.q, explosion.r);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
