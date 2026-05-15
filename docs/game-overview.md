@@ -107,11 +107,18 @@ The AI scouts to find your base, coordinates group attacks, and retreats to defe
 
 The game also runs on touch devices. Notable touch behaviors:
 
+- **Tap**: select a unit / tap UI
+- **Single-finger drag**: pan camera
+- **Pinch**: zoom; two-finger drag also pans
+- **Long-press (300ms) then release**: issues commands (mirrors right-click)
+- **Long-press (300ms) then drag**: draws a selection box to drag-select units (a short vibration confirms the hold has armed)
 - **Minimap**: single tap pans, double-tap snaps the camera back to your home port (mirrors the `H` key)
 - **Victory / defeat overlay**: tap anywhere to return to the title (mirrors the `SPACE` flow on desktop)
 - **Surrender prompt**: Accept/Decline accept taps
 - **Selected ships HUD**: shown as a row of small health-colored dots to save screen space
 - **Title screen**: re-renders on rotation/resize so portrait↔landscape switches don't break the layout
+
+See [Mobile Input](features/mobile-input.md) for the full gesture vocabulary and implementation notes.
 
 ## The Vibe
 

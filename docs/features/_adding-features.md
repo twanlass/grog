@@ -142,6 +142,15 @@ Available handler functions:
 - `handleWaypointClick()` - Cmd+click on water/land
 - `handleAttackClick()` - Cmd+click on enemy units
 
+### Touch / Mobile Input
+**File:** `src/systems/touchHandler.js`
+
+Examples: new gestures, tuning long-press / drag thresholds, scene-specific touch behavior
+
+Generic touch event handler that exposes gesture callbacks (`onTap`, `onLongPress`, `onLongPressArm`, `onDragStart/Move/End`, `onSelectionDragStart/Move/End`, `onPinchStart/Move/End`, `onTwoFingerPanStart/Move/End`). Wired up in `gameScene.js` under the `=== MOBILE TOUCH SUPPORT ===` block.
+
+See [Mobile Input](mobile-input.md) for the full gesture set and how to add new ones.
+
 ---
 
 ## Adding Visual Features (Rendering)

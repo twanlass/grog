@@ -48,6 +48,7 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [AI Opponent](docs/features/ai-opponent.md) - Versus mode AI
 - [Combat](docs/features/combat.md) - Action modes, attack-move, Broadside burst attacks
 - [Fog of War](docs/features/fog-of-war.md)
+- [Mobile Input](docs/features/mobile-input.md) - Touch gesture vocabulary and `touchHandler` callbacks
 - [Multiplayer](docs/features/multiplayer.md) - P2P WebRTC multiplayer via PeerJS
 - [Ship Building](docs/features/ship-building.md)
 - [Port Building](docs/features/port-building.md)
