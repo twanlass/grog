@@ -239,7 +239,33 @@ export function updateCombat(hexToPixel, gameState, map, dt, fogState) {
     handlePatrolChase(gameState, map);     // Patrolling ships chase their attack targets
     handlePlayerAttacks(gameState, dt, fogState);
     handleTowerAttacks(gameState, dt);  // Towers auto-attack pirates
+    updateTNTFuses(gameState, dt, fogState);  // Burn down armed kamikaze fuses
     updateProjectiles(gameState, dt, fogState);
+}
+
+/**
+ * Tick down kamikaze fuses and detonate any that hit zero. Armed ships are
+ * flagged with a re-armed hitFlash each frame so they visibly pulse red until
+ * they blow up. Iterates by id (collected up front) so detonations can splice
+ * the ships array without skewing indices.
+ */
+function updateTNTFuses(gameState, dt, fogState) {
+    const detonating = [];
+    for (let i = 0; i < gameState.ships.length; i++) {
+        const ship = gameState.ships[i];
+        if (!ship.tntFuse || ship.tntFuse <= 0) continue;
+        ship.tntFuse -= dt;
+        // Visible pulse while the fuse burns
+        ship.hitFlash = Math.max(ship.hitFlash || 0, HIT_FLASH_DURATION);
+        if (ship.tntFuse <= 0) {
+            ship.tntFuse = 0;
+            detonating.push(ship.id);
+        }
+    }
+    for (const id of detonating) {
+        const idx = gameState.ships.findIndex(s => s.id === id);
+        if (idx >= 0) detonateTNT(gameState, idx, fogState);
+    }
 }
 
 /**
@@ -820,6 +846,116 @@ export function triggerBroadside(gameState, shipIndex, targetType, targetIndex) 
 
     ship.burstCooldown = burstCfg.cooldown;
     return true;
+}
+
+/**
+ * Arm a schooner's TNT fuse. The ship keeps obeying movement/attack orders
+ * while the fuse burns down — pilot it into a target and let it cook.
+ * Returns true if armed, false if the ship can't carry TNT or is already armed.
+ */
+export function armTNT(gameState, shipIndex) {
+    const ship = gameState.ships[shipIndex];
+    if (!ship) return false;
+    const shipData = SHIPS[ship.type];
+    const tntCfg = shipData && shipData.tntAttack;
+    if (!tntCfg) return false;
+    if (ship.tntFuse > 0) return false;  // Already lit
+    ship.tntFuse = tntCfg.fuseDuration;
+    return true;
+}
+
+/**
+ * Detonate a kamikaze schooner: massive explosion, AoE damage to enemies in
+ * radius (linear falloff to minDamageFactor at the edge), and the ship itself
+ * is destroyed. Targets are gathered by id then resolved per-application so
+ * cascading destroyShip/applyDamage index shifts don't corrupt the loop.
+ */
+function detonateTNT(gameState, shipIndex, fogState) {
+    const ship = gameState.ships[shipIndex];
+    if (!ship) return;
+    const shipData = SHIPS[ship.type];
+    const tntCfg = shipData && shipData.tntAttack;
+    if (!tntCfg) return;
+
+    const epicenterQ = ship.q;
+    const epicenterR = ship.r;
+    // Blast radius scales with the ship's cannon range: a schooner reaches 5,
+    // so its kegs throw shrapnel ~half as far (rounded). New TNT-capable hulls
+    // pick up a proportional radius for free.
+    const radius = Math.max(1, Math.round((shipData.attackDistance || 2) / 2));
+    const maxDamage = tntCfg.damage;
+    const minFactor = tntCfg.minDamageFactor || 0.3;
+    const shipOwner = ship.owner || 'player';
+    const shipId = ship.id;
+
+    // Big boom: oversized explosion + impact sound. The `massive` flag is
+    // read by the explosion renderer (bigger radius, longer life) and by
+    // gameScene's camera-shake clamp (stronger shake).
+    gameState.shipExplosions.push({
+        q: epicenterQ,
+        r: epicenterR,
+        age: 0,
+        duration: 1.6,
+        massive: true,
+    });
+    queueImpactSound(gameState, epicenterQ, epicenterR);
+
+    // Damage falloff: 1.0 at center, linear down to minFactor at edge
+    const damageAt = (dist) => {
+        if (dist <= 0) return maxDamage;
+        const t = Math.min(dist / Math.max(radius, 1), 1);
+        const factor = 1 - (1 - minFactor) * t;
+        return Math.max(1, Math.round(maxDamage * factor));
+    };
+
+    // Collect victims by id so we can re-resolve indices after each splice
+    const victims = [];
+    for (const other of gameState.ships) {
+        if (other.id === shipId) continue;
+        const otherOwner = other.type === 'pirate' ? 'pirate' : (other.owner || 'player');
+        if (otherOwner === shipOwner) continue;  // No friendly fire on own faction
+        const dist = hexDistance(epicenterQ, epicenterR, other.q, other.r);
+        if (dist > radius) continue;
+        victims.push({ type: 'ship', id: other.id, damage: damageAt(dist) });
+    }
+    for (const port of gameState.ports) {
+        const portOwner = port.owner || 'player';
+        if (portOwner === shipOwner) continue;
+        const dist = hexDistance(epicenterQ, epicenterR, port.q, port.r);
+        if (dist > radius) continue;
+        victims.push({ type: 'port', id: port.id, damage: damageAt(dist) });
+    }
+    for (const tower of gameState.towers) {
+        const towerOwner = tower.owner || 'player';
+        if (towerOwner === shipOwner) continue;
+        const dist = hexDistance(epicenterQ, epicenterR, tower.q, tower.r);
+        if (dist > radius) continue;
+        victims.push({ type: 'tower', id: tower.id, damage: damageAt(dist) });
+    }
+    for (const settlement of gameState.settlements) {
+        const settlementOwner = settlement.owner || 'player';
+        if (settlementOwner === shipOwner) continue;
+        const dist = hexDistance(epicenterQ, epicenterR, settlement.q, settlement.r);
+        if (dist > radius) continue;
+        victims.push({ type: 'settlement', id: settlement.id, damage: damageAt(dist) });
+    }
+
+    for (const v of victims) {
+        const list = v.type === 'ship' ? gameState.ships
+            : v.type === 'port' ? gameState.ports
+            : v.type === 'tower' ? gameState.towers
+            : gameState.settlements;
+        const idx = list.findIndex(e => e.id === v.id);
+        if (idx < 0) continue;
+        applyDamage(gameState, v.type, idx, v.damage, fogState, null);
+    }
+
+    // The bomber goes last — its array index may have shifted if a lower-index
+    // enemy ship died in the blast, so re-resolve by id.
+    const selfIdx = gameState.ships.findIndex(s => s.id === shipId);
+    if (selfIdx >= 0) {
+        destroyShip(gameState, selfIdx, fogState);
+    }
 }
 
 /**

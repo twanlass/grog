@@ -28,7 +28,7 @@ import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems
 import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
-import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterSpawnPositions } from "../systems/combat.js";
+import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterSpawnPositions, armTNT } from "../systems/combat.js";
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
 import { startRepair } from "../systems/repair.js";
@@ -739,7 +739,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                             const margin = 100;
                             if (screenX >= -margin && screenX <= k.width() + margin &&
                                 screenY >= -margin && screenY <= k.height() + margin) {
-                                cameraShake = Math.max(cameraShake, 8);
+                                const shakeIntensity = explosion.massive ? 24 : 8;
+                                cameraShake = Math.max(cameraShake, shakeIntensity);
                             }
                         }
                         explosion.age += dt;
@@ -863,7 +864,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const margin = 100;
                     if (screenX >= -margin && screenX <= k.width() + margin &&
                         screenY >= -margin && screenY <= k.height() + margin) {
-                        cameraShake = Math.max(cameraShake, 8);  // Shake intensity (dramatic!)
+                        // TNT detonations shake the screen 3x harder than a normal sinking
+                        const shakeIntensity = explosion.massive ? 24 : 8;
+                        cameraShake = Math.max(cameraShake, shakeIntensity);
                     }
                 }
                 explosion.age += dt;
@@ -1819,6 +1822,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
+        // K to light TNT fuses on selected schooners (instant — no target click)
+        k.onKeyPress("k", () => {
+            const selectedShips = getSelectedShips(gameState);
+            const playerShips = selectedShips.filter(ship =>
+                ship && ship.type !== 'pirate' && ship.owner === localPlayerId
+            );
+            if (playerShips.length === 0) return;
+            const allHaveTNT = playerShips.every(s => SHIPS[s.type] && SHIPS[s.type].tntAttack);
+            if (!allHaveTNT) return;
+            triggerTNTOnSelected();
+        });
+
         // P to enter patrol mode (when ships selected)
         k.onKeyPress("p", () => {
             const selectedShips = getSelectedShips(gameState);
@@ -1872,6 +1887,30 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
         });
+
+        // Light TNT fuses on every selected TNT-capable ship the local player owns.
+        // No target click required — the ship continues moving until the fuse burns out.
+        // For multiplayer guests, sends a DETONATE_TNT command listing the ship ids.
+        function triggerTNTOnSelected() {
+            const armedIds = [];
+            for (const sel of gameState.selectedUnits) {
+                if (sel.type !== 'ship') continue;
+                if (isShipBuildingPort(sel.index, gameState.ports)) continue;
+                if (isShipBuildingTower(sel.index, gameState.towers)) continue;
+                const ship = gameState.ships[sel.index];
+                if (!ship || ship.type === 'pirate') continue;
+                if (ship.owner !== localPlayerId) continue;
+                if (!SHIPS[ship.type] || !SHIPS[ship.type].tntAttack) continue;
+                if (armTNT(gameState, sel.index)) {
+                    armedIds.push(ship.id);
+                }
+            }
+            if (armedIds.length === 0) return;
+            if (isMultiplayer && isGuest) {
+                sendPlayerCommand(createCommand(COMMAND_TYPES.DETONATE_TNT, { shipIds: armedIds }));
+            }
+            showNotification(gameState, armedIds.length > 1 ? "TNT lit on " + armedIds.length + " ships!" : "TNT lit!");
+        }
 
         // Snap camera to home port and reset zoom (used by H key and mobile minimap double-tap)
         function snapCameraHome() {
@@ -2303,13 +2342,19 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
             if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) { playUIClick(); return; }
 
-            // Check action button clicks (Move, Attack, Patrol, Broadside)
+            // Check action button clicks (Move, Attack, Patrol, Broadside, TNT)
             if (actionButtonBounds) {
                 for (const btn of actionButtonBounds.buttons) {
                     if (mouseX >= btn.x && mouseX <= btn.x + btn.width &&
                         mouseY >= btn.y && mouseY <= btn.y + btn.height) {
                         playUIClick();
                         if (btn.disabled) return;  // On cooldown — consume click, do nothing
+
+                        // TNT is an instant action (no target click) — light the fuse and return
+                        if (btn.id === 'tnt') {
+                            triggerTNTOnSelected();
+                            return;
+                        }
 
                         if (gameState.actionMode.active === btn.id) {
                             // Toggle off if clicking same button

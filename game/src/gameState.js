@@ -74,6 +74,7 @@ export function createGameState(config = {}) {
         // Action button targeting mode (move, attack, patrol, broadside)
         actionMode: {
             active: null,  // null | 'move' | 'attack' | 'patrol' | 'broadside' | 'rally'
+            // NOTE: TNT does NOT use action mode — it arms instantly on button press
         },
 
         // Pirate respawn queue: [{ timer }]
@@ -171,6 +172,7 @@ export function createShip(type, q, r, owner = 'player') {
         health: SHIPS[type].health,  // Current health (from ship metadata)
         attackCooldown: 0,           // Timer for shot cooldown
         burstCooldown: 0,            // Timer for special burst attack (e.g. Cutter Broadside)
+        tntFuse: 0,                  // Seconds until kamikaze detonation (0 = inactive)
         attackTarget: null,          // { type: 'ship', index } for player ships attacking pirates
         // Repair state
         repair: null,  // { progress, totalTime, healthToRestore } | null
