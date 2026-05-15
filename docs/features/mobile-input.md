@@ -17,7 +17,7 @@ The selection box and right-click command share the same starting gesture (hold 
 - **Lift without moving** → fires the right-click command at the hold position.
 - **Drag** → grows a selection box from the hold position; on release, units inside are selected.
 
-A short haptic pulse (`navigator.vibrate(15)`) fires when the 300ms hold arms, so players can feel the mode change before deciding to drag or release.
+A short haptic pulse (`navigator.vibrate(15)`) fires when the 300ms hold arms, so players can feel the mode change before deciding to drag or release. In parallel, `drawSelectionBox` renders a fixed-size (~90px) blue hint box centered on the touch point while the selection rect is still degenerate, giving a visual cue that drag-select is now active. Once the finger moves past `DRAG_THRESHOLD` the natural box growth from the start point takes over. iOS Safari silently ignores `navigator.vibrate`, so the visual hint is the only cue there.
 
 ## Implementation
 
