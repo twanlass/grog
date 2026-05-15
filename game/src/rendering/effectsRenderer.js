@@ -312,6 +312,36 @@ export function drawExplosions(ctx, gameState, fogState) {
             });
         }
 
+        // TNT shockwave ring: a true circle that emanates from the ship and
+        // grows to ~2x ship size before fading. Drawn before the rectangle
+        // shockwave so the cleaner ring reads as the leading edge of the blast.
+        // Ship visual footprint fits roughly in one hex, so 2x ship size ≈ 2 * HEX_SIZE.
+        if (explosion.massive) {
+            const ringDuration = 0.5;  // Fraction of explosion lifetime the ring is alive for
+            const ringProgress = Math.min(progress / ringDuration, 1);
+            if (ringProgress < 1) {
+                const finalRadius = 2 * HEX_SIZE * zoom;
+                // Ease-out so the ring snaps out fast then slows
+                const eased = 1 - Math.pow(1 - ringProgress, 2);
+                const ringRadius = eased * finalRadius;
+                const ringOpacity = (1 - ringProgress) * 0.9;
+                k.drawCircle({
+                    pos: k.vec2(screenX, screenY),
+                    radius: ringRadius,
+                    fill: false,
+                    outline: { width: 3 * zoom, color: k.rgb(255, 230, 160) },
+                    opacity: ringOpacity,
+                });
+                // Soft inner halo for a bit of glow
+                k.drawCircle({
+                    pos: k.vec2(screenX, screenY),
+                    radius: ringRadius,
+                    color: k.rgb(255, 250, 220),
+                    opacity: ringOpacity * 0.15,
+                });
+            }
+        }
+
         // Shockwave ring (expands fast, fades quickly)
         const shockwaveProgress = Math.min(progress * 2, 1); // Faster expansion
         const shockwaveRadius = shockwaveProgress * maxRadius * 1.5;
