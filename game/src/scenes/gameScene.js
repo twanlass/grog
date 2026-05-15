@@ -170,7 +170,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const map = generateMap({
             width: scenario.mapSize.width,
             height: scenario.mapSize.height,
-            versusMode: scenario.gameMode === 'versus' || scenario.gameMode === 'multiplayer',
+            versusMode: scenario.gameMode === 'versus' || scenario.gameMode === 'multiplayer' || scenario.gameMode === 'debug',
             seed: mapSeed,
         });
 
@@ -181,6 +181,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Store scenario reference for wave system
         gameState.scenario = scenario;
+
+        // Debug-mode flags (read by systems below)
+        if (typeof scenario.crewCapOverride === 'number') {
+            gameState.crewCapOverride = scenario.crewCapOverride;
+        }
+        gameState.instantBuild = !!scenario.instantBuild;
 
         // Multiplayer: track the game mode and roles
         gameState.isMultiplayer = isMultiplayer;
@@ -228,9 +234,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     }
                 };
             }
-        } else if (scenario.gameMode === 'versus') {
-            // Get the selected number of AI opponents (1-3)
-            const aiCount = getAICount();
+        } else if (scenario.gameMode === 'versus' || scenario.gameMode === 'debug') {
+            // Get the selected number of AI opponents (1-3) — debug mode uses the scenario value, not the title dropdown
+            const aiCount = scenario.gameMode === 'debug'
+                ? (scenario.aiConfig?.aiCount ?? 1)
+                : getAICount();
 
             // Versus mode: use fair starting islands from map generation
             if (map.starterPositions) {
@@ -788,8 +796,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             updateShipMovement(hexToPixel, gameState, map, fogState, dt, floatingNumbers);
             // Determine patrol center for pirates
             let piratePatrolCenter;
-            if (scenario.gameMode === 'versus') {
-                // Versus mode: pirates patrol around map center
+            if (scenario.gameMode === 'versus' || scenario.gameMode === 'debug') {
+                // Versus / debug: pirates (if any) patrol around map center
                 const centerRow = Math.floor(map.height / 2);
                 const centerCol = Math.floor(map.width / 2);
                 piratePatrolCenter = {
@@ -805,7 +813,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             updateAIPlayer(gameState, map, fogState, dt); // AI opponent decisions (versus mode)
             handlePatrolAutoAttack(gameState, map);  // Patrolling ships detect and target pirates
             updateTradeRoutes(gameState, map, dt);
-            updateConstruction(gameState, map, fogState, dt, floatingNumbers);
+            // Debug mode: bypass build timers by inflating construction dt so all in-progress builds finish next frame
+            const constructionDt = gameState.instantBuild ? dt * 10000 : dt;
+            updateConstruction(gameState, map, fogState, constructionDt, floatingNumbers);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
             updateCombat(hexToPixel, gameState, map, dt, fogState);
 
@@ -942,7 +952,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Versus mode: total elimination win condition (4-way free-for-all)
-            if (scenario && scenario.gameMode === 'versus' && !gameState.gameOver) {
+            if (scenario && (scenario.gameMode === 'versus' || scenario.gameMode === 'debug') && !gameState.gameOver) {
                 const playerCounts = countEntitiesForOwner(gameState, 'player');
                 const ai1Counts = countEntitiesForOwner(gameState, 'ai1');
                 const ai2Counts = countEntitiesForOwner(gameState, 'ai2');
@@ -972,7 +982,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Generic game over: all player ships and ports destroyed (for non-versus modes)
-            if (scenario && scenario.gameMode !== 'versus' && playerShips.length === 0 && gameState.ports.length === 0) {
+            if (scenario && scenario.gameMode !== 'versus' && scenario.gameMode !== 'debug' && playerShips.length === 0 && gameState.ports.length === 0) {
                 gameState.gameOver = 'lose';
             }
 

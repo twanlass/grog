@@ -1263,6 +1263,11 @@ export function computeCrewStatus(gameState, owner = 'player') {
         used += towerData.crewCost || 0;
     }
 
+    // Debug-mode override: force the human player's cap to a fixed value
+    if (owner === 'player' && typeof gameState.crewCapOverride === 'number') {
+        cap = gameState.crewCapOverride;
+    }
+
     return {
         used,
         cap,

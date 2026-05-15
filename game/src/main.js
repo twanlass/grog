@@ -1062,10 +1062,11 @@ k.scene("title", () => {
     // Treat as mobile if either dimension is small (landscape ~390 high, portrait ~390 wide)
     const isMobileScreen = screenH < 500 || screenW < 700;
 
-    // Filter scenarios for mobile (hide sandbox mode)
+    // Filter scenarios for mobile (hide sandbox mode). 'debug' is never shown as a card —
+    // it is launched from the small footer link below.
     const displayedScenarios = isMobileScreen
-        ? SCENARIOS.filter(s => s.id !== 'sandbox')
-        : SCENARIOS;
+        ? SCENARIOS.filter(s => s.id !== 'sandbox' && s.id !== 'debug')
+        : SCENARIOS.filter(s => s.id !== 'debug');
 
     // Adjust sizes for mobile - readable on small screens
     const isVeryNarrow = isMobileScreen && screenW < 460;
@@ -1298,6 +1299,31 @@ k.scene("title", () => {
         window.open("https://tyler.cv", "_blank");
     });
 
+    // Small "Debug" footer link — launches the hidden debug/sandbox scenario
+    const debugLinkSize = isMobileScreen ? 10 : 12;
+    const debugLinkX = screenW - (isMobileScreen ? 14 : 24);
+    const debugLinkY = copyrightY;
+    k.add([
+        k.text("Debug", { size: debugLinkSize }),
+        k.pos(debugLinkX, debugLinkY),
+        k.anchor("right"),
+        k.color(140, 160, 180),
+        k.area(),
+        "debugModeLink",
+    ]);
+    k.add([
+        k.rect(debugLinkSize * 2.4, 1),
+        k.pos(debugLinkX - debugLinkSize * 1.2, debugLinkY + (isMobileScreen ? 6 : 8)),
+        k.anchor("center"),
+        k.color(140, 160, 180),
+    ]);
+
+    k.onClick("debugModeLink", () => {
+        selectedScenarioId = 'debug';
+        selectedAIStrategy = null;
+        startGame();
+    });
+
     // Helper to stop music and start game
     function startGame() {
         // Don't start if no mode selected
@@ -1345,27 +1371,27 @@ k.scene("title", () => {
     }
 
     k.onKeyPress("left", () => {
-        const currentIndex = SCENARIOS.findIndex(s => s.id === selectedScenarioId);
+        const currentIndex = displayedScenarios.findIndex(s => s.id === selectedScenarioId);
         if (currentIndex > 0) {
-            selectedScenarioId = SCENARIOS[currentIndex - 1].id;
+            selectedScenarioId = displayedScenarios[currentIndex - 1].id;
             updateCardSelection();
             playModeSound(selectedScenarioId);
         } else if (selectedScenarioId === null) {
             // If nothing selected, select last one
-            selectedScenarioId = SCENARIOS[SCENARIOS.length - 1].id;
+            selectedScenarioId = displayedScenarios[displayedScenarios.length - 1].id;
             updateCardSelection();
             playModeSound(selectedScenarioId);
         }
     });
     k.onKeyPress("right", () => {
-        const currentIndex = SCENARIOS.findIndex(s => s.id === selectedScenarioId);
-        if (currentIndex < SCENARIOS.length - 1 && currentIndex >= 0) {
-            selectedScenarioId = SCENARIOS[currentIndex + 1].id;
+        const currentIndex = displayedScenarios.findIndex(s => s.id === selectedScenarioId);
+        if (currentIndex < displayedScenarios.length - 1 && currentIndex >= 0) {
+            selectedScenarioId = displayedScenarios[currentIndex + 1].id;
             updateCardSelection();
             playModeSound(selectedScenarioId);
         } else if (selectedScenarioId === null) {
             // If nothing selected, select first one
-            selectedScenarioId = SCENARIOS[0].id;
+            selectedScenarioId = displayedScenarios[0].id;
             updateCardSelection();
             playModeSound(selectedScenarioId);
         }
