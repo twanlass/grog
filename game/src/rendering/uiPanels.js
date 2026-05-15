@@ -260,6 +260,8 @@ export function drawGameMenu(ctx, gameState, menuState) {
         let hotkeyText = item.hotkey;
         if (isSpeedItem) {
             hotkeyText = `${gameState.timeScale || 1}x >`;
+        } else if (isTouchDevice()) {
+            hotkeyText = '';
         }
         if (hotkeyText) {
             k.drawText({
@@ -460,14 +462,16 @@ export function drawTimeIndicator(ctx, timeScale, speedMenuOpen = false) {
                 color: labelColor,
             });
 
-            // Hotkey hint
-            k.drawText({
-                text: `(${i})`,
-                pos: k.vec2(menuX + menuWidth - 14, textY),
-                size: 12,
-                anchor: "right",
-                color: k.rgb(120, 120, 120),
-            });
+            // Hotkey hint (hidden on mobile)
+            if (!isTouchDevice()) {
+                k.drawText({
+                    text: `(${i})`,
+                    pos: k.vec2(menuX + menuWidth - 14, textY),
+                    size: 12,
+                    anchor: "right",
+                    color: k.rgb(120, 120, 120),
+                });
+            }
         }
 
         bounds.menu = {
@@ -1140,7 +1144,7 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
     });
 
     // Hotkey hint (slightly off-white, matching speed menu)
-    if (hotkey) {
+    if (hotkey && !isTouchDevice()) {
         k.drawText({
             text: hotkey.trim(),
             pos: k.vec2(panelX + panelWidth - sidePadding - 4, btnY + 10),
