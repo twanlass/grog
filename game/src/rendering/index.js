@@ -2,7 +2,7 @@
 
 // Core context and helpers
 export { createRenderContext, worldToScreen, hexToScreen, isOnScreen, getHexScreenCorners } from "./renderContext.js";
-export { drawProgressBar, drawConstructionProgressBar, drawHexOutline, drawHexRangeFilled, drawHexRangeOutline, drawHealthBar } from "./renderHelpers.js";
+export { drawProgressBar, drawConstructionProgressBar, drawHexOutline, drawHexRangeFilled, drawHexRangeOutline, healthToColor } from "./renderHelpers.js";
 
 // Tile rendering
 export { drawTiles, drawFogOfWar } from "./tileRenderer.js";

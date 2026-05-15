@@ -2,6 +2,7 @@
 import { hexToPixel, HEX_SIZE } from "../hex.js";
 import { SHIPS, PORTS, TOWERS, SETTLEMENTS } from "../sprites/index.js";
 import { isHexVisible, shouldRenderEntity } from "../fogOfWar.js";
+import { healthToColor } from "./renderHelpers.js";
 
 /**
  * Generate hexagon vertices centered at origin
@@ -517,14 +518,12 @@ export function drawHealthBars(ctx, gameState, getShipVisualPosLocal, fogState, 
             radius: 2,
         });
 
-        // Health fill (red to green gradient based on health)
-        const r = Math.floor(255 * (1 - healthPercent));
-        const g = Math.floor(180 * healthPercent);
+        // Health fill: tiered status color (matches selection dots)
         k.drawRect({
             pos: k.vec2(screenX - barWidth / 2, barY),
             width: barWidth * healthPercent,
             height: barHeight,
-            color: k.rgb(r, g, 40),
+            color: healthToColor(k, healthPercent),
             radius: 2,
         });
     }
