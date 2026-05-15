@@ -11,7 +11,7 @@ import {
 } from '../gameState.js';
 import { findPath, findNearestWater, distributeDestinations } from '../pathfinding.js';
 import { startRepair } from '../systems/repair.js';
-import { triggerBroadside } from '../systems/combat.js';
+import { triggerBroadside, armTNT } from '../systems/combat.js';
 import { hexKey } from '../hex.js';
 
 const GUEST_OWNER = 'player2';
@@ -33,6 +33,8 @@ export function processGuestCommand(command, gameState, map, fogState) {
             return handleAttack(command, gameState, map);
         case COMMAND_TYPES.BROADSIDE:
             return handleBroadside(command, gameState);
+        case COMMAND_TYPES.DETONATE_TNT:
+            return handleDetonateTNT(command, gameState);
         case COMMAND_TYPES.BUILD_PORT:
             return handleBuildPort(command, gameState, map);
         case COMMAND_TYPES.BUILD_SETTLEMENT:
@@ -228,6 +230,19 @@ function handleBroadside(command, gameState) {
         }
     }
     return firedAny;
+}
+
+function handleDetonateTNT(command, gameState) {
+    const { shipIds } = command;
+    if (!shipIds) return false;
+
+    let armedAny = false;
+    for (const id of shipIds) {
+        const idx = findShipByIdForGuest(gameState, id);
+        if (idx < 0) continue;
+        if (armTNT(gameState, idx)) armedAny = true;
+    }
+    return armedAny;
 }
 
 function handleBuildPort(command, gameState, map) {

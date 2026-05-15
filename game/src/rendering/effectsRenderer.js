@@ -296,7 +296,21 @@ export function drawExplosions(ctx, gameState, fogState) {
             screenY < -100 || screenY > screenHeight + 100) continue;
 
         const progress = explosion.age / explosion.duration;
-        const maxRadius = 40 * zoom;
+        // TNT detonations get a much bigger blast: 2.4x radius, 2x particles
+        const sizeMul = explosion.massive ? 2.4 : 1;
+        const particleMul = explosion.massive ? 2 : 1;
+        const maxRadius = 40 * zoom * sizeMul;
+
+        // Full-screen white flash on first frames of a massive explosion
+        if (explosion.massive && progress < 0.18) {
+            k.drawRect({
+                pos: k.vec2(0, 0),
+                width: ctx.screenWidth,
+                height: ctx.screenHeight,
+                color: k.rgb(255, 240, 200),
+                opacity: (1 - progress / 0.18) * 0.55,
+            });
+        }
 
         // Shockwave ring (expands fast, fades quickly)
         const shockwaveProgress = Math.min(progress * 2, 1); // Faster expansion
@@ -316,12 +330,13 @@ export function drawExplosions(ctx, gameState, fogState) {
         }
 
         // Multiple expanding fiery particles
-        for (let i = 0; i < 10; i++) {
-            const angle = (i / 10) * Math.PI * 2 + progress * 0.5;
+        const fireParticleCount = 10 * particleMul;
+        for (let i = 0; i < fireParticleCount; i++) {
+            const angle = (i / fireParticleCount) * Math.PI * 2 + progress * 0.5;
             const dist = progress * maxRadius * (0.5 + (i % 3) * 0.15);
             const px = screenX + Math.cos(angle) * dist;
             const py = screenY + Math.sin(angle) * dist;
-            const size = (6 - progress * 3) * zoom;
+            const size = (6 - progress * 3) * zoom * (explosion.massive ? 1.8 : 1);
 
             // Varied fiery colors per particle
             const colorVariant = i % 3;
@@ -356,16 +371,17 @@ export function drawExplosions(ctx, gameState, fogState) {
         }
 
         // Secondary smoke particles (gray, slower, rise upward)
-        for (let i = 0; i < 8; i++) {
+        const smokeParticleCount = 8 * particleMul;
+        for (let i = 0; i < smokeParticleCount; i++) {
             const smokeProgress = Math.max(0, progress - 0.2) / 0.8; // Delayed start
             if (smokeProgress <= 0) continue;
 
-            const angle = (i / 8) * Math.PI * 2 + i * 0.3;
+            const angle = (i / smokeParticleCount) * Math.PI * 2 + i * 0.3;
             const dist = smokeProgress * maxRadius * 0.7;
             const rise = smokeProgress * 15 * zoom; // Rise upward
             const px = screenX + Math.cos(angle) * dist;
             const py = screenY + Math.sin(angle) * dist - rise;
-            const smokeSize = (8 + smokeProgress * 4) * zoom;
+            const smokeSize = (8 + smokeProgress * 4) * zoom * (explosion.massive ? 1.6 : 1);
 
             k.drawRect({
                 pos: k.vec2(px, py),

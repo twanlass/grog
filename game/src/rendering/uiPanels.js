@@ -2521,6 +2521,20 @@ export function drawActionButtons(ctx, gameState) {
                 cooldownProgress,
             });
         }
+
+        // TNT (kamikaze) button: shown when every selected ship has a tntAttack
+        // config. No cooldown — it's a one-shot self-destruct. Disabled when
+        // every selected ship has already lit its fuse.
+        const tntConfigs = selectedShips.map(s => SHIPS[s.type] && SHIPS[s.type].tntAttack);
+        if (tntConfigs.length > 0 && tntConfigs.every(cfg => cfg)) {
+            const anyUnarmed = selectedShips.some(s => !s.tntFuse || s.tntFuse <= 0);
+            buttons.push({
+                id: 'tnt',
+                label: tntConfigs[0].name || 'TNT',
+                hotkey: tntConfigs[0].hotkey || 'K',
+                cooldownProgress: anyUnarmed ? 1 : 0,  // 0 = visually "spent"/disabled
+            });
+        }
     } else if (selectedPorts.length > 0) {
         // Port buttons
         buttons = [

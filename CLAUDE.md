@@ -47,6 +47,7 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [Adding Features](docs/features/_adding-features.md) - Where to add new game features
 - [AI Opponent](docs/features/ai-opponent.md) - Versus mode AI
 - [Combat](docs/features/combat.md) - Action modes, attack-move, Broadside burst attacks
+- [TNT Mode](docs/features/tnt-mode.md) - Schooner kamikaze self-destruct
 - [Fog of War](docs/features/fog-of-war.md)
 - [Mobile Input](docs/features/mobile-input.md) - Touch gesture vocabulary and `touchHandler` callbacks
 - [Multiplayer](docs/features/multiplayer.md) - P2P WebRTC multiplayer via PeerJS
