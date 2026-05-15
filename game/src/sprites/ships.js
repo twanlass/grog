@@ -152,6 +152,7 @@ export const SHIPS = {
         wakeSize: 10,           // base size of water trail wake
         cost: { wood: 30 },
         crewCost: 10,
+        maxConcurrent: 1,               // Max simultaneous builds of this ship type per port
         burstAttack: {                  // Special ability: rapid burst of cannon shots
             name: "Broadside",
             shots: 5,

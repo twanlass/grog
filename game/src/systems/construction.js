@@ -45,8 +45,15 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
             : gameState.aiResources?.[port.owner];
         const isHuman = !port.owner || port.owner === 'player' || port.owner === 'player2';
 
-        // Count currently active builds
-        let activeCount = port.buildQueue.filter(item => item.progress !== null).length;
+        // Count currently active builds (overall and by ship type)
+        let activeCount = 0;
+        const activeByType = {};
+        for (const item of port.buildQueue) {
+            if (item.progress !== null) {
+                activeCount++;
+                activeByType[item.shipType] = (activeByType[item.shipType] || 0) + 1;
+            }
+        }
 
         // Try to start queued items up to parallel slot limit
         for (const item of port.buildQueue) {
@@ -55,18 +62,24 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
 
             const shipData = SHIPS[item.shipType];
 
+            // Per-ship-type concurrent build cap (e.g. schooner: 1 at a time)
+            const maxConcurrent = shipData.maxConcurrent;
+            if (maxConcurrent && (activeByType[item.shipType] || 0) >= maxConcurrent) continue;
+
             // Check if we can afford to start this build
             if (isHuman && resources) {
                 if (canAfford(resources, shipData.cost) && canAffordCrew(gameState, shipData.crewCost || 0)) {
                     deductCost(resources, shipData.cost);
                     item.progress = 0;
                     activeCount++;
+                    activeByType[item.shipType] = (activeByType[item.shipType] || 0) + 1;
                 }
                 // If can't afford, item stays queued (progress remains null)
             } else if (!isHuman) {
                 // AI always starts building (resources handled elsewhere)
                 item.progress = 0;
                 activeCount++;
+                activeByType[item.shipType] = (activeByType[item.shipType] || 0) + 1;
             }
         }
 
