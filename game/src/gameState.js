@@ -870,14 +870,24 @@ export function exitPortBuildMode(gameState) {
     };
 }
 
-// Check if a hex is a valid port site (shore hex, not occupied by existing port)
-export function isValidPortSite(map, q, r, existingPorts) {
+// Check if a hex is a valid port site (shore hex, not occupied by existing port, tower, or settlement)
+export function isValidPortSite(map, q, r, existingPorts, existingTowers = [], existingSettlements = []) {
     const tile = map.tiles.get(hexKey(q, r));
     if (!tile || !tile.isPortSite) return false;
 
     // Check if already occupied by a port
     for (const port of existingPorts) {
         if (port.q === q && port.r === r) return false;
+    }
+
+    // Check if already occupied by a tower (including in-construction)
+    for (const tower of existingTowers) {
+        if (tower.q === q && tower.r === r) return false;
+    }
+
+    // Check if already occupied by a settlement
+    for (const settlement of existingSettlements) {
+        if (settlement.q === q && settlement.r === r) return false;
     }
 
     return true;

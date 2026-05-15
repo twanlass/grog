@@ -1188,7 +1188,7 @@ function evaluateExpansion(gameState, map, ai, aiOwner) {
 
     // Select best island - filter for valid sites first
     const validIslands = ai.tactics.discoveredIslands.filter(island =>
-        isValidPortSite(map, island.portSiteHex.q, island.portSiteHex.r, gameState.ports)
+        isValidPortSite(map, island.portSiteHex.q, island.portSiteHex.r, gameState.ports, gameState.towers, gameState.settlements)
     );
 
     if (validIslands.length === 0) return false;
@@ -1270,7 +1270,7 @@ function updateExpansionMission(gameState, map, ai, aiOwner) {
     }
 
     // Check if port site is still valid
-    if (!isValidPortSite(map, mission.portSite.q, mission.portSite.r, gameState.ports)) {
+    if (!isValidPortSite(map, mission.portSite.q, mission.portSite.r, gameState.ports, gameState.towers, gameState.settlements)) {
         // Abort mission - site taken
         ship.expansionMission = null;
         ai.tactics.expansionShipIndex = null;

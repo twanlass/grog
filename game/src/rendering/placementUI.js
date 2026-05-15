@@ -102,7 +102,7 @@ export function drawPortPlacementMode(ctx, gameState, map, tilePositions, fogSta
 
     // Check if hovered hex is a valid port site AND within range
     const hoverDistance = hexDistance(builderShip.q, builderShip.r, hoverHex.q, hoverHex.r);
-    const isValidHover = isValidPortSite(map, hoverHex.q, hoverHex.r, gameState.ports) &&
+    const isValidHover = isValidPortSite(map, hoverHex.q, hoverHex.r, gameState.ports, gameState.towers, gameState.settlements) &&
                          hoverDistance <= MAX_BUILD_DISTANCE;
     gameState.portBuildMode.hoveredHex = isValidHover ? hoverHex : null;
 
@@ -114,8 +114,7 @@ export function drawPortPlacementMode(ctx, gameState, map, tilePositions, fogSta
         const dist = hexDistance(builderShip.q, builderShip.r, tile.q, tile.r);
         if (dist > MAX_BUILD_DISTANCE) continue;
 
-        const hasPort = gameState.ports.some(p => p.q === tile.q && p.r === tile.r);
-        if (hasPort) continue;
+        if (!isValidPortSite(map, tile.q, tile.r, gameState.ports, gameState.towers, gameState.settlements)) continue;
 
         const pos = tilePositions.get(tile);
         const screenX = (pos.x - cameraX) * zoom + halfWidth;
