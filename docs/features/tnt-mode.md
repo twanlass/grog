@@ -34,6 +34,16 @@ The fuse is also re-armed on the **hitFlash** field every frame, so the schooner
 - Stamp a brief full-screen white flash
 - Trigger a 3x stronger camera shake (24 vs the usual 8)
 
+## Blast Radius
+
+Radius is **derived** from the ship's cannon range, not configured per-ship:
+
+```
+radius = max(1, round(shipData.attackDistance / 2))
+```
+
+For the Schooner with `attackDistance: 5`, that's a 3-hex radius (19 hexes hit). Any future hull that gets a `tntAttack` config picks up a proportional blast for free.
+
 ## Damage Falloff
 
 ```
@@ -41,14 +51,15 @@ factor = 1 - (1 - minDamageFactor) * (dist / radius)
 damage = round(maxDamage * factor)
 ```
 
-With the default config (`damage: 60`, `radius: 2`, `minDamageFactor: 0.4`):
+With the default Schooner config (`damage: 60`, `radius: 3`, `minDamageFactor: 0.4`):
 
 | Distance | Damage |
 |---------:|-------:|
 | 0 (epicenter) | 60 |
-| 1 hex | 42 |
-| 2 hex | 24 |
-| 3+ hex | (out of range, no damage) |
+| 1 hex | 48 |
+| 2 hex | 36 |
+| 3 hex | 24 |
+| 4+ hex | (out of range, no damage) |
 
 Only enemies are damaged — friendly ships, ports, towers, and settlements with the same `owner` are spared. Pirates count as their own faction, so player-owned schooners damage pirates but pirate-owned schooners (if any ever existed) would damage players.
 
@@ -69,13 +80,14 @@ SHIPS.schooner.tntAttack = {
     name: "TNT",
     hotkey: "K",
     fuseDuration: 1.0,     // Seconds between arming and detonation
-    radius: 2,             // Hex radius of AoE
     damage: 60,            // Max damage at epicenter
     minDamageFactor: 0.4,  // Damage at the edge of the radius (40% of max)
+    // Note: radius is computed at detonation time from shipData.attackDistance,
+    // not stored here. See detonateTNT.
 };
 ```
 
-Add this block to any other hull to give it TNT — the action button, hotkey, network command, and detonation logic all key off the presence of `tntAttack`.
+Add this block to any other hull to give it TNT — the action button, hotkey, network command, and detonation logic all key off the presence of `tntAttack`. Blast radius auto-scales with `attackDistance`.
 
 ## Multiplayer
 

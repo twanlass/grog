@@ -879,7 +879,10 @@ function detonateTNT(gameState, shipIndex, fogState) {
 
     const epicenterQ = ship.q;
     const epicenterR = ship.r;
-    const radius = tntCfg.radius;
+    // Blast radius scales with the ship's cannon range: a schooner reaches 5,
+    // so its kegs throw shrapnel ~half as far (rounded). New TNT-capable hulls
+    // pick up a proportional radius for free.
+    const radius = Math.max(1, Math.round((shipData.attackDistance || 2) / 2));
     const maxDamage = tntCfg.damage;
     const minFactor = tntCfg.minDamageFactor || 0.3;
     const shipOwner = ship.owner || 'player';
