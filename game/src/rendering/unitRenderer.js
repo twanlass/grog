@@ -14,6 +14,23 @@ function isEnemyOwner(owner, fogState) {
     return true;
 }
 
+// TNT telegraph: red square-wave blink whose frequency accelerates as the fuse
+// burns down. Returns 0 (no flash) or 1 (full red) — square wave reads as a
+// sharper warning than a sinusoidal pulse. Frequency ramps from ~2 Hz at arm
+// to ~14 Hz at detonation.
+function tntBlinkIntensity(ship) {
+    if (!ship.tntFuse || ship.tntFuse <= 0) return 0;
+    const tntCfg = SHIPS[ship.type] && SHIPS[ship.type].tntAttack;
+    if (!tntCfg) return 0;
+    const duration = tntCfg.fuseDuration || 1;
+    const elapsed = Math.max(0, duration - ship.tntFuse);
+    const startFreq = 2;   // blinks/sec at arm
+    const endFreq = 14;    // blinks/sec just before detonation
+    // Integral of a linearly-ramping frequency: phase in cycles.
+    const phase = startFreq * elapsed + (endFreq - startFreq) * elapsed * elapsed / (2 * duration);
+    return (phase - Math.floor(phase)) < 0.5 ? 1 : 0;
+}
+
 /**
  * Convert ship heading (radians) to sprite direction for 5-row sprites with mirroring
  * Sprite rows: 0=S, 1=NE, 2=SE, 3=N, 4=E
@@ -331,6 +348,15 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             drawFactionHex(k, screenX, screenY, 18 * zoom, getFactionColor(ship.owner, k), 0.75);
         }
 
+        // A burning TNT fuse overrides the white hit-flash with a red telegraph
+        // blink that accelerates as detonation approaches.
+        const tntBlink = tntBlinkIntensity(ship);
+        const flashShader = tntBlink > 0 ? "redFlash" : "whiteFlash";
+        const flashIntensity = tntBlink > 0
+            ? tntBlink
+            : (ship.hitFlash > 0 ? Math.min(ship.hitFlash / 0.15, 1) : 0);
+        const flashOpacity = 1.0 - flashIntensity;
+
         // Use directional animated sprite if available (colored by owner)
         const dirSprite = getDirectionalSprite(shipData, ship.owner);
         if (dirSprite) {
@@ -340,11 +366,6 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             const frame = dir.row * 3 + animCol;  // row * 3 cols + column
 
             const spriteScale = zoom * (shipData.spriteScale || 1);
-            // Use shader for damage flash effect (0-1 intensity)
-            const flashIntensity = ship.hitFlash > 0 ? Math.min(ship.hitFlash / 0.15, 1) : 0;
-
-            // Pass flash intensity via opacity (shader uses 1-opacity as flash amount)
-            const flashOpacity = 1.0 - flashIntensity;
 
             k.drawSprite({
                 sprite: dirSprite,
@@ -353,7 +374,7 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
                 anchor: "center",
                 scale: spriteScale,
                 flipX: dir.flipX,  // Mirror for left-facing directions
-                shader: "whiteFlash",
+                shader: flashShader,
                 opacity: flashOpacity,
             });
         } else if (shipData.imageSprite) {
@@ -361,9 +382,6 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             // Sprite faces north (up), heading 0 = east, so rotate by heading + 90°
             const rotationDeg = (ship.heading || 0) * (180 / Math.PI) + 90;
             const spriteScale = zoom * (shipData.spriteScale || 1);
-            // Use shader for damage flash effect (0-1 intensity)
-            const flashIntensity = ship.hitFlash > 0 ? Math.min(ship.hitFlash / 0.15, 1) : 0;
-            const flashOpacity = 1.0 - flashIntensity;
             k.drawSprite({
                 sprite: shipData.imageSprite,
                 frame: 0,
@@ -371,7 +389,7 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
                 anchor: "center",
                 scale: spriteScale,
                 angle: rotationDeg,
-                shader: "whiteFlash",
+                shader: flashShader,
                 opacity: flashOpacity,
             });
         } else {
@@ -382,8 +400,12 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
                 screenY - spriteSize.height / 2,
                 unitScale);
 
-            // Draw hit flash overlay
-            if (ship.hitFlash > 0) {
+            if (tntBlink > 0) {
+                drawSpriteFlash(k, shipData.sprite,
+                    screenX - spriteSize.width / 2,
+                    screenY - spriteSize.height / 2,
+                    unitScale, tntBlink, [255, 38, 25]);
+            } else if (ship.hitFlash > 0) {
                 drawSpriteFlash(k, shipData.sprite,
                     screenX - spriteSize.width / 2,
                     screenY - spriteSize.height / 2,

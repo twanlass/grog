@@ -244,10 +244,10 @@ export function updateCombat(hexToPixel, gameState, map, dt, fogState) {
 }
 
 /**
- * Tick down kamikaze fuses and detonate any that hit zero. Armed ships are
- * flagged with a re-armed hitFlash each frame so they visibly pulse red until
- * they blow up. Iterates by id (collected up front) so detonations can splice
- * the ships array without skewing indices.
+ * Tick down kamikaze fuses and detonate any that hit zero. The renderer reads
+ * `ship.tntFuse` directly to draw the red accelerating blink telegraph, so
+ * nothing else needs to be set here. Iterates by id (collected up front) so
+ * detonations can splice the ships array without skewing indices.
  */
 function updateTNTFuses(gameState, dt, fogState) {
     const detonating = [];
@@ -255,8 +255,6 @@ function updateTNTFuses(gameState, dt, fogState) {
         const ship = gameState.ships[i];
         if (!ship.tntFuse || ship.tntFuse <= 0) continue;
         ship.tntFuse -= dt;
-        // Visible pulse while the fuse burns
-        ship.hitFlash = Math.max(ship.hitFlash || 0, HIT_FLASH_DURATION);
         if (ship.tntFuse <= 0) {
             ship.tntFuse = 0;
             detonating.push(ship.id);
@@ -865,10 +863,11 @@ export function armTNT(gameState, shipIndex) {
 }
 
 /**
- * Detonate a kamikaze schooner: massive explosion, AoE damage to enemies in
- * radius (linear falloff to minDamageFactor at the edge), and the ship itself
- * is destroyed. Targets are gathered by id then resolved per-application so
- * cascading destroyShip/applyDamage index shifts don't corrupt the loop.
+ * Detonate a kamikaze schooner: massive explosion, AoE damage to every entity
+ * in radius (linear falloff to minDamageFactor at the edge) — friendly units
+ * INCLUDED for risk/reward. The bomber is destroyed last. Destruction effects
+ * bypass fog so the player always sees what they just blew up, even if the
+ * schooner that was providing vision is gone after the blast.
  */
 function detonateTNT(gameState, shipIndex, fogState) {
     const ship = gameState.ships[shipIndex];
@@ -885,18 +884,19 @@ function detonateTNT(gameState, shipIndex, fogState) {
     const radius = Math.max(1, Math.round((shipData.attackDistance || 2) / 2));
     const maxDamage = tntCfg.damage;
     const minFactor = tntCfg.minDamageFactor || 0.3;
-    const shipOwner = ship.owner || 'player';
     const shipId = ship.id;
 
     // Big boom: oversized explosion + impact sound. The `massive` flag is
     // read by the explosion renderer (bigger radius, longer life) and by
-    // gameScene's camera-shake clamp (stronger shake).
+    // gameScene's camera-shake clamp (stronger shake). `ignoreFog` keeps the
+    // epicenter visible even if it slips out of vision after the bomber dies.
     gameState.shipExplosions.push({
         q: epicenterQ,
         r: epicenterR,
         age: 0,
         duration: 1.6,
         massive: true,
+        ignoreFog: true,
     });
     queueImpactSound(gameState, epicenterQ, epicenterR);
 
@@ -908,33 +908,26 @@ function detonateTNT(gameState, shipIndex, fogState) {
         return Math.max(1, Math.round(maxDamage * factor));
     };
 
-    // Collect victims by id so we can re-resolve indices after each splice
+    // Collect victims by id so we can re-resolve indices after each splice.
+    // Friendly fire is intentional — the bomber is the only entity spared.
     const victims = [];
     for (const other of gameState.ships) {
-        if (other.id === shipId) continue;
-        const otherOwner = other.type === 'pirate' ? 'pirate' : (other.owner || 'player');
-        if (otherOwner === shipOwner) continue;  // No friendly fire on own faction
+        if (other.id === shipId) continue;  // Don't damage self twice
         const dist = hexDistance(epicenterQ, epicenterR, other.q, other.r);
         if (dist > radius) continue;
         victims.push({ type: 'ship', id: other.id, damage: damageAt(dist) });
     }
     for (const port of gameState.ports) {
-        const portOwner = port.owner || 'player';
-        if (portOwner === shipOwner) continue;
         const dist = hexDistance(epicenterQ, epicenterR, port.q, port.r);
         if (dist > radius) continue;
         victims.push({ type: 'port', id: port.id, damage: damageAt(dist) });
     }
     for (const tower of gameState.towers) {
-        const towerOwner = tower.owner || 'player';
-        if (towerOwner === shipOwner) continue;
         const dist = hexDistance(epicenterQ, epicenterR, tower.q, tower.r);
         if (dist > radius) continue;
         victims.push({ type: 'tower', id: tower.id, damage: damageAt(dist) });
     }
     for (const settlement of gameState.settlements) {
-        const settlementOwner = settlement.owner || 'player';
-        if (settlementOwner === shipOwner) continue;
         const dist = hexDistance(epicenterQ, epicenterR, settlement.q, settlement.r);
         if (dist > radius) continue;
         victims.push({ type: 'settlement', id: settlement.id, damage: damageAt(dist) });
@@ -947,14 +940,14 @@ function detonateTNT(gameState, shipIndex, fogState) {
             : gameState.settlements;
         const idx = list.findIndex(e => e.id === v.id);
         if (idx < 0) continue;
-        applyDamage(gameState, v.type, idx, v.damage, fogState, null);
+        applyDamage(gameState, v.type, idx, v.damage, fogState, null, true /* ignoreFog */);
     }
 
     // The bomber goes last — its array index may have shifted if a lower-index
-    // enemy ship died in the blast, so re-resolve by id.
+    // ship died in the blast, so re-resolve by id.
     const selfIdx = gameState.ships.findIndex(s => s.id === shipId);
     if (selfIdx >= 0) {
-        destroyShip(gameState, selfIdx, fogState);
+        destroyShip(gameState, selfIdx, fogState, true /* ignoreFog */);
     }
 }
 
@@ -1185,7 +1178,7 @@ const HIT_FLASH_DURATION = 0.15;
  * Apply damage to a target, destroying it if health reaches 0
  * @param {Object} attackerInfo - Optional info about the attacker { type: 'ship', index: number }
  */
-function applyDamage(gameState, targetType, targetIndex, damage, fogState, attackerInfo = null) {
+function applyDamage(gameState, targetType, targetIndex, damage, fogState, attackerInfo = null, ignoreFog = false) {
     let target;
     if (targetType === 'ship') {
         target = gameState.ships[targetIndex];
@@ -1231,13 +1224,13 @@ function applyDamage(gameState, targetType, targetIndex, damage, fogState, attac
 
     if (target.health <= 0) {
         if (targetType === 'ship') {
-            destroyShip(gameState, targetIndex, fogState);
+            destroyShip(gameState, targetIndex, fogState, ignoreFog);
         } else if (targetType === 'port') {
-            destroyPort(gameState, targetIndex, fogState);
+            destroyPort(gameState, targetIndex, fogState, ignoreFog);
         } else if (targetType === 'tower') {
-            destroyTower(gameState, targetIndex, fogState);
+            destroyTower(gameState, targetIndex, fogState, ignoreFog);
         } else if (targetType === 'settlement') {
-            destroySettlement(gameState, targetIndex, fogState);
+            destroySettlement(gameState, targetIndex, fogState, ignoreFog);
         }
     }
 }
@@ -1250,13 +1243,14 @@ function applyDamage(gameState, targetType, targetIndex, damage, fogState, attac
  * @param {string} unitType - 'ship', 'port', or 'tower'
  * @param {string} [buildingType] - For ports: 'dock', 'shipyard', 'stronghold'
  */
-function spawnDestructionEffects(gameState, q, r, unitType, buildingType = null) {
+function spawnDestructionEffects(gameState, q, r, unitType, buildingType = null, ignoreFog = false) {
     // Spawn explosion (same for all unit types)
     gameState.shipExplosions.push({
         q,
         r,
         age: 0,
         duration: 1.0,
+        ignoreFog,
     });
 
     // Determine debris type and location type
@@ -1298,6 +1292,7 @@ function spawnDestructionEffects(gameState, q, r, unitType, buildingType = null)
         hasWaterRings: isOnWater,
         hasDustClouds: !isOnWater,
         rings,
+        ignoreFog,
     });
 }
 
@@ -1322,11 +1317,11 @@ function spawnLootDrop(gameState, q, r) {
 /**
  * Remove a ship and clean up all references to it
  */
-function destroyShip(gameState, shipIndex, fogState) {
+function destroyShip(gameState, shipIndex, fogState, ignoreFog = false) {
     const ship = gameState.ships[shipIndex];
     if (!ship) return;
 
-    spawnDestructionEffects(gameState, ship.q, ship.r, 'ship');
+    spawnDestructionEffects(gameState, ship.q, ship.r, 'ship', null, ignoreFog);
 
     // Mark fog dirty if player ship destroyed (affects vision)
     if (ship.type !== 'pirate' && fogState) {
@@ -1359,11 +1354,11 @@ function destroyShip(gameState, shipIndex, fogState) {
 /**
  * Remove a port and clean up all references to it
  */
-function destroyPort(gameState, portIndex, fogState) {
+function destroyPort(gameState, portIndex, fogState, ignoreFog = false) {
     const port = gameState.ports[portIndex];
     if (!port) return;
 
-    spawnDestructionEffects(gameState, port.q, port.r, 'port', port.type);
+    spawnDestructionEffects(gameState, port.q, port.r, 'port', port.type, ignoreFog);
 
     // Mark fog dirty (port was providing vision)
     if (fogState) {
@@ -1380,11 +1375,11 @@ function destroyPort(gameState, portIndex, fogState) {
 /**
  * Remove a tower and clean up all references to it
  */
-function destroyTower(gameState, towerIndex, fogState) {
+function destroyTower(gameState, towerIndex, fogState, ignoreFog = false) {
     const tower = gameState.towers[towerIndex];
     if (!tower) return;
 
-    spawnDestructionEffects(gameState, tower.q, tower.r, 'tower');
+    spawnDestructionEffects(gameState, tower.q, tower.r, 'tower', null, ignoreFog);
 
     // Mark fog dirty (tower was providing vision)
     if (fogState) {
@@ -1401,11 +1396,11 @@ function destroyTower(gameState, towerIndex, fogState) {
 /**
  * Remove a settlement and clean up all references to it
  */
-function destroySettlement(gameState, settlementIndex, fogState) {
+function destroySettlement(gameState, settlementIndex, fogState, ignoreFog = false) {
     const settlement = gameState.settlements[settlementIndex];
     if (!settlement) return;
 
-    spawnDestructionEffects(gameState, settlement.q, settlement.r, 'settlement');
+    spawnDestructionEffects(gameState, settlement.q, settlement.r, 'settlement', null, ignoreFog);
 
     // Mark fog dirty (settlement was providing vision)
     if (fogState) {

@@ -163,7 +163,7 @@ export const SHIPS = {
         tntAttack: {                    // Special ability: kamikaze self-destruct
             name: "TNT",
             hotkey: "K",
-            fuseDuration: 1.0,          // Seconds between arming and detonation
+            fuseDuration: 3.0,          // Seconds between arming and detonation
             // Blast radius is derived as round(attackDistance / 2) — see detonateTNT.
             damage: 60,                 // Max damage at epicenter (falls off with distance)
             minDamageFactor: 0.4,       // Minimum damage at radius edge (40% of max)
