@@ -295,10 +295,21 @@ export function drawSelectionBox(ctx, isSelecting, selectStartX, selectStartY, s
     if (!isSelecting) return;
 
     const { k } = ctx;
-    const boxX = Math.min(selectStartX, selectEndX);
-    const boxY = Math.min(selectStartY, selectEndY);
-    const boxW = Math.abs(selectEndX - selectStartX);
-    const boxH = Math.abs(selectEndY - selectStartY);
+    let boxX = Math.min(selectStartX, selectEndX);
+    let boxY = Math.min(selectStartY, selectEndY);
+    let boxW = Math.abs(selectEndX - selectStartX);
+    let boxH = Math.abs(selectEndY - selectStartY);
+
+    // Mobile arm hint: when the rect is still degenerate (long-press armed but no drag yet),
+    // show a fixed-size box centered on the touch point so the user can see drag-select is live.
+    // Once the user drags past DRAG_THRESHOLD the natural box growth takes over.
+    const HINT_SIZE = 90;
+    if (boxW < 4 && boxH < 4) {
+        boxX = selectStartX - HINT_SIZE / 2;
+        boxY = selectStartY - HINT_SIZE / 2;
+        boxW = HINT_SIZE;
+        boxH = HINT_SIZE;
+    }
 
     // Fill
     k.drawRect({
