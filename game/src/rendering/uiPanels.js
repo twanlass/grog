@@ -14,6 +14,7 @@ import {
     drawSectionHeader,
     PANEL_COLORS,
 } from "./uiPrimitives.js";
+import { healthToColor } from "./renderHelpers.js";
 
 // Helper to get local player's resources for UI display
 function getLocalRes(gameState) {
@@ -2306,12 +2307,6 @@ export function drawBuildQueuePanel(ctx, portEntries, mousePos) {
     return bounds;
 }
 
-function healthToDotColor(k, healthPercent) {
-    if (healthPercent > 0.66) return k.rgb(80, 200, 100);
-    if (healthPercent > 0.33) return k.rgb(220, 180, 60);
-    return k.rgb(220, 70, 60);
-}
-
 function drawSelectedShipsDots(ctx, selectedShips) {
     const { k, screenWidth, screenHeight } = ctx;
 
@@ -2348,7 +2343,7 @@ function drawSelectedShipsDots(ctx, selectedShips) {
         k.drawCircle({
             pos: k.vec2(dx, dy),
             radius: dotSize / 2,
-            color: healthToDotColor(k, healthPercent),
+            color: healthToColor(k, healthPercent),
         });
     }
 

@@ -169,40 +169,11 @@ export function drawHexRangeOutline(ctx, centerQ, centerR, range, color, lineWid
 }
 
 /**
- * Draw a health bar (red/green style)
- * @param {object} ctx - Render context
- * @param {number} screenX - Center X position
- * @param {number} screenY - Y position (top of bar)
- * @param {number} currentHealth - Current health value
- * @param {number} maxHealth - Maximum health value
- * @param {object} options - Optional settings
+ * Map a health percentage (0-1) to a tiered status color.
+ * Shared by in-world health bars and selection dots so they stay in sync.
  */
-export function drawHealthBar(ctx, screenX, screenY, currentHealth, maxHealth, options = {}) {
-    const {
-        width = 40,
-        height = 4,
-    } = options;
-
-    const { k, zoom } = ctx;
-    const barWidth = width * zoom;
-    const barHeight = height * zoom;
-    const healthPercent = currentHealth / maxHealth;
-
-    // Background (dark)
-    k.drawRect({
-        pos: k.vec2(screenX - barWidth / 2, screenY),
-        width: barWidth,
-        height: barHeight,
-        color: k.rgb(40, 40, 40),
-    });
-
-    // Health fill (green to red based on health)
-    const r = Math.floor(255 * (1 - healthPercent));
-    const g = Math.floor(200 * healthPercent);
-    k.drawRect({
-        pos: k.vec2(screenX - barWidth / 2, screenY),
-        width: barWidth * healthPercent,
-        height: barHeight,
-        color: k.rgb(r, g, 40),
-    });
+export function healthToColor(k, healthPercent) {
+    if (healthPercent > 0.66) return k.rgb(80, 200, 100);
+    if (healthPercent > 0.33) return k.rgb(220, 180, 60);
+    return k.rgb(220, 70, 60);
 }
