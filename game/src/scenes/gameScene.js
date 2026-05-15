@@ -2894,9 +2894,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     virtualMousePos = null;
                 },
 
-                // Long press = right click (issue commands)
+                // Long press released without moving = right click (issue commands)
                 onLongPress: (x, y) => {
                     if (gameState.gameOver || gameState.surrenderPending) return;
+                    // Clear the armed selection box so it doesn't render
+                    isSelecting = false;
                     // Set virtual mouse position for the right click handler
                     virtualMousePos = { x, y };
                     selectStartX = x;
@@ -2905,7 +2907,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     virtualMousePos = null;
                 },
 
-                // Single finger drag = pan camera (more intuitive on mobile)
+                // Long press hit 300ms hold without moving - arm drag-select mode
+                onLongPressArm: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    // Prime selection box at the touch point so a subsequent drag grows from here
+                    selectStartX = x;
+                    selectStartY = y;
+                    selectEndX = x;
+                    selectEndY = y;
+                    isSelecting = true;
+                    // Haptic cue so the user knows they're in select mode
+                    if (navigator.vibrate) navigator.vibrate(15);
+                },
+
+                // Single finger drag (without holding first) = pan camera
                 onDragStart: (x, y) => {
                     if (gameState.gameOver || gameState.surrenderPending) return;
                     touchPanCameraX = cameraX;
@@ -2922,6 +2937,33 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                 onDragEnd: (x, y, wasDrag) => {
                     // Drag ended, camera position is already set
+                },
+
+                // Long-press → drag = selection box (drag-select units)
+                onSelectionDragStart: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    selectStartX = x;
+                    selectStartY = y;
+                    selectEndX = x;
+                    selectEndY = y;
+                    isSelecting = true;
+                },
+
+                onSelectionDragMove: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) return;
+                    selectEndX = x;
+                    selectEndY = y;
+                },
+
+                onSelectionDragEnd: (x, y) => {
+                    if (gameState.gameOver || gameState.surrenderPending) {
+                        isSelecting = false;
+                        return;
+                    }
+                    selectEndX = x;
+                    selectEndY = y;
+                    handleSelectionBox();
+                    isSelecting = false;
                 },
 
                 // Pinch = zoom

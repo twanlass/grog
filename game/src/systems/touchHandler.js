@@ -3,8 +3,9 @@
  *
  * Provides touch-based input handling for mobile devices:
  * - Single tap: Left-click equivalent (select units)
- * - Long-press (300ms): Right-click equivalent (commands)
- * - Single-finger drag: Pan camera
+ * - Long-press (300ms) released without moving: Right-click equivalent (commands)
+ * - Long-press (300ms) then drag: Selection box (drag-select units)
+ * - Single-finger drag (without holding first): Pan camera
  * - Pinch: Zoom in/out
  * - Two-finger drag: Pan camera
  */
@@ -20,7 +21,7 @@ let touchState = {
 
     // Long-press detection
     longPressTimer: null,
-    longPressTriggered: false,
+    longPressArmed: false,       // Hold has reached 300ms without moving - ready for drag-select or right-click
 
     // Pinch zoom tracking
     initialPinchDistance: 0,
@@ -36,7 +37,8 @@ let touchState = {
 
     // Drag detection
     hasMoved: false,
-    isDragging: false,
+    isDragging: false,            // Pan drag (started without long-press arm)
+    isSelectionDragging: false,   // Selection box drag (started after long-press arm)
     dragStartX: 0,
     dragStartY: 0,
     dragCurrentX: 0,
@@ -63,10 +65,14 @@ export function isTouchDevice() {
 export function initTouchHandlers(canvas, callbacks) {
     const {
         onTap,           // Single tap (x, y) - left click equivalent
-        onLongPress,     // Long press (x, y) - right click equivalent
-        onDragStart,     // Drag start (x, y)
-        onDragMove,      // Drag move (x, y, dx, dy)
-        onDragEnd,       // Drag end (x, y, wasDrag)
+        onLongPress,     // Long press released without movement (x, y) - right click equivalent
+        onLongPressArm,  // Long press timer reached without movement (x, y) - drag-select armed
+        onDragStart,     // Pan drag start (x, y)
+        onDragMove,      // Pan drag move (x, y, dx, dy)
+        onDragEnd,       // Pan drag end (x, y, wasDrag)
+        onSelectionDragStart, // Selection-box drag start (x, y) - after long-press arm
+        onSelectionDragMove,  // Selection-box drag move (x, y)
+        onSelectionDragEnd,   // Selection-box drag end (x, y)
         onPinchStart,    // Pinch start
         onPinchMove,     // Pinch move (scale, centerX, centerY)
         onPinchEnd,      // Pinch end
@@ -119,20 +125,21 @@ export function initTouchHandlers(canvas, callbacks) {
             touchState.singleTouchStart = pos;
             touchState.singleTouchStartTime = Date.now();
             touchState.hasMoved = false;
-            touchState.longPressTriggered = false;
+            touchState.longPressArmed = false;
             touchState.isDragging = false;
+            touchState.isSelectionDragging = false;
             touchState.dragStartX = pos.x;
             touchState.dragStartY = pos.y;
             touchState.dragCurrentX = pos.x;
             touchState.dragCurrentY = pos.y;
 
-            // Start long-press timer
+            // Start long-press timer - arms drag-select / right-click mode, does NOT fire commands yet
             clearLongPress();
             touchState.longPressTimer = setTimeout(() => {
-                if (!touchState.hasMoved && touches.length === 1) {
-                    touchState.longPressTriggered = true;
-                    if (onLongPress) {
-                        onLongPress(pos.x, pos.y);
+                if (!touchState.hasMoved && !touchState.isDragging) {
+                    touchState.longPressArmed = true;
+                    if (onLongPressArm) {
+                        onLongPressArm(touchState.dragStartX, touchState.dragStartY);
                     }
                 }
             }, LONG_PRESS_DURATION);
@@ -140,7 +147,8 @@ export function initTouchHandlers(canvas, callbacks) {
         } else if (touches.length === 2) {
             // Two touches - could be pinch or pan
             clearLongPress();
-            touchState.longPressTriggered = false;
+            touchState.longPressArmed = false;
+            touchState.isSelectionDragging = false;
 
             const distance = getTouchDistance(touches[0], touches[1]);
             const center = getTouchCenter(touches[0], touches[1]);
@@ -175,20 +183,36 @@ export function initTouchHandlers(canvas, callbacks) {
             touchState.dragCurrentX = pos.x;
             touchState.dragCurrentY = pos.y;
 
-            if (distance > TAP_MOVE_THRESHOLD) {
-                touchState.hasMoved = true;
-                clearLongPress();
-            }
-
-            if (distance > DRAG_THRESHOLD) {
-                if (!touchState.isDragging) {
-                    touchState.isDragging = true;
-                    if (onDragStart) {
-                        onDragStart(touchState.dragStartX, touchState.dragStartY);
+            if (touchState.longPressArmed) {
+                // Long-press already armed: motion grows a selection box
+                if (distance > DRAG_THRESHOLD) {
+                    if (!touchState.isSelectionDragging) {
+                        touchState.isSelectionDragging = true;
+                        if (onSelectionDragStart) {
+                            onSelectionDragStart(touchState.dragStartX, touchState.dragStartY);
+                        }
+                    }
+                    if (onSelectionDragMove) {
+                        onSelectionDragMove(pos.x, pos.y);
                     }
                 }
-                if (onDragMove) {
-                    onDragMove(pos.x, pos.y, dx, dy);
+            } else {
+                // Not armed yet: standard pan-drag behavior
+                if (distance > TAP_MOVE_THRESHOLD) {
+                    touchState.hasMoved = true;
+                    clearLongPress();
+                }
+
+                if (distance > DRAG_THRESHOLD) {
+                    if (!touchState.isDragging) {
+                        touchState.isDragging = true;
+                        if (onDragStart) {
+                            onDragStart(touchState.dragStartX, touchState.dragStartY);
+                        }
+                    }
+                    if (onDragMove) {
+                        onDragMove(pos.x, pos.y, dx, dy);
+                    }
                 }
             }
 
@@ -245,18 +269,28 @@ export function initTouchHandlers(canvas, callbacks) {
                 const pos = getTouchPos(changedTouches[0]);
                 const timeDelta = Date.now() - touchState.singleTouchStartTime;
 
-                if (touchState.isDragging) {
-                    // End of drag
+                if (touchState.isSelectionDragging) {
+                    // End of selection-box drag (long-press → drag)
+                    if (onSelectionDragEnd) {
+                        onSelectionDragEnd(pos.x, pos.y);
+                    }
+                } else if (touchState.longPressArmed) {
+                    // Armed long-press released without dragging → deferred right-click
+                    if (onLongPress) {
+                        onLongPress(pos.x, pos.y);
+                    }
+                } else if (touchState.isDragging) {
+                    // End of pan drag
                     if (onDragEnd) {
                         onDragEnd(pos.x, pos.y, true);
                     }
-                } else if (!touchState.longPressTriggered && !touchState.hasMoved) {
-                    // Quick tap (not a long press, not a drag)
+                } else if (!touchState.hasMoved) {
+                    // Quick tap (not armed, not dragged)
                     if (onTap) {
                         onTap(pos.x, pos.y);
                     }
-                } else if (!touchState.isDragging) {
-                    // End without drag
+                } else {
+                    // End without drag (moved past tap threshold but not drag threshold)
                     if (onDragEnd) {
                         onDragEnd(pos.x, pos.y, false);
                     }
@@ -266,8 +300,9 @@ export function initTouchHandlers(canvas, callbacks) {
             // Reset state
             touchState.singleTouchStart = null;
             touchState.isDragging = false;
+            touchState.isSelectionDragging = false;
             touchState.hasMoved = false;
-            touchState.longPressTriggered = false;
+            touchState.longPressArmed = false;
 
         } else if (touches.length === 1) {
             // Went from 2 touches to 1
@@ -280,11 +315,13 @@ export function initTouchHandlers(canvas, callbacks) {
                 onTwoFingerPanEnd();
             }
 
-            // Reset for single touch tracking
+            // Reset for single touch tracking - don't arm a long-press from this finger
             const pos = getTouchPos(touches[0]);
             touchState.singleTouchStart = pos;
             touchState.singleTouchStartTime = Date.now();
             touchState.hasMoved = false;
+            touchState.longPressArmed = false;
+            touchState.isSelectionDragging = false;
             touchState.dragStartX = pos.x;
             touchState.dragStartY = pos.y;
         }
@@ -297,9 +334,10 @@ export function initTouchHandlers(canvas, callbacks) {
         touchState.isPinching = false;
         touchState.isTwoFingerPanning = false;
         touchState.isDragging = false;
+        touchState.isSelectionDragging = false;
         touchState.singleTouchStart = null;
         touchState.hasMoved = false;
-        touchState.longPressTriggered = false;
+        touchState.longPressArmed = false;
     }
 
     // Add event listeners
@@ -326,7 +364,8 @@ export function getTouchState() {
         isPinching: touchState.isPinching,
         isTwoFingerPanning: touchState.isTwoFingerPanning,
         isDragging: touchState.isDragging,
-        longPressTriggered: touchState.longPressTriggered,
+        isSelectionDragging: touchState.isSelectionDragging,
+        longPressArmed: touchState.longPressArmed,
     };
 }
 
@@ -343,6 +382,7 @@ export function resetTouchState() {
     touchState.isPinching = false;
     touchState.isTwoFingerPanning = false;
     touchState.isDragging = false;
+    touchState.isSelectionDragging = false;
     touchState.hasMoved = false;
-    touchState.longPressTriggered = false;
+    touchState.longPressArmed = false;
 }
