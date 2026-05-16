@@ -212,12 +212,21 @@ k.loadShader("healthOverlay", null, `
 // === TITLE MUSIC (module-scoped so it persists across title-scene re-entry on resize) ===
 let titleMusic = null;
 let musicStarted = false;
+// Module-scoped mode-card sound handle. Lives outside the title-scene closure so
+// startGame() can stop it before transitioning — otherwise the handle becomes
+// unreachable and the clip keeps playing into the game and back to title.
+let currentModeSound = null;
+// Token invalidates pending title-music repeat callbacks. Bumping it kills any
+// k.wait() chain still queued from a stopped or naturally-ended title track.
+let titleMusicChainToken = 0;
 
 function playTitleMusic() {
     titleMusic = k.play("title-music", { volume: 0.5 });
+    const myToken = titleMusicChainToken;
     titleMusic.onEnd(() => {
-        // 10 second delay before repeating
+        if (myToken !== titleMusicChainToken) return;
         k.wait(10, () => {
+            if (myToken !== titleMusicChainToken) return;
             playTitleMusic();
         });
     });
@@ -228,6 +237,19 @@ function startTitleMusicIfNeeded() {
         musicStarted = true;
         playTitleMusic();
     }
+}
+
+function stopTitleAudio() {
+    titleMusicChainToken++;
+    if (titleMusic) {
+        try { titleMusic.stop(); } catch (e) {}
+        titleMusic = null;
+    }
+    if (currentModeSound) {
+        try { currentModeSound.stop(); } catch (e) {}
+        currentModeSound = null;
+    }
+    musicStarted = false;
 }
 
 // Re-render the title scene on viewport resize / device rotation. Layout is
@@ -1341,11 +1363,7 @@ k.scene("title", () => {
         // Don't start if no mode selected
         if (selectedScenarioId === null) return;
 
-        if (titleMusic) {
-            titleMusic.stop();
-            titleMusic = null;
-        }
-        musicStarted = false;
+        stopTitleAudio();
         titleSceneActive = false;
 
         // Multiplayer goes to lobby first
@@ -1368,12 +1386,12 @@ k.scene("title", () => {
     // Keyboard shortcuts
     k.onKeyPress("enter", () => startGame());
     k.onKeyPress("space", () => startGame());
-    // Helper to play mode sound
-    let currentModeSound = null;
+    // Helper to play mode sound (currentModeSound is module-scoped so startGame
+    // can stop it before transitioning to the game scene).
     function playModeSound(scenarioId) {
-        // Stop previous mode sound if playing
         if (currentModeSound) {
-            currentModeSound.stop();
+            try { currentModeSound.stop(); } catch (e) {}
+            currentModeSound = null;
         }
         const soundMap = { multiplayer: 'mode-skirmish', versus: 'mode-skirmish', defend: 'mode-defend', sandbox: 'mode-sandbox' };
         const soundName = soundMap[scenarioId];
