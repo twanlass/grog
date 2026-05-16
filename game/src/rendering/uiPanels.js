@@ -661,11 +661,12 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
     }
 
     // Calculate panel height based on content
-    const baseHeight = 40; // Header only
-    const statusHeight = statusText ? 20 : 0;
-    const cargoHeight = shipData.cargo > 0 ? 30 : 0;
+    const headerHeight = 52; // Thumbnail + name + health
+    const statusHeight = statusText ? 22 : 0;
+    const cargoHeight = shipData.cargo > 0 ? 26 : 0;
+    const bottomPadding = 10;
     const infoPanelWidth = 160;
-    const infoPanelHeight = baseHeight + statusHeight + cargoHeight;
+    const infoPanelHeight = headerHeight + statusHeight + cargoHeight + bottomPadding;
     const infoPanelX = 15;  // Bottom left
     const infoPanelY = screenHeight - infoPanelHeight - 15;
 
@@ -687,42 +688,58 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
         opacity: 0.85,
     });
 
-    // Ship name (left-aligned)
+    // Ship sprite thumbnail (left side of header)
+    const thumbCenterX = infoPanelX + 26;
+    const thumbCenterY = infoPanelY + 26;
+    const dirSprite = getDirectionalSprite(shipData, ship.owner);
+    if (dirSprite) {
+        // SE-facing frame (row 2, col 0) for a recognizable static pose
+        const frame = 2 * 3 + 0;
+        k.drawSprite({
+            sprite: dirSprite,
+            frame: frame,
+            pos: k.vec2(thumbCenterX, thumbCenterY),
+            anchor: "center",
+            scale: (shipData.spriteScale || 1) * 0.9,
+        });
+    } else if (shipData.imageSprite) {
+        k.drawSprite({
+            sprite: shipData.imageSprite,
+            frame: 0,
+            pos: k.vec2(thumbCenterX, thumbCenterY),
+            anchor: "center",
+            scale: (shipData.spriteScale || 1) * 0.9,
+        });
+    }
+
+    // Ship name (right of thumbnail)
+    const textX = infoPanelX + 52;
     k.drawText({
         text: shipData.name,
-        pos: k.vec2(infoPanelX + 14, infoPanelY + 14),
+        pos: k.vec2(textX, infoPanelY + 14),
         size: 16,
         anchor: "left",
-        color: k.rgb(200, 200, 200),
+        color: k.rgb(220, 220, 220),
     });
 
-    let currentY = infoPanelY + 32;
+    // Health (below name)
+    const maxHp = maxHealth;
+    const currentHp = Math.max(0, Math.ceil(ship.health));
+    const hpRatio = ship.health / maxHp;
+    const hpColor = hpRatio > 0.5
+        ? k.rgb(140, 200, 120)
+        : hpRatio > 0.25
+            ? k.rgb(220, 180, 80)
+            : k.rgb(220, 80, 80);
+    k.drawText({
+        text: `${currentHp}/${maxHp}`,
+        pos: k.vec2(textX, infoPanelY + 34),
+        size: 12,
+        anchor: "left",
+        color: hpColor,
+    });
 
-    // Status indicator
-    if (statusText) {
-        const badgeWidth = 70;
-        const badgeHeight = 14;
-        const badgeX = infoPanelX + 14;
-
-        k.drawRect({
-            pos: k.vec2(badgeX, currentY),
-            width: badgeWidth,
-            height: badgeHeight,
-            color: statusColor,
-            radius: 3,
-            opacity: 0.3,
-        });
-
-        k.drawText({
-            text: statusText,
-            pos: k.vec2(badgeX + badgeWidth / 2, currentY + badgeHeight / 2),
-            size: 10,
-            anchor: "center",
-            color: statusColor,
-        });
-
-        currentY += 20;
-    }
+    let currentY = infoPanelY + headerHeight;
 
     // Cargo section - only show if ship has cargo capacity
     if (shipData.cargo > 0) {
@@ -744,6 +761,33 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
             size: 14,
             anchor: "left",
             color: cargoWood > 0 ? k.rgb(200, 150, 100) : k.rgb(120, 120, 120),
+        });
+
+        currentY += cargoHeight;
+    }
+
+    // Status indicator (below cargo)
+    if (statusText) {
+        const badgeWidth = 70;
+        const badgeHeight = 14;
+        const badgeX = infoPanelX + 14;
+        const badgeY = currentY + 4;
+
+        k.drawRect({
+            pos: k.vec2(badgeX, badgeY),
+            width: badgeWidth,
+            height: badgeHeight,
+            color: statusColor,
+            radius: 3,
+            opacity: 0.3,
+        });
+
+        k.drawText({
+            text: statusText,
+            pos: k.vec2(badgeX + badgeWidth / 2, badgeY + badgeHeight / 2),
+            size: 10,
+            anchor: "center",
+            color: statusColor,
         });
     }
 
