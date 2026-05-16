@@ -1734,7 +1734,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         });
 
         // Control group key handlers (0-9)
-        // Cmd+Number: Save current selection to slot
+        // Shift+Number: Save current selection to slot
         // Number: Recall saved selection
         // Double-tap Number: Recall + snap camera to units
         const lastNumberKeyPresses = {};
@@ -1744,11 +1744,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         for (const numKey of numberKeys) {
             k.onKeyPress(numKey, () => {
                 const slot = parseInt(numKey, 10);
-                const isCommandHeld = k.isKeyDown("meta") || k.isKeyDown("control");
+                const isSaveHeld = k.isKeyDown("shift");
                 const now = Date.now();
 
-                if (isCommandHeld) {
-                    // Cmd+Number: Save current selection to slot
+                if (isSaveHeld) {
+                    // Shift+Number: Save current selection to slot
                     if (gameState.selectedUnits.length > 0) {
                         saveSelectionToGroup(gameState, slot);
                         const count = gameState.savedSelections[slot].length;
