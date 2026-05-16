@@ -1137,7 +1137,7 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
     // Name (greyed out if can't build)
     k.drawText({
         text: displayName,
-        pos: k.vec2(panelX + sidePadding + 38, btnY + 10),
+        pos: k.vec2(panelX + sidePadding + 50, btnY + 10),
         size: 13,
         anchor: "left",
         color: !canBuild ? k.rgb(80, 80, 80) : isHovered ? k.rgb(255, 255, 255) : k.rgb(200, 200, 200),
@@ -1162,7 +1162,7 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
     }
     k.drawText({
         text: costText,
-        pos: k.vec2(panelX + sidePadding + 38, btnY + 26),
+        pos: k.vec2(panelX + sidePadding + 50, btnY + 26),
         size: 10,
         anchor: "left",
         color: !canBuild ? k.rgb(100, 60, 60) : k.rgb(120, 120, 120),
