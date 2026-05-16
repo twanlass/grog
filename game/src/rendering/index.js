@@ -11,7 +11,7 @@ export { drawTiles, drawFogOfWar } from "./tileRenderer.js";
 export { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers, drawBirds, drawDockingProgress } from "./unitRenderer.js";
 
 // Effects rendering
-export { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars } from "./effectsRenderer.js";
+export { drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars } from "./effectsRenderer.js";
 
 // Selection UI
 export { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI } from "./selectionUI.js";

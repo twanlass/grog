@@ -20,52 +20,6 @@ function getHexPoints(k, radius) {
 }
 
 /**
- * Draw ship water trails (behind ships)
- */
-export function drawShipTrails(ctx, gameState, fogState) {
-    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
-
-    const TRAIL_FADE_DURATION = 0.5;
-    const TRAIL_BASE_OPACITY = 0.4;
-
-    for (const ship of gameState.ships) {
-        if (!ship.trail || ship.trail.length < 2) continue;
-
-        // Hide non-player ship trails in fog
-        if (!shouldRenderEntity(fogState, ship)) continue;
-
-        // Use ship's wakeSize property for trail sizing
-        const shipData = SHIPS[ship.type];
-        const baseSize = shipData.wakeSize || 8;
-        const sizeDecay = baseSize * 0.1;
-
-        for (let i = 1; i < ship.trail.length; i++) {
-            const segment = ship.trail[i];
-            const progress = segment.age / TRAIL_FADE_DURATION;
-            const opacity = TRAIL_BASE_OPACITY * (1 - progress);
-            const size = (baseSize - i * sizeDecay) * zoom;
-
-            const screenX = (segment.x - cameraX) * zoom + halfWidth;
-            const screenY = (segment.y - cameraY) * zoom + halfHeight;
-
-            // Skip if off screen
-            if (screenX < -50 || screenX > screenWidth + 50 ||
-                screenY < -50 || screenY > screenHeight + 50) continue;
-
-            // Draw water splash square (retro style)
-            k.drawRect({
-                pos: k.vec2(screenX, screenY),
-                width: size * 2,
-                height: size * 2,
-                anchor: "center",
-                color: k.rgb(200, 220, 255),
-                opacity: opacity,
-            });
-        }
-    }
-}
-
-/**
  * Draw floating debris from destroyed units (ships, ports, towers)
  */
 export function drawFloatingDebris(ctx, floatingDebris, fogState) {
