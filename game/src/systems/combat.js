@@ -1622,6 +1622,70 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
 }
 
 /**
+ * Cancel a port that is under construction (new build or upgrade) and refund cost.
+ * For new construction: removes the port from the array and cleans up references.
+ * For upgrade: clears the construction state so the port remains at its current type.
+ * @returns {boolean} true if cancelled
+ */
+export function cancelPortConstruction(gameState, portIndex, resources, fogState) {
+    const port = gameState.ports[portIndex];
+    if (!port || !port.construction) return false;
+
+    const isUpgrade = !!port.construction.upgradeTo;
+    const refundType = isUpgrade ? port.construction.upgradeTo : port.type;
+    const refundData = PORTS[refundType];
+
+    if (refundData?.cost && resources) {
+        for (const [resource, amount] of Object.entries(refundData.cost)) {
+            resources[resource] = (resources[resource] || 0) + amount;
+        }
+    }
+
+    if (isUpgrade) {
+        port.construction = null;
+        console.log(`Cancelled port upgrade to ${refundType} at (${port.q}, ${port.r})`);
+    } else {
+        gameState.ports.splice(portIndex, 1);
+        cleanupStaleReferences(gameState, 'port', portIndex);
+        if (fogState) markVisibilityDirty(fogState);
+        console.log(`Cancelled port construction (${refundType}) at (${port.q}, ${port.r})`);
+    }
+    return true;
+}
+
+/**
+ * Cancel a tower that is under construction (new build or upgrade) and refund cost.
+ * For new construction: removes the tower from the array and cleans up references.
+ * For upgrade: clears the construction state so the tower remains at its current type.
+ * @returns {boolean} true if cancelled
+ */
+export function cancelTowerConstruction(gameState, towerIndex, resources, fogState) {
+    const tower = gameState.towers[towerIndex];
+    if (!tower || !tower.construction) return false;
+
+    const isUpgrade = !!tower.construction.upgradeTo;
+    const refundType = isUpgrade ? tower.construction.upgradeTo : tower.type;
+    const refundData = TOWERS[refundType];
+
+    if (refundData?.cost && resources) {
+        for (const [resource, amount] of Object.entries(refundData.cost)) {
+            resources[resource] = (resources[resource] || 0) + amount;
+        }
+    }
+
+    if (isUpgrade) {
+        tower.construction = null;
+        console.log(`Cancelled tower upgrade to ${refundType} at (${tower.q}, ${tower.r})`);
+    } else {
+        gameState.towers.splice(towerIndex, 1);
+        cleanupStaleReferences(gameState, 'tower', towerIndex);
+        if (fogState) markVisibilityDirty(fogState);
+        console.log(`Cancelled tower construction (${refundType}) at (${tower.q}, ${tower.r})`);
+    }
+    return true;
+}
+
+/**
  * Update pirate respawn timers and spawn new pirates when ready
  * @param {Object} gameState - The game state
  * @param {Object} map - The map object with tiles

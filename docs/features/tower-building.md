@@ -18,6 +18,11 @@ Ships can construct defensive towers on nearby land. Towers automatically attack
 - Ship must remain docked during construction (moving cancels it)
 - Fog of war reveals (3-hex radius) when construction completes
 
+### Cancelling
+- Selecting a tower while it is building or upgrading shows a "Cancel Build" / "Cancel Upgrade" button in the tower info panel
+- Cancelling a new build removes the tower and refunds the wood cost (and frees the crew slot it had reserved)
+- Cancelling an upgrade clears the upgrade progress, keeps the tower at its current tier, and refunds the upgrade cost
+
 ### Combat
 - Completed towers automatically fire at pirates within 3 hexes
 - Towers fire every 4 seconds (fireCooldown)
@@ -58,6 +63,7 @@ Ships can construct defensive towers on nearby land. Towers automatically attack
 ### combat.js
 - `handleTowerAttacks(gameState, dt)` - Towers auto-fire at nearest pirate in range
 - `destroyTower(gameState, towerIndex)` - Removes tower and cleans up references
+- `cancelTowerConstruction(gameState, towerIndex, resources, fogState)` - Cancels an in-progress tower build (removes the tower) or upgrade (clears construction state). Refunds the cost and returns `true` on success.
 
 ### inputHandler.js
 - `handleTowerPlacementClick(gameState)` - Handles click to place tower

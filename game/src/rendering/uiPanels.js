@@ -779,10 +779,11 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
     const bpPadding = 10;
     const headerHeight = 24;
     const constructionHeight = tower.construction ? 55 : 0;
+    const cancelHeight = tower.construction ? 42 : 0;
     const upgradeHeight = canUpgrade ? bpRowHeight : 0;
     // Only show repair button when damaged and not already repairing (repair bar shows above unit)
     const repairHeight = (isDamaged && !isRepairing) && !tower.construction ? 50 : 0;
-    const infoPanelHeight = bpPadding + headerHeight + constructionHeight + upgradeHeight + repairHeight + bpPadding;
+    const infoPanelHeight = bpPadding + headerHeight + constructionHeight + cancelHeight + upgradeHeight + repairHeight + bpPadding;
     const infoPanelY = screenHeight - infoPanelHeight - 15;
 
     const bounds = {
@@ -792,6 +793,7 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
         height: infoPanelHeight,
         upgradeButton: null,
         repairButton: null,
+        cancelButton: null,
     };
 
     // Panel background
@@ -854,6 +856,12 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
             anchor: "center",
             color: k.rgb(180, 150, 80),
         });
+
+        // Cancel button under the progress display
+        const cancelBtnY = currentY + constructionHeight + 4;
+        const cancelBtnHeight = cancelHeight - 8;
+        bounds.cancelButton = { y: cancelBtnY, height: cancelBtnHeight, isUpgrade: isUpgrading };
+        drawCancelButton(ctx, infoPanelX, infoPanelY, infoPanelWidth, infoPanelHeight, cancelBtnY, cancelBtnHeight, isUpgrading);
     } else {
         // Upgrade section using drawPanelButton (like port panel)
         if (canUpgrade) {
@@ -1200,9 +1208,10 @@ export function drawPanelHeader(ctx, panelX, panelWidth, y, text) {
 }
 
 /**
- * Draw construction status panel (when a port is under construction)
+ * Draw construction status panel (when a port is under construction).
+ * Returns bounds with optional cancelButton for click detection.
  */
-export function drawConstructionStatusPanel(ctx, port) {
+export function drawConstructionStatusPanel(ctx, port, portIndex) {
     const { k, screenHeight } = ctx;
 
     const conProgress = Math.min(port.construction.progress / port.construction.buildTime, 1);
@@ -1210,7 +1219,10 @@ export function drawConstructionStatusPanel(ctx, port) {
     const isUpgrading = !!port.construction.upgradeTo;
 
     const cpWidth = 160;
-    const cpHeight = isUpgrading ? 85 : 70;
+    const cancelBtnHeight = 32;
+    const cancelBtnGap = 10;
+    const progressBlockHeight = isUpgrading ? 85 : 70;
+    const cpHeight = progressBlockHeight + cancelBtnGap + cancelBtnHeight;
     const cpX = 15;
     const cpY = screenHeight - 15 - cpHeight;
 
@@ -1266,6 +1278,56 @@ export function drawConstructionStatusPanel(ctx, port) {
             color: k.rgb(80, 180, 220),
         });
     }
+
+    // Cancel button
+    const cancelBtnY = cpY + progressBlockHeight + cancelBtnGap;
+    const cancelBtn = drawCancelButton(ctx, cpX, cpY, cpWidth, cpHeight, cancelBtnY, cancelBtnHeight, isUpgrading);
+
+    return {
+        x: cpX,
+        y: cpY,
+        width: cpWidth,
+        height: cpHeight,
+        buttons: [],
+        upgradeButton: null,
+        settlementButton: null,
+        towerButton: null,
+        repairButton: null,
+        portIndex,
+        cancelButton: { y: cancelBtnY, height: cancelBtnHeight, entityType: 'port', entityIndex: portIndex, isUpgrade: isUpgrading },
+    };
+}
+
+/**
+ * Draw a destructive Cancel button. Returns the button rect for bounds.
+ */
+function drawCancelButton(ctx, panelX, panelY, panelWidth, panelHeight, btnY, btnHeight, isUpgrade) {
+    const { k } = ctx;
+    const mousePos = k.mousePos();
+    const sidePadding = 8;
+    const btnX = panelX + sidePadding;
+    const btnWidth = panelWidth - sidePadding * 2;
+
+    const isHovered = mousePos.x >= btnX && mousePos.x <= btnX + btnWidth &&
+                      mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+    k.drawRect({
+        pos: k.vec2(btnX, btnY),
+        width: btnWidth,
+        height: btnHeight,
+        color: isHovered ? k.rgb(90, 40, 40) : k.rgb(55, 30, 35),
+        radius: 4,
+    });
+
+    k.drawText({
+        text: isUpgrade ? "Cancel Upgrade" : "Cancel Build",
+        pos: k.vec2(btnX + btnWidth / 2, btnY + btnHeight / 2),
+        size: 12,
+        anchor: "center",
+        color: isHovered ? k.rgb(255, 200, 200) : k.rgb(220, 160, 160),
+    });
+
+    return { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
 }
 
 /**
@@ -1461,8 +1523,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
     // Handle construction/upgrading status
     if (port.construction) {
-        drawConstructionStatusPanel(ctx, port);
-        return null;
+        return drawConstructionStatusPanel(ctx, port, portIndex);
     }
 
     // Port is complete - show full build panel

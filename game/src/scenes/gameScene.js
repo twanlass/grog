@@ -2337,7 +2337,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
                 return;
             }
-            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState)) {
+            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState, fogState)) {
                 playUIClick();
                 flushGuestCommands();
                 // On mobile, close panel only when entering a placement mode. Keep the dock
@@ -2348,7 +2348,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 return;
             }
             if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
-            if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState, fogState)) { playUIClick(); flushGuestCommands(); return; }
             if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
             if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) { playUIClick(); return; }
 

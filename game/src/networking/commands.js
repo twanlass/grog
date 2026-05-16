@@ -18,6 +18,7 @@ export const COMMAND_TYPES = {
     BUILD_TOWER: 'BUILD_TOWER',         // { builderShipId?, builderPortId?, q, r }
     BUILD_SHIP: 'BUILD_SHIP',           // { portId, shipType }
     CANCEL_BUILD: 'CANCEL_BUILD',       // { portId, queueIndex }
+    CANCEL_CONSTRUCTION: 'CANCEL_CONSTRUCTION', // { entityType, entityId } - cancel port/tower build or upgrade
 
     // Trade & cargo
     SET_TRADE_ROUTE: 'SET_TRADE_ROUTE', // { shipIds[], foreignPortId, homePortId, isPlunder }

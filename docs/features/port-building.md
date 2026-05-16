@@ -25,6 +25,11 @@ Ships can construct new ports when docked at shore. This allows players to expan
 - **Builder ship is locked** - cannot move until construction completes
 - **One port at a time** - ship cannot start another port while building
 
+### Cancelling
+- While a port is under construction (or upgrading), selecting it shows a "Cancel Build" / "Cancel Upgrade" button in the construction status panel
+- Cancelling a new build removes the in-progress port and refunds the full wood cost
+- Cancelling an upgrade clears the upgrade progress, leaves the port at its current tier, and refunds the upgrade cost
+
 ## Costs
 
 Ports require wood to build. Costs are deducted when placement is confirmed.
@@ -68,6 +73,9 @@ Non-home ports (built during gameplay) have local resource storage:
 - `isShipBuildingPort(shipIndex, ports)` - Returns true if ship is currently building a port
 - `canAfford(resources, cost)` - Checks if player has enough resources
 - `deductCost(resources, cost)` - Subtracts cost from resources
+
+### combat.js
+- `cancelPortConstruction(gameState, portIndex, resources, fogState)` - Cancels an in-progress port build (removes the port) or upgrade (clears construction state). Refunds the cost to the supplied resources object and returns `true` on success.
 
 ## Data Structures
 
