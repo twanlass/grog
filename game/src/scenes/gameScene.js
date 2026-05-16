@@ -17,7 +17,7 @@ function seededRandom(seed) {
     return x - Math.floor(x);
 }
 import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
-import { drawShipTrails, drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
+import { drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
 import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons } from "../rendering/uiPanels.js";
@@ -1066,9 +1066,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Draw towers (migrated to rendering module)
             drawTowers(ctx, gameState, fogState);
-
-            // Draw ship water trails (migrated to rendering module)
-            drawShipTrails(ctx, gameState, fogState);
 
             // Draw floating debris (migrated to rendering module)
             drawFloatingDebris(ctx, gameState.floatingDebris, fogState);

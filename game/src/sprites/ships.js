@@ -117,7 +117,7 @@ export const SHIPS = {
         animFrames: 3,                  // Animation frames per direction
         spriteScale: 1,               // scale multiplier for image sprite in UI/game
         build_time: 5,                  // Turns or seconds required to build in port
-        speed: 2.5,                       // Speed (cells/second or units/turn) for moving on map
+        speed: 2,                       // Speed (cells/second or units/turn) for moving on map
         cargo: 10,                      // Maximum cargo capacity
         combat: 3,                      // Combat power (simple base damage or stat)
         health: 15,                     // Ship hit points (HP)
@@ -126,7 +126,6 @@ export const SHIPS = {
         enemySightDistance: 3,          // How far AI can spot threats when controlling ship
         sightDistance: 3,               // How far player can reveal "fog of war"
         maxChaseDistance: 8,            // Give up chase after this many hex moves
-        wakeSize: 8,                    // Base size of water trail wake
         cost: { wood: 10 },             // Build resource costs (object: wood)
         crewCost: 5,                    // Crew required to operate
         description: "Small, scrappy starter", // Description for UI/tooltips
@@ -139,7 +138,7 @@ export const SHIPS = {
         animFrames: 3,
         spriteScale: 1,
         build_time: 10,
-        speed: 1.25,
+        speed: 1.1,
         cargo: 50,
         combat: 2.5,
         health: 60,
@@ -149,7 +148,6 @@ export const SHIPS = {
         sightDistance: 6,
         maxChaseDistance: 10,   // give up chase after this many hex moves
         projectileCount: 2,     // fires two shots per volley
-        wakeSize: 10,           // base size of water trail wake
         cost: { wood: 30 },
         crewCost: 10,
         maxConcurrent: 1,               // Max simultaneous builds of this ship type per port
@@ -183,7 +181,6 @@ export const SHIPS = {
         enemySightDistance: 7,  // detection range when AI-controlled
         sightDistance: 2,
         maxChaseDistance: 12,   // give up chase after this many hex moves
-        wakeSize: 12,           // base size of water trail wake
         cost: { wood: 50 },
         crewCost: 12,
         description: "Fast, medium cargo",
@@ -201,7 +198,6 @@ export const SHIPS = {
         enemySightDistance: 8,  // detection range when AI-controlled
         sightDistance: 3,
         maxChaseDistance: 15,   // give up chase after this many hex moves
-        wakeSize: 16,           // base size of water trail wake
         cost: { wood: 100 },
         crewCost: 20,
         description: "Massive cargo hauler",
@@ -217,7 +213,6 @@ export const SHIPS = {
         health: 30,
         fireCooldown: 5,        // seconds between shots
         sightDistance: 2,
-        wakeSize: 10,           // base size of water trail wake
         description: "Enemy pirate vessel",
         // AI behavior constants
         enemySightDistance: 5,  // Detection range for player ships/ports

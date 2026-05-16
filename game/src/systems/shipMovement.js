@@ -4,10 +4,6 @@ import { SHIPS } from "../sprites/index.js";
 import { findPath, findNearestAvailable, findNearestWater, findPathWithAvoidance } from "../pathfinding.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
 
-// Trail configuration
-const TRAIL_MAX_SEGMENTS = 8;
-const TRAIL_FADE_DURATION = 0.5;
-
 // 8 directions at 45° intervals
 const HEX_DIRECTIONS = [
     0,                      // East (0°)
@@ -398,29 +394,6 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
 
         // Restore this ship's current position to occupied set
         occupiedHexes.add(hexKey(ship.q, ship.r));
-    }
-
-    // Update ship water trails
-    for (const ship of gameState.ships) {
-        if (!ship.trail) ship.trail = [];
-
-        const pos = getShipVisualPos(hexToPixel, ship);
-        const isMoving = ship.path && ship.path.length > 0;
-
-        if (isMoving) {
-            // Add current position to front of trail
-            ship.trail.unshift({ x: pos.x, y: pos.y, age: 0 });
-            // Limit trail length
-            if (ship.trail.length > TRAIL_MAX_SEGMENTS) ship.trail.pop();
-        }
-
-        // Age all trail segments
-        for (const segment of ship.trail) {
-            segment.age += dt;
-        }
-
-        // Remove old segments
-        ship.trail = ship.trail.filter(s => s.age < TRAIL_FADE_DURATION);
     }
 }
 
