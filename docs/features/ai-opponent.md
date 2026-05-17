@@ -261,11 +261,21 @@ skipped so a TNT doesn't blow up the home port).
 | Ability | AI Trigger | Implementation |
 |---------|-----------|----------------|
 | **Broadside** | An enemy **port** OR an upgraded tower (`mortarTower` / `cannonBattery`) is in `attackDistance` and `burstCooldown <= 0`. Ports take priority over towers. Watchtowers are ignored — too soft to justify the 60s cooldown. | `tryFireBroadsideAtHighValueTarget()` calls `triggerBroadside()` and sets `ship.attackTarget` so `handlePlayerAttacks` keeps firing after the volley. |
-| **TNT** | Ship health `< 50%` AND `> 4` enemy entities (ships + ports + towers + settlements) inside the blast radius. | `tryArmTNTIfWorthIt()` calls `armTNT()`, then the caller clears `waypoints`/`path`/`attackTarget` so the ship holds position and the 3s fuse detonates on the cluster. |
+| **TNT** | Ship health below `tntHealthThreshold` AND strictly more than `tntMinEnemiesInBlast` enemy entities (ships + ports + towers + settlements) inside the blast radius. Both come from the strategy's `specialAbilities` block. | `tryArmTNTIfWorthIt()` calls `armTNT()`, then the caller clears `waypoints`/`path`/`attackTarget` so the ship holds position and the 3s fuse detonates on the cluster. |
 
-Both helpers live in `aiPlayer.js` next to `findNearestEnemy`. The TNT radius is
-recomputed from `shipData.attackDistance` to match `detonateTNT`, so any future
-hull that picks up a `tntAttack` config inherits the same trigger scaling.
+Per-strategy TNT tuning (in `AI_STRATEGIES[name].specialAbilities`):
+
+| Strategy | `tntHealthThreshold` | `tntMinEnemiesInBlast` | Flavor |
+|----------|---------------------:|-----------------------:|--------|
+| Aggressive | 0.6 | 3 | Kamikaze eagerly — fires while still moderately healthy, against smaller clusters |
+| Economic | 0.5 | 4 | Baseline — commits the bomb when the math pays off |
+| Defensive | 0.4 | 5 | Last resort — only when seriously hurt and surrounded |
+
+Broadside targeting is shared across all strategies (the high-value list of
+ports + upgraded towers is the same regardless of playstyle). Both helpers live
+in `aiPlayer.js` next to `findNearestEnemy`. The TNT radius is recomputed from
+`shipData.attackDistance` to match `detonateTNT`, so any future hull that picks
+up a `tntAttack` config inherits the same trigger scaling.
 
 ## Visual Differentiation
 

@@ -99,6 +99,13 @@ export const AI_STRATEGIES = {
             chaseCooldown: 5,         // Seconds before can chase again after giving up
         },
 
+        // Schooner special-ability tuning (Broadside / TNT). Aggressive AIs are
+        // happy to kamikaze early and often.
+        specialAbilities: {
+            tntHealthThreshold: 0.6,   // Light fuse when health drops below this fraction
+            tntMinEnemiesInBlast: 3,   // ... AND strictly more than this many enemies inside blast radius
+        },
+
         // Priority modifiers per game phase
         phaseModifiers: {
             early: { military: 1.2, economy: 0.8 },   // Rush early
@@ -150,6 +157,13 @@ export const AI_STRATEGIES = {
             chaseCooldown: 5,         // Seconds before can chase again after giving up
         },
 
+        // Schooner special-ability tuning. Defensive AIs preserve forces and only
+        // kamikaze as a last resort (worse health, more enemies clustered).
+        specialAbilities: {
+            tntHealthThreshold: 0.4,   // Only TNT when seriously hurt
+            tntMinEnemiesInBlast: 5,   // ... and the cluster is dense
+        },
+
         phaseModifiers: {
             early: { defense: 1.2, military: 0.8 },
             mid: { defense: 1.1, economy: 1.1 },
@@ -198,6 +212,13 @@ export const AI_STRATEGIES = {
             retreatHealthThreshold: 0.4,
             scoutBehavior: 'hit-and-run',  // Scouts harass, then retreat
             chaseCooldown: 5,         // Seconds before can chase again after giving up
+        },
+
+        // Schooner special-ability tuning. Economic AIs play it pragmatic — baseline
+        // thresholds; commit the bomb when the math says it pays off.
+        specialAbilities: {
+            tntHealthThreshold: 0.5,
+            tntMinEnemiesInBlast: 4,
         },
 
         phaseModifiers: {
@@ -1457,7 +1478,7 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
         // missed just because tactics owns the ship this frame. Skipped while docked so a
         // surrounded ship at home doesn't blow up its own port.
         if (!ship.dockingState) {
-            if (tryArmTNTIfWorthIt(gameState, ship, i, aiOwner)) {
+            if (tryArmTNTIfWorthIt(gameState, ship, i, aiOwner, strategy)) {
                 // Hold position so the 3s fuse detonates in the middle of the enemy cluster.
                 ship.waypoints = [];
                 ship.path = null;
@@ -1760,19 +1781,23 @@ function findNearestEnemy(ship, gameState, aiOwner) {
 
 /**
  * Light a Schooner's TNT fuse if the situation warrants it.
- * Trigger: ship is below 50% health AND there are 5+ enemy entities (ships, ports,
- * towers, settlements) inside the blast radius. The ship will be a walking bomb
- * for ~3s — the caller is expected to hold position so the explosion lands on
- * the cluster instead of drifting out of it.
+ * Trigger thresholds come from the AI's strategy (`specialAbilities` block);
+ * baseline behavior is "below 50% health AND more than 4 enemy entities inside
+ * the blast radius". The ship will be a walking bomb for ~3s — the caller is
+ * expected to hold position so the explosion lands on the cluster.
  * Returns true if TNT was armed this frame.
  */
-function tryArmTNTIfWorthIt(gameState, ship, shipIndex, aiOwner) {
+function tryArmTNTIfWorthIt(gameState, ship, shipIndex, aiOwner, strategy) {
     const shipData = SHIPS[ship.type];
     if (!shipData || !shipData.tntAttack) return false;
     if ((ship.tntFuse || 0) > 0) return false;  // Already lit
 
+    const tuning = (strategy && strategy.specialAbilities) || {};
+    const healthThreshold = tuning.tntHealthThreshold ?? 0.5;
+    const minEnemies = tuning.tntMinEnemiesInBlast ?? 4;
+
     const healthPct = ship.health / shipData.health;
-    if (healthPct >= 0.5) return false;
+    if (healthPct >= healthThreshold) return false;
 
     // Match the radius formula used by detonateTNT — keeps the trigger
     // honest if attackDistance ever changes.
@@ -1795,7 +1820,7 @@ function tryArmTNTIfWorthIt(gameState, ship, shipIndex, aiOwner) {
         if (st.owner === aiOwner) continue;
         if (hexDistance(ship.q, ship.r, st.q, st.r) <= radius) count++;
     }
-    if (count <= 4) return false;
+    if (count <= minEnemies) return false;
 
     return armTNT(gameState, shipIndex);
 }
