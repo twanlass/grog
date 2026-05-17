@@ -251,6 +251,22 @@ Ships not managed by tactics (not scout, not in attack group, not defending):
 - Uses `findNearestWaterInRange()` for inland structures
 - Attack range determined by ship's `attackDistance` property
 
+### Schooner Special Abilities
+
+AI-owned Schooners use their Broadside and TNT abilities opportunistically. Both
+checks run at the top of `updateShipCommands` for every active AI ship, so
+scouts, attack-group members, and plunderers all participate (docked ships are
+skipped so a TNT doesn't blow up the home port).
+
+| Ability | AI Trigger | Implementation |
+|---------|-----------|----------------|
+| **Broadside** | An enemy **port** OR an upgraded tower (`mortarTower` / `cannonBattery`) is in `attackDistance` and `burstCooldown <= 0`. Ports take priority over towers. Watchtowers are ignored — too soft to justify the 60s cooldown. | `tryFireBroadsideAtHighValueTarget()` calls `triggerBroadside()` and sets `ship.attackTarget` so `handlePlayerAttacks` keeps firing after the volley. |
+| **TNT** | Ship health `< 50%` AND `> 4` enemy entities (ships + ports + towers + settlements) inside the blast radius. | `tryArmTNTIfWorthIt()` calls `armTNT()`, then the caller clears `waypoints`/`path`/`attackTarget` so the ship holds position and the 3s fuse detonates on the cluster. |
+
+Both helpers live in `aiPlayer.js` next to `findNearestEnemy`. The TNT radius is
+recomputed from `shipData.attackDistance` to match `detonateTNT`, so any future
+hull that picks up a `tntAttack` config inherits the same trigger scaling.
+
 ## Visual Differentiation
 
 AI-owned entities are marked with a red indicator circle:
