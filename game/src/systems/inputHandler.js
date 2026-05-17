@@ -8,12 +8,12 @@ import {
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute, exitPatrolMode,
     findFreeAdjacentWater, findNearestWaterInRange, findNearbyWaitingHex, getHomePortIndex,
-    canAffordCrew, showNotification, isAIOwner, getResourcesForOwner
+    canAffordCrew, showNotification, isAIOwner, getResourcesForOwner,
 } from "../gameState.js";
 import { hexKey, hexDistance } from "../hex.js";
 import { findNearestWater, distributeDestinations } from "../pathfinding.js";
 import { startRepair } from "./repair.js";
-import { triggerBroadside } from "./combat.js";
+import { triggerBroadside, cancelPortConstruction, cancelTowerConstruction } from "./combat.js";
 import { COMMAND_TYPES } from "../networking/commands.js";
 
 // Local player identity — set via setLocalPlayerId() for multiplayer
@@ -205,13 +205,29 @@ export function handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, 
  * Handle click on port build panel (ship building, upgrades, settlement building, tower building)
  * @returns {boolean} true if handled
  */
-export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState) {
+export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState, fogState = null) {
     if (!buildPanelBounds) return false;
 
     const bp = buildPanelBounds;
     if (mouseX < bp.x || mouseX > bp.x + bp.width ||
         mouseY < bp.y || mouseY > bp.y + bp.height) {
         return false;
+    }
+
+    // Cancel button (shown when port is under construction or upgrading)
+    if (bp.cancelButton) {
+        const cb = bp.cancelButton;
+        if (mouseY >= cb.y && mouseY <= cb.y + cb.height) {
+            const port = gameState.ports[cb.entityIndex];
+            if (port && port.construction) {
+                const refundResources = getResourcesForOwner(gameState, port.owner) || getLocalResources(gameState);
+                const portId = port.id;
+                if (cancelPortConstruction(gameState, cb.entityIndex, refundResources, fogState)) {
+                    queueNetCmd(COMMAND_TYPES.CANCEL_CONSTRUCTION, { entityType: 'port', entityId: portId });
+                }
+            }
+            return true;
+        }
     }
 
     // Check ship build buttons
@@ -336,13 +352,33 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
  * Handle click on tower info panel (for tower upgrades and repair)
  * @returns {boolean} true if handled
  */
-export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState) {
+export function handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState, fogState = null) {
     if (!towerInfoPanelBounds) return false;
 
     const tip = towerInfoPanelBounds;
     if (mouseX < tip.x || mouseX > tip.x + tip.width ||
         mouseY < tip.y || mouseY > tip.y + tip.height) {
         return false;
+    }
+
+    // Cancel button (shown when tower is under construction or upgrading)
+    if (tip.cancelButton) {
+        const cb = tip.cancelButton;
+        if (mouseY >= cb.y && mouseY <= cb.y + cb.height) {
+            const selectedTowerIndices = gameState.selectedUnits.filter(u => u.type === 'tower');
+            if (selectedTowerIndices.length === 1) {
+                const towerIdx = selectedTowerIndices[0].index;
+                const tower = gameState.towers[towerIdx];
+                if (tower && tower.construction) {
+                    const refundResources = getResourcesForOwner(gameState, tower.owner) || getLocalResources(gameState);
+                    const towerId = tower.id;
+                    if (cancelTowerConstruction(gameState, towerIdx, refundResources, fogState)) {
+                        queueNetCmd(COMMAND_TYPES.CANCEL_CONSTRUCTION, { entityType: 'tower', entityId: towerId });
+                    }
+                }
+            }
+            return true;
+        }
     }
 
     // Check upgrade button

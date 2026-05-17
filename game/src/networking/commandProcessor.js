@@ -11,7 +11,7 @@ import {
 } from '../gameState.js';
 import { findPath, findNearestWater, distributeDestinations } from '../pathfinding.js';
 import { startRepair } from '../systems/repair.js';
-import { triggerBroadside, armTNT } from '../systems/combat.js';
+import { triggerBroadside, armTNT, cancelPortConstruction, cancelTowerConstruction } from '../systems/combat.js';
 import { hexKey } from '../hex.js';
 
 const GUEST_OWNER = 'player2';
@@ -45,6 +45,8 @@ export function processGuestCommand(command, gameState, map, fogState) {
             return handleBuildShip(command, gameState);
         case COMMAND_TYPES.CANCEL_BUILD:
             return handleCancelBuild(command, gameState);
+        case COMMAND_TYPES.CANCEL_CONSTRUCTION:
+            return handleCancelConstruction(command, gameState, fogState);
         case COMMAND_TYPES.SET_TRADE_ROUTE:
             return handleSetTradeRoute(command, gameState);
         case COMMAND_TYPES.SET_PATROL:
@@ -330,6 +332,22 @@ function handleCancelBuild(command, gameState) {
     if (portIdx < 0) return false;
 
     return cancelBuildItem(gameState.ports[portIdx], queueIndex, getGuestResources(gameState));
+}
+
+function handleCancelConstruction(command, gameState, fogState) {
+    const { entityType, entityId } = command;
+    const resources = getGuestResources(gameState);
+
+    if (entityType === 'port') {
+        const portIdx = findPortByIdForGuest(gameState, entityId);
+        if (portIdx < 0) return false;
+        return cancelPortConstruction(gameState, portIdx, resources, fogState);
+    } else if (entityType === 'tower') {
+        const towerIdx = findTowerByIdForGuest(gameState, entityId);
+        if (towerIdx < 0) return false;
+        return cancelTowerConstruction(gameState, towerIdx, resources, fogState);
+    }
+    return false;
 }
 
 function handleSetTradeRoute(command, gameState) {
