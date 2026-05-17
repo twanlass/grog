@@ -17,6 +17,7 @@ import {
     findNearbyWaitingHex, getNextPortType, startPortUpgrade
 } from "../gameState.js";
 import { findPath } from "../pathfinding.js";
+import { triggerBroadside, armTNT } from "./combat.js";
 
 // Decision intervals (seconds) - tuned for performance
 const BASE_STRATEGIC_DECISION_INTERVAL = 8;    // Major priority adjustments
@@ -1451,6 +1452,21 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
 
         if (ship.repair) continue; // Don't command ships being repaired
 
+        // Special abilities (Schooner Broadside / TNT). Evaluated for every active AI ship —
+        // including scouts, attack-group members, and plunderers — so opportunities aren't
+        // missed just because tactics owns the ship this frame. Skipped while docked so a
+        // surrounded ship at home doesn't blow up its own port.
+        if (!ship.dockingState) {
+            if (tryArmTNTIfWorthIt(gameState, ship, i, aiOwner)) {
+                // Hold position so the 3s fuse detonates in the middle of the enemy cluster.
+                ship.waypoints = [];
+                ship.path = null;
+                ship.attackTarget = null;
+                continue;
+            }
+            tryFireBroadsideAtHighValueTarget(gameState, ship, i, aiOwner);
+        }
+
         // Check if plundering ship should abort due to low health
         if (ship.tradeRoute) {
             const shipData = SHIPS[ship.type];
@@ -1740,6 +1756,86 @@ function findNearestEnemy(ship, gameState, aiOwner) {
     }
 
     return nearest;
+}
+
+/**
+ * Light a Schooner's TNT fuse if the situation warrants it.
+ * Trigger: ship is below 50% health AND there are 5+ enemy entities (ships, ports,
+ * towers, settlements) inside the blast radius. The ship will be a walking bomb
+ * for ~3s — the caller is expected to hold position so the explosion lands on
+ * the cluster instead of drifting out of it.
+ * Returns true if TNT was armed this frame.
+ */
+function tryArmTNTIfWorthIt(gameState, ship, shipIndex, aiOwner) {
+    const shipData = SHIPS[ship.type];
+    if (!shipData || !shipData.tntAttack) return false;
+    if ((ship.tntFuse || 0) > 0) return false;  // Already lit
+
+    const healthPct = ship.health / shipData.health;
+    if (healthPct >= 0.5) return false;
+
+    // Match the radius formula used by detonateTNT — keeps the trigger
+    // honest if attackDistance ever changes.
+    const radius = Math.max(1, Math.round((shipData.attackDistance || 2) / 2));
+
+    let count = 0;
+    for (const s of gameState.ships) {
+        if (s.owner === aiOwner) continue;
+        if (hexDistance(ship.q, ship.r, s.q, s.r) <= radius) count++;
+    }
+    for (const p of gameState.ports) {
+        if (p.owner === aiOwner) continue;
+        if (hexDistance(ship.q, ship.r, p.q, p.r) <= radius) count++;
+    }
+    for (const t of gameState.towers) {
+        if (t.owner === aiOwner) continue;
+        if (hexDistance(ship.q, ship.r, t.q, t.r) <= radius) count++;
+    }
+    for (const st of gameState.settlements) {
+        if (st.owner === aiOwner) continue;
+        if (hexDistance(ship.q, ship.r, st.q, st.r) <= radius) count++;
+    }
+    if (count <= 4) return false;
+
+    return armTNT(gameState, shipIndex);
+}
+
+/**
+ * Fire a Schooner's Broadside at a high-value enemy target if one is in range.
+ * High-value = enemy ports (priority) and upgraded towers (mortarTower /
+ * cannonBattery). Plain watchtowers and enemy ships don't justify burning the
+ * 60s cooldown. Fire-and-forget: silently no-ops if the ability isn't ready.
+ */
+function tryFireBroadsideAtHighValueTarget(gameState, ship, shipIndex, aiOwner) {
+    const shipData = SHIPS[ship.type];
+    if (!shipData || !shipData.burstAttack) return;
+    if ((ship.burstCooldown || 0) > 0) return;
+
+    const attackDistance = shipData.attackDistance || 2;
+
+    // Ports first — they keep producing enemy ships, so they're the better burn.
+    for (let i = 0; i < gameState.ports.length; i++) {
+        const port = gameState.ports[i];
+        if (port.owner === aiOwner) continue;
+        if (hexDistance(ship.q, ship.r, port.q, port.r) > attackDistance) continue;
+        if (triggerBroadside(gameState, shipIndex, 'port', i)) {
+            // Point at the target so handlePlayerAttacks keeps firing after the volley.
+            ship.attackTarget = { type: 'port', index: i };
+            return;
+        }
+    }
+
+    // Then upgraded towers (mortar / cannon battery). Watchtowers are too soft to justify it.
+    for (let i = 0; i < gameState.towers.length; i++) {
+        const tower = gameState.towers[i];
+        if (tower.owner === aiOwner) continue;
+        if (tower.type !== 'mortarTower' && tower.type !== 'cannonBattery') continue;
+        if (hexDistance(ship.q, ship.r, tower.q, tower.r) > attackDistance) continue;
+        if (triggerBroadside(gameState, shipIndex, 'tower', i)) {
+            ship.attackTarget = { type: 'tower', index: i };
+            return;
+        }
+    }
 }
 
 /**
