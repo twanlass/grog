@@ -11,12 +11,15 @@ import { hexToPixel, pixelToHex, HEX_SIZE } from "./hex.js";
 import { createRenderContext } from "./rendering/renderContext.js";
 import { drawTiles, drawDecorations } from "./rendering/tileRenderer.js";
 import { computeIslands, drawIslandWaves } from "./rendering/waveRenderer.js";
+import { enableScreenWakeLock } from "./wakeLock.js";
 
 const k = kaplay({
     background: [0, 0, 0], // Pitch black - edge of the world
     pixelDensity: window.devicePixelRatio || 1,
     crisp: true,
 });
+
+enableScreenWakeLock();
 
 // Selected scenario ID (persists between title screen visits)
 let selectedScenarioId = null; // No mode selected by default
