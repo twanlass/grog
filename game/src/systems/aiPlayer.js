@@ -1452,7 +1452,7 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
 
         if (ship.repair) continue; // Don't command ships being repaired
 
-        // Special abilities (Schooner Broadside / TNT). Evaluated for every active AI ship —
+        // Special abilities (Cutter Broadside / Schooner TNT). Evaluated for every active AI ship —
         // including scouts, attack-group members, and plunderers — so opportunities aren't
         // missed just because tactics owns the ship this frame. Skipped while docked so a
         // surrounded ship at home doesn't blow up its own port.
@@ -1801,10 +1801,11 @@ function tryArmTNTIfWorthIt(gameState, ship, shipIndex, aiOwner) {
 }
 
 /**
- * Fire a Schooner's Broadside at a high-value enemy target if one is in range.
+ * Fire a Cutter's Broadside at a high-value enemy target if one is in range.
  * High-value = enemy ports (priority) and upgraded towers (mortarTower /
  * cannonBattery). Plain watchtowers and enemy ships don't justify burning the
- * 60s cooldown. Fire-and-forget: silently no-ops if the ability isn't ready.
+ * 60s cooldown (and 10 HP recoil). Fire-and-forget: silently no-ops if the
+ * ability isn't ready or the cutter is too damaged to absorb the penalty.
  */
 function tryFireBroadsideAtHighValueTarget(gameState, ship, shipIndex, aiOwner) {
     const shipData = SHIPS[ship.type];

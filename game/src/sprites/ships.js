@@ -128,6 +128,14 @@ export const SHIPS = {
         maxChaseDistance: 8,            // Give up chase after this many hex moves
         cost: { wood: 10 },             // Build resource costs (object: wood)
         crewCost: 5,                    // Crew required to operate
+        burstAttack: {                  // Special ability: rapid burst of cannon shots
+            name: "Broadside",
+            shots: 5,
+            staggerDelay: 0.2,
+            cooldown: 60,
+            hotkey: "B",
+            hpPenalty: 10,              // Self-damage applied when fired (recoil/strain)
+        },
         description: "Small, scrappy starter", // Description for UI/tooltips
     },
     schooner: {
@@ -151,13 +159,6 @@ export const SHIPS = {
         cost: { wood: 30 },
         crewCost: 10,
         maxConcurrent: 1,               // Max simultaneous builds of this ship type per port
-        burstAttack: {                  // Special ability: rapid burst of cannon shots
-            name: "Broadside",
-            shots: 5,
-            staggerDelay: 0.2,
-            cooldown: 60,
-            hotkey: "B",
-        },
         tntAttack: {                    // Special ability: kamikaze self-destruct
             name: "TNT",
             hotkey: "K",
