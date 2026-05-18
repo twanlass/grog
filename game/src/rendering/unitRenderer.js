@@ -110,6 +110,26 @@ function drawFactionHex(k, x, y, radius, color, opacity) {
 }
 
 /**
+ * Draw a flat-topped hex outline ring as a faction indicator
+ */
+function drawFactionHexOutline(k, x, y, radius, color, opacity, width) {
+    const pts = [];
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 3) * i;
+        pts.push(k.vec2(x + radius * Math.cos(angle), y + radius * Math.sin(angle)));
+    }
+    for (let i = 0; i < 6; i++) {
+        k.drawLine({
+            p1: pts[i],
+            p2: pts[(i + 1) % 6],
+            width,
+            color,
+            opacity,
+        });
+    }
+}
+
+/**
  * Draw all ports
  */
 export function drawPorts(ctx, gameState, map, fogState) {
@@ -343,9 +363,12 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
 
         const shipData = SHIPS[ship.type];
 
-        // Draw hex indicator for AI ships (enemy faction marker)
+        // Faction outline ring under enemy ships so friend/foe is parseable
+        // at a glance in dense battles. Friendly ships already get a selection
+        // ring when selected, so they don't need an always-on marker.
         if (isEnemyOwner(ship.owner, fogState)) {
-            drawFactionHex(k, screenX, screenY, 18 * zoom, getFactionColor(ship.owner, k), 0.75);
+            const ringWidth = Math.max(1.5, 2 * zoom);
+            drawFactionHexOutline(k, screenX, screenY, 18 * zoom, getFactionColor(ship.owner, k), 0.9, ringWidth);
         }
 
         // A burning TNT fuse overrides the white hit-flash with a red telegraph
