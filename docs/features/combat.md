@@ -11,7 +11,7 @@ When ships are selected, the bottom-center HUD shows a row of action buttons. Ea
 | Move | M | Ships selected | Next left-click sets a single waypoint |
 | Attack | A | Ships selected | Next left-click is an **attack-move** at a target/location |
 | Patrol | P | Ships selected | Next clicks add patrol waypoints |
-| Broadside | B | All selected ships have a `burstAttack` config and at least one is off-cooldown | Next left-click fires a burst at the chosen target |
+| Broadside | B | All selected ships have a `burstAttack` config and at least one is off-cooldown | Next left-click fires a burst at the chosen target (costs each firing ship 10 HP) |
 
 Clicking the active button again or pressing **Escape** exits the mode. Cooldown-gated buttons (Broadside) draw a blue left-to-right cooldown fill behind the label and ignore clicks until ready.
 
@@ -32,10 +32,10 @@ The `isAttackMove` flag is also propagated through the multiplayer `ATTACK` comm
 
 ## Broadside (Burst Attack)
 
-Schooners can fire a 5-shot volley at a single target on a 60-second cooldown. The ability is configured per ship type, so other hulls can opt in with different tuning later by adding a `burstAttack` block to their `SHIPS[type]` entry:
+Cutters can fire a 5-shot volley at a single target on a 60-second cooldown. Firing costs the cutter 10 HP (recoil/strain), so it's a real risk/reward call. The ability is configured per ship type, so other hulls can opt in with different tuning later by adding a `burstAttack` block to their `SHIPS[type]` entry:
 
 ```js
-SHIPS.schooner = {
+SHIPS.cutter = {
     // ...
     burstAttack: {
         name: "Broadside",     // Button label
@@ -43,18 +43,20 @@ SHIPS.schooner = {
         staggerDelay: 0.2,     // Seconds between staggered shots
         cooldown: 60,          // Seconds before the ability is ready again
         hotkey: "B",
+        hpPenalty: 10,         // Self-damage applied when fired (clamped: can't kill)
     },
 }
 ```
 
 ### Flow
 
-1. Select one or more Schooners; press **B** or click the Broadside button
+1. Select one or more Cutters; press **B** or click the Broadside button
 2. Click an enemy ship, port, settlement, or tower
-3. For each in-range selected Schooner, `triggerBroadside()`:
+3. For each in-range selected Cutter, `triggerBroadside()`:
    - Fires the first cannon shot immediately
    - Queues the remaining shots into `ship.pendingShots` with staggered delays
    - Sets `ship.burstCooldown = burstAttack.cooldown`
+   - Subtracts `hpPenalty` from `ship.health` (clamped to a minimum of 1; the volley can never kill the firing ship outright)
 4. Each frame, `handlePlayerAttacks()` decrements `burstCooldown` and drains `pendingShots` whose delay has elapsed (firing each as a standard projectile)
 5. The button fill (`cooldownProgress = 1 - remaining/cooldown`) grows back to 1 over the cooldown window
 
@@ -63,10 +65,11 @@ SHIPS.schooner = {
 `triggerBroadside()` returns `false` (silently) if:
 - The ship has no `burstAttack` config
 - `ship.burstCooldown > 0`
+- `ship.health <= hpPenalty` (would die from the recoil — repair first)
 - Target is missing or already destroyed
 - Target is farther than `attackDistance`
 
-The button is only shown when **every** selected ship has a `burstAttack` config; it is disabled (clicks consumed but ignored) when **all** selected ships are still on cooldown. Today only Schooners ship with a `burstAttack` config, so mixed selections that include any other hull hide the button.
+The button is only shown when **every** selected ship has a `burstAttack` config; it is disabled (clicks consumed but ignored) when **all** selected ships are still on cooldown. Today only Cutters ship with a `burstAttack` config, so mixed selections that include any other hull hide the button.
 
 ## Cooldowns on a Ship
 
@@ -98,7 +101,8 @@ For abilities with different mechanics (not just a burst of standard shots), ext
 
 ## Edge Cases
 
-- **Mixed selection**: Broadside button only shows when every selected ship has a `burstAttack`. Selecting one Schooner and one Cutter hides it.
-- **One Schooner on cooldown, others ready**: Button shows the worst-case cooldown progress but stays clickable; only ready ships fire.
+- **Mixed selection**: Broadside button only shows when every selected ship has a `burstAttack`. Selecting one Cutter and one Schooner hides it.
+- **One Cutter on cooldown, others ready**: Button shows the worst-case cooldown progress but stays clickable; only ready ships fire.
+- **Cutter too damaged to fire**: A cutter at or below `hpPenalty` HP refuses the volley. If every selected cutter is in this state the click is consumed but nothing fires — repair to restore the ability.
 - **Target dies mid-volley**: Queued `pendingShots` are still fired, but they resolve against a dead target and miss. Standard `cleanupStaleReferences` clears `attackTarget` so the ship returns to idle (or auto-acquires next target if `guardMode`).
-- **Multiplayer guest issues Broadside**: `BROADSIDE` command sent to host with `shipIds[]` + `targetType` + `targetId`. Host calls `triggerBroadside()` per ship and the resulting projectiles sync via the normal state snapshot.
+- **Multiplayer guest issues Broadside**: `BROADSIDE` command sent to host with `shipIds[]` + `targetType` + `targetId`. Host calls `triggerBroadside()` per ship and the resulting projectiles sync via the normal state snapshot. The HP penalty is applied host-side so both players see the cutter take recoil damage.

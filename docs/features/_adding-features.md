@@ -103,6 +103,7 @@ SHIPS.cutter.burstAttack = {
     staggerDelay: 0.2,
     cooldown: 60,
     hotkey: "B",
+    hpPenalty: 10,    // Optional: self-damage applied when fired (clamped, can't kill)
 };
 ```
 

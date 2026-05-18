@@ -800,6 +800,11 @@ export function triggerBroadside(gameState, shipIndex, targetType, targetIndex) 
     if (!burstCfg) return false;
     if (ship.burstCooldown > 0) return false;
 
+    // HP penalty gate: the recoil/strain damage can't kill the firing ship.
+    // A cutter at <=hpPenalty HP can't volley — repair first.
+    const hpPenalty = burstCfg.hpPenalty || 0;
+    if (hpPenalty > 0 && ship.health <= hpPenalty) return false;
+
     let target;
     if (targetType === 'ship') {
         target = gameState.ships[targetIndex];
@@ -843,6 +848,12 @@ export function triggerBroadside(gameState, shipIndex, targetType, targetIndex) 
     }
 
     ship.burstCooldown = burstCfg.cooldown;
+
+    // Apply self-damage penalty for firing the volley
+    if (hpPenalty > 0) {
+        ship.health = Math.max(1, ship.health - hpPenalty);
+        ship.hitFlash = HIT_FLASH_DURATION;
+    }
     return true;
 }
 
