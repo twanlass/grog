@@ -412,6 +412,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             audioListenerActive = false;
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('pageshow', handleVisibilityChange);
+            window.removeEventListener('keydown', handleControlGroupKey);
             ambientOcean.stop();
             ambientMusic.stop();
         }
@@ -1734,49 +1735,55 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Shift+Number: Save current selection to slot
         // Number: Recall saved selection
         // Double-tap Number: Recall + snap camera to units
+        //
+        // Bind via native keydown using event.code (e.g. "Digit1") because
+        // Kaplay's onKeyPress matches event.key — Shift+1 arrives as "!" on
+        // US layouts (and other symbols on other layouts), so a plain
+        // onKeyPress("1") handler never fires when Shift is held.
         const lastNumberKeyPresses = {};
         const DOUBLE_TAP_THRESHOLD = 350; // milliseconds
 
-        const numberKeys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-        for (const numKey of numberKeys) {
-            k.onKeyPress(numKey, () => {
-                const slot = parseInt(numKey, 10);
-                const isSaveHeld = k.isKeyDown("shift");
-                const now = Date.now();
+        const handleControlGroupKey = (event) => {
+            if (event.repeat) return;
+            if (!event.code || !event.code.startsWith('Digit')) return;
+            const target = event.target;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
 
-                if (isSaveHeld) {
-                    // Shift+Number: Save current selection to slot
-                    if (gameState.selectedUnits.length > 0) {
-                        saveSelectionToGroup(gameState, slot);
-                        const count = gameState.savedSelections[slot].length;
-                        showNotification(gameState, `Saved ${count} unit${count > 1 ? 's' : ''} to group ${slot}`);
-                    }
-                } else {
-                    // Number key: Recall selection
-                    const units = recallSelectionFromGroup(gameState, slot);
+            const slot = parseInt(event.code.slice(5), 10);
+            if (Number.isNaN(slot)) return;
 
-                    if (units.length > 0) {
-                        // Check for double-tap (camera snap)
-                        const lastPress = lastNumberKeyPresses[numKey] || 0;
-                        const isDoubleTap = (now - lastPress) < DOUBLE_TAP_THRESHOLD;
+            const now = Date.now();
 
-                        // Set selection
-                        gameState.selectedUnits = units;
+            if (event.shiftKey) {
+                // Shift+Number: Save current selection to slot
+                if (gameState.selectedUnits.length > 0) {
+                    saveSelectionToGroup(gameState, slot);
+                    const count = gameState.savedSelections[slot].length;
+                    showNotification(gameState, `Saved ${count} unit${count > 1 ? 's' : ''} to group ${slot}`);
+                }
+            } else {
+                // Number key: Recall selection
+                const units = recallSelectionFromGroup(gameState, slot);
 
-                        if (isDoubleTap) {
-                            // Double-tap: Also snap camera to group center
-                            const center = getGroupCenterPosition(gameState, slot, hexToPixel);
-                            if (center) {
-                                cameraX = center.x;
-                                cameraY = center.y;
-                            }
+                if (units.length > 0) {
+                    const lastPress = lastNumberKeyPresses[slot] || 0;
+                    const isDoubleTap = (now - lastPress) < DOUBLE_TAP_THRESHOLD;
+
+                    gameState.selectedUnits = units;
+
+                    if (isDoubleTap) {
+                        const center = getGroupCenterPosition(gameState, slot, hexToPixel);
+                        if (center) {
+                            cameraX = center.x;
+                            cameraY = center.y;
                         }
                     }
-
-                    lastNumberKeyPresses[numKey] = now;
                 }
-            });
-        }
+
+                lastNumberKeyPresses[slot] = now;
+            }
+        };
+        window.addEventListener('keydown', handleControlGroupKey);
 
         // M to enter move mode (when ships selected)
         k.onKeyPress("m", () => {
