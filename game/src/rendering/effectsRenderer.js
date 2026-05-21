@@ -251,13 +251,9 @@ export function drawExplosions(ctx, gameState, fogState) {
         if (screenX < -100 || screenX > screenWidth + 100 ||
             screenY < -100 || screenY > screenHeight + 100) continue;
 
-        const progress = explosion.age / explosion.duration;
-        // TNT detonations get a much bigger blast: 2.4x radius, 2x particles
-        const sizeMul = explosion.massive ? 2.4 : 1;
-        const particleMul = explosion.massive ? 2 : 1;
-        const maxRadius = 40 * zoom * sizeMul;
+        const progress = Math.min(explosion.age / explosion.duration, 0.9999);
 
-        // Full-screen white flash on first frames of a massive explosion
+        // Full-screen white flash on first frames of a massive (TNT) explosion
         if (explosion.massive && progress < 0.18) {
             k.drawRect({
                 pos: k.vec2(0, 0),
@@ -268,86 +264,17 @@ export function drawExplosions(ctx, gameState, fogState) {
             });
         }
 
-        // Shockwave ring (expands fast, fades quickly)
-        const shockwaveProgress = Math.min(progress * 2, 1); // Faster expansion
-        const shockwaveRadius = shockwaveProgress * maxRadius * 1.5;
-        const shockwaveOpacity = Math.max(0, 1 - shockwaveProgress * 1.5);
-        if (shockwaveOpacity > 0) {
-            k.drawRect({
-                pos: k.vec2(screenX, screenY),
-                width: shockwaveRadius * 2,
-                height: shockwaveRadius * 2,
-                anchor: "center",
-                color: k.rgb(255, 255, 200),
-                opacity: shockwaveOpacity * 0.4,
-                outline: { width: 3 * zoom, color: k.rgb(255, 200, 100) },
-                fill: false,
-            });
-        }
+        // 4-frame damage flipbook over the impact site (TNT detonations get an outsized blast)
+        const frame = Math.floor(progress * 4);
+        const spriteScale = zoom * (explosion.massive ? 5 : 2.5);
 
-        // Multiple expanding fiery particles
-        const fireParticleCount = 10 * particleMul;
-        for (let i = 0; i < fireParticleCount; i++) {
-            const angle = (i / fireParticleCount) * Math.PI * 2 + progress * 0.5;
-            const dist = progress * maxRadius * (0.5 + (i % 3) * 0.15);
-            const px = screenX + Math.cos(angle) * dist;
-            const py = screenY + Math.sin(angle) * dist;
-            const size = (6 - progress * 3) * zoom * (explosion.massive ? 1.8 : 1);
-
-            // Varied fiery colors per particle
-            const colorVariant = i % 3;
-            let r, g, b;
-            if (colorVariant === 0) {
-                // Yellow-orange
-                r = 255;
-                g = Math.floor(200 * (1 - progress * 0.6));
-                b = Math.floor(50 * (1 - progress));
-            } else if (colorVariant === 1) {
-                // Orange-red
-                r = 255;
-                g = Math.floor(120 * (1 - progress * 0.8));
-                b = 0;
-            } else {
-                // Deep red
-                r = Math.floor(255 - progress * 80);
-                g = Math.floor(60 * (1 - progress));
-                b = 0;
-            }
-
-            // Fire particle square (retro style)
-            const particleSize = Math.max(size, 1) * 2;
-            k.drawRect({
-                pos: k.vec2(px, py),
-                width: particleSize,
-                height: particleSize,
-                anchor: "center",
-                color: k.rgb(r, g, b),
-                opacity: 1 - progress * 0.9,
-            });
-        }
-
-        // Secondary smoke particles (gray, slower, rise upward)
-        const smokeParticleCount = 8 * particleMul;
-        for (let i = 0; i < smokeParticleCount; i++) {
-            const smokeProgress = Math.max(0, progress - 0.2) / 0.8; // Delayed start
-            if (smokeProgress <= 0) continue;
-
-            const angle = (i / smokeParticleCount) * Math.PI * 2 + i * 0.3;
-            const dist = smokeProgress * maxRadius * 0.7;
-            const rise = smokeProgress * 15 * zoom; // Rise upward
-            const px = screenX + Math.cos(angle) * dist;
-            const py = screenY + Math.sin(angle) * dist - rise;
-            const smokeSize = (8 + smokeProgress * 4) * zoom * (explosion.massive ? 1.6 : 1);
-
-            k.drawRect({
-                pos: k.vec2(px, py),
-                width: smokeSize,
-                height: smokeSize,
-                anchor: "center",
-                color: k.rgb(80, 80, 80),
-                opacity: (1 - smokeProgress) * 0.5,
-            });
-        }
+        k.drawSprite({
+            sprite: "damage",
+            frame,
+            pos: k.vec2(screenX, screenY),
+            anchor: "center",
+            scale: spriteScale,
+        });
     }
 }
 
