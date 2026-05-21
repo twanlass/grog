@@ -1,7 +1,10 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, createTower, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner } from "../gameState.js";
+import { drawDesignerPanel, hitTestRegion } from "../rendering/designerPanel.js";
+import { uploadSprite, resetSprite } from "../designer/assetSwap.js";
+import { QUICK_SPAWN_OPTIONS, findSlot } from "../designer/assetSlots.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility, updateFogAnimations, isHexVisible } from "../fogOfWar.js";
 
@@ -348,44 +351,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Debug mode: spawn 3 enemy ships near the player port for quick attack testing
-            if (scenario.gameMode === 'debug' && gameState.homeIslandHex) {
-                const playerHex = gameState.homeIslandHex;
-                const visited = new Set([hexKey(playerHex.q, playerHex.r)]);
-                const frontier = [{ q: playerHex.q, r: playerHex.r }];
-                const waterHexes = [];
-                while (frontier.length && waterHexes.length < 12) {
-                    const cur = frontier.shift();
-                    for (const n of hexNeighbors(cur.q, cur.r)) {
-                        const key = hexKey(n.q, n.r);
-                        if (visited.has(key)) continue;
-                        visited.add(key);
-                        if (hexDistance(playerHex.q, playerHex.r, n.q, n.r) > 6) continue;
-                        const tile = map.tiles.get(key);
-                        if (!tile) continue;
-                        frontier.push({ q: n.q, r: n.r });
-                        if (tile.type === 'shallow' || tile.type === 'deep_ocean') {
-                            waterHexes.push({ q: n.q, r: n.r, dist: hexDistance(playerHex.q, playerHex.r, n.q, n.r) });
-                        }
-                    }
-                }
-                // Pick 3 water hexes ~3-5 hexes out (close enough to find, far enough to react)
-                const spawnCandidates = waterHexes
-                    .filter(h => h.dist >= 3 && h.dist <= 5)
-                    .sort((a, b) => a.dist - b.dist);
-                const enemyOwner = gameState.aiPlayers.length > 0 ? 'ai1' : 'pirate';
-                const occupied = new Set(gameState.ships.map(s => hexKey(s.q, s.r)));
-                let spawned = 0;
-                for (const hex of spawnCandidates) {
-                    if (spawned >= 3) break;
-                    const key = hexKey(hex.q, hex.r);
-                    if (occupied.has(key)) continue;
-                    gameState.ships.push(createShip('cutter', hex.q, hex.r, enemyOwner));
-                    occupied.add(key);
-                    spawned++;
-                }
-                console.log(`Debug mode: spawned ${spawned} enemy ${enemyOwner} cutters near player port`);
-            }
+            // Debug mode: enemy test ships are spawnable on-demand from the Designer
+            // panel (Shift+D) so the player isn't immediately attacked on game start.
         } else {
             // Sandbox and Defend modes: single player start
             const startTile = findStartingPosition(map);
@@ -509,6 +476,37 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let menuPanelOpen = false;  // Controls menu panel state
         let debugPanelOpen = false;  // Debug panel state
         let debugState = { hideFog: false };  // Debug toggle values
+        let designerPanelHits = null;  // Hit regions returned by drawDesignerPanel each frame
+        let pendingUploadSlot = null;  // Slot the next file-input change should upload to
+
+        // Hidden <input type="file"> reused for every designer upload (debug mode only)
+        const designerFileInput = typeof document !== 'undefined' ? (() => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/png';
+            input.style.display = 'none';
+            input.addEventListener('change', async () => {
+                const file = input.files && input.files[0];
+                input.value = '';  // allow re-selecting the same file
+                if (!file || !pendingUploadSlot) return;
+                const slot = pendingUploadSlot;
+                pendingUploadSlot = null;
+                try {
+                    await uploadSprite(k, slot, file);
+                    showNotification(gameState, `Swapped ${slot.label}`);
+                } catch (err) {
+                    console.error('Designer upload failed:', err);
+                    showNotification(gameState, `Upload failed: ${slot.label}`);
+                }
+            });
+            document.body.appendChild(input);
+            return input;
+        })() : null;
+        k.onSceneLeave(() => {
+            if (designerFileInput && designerFileInput.parentNode) {
+                designerFileInput.parentNode.removeChild(designerFileInput);
+            }
+        });
         let timeScaleBeforeMenu = 1;  // Store time scale before opening menu
         let lastNonZeroSpeed = 1;  // Track speed before pausing
 
@@ -1461,6 +1459,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (debugPanelOpen) {
                 topButtonBounds.debugPanel = drawDebugPanel(ctx, debugState);
             }
+
+            // Draw designer panel (debug mode only)
+            if (scenario && scenario.gameMode === 'debug' && gameState.designerPanel.open) {
+                designerPanelHits = drawDesignerPanel(ctx, gameState);
+            } else {
+                designerPanelHits = null;
+            }
         });
 
         // Left-click/drag for selection or panning (spacebar + left-click)
@@ -1726,8 +1731,19 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // Scroll to zoom
+        // Scroll to zoom — but when the Designer panel is open and the mouse is
+        // over it, the wheel scrolls the panel's asset list instead.
         k.onScroll((delta) => {
+            if (gameState.designerPanel.open && gameState.designerPanel.bounds) {
+                const mp = k.mousePos();
+                const b = gameState.designerPanel.bounds;
+                if (mp.x >= b.x && mp.x <= b.x + b.w && mp.y >= b.y && mp.y <= b.y + b.h) {
+                    const dp = gameState.designerPanel;
+                    const overflow = Math.max(0, dp.contentHeight - dp.viewportHeight);
+                    dp.scrollY = Math.max(0, Math.min(overflow, dp.scrollY + delta.y));
+                    return;
+                }
+            }
             const zoomFactor = 1.1;
             if (delta.y < 0) {
                 zoom = Math.min(zoom * zoomFactor, 1);  // Max zoom in at 1 (default)
@@ -1984,6 +2000,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
+        // Shift+D toggles the designer panel (debug mode only)
+        k.onKeyPress("d", () => {
+            if (!k.isKeyDown("shift")) return;
+            if (!scenario || scenario.gameMode !== 'debug') return;
+            gameState.designerPanel.open = !gameState.designerPanel.open;
+            if (!gameState.designerPanel.open) {
+                gameState.designerPanel.spawnType = null;
+                gameState.designerPanel.scrollY = 0;
+            }
+            playUIClick();
+        });
+
         // ESC to cancel placement modes or deselect all units
         k.onKeyPress("escape", () => {
             if (gameMenuOpen) {
@@ -2013,6 +2041,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             } else if (gameState.patrolMode.active) {
                 exitPatrolMode(gameState);
                 clearSelection(gameState);
+            } else if (gameState.designerPanel.spawnType) {
+                gameState.designerPanel.spawnType = null;
             } else if (gameState.selectedUnits.length > 0) {
                 clearSelection(gameState);
             }
@@ -2194,6 +2224,94 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             k.play("ui-click", { volume: 0.4 });
         }
 
+        // Designer-mode quick spawn: drop a player-owned unit at the clicked hex with
+        // no cost, no build time, and no construction state. Validates placement via
+        // the same helpers the build UI uses so we don't drop a port mid-island.
+        function designerSpawn(q, r) {
+            const opt = QUICK_SPAWN_OPTIONS.find(o => o.id === gameState.designerPanel.spawnType);
+            if (!opt) return false;
+            const tileKey = `${q},${r}`;
+            const tile = map.tiles.get(tileKey);
+            if (!tile) {
+                showNotification(gameState, 'Off-map');
+                return false;
+            }
+            const isWater = tile.type === 'shallow' || tile.type === 'deep_ocean';
+
+            if (opt.kind === 'ship') {
+                if (!isWater) {
+                    showNotification(gameState, 'Ships must spawn on water');
+                    return false;
+                }
+                if (gameState.ships.some(s => s.q === q && s.r === r)) {
+                    showNotification(gameState, 'Hex occupied');
+                    return false;
+                }
+                gameState.ships.push(createShip(opt.shipType, q, r, 'player'));
+            } else if (opt.kind === 'port') {
+                if (!isValidPortSite(map, q, r, gameState.ports, gameState.towers, gameState.settlements)) {
+                    showNotification(gameState, 'Invalid port site');
+                    return false;
+                }
+                gameState.ports.push(createPort(opt.portType, q, r, false, null, 'player'));
+            } else if (opt.kind === 'settlement') {
+                if (!isValidSettlementSite(map, q, r, gameState.settlements, gameState.ports, gameState.towers)) {
+                    showNotification(gameState, 'Invalid settlement site');
+                    return false;
+                }
+                gameState.settlements.push(createSettlement(q, r, false, null, 'player'));
+            } else if (opt.kind === 'tower') {
+                if (!isValidTowerSite(map, q, r, gameState.towers, gameState.ports, gameState.settlements)) {
+                    showNotification(gameState, 'Invalid tower site');
+                    return false;
+                }
+                gameState.towers.push(createTower(opt.towerType, q, r, false, null, null, 'player'));
+            } else {
+                return false;
+            }
+
+            gameState.designerPanel.spawnType = null;
+            return true;
+        }
+
+        // BFS-based helper: drop up to 3 enemy cutters in water 3-5 hexes from the
+        // player's home port. Used by the Designer panel "Spawn 3 enemies" action.
+        function spawnTestEnemies() {
+            if (!gameState.homeIslandHex) return 0;
+            const playerHex = gameState.homeIslandHex;
+            const visited = new Set([hexKey(playerHex.q, playerHex.r)]);
+            const frontier = [{ q: playerHex.q, r: playerHex.r }];
+            const waterHexes = [];
+            while (frontier.length && waterHexes.length < 12) {
+                const cur = frontier.shift();
+                for (const n of hexNeighbors(cur.q, cur.r)) {
+                    const key = hexKey(n.q, n.r);
+                    if (visited.has(key)) continue;
+                    visited.add(key);
+                    if (hexDistance(playerHex.q, playerHex.r, n.q, n.r) > 6) continue;
+                    const tile = map.tiles.get(key);
+                    if (!tile) continue;
+                    frontier.push({ q: n.q, r: n.r });
+                    if (tile.type === 'shallow' || tile.type === 'deep_ocean') {
+                        waterHexes.push({ q: n.q, r: n.r, dist: hexDistance(playerHex.q, playerHex.r, n.q, n.r) });
+                    }
+                }
+            }
+            const candidates = waterHexes.filter(h => h.dist >= 3 && h.dist <= 5).sort((a, b) => a.dist - b.dist);
+            const enemyOwner = gameState.aiPlayers.length > 0 ? 'ai1' : 'pirate';
+            const occupied = new Set(gameState.ships.map(s => hexKey(s.q, s.r)));
+            let spawned = 0;
+            for (const hex of candidates) {
+                if (spawned >= 3) break;
+                const key = hexKey(hex.q, hex.r);
+                if (occupied.has(key)) continue;
+                gameState.ships.push(createShip('cutter', hex.q, hex.r, enemyOwner));
+                occupied.add(key);
+                spawned++;
+            }
+            return spawned;
+        }
+
         // Ship selection sound helper (plays random 1-5)
         function playShipSelect() {
             const soundNum = Math.floor(Math.random() * 5) + 1;
@@ -2268,6 +2386,63 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 return;
             }
 
+            // Designer panel (debug mode): hit-test buttons before anything else
+            if (designerPanelHits) {
+                const point = { x: mouseX, y: mouseY };
+
+                const uploadKey = hitTestRegion(point, designerPanelHits.uploads);
+                if (uploadKey) {
+                    pendingUploadSlot = findSlot(uploadKey);
+                    if (designerFileInput && pendingUploadSlot) designerFileInput.click();
+                    playUIClick();
+                    return;
+                }
+
+                const resetKey = hitTestRegion(point, designerPanelHits.resets);
+                if (resetKey) {
+                    const slot = findSlot(resetKey);
+                    if (slot) {
+                        resetSprite(k, slot);
+                        showNotification(gameState, `Reset ${slot.label}`);
+                    }
+                    playUIClick();
+                    return;
+                }
+
+                const spawnId = hitTestRegion(point, designerPanelHits.spawns, 'id');
+                if (spawnId) {
+                    const opt = QUICK_SPAWN_OPTIONS.find(o => o.id === spawnId);
+                    if (opt && opt.kind === 'action') {
+                        // Immediate-action buttons (no map-click) live in the same grid
+                        // for layout but fire here instead of entering placement mode.
+                        if (opt.id === 'spawn-enemies') {
+                            const count = spawnTestEnemies();
+                            showNotification(gameState, `Spawned ${count} enemy cutter${count === 1 ? '' : 's'}`);
+                        }
+                    } else {
+                        gameState.designerPanel.spawnType =
+                            gameState.designerPanel.spawnType === spawnId ? null : spawnId;
+                    }
+                    playUIClick();
+                    return;
+                }
+
+                const toggleId = hitTestRegion(point, designerPanelHits.groupToggles, 'id');
+                if (toggleId) {
+                    const groups = gameState.designerPanel.collapsedGroups;
+                    if (groups.has(toggleId)) groups.delete(toggleId);
+                    else groups.add(toggleId);
+                    playUIClick();
+                    return;
+                }
+
+                // Click inside the panel but not on a button — consume to avoid clicks falling through
+                const b = gameState.designerPanel.bounds;
+                if (b && mouseX >= b.x && mouseX <= b.x + b.w && mouseY >= b.y && mouseY <= b.y + b.h) {
+                    return;
+                }
+            }
+
             // Mobile cancel button (shown during placement modes) - check before placement clicks
             if (placementCancelBounds &&
                 mouseX >= placementCancelBounds.x && mouseX <= placementCancelBounds.x + placementCancelBounds.width &&
@@ -2276,6 +2451,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 else if (gameState.settlementBuildMode.active) exitSettlementBuildMode(gameState);
                 else if (gameState.towerBuildMode.active) exitTowerBuildMode(gameState);
                 playUIClick();
+                return;
+            }
+
+            // Designer quick-spawn: next world-click drops the chosen unit for free
+            if (gameState.designerPanel.spawnType) {
+                const worldX = (mouseX - k.width() / 2) / zoom + cameraX;
+                const worldY = (mouseY - k.height() / 2) / zoom + cameraY;
+                const hex = pixelToHex(worldX, worldY);
+                if (designerSpawn(hex.q, hex.r)) playUIClick();
                 return;
             }
 

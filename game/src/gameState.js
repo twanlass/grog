@@ -121,6 +121,19 @@ export function createGameState(config = {}) {
         // Notification message to display (bottom center)
         notification: null,  // { message: string, timer: number }
 
+        // Designer panel state (debug mode only — sprite hot-swap + quick spawn)
+        designerPanel: {
+            open: false,
+            spawnType: null,    // QUICK_SPAWN_OPTIONS id or null
+            scrollY: 0,
+            contentHeight: 0,
+            viewportHeight: 0,
+            bounds: null,       // { x, y, w, h } — set each frame by the renderer
+            // Collapsed sections (prefixed: 'cat:<name>' for categories, 'group:<id>' for
+            // ship sub-groups). Directional ship groups start collapsed.
+            collapsedGroups: new Set(['group:cutter', 'group:schooner']),
+        },
+
         // Loot drops from destroyed pirates
         lootDrops: [],
 

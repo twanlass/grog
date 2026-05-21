@@ -46,11 +46,6 @@ k.loadSprite("bird", "sprites/assets/bird.png", {
     },
 });
 
-// Load ship sprites (2 frames: normal, flash)
-k.loadSprite("cutter", "sprites/assets/cutter.png", {
-    sliceX: 2,
-    sliceY: 1,
-});
 // Load colored cutter variants (3x5: 3 anim frames, 5 directions)
 k.loadSprite("cutter-red", "sprites/assets/cutter-red.png", {
     sliceX: 3,
@@ -67,10 +62,6 @@ k.loadSprite("cutter-blue", "sprites/assets/cutter-blue.png", {
 k.loadSprite("cutter-orange", "sprites/assets/cutter-orange.png", {
     sliceX: 3,
     sliceY: 5,
-});
-k.loadSprite("schooner", "sprites/assets/schooner.png", {
-    sliceX: 2,
-    sliceY: 1,
 });
 // Colored schooner variants (3x5: 3 anim frames, 5 directions)
 k.loadSprite("schooner-red", "sprites/assets/schooner-red.png", {
