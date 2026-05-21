@@ -112,6 +112,12 @@ k.loadSprite("watchtower", "sprites/assets/watchtower.png", {
     sliceY: 1,
 });
 
+// Load destruction VFX (4-frame flipbook shown when a unit/structure is destroyed)
+k.loadSprite("damage", "sprites/assets/damage.png", {
+    sliceX: 4,
+    sliceY: 1,
+});
+
 // Load UI sprites
 k.loadSprite("rally-point", "sprites/assets/rally-point.png");
 k.loadSprite("barrel", "sprites/assets/barrel.png");

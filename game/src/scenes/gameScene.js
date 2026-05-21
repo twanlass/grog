@@ -347,6 +347,45 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     console.warn('Could not find starting positions for versus mode');
                 }
             }
+
+            // Debug mode: spawn 3 enemy ships near the player port for quick attack testing
+            if (scenario.gameMode === 'debug' && gameState.homeIslandHex) {
+                const playerHex = gameState.homeIslandHex;
+                const visited = new Set([hexKey(playerHex.q, playerHex.r)]);
+                const frontier = [{ q: playerHex.q, r: playerHex.r }];
+                const waterHexes = [];
+                while (frontier.length && waterHexes.length < 12) {
+                    const cur = frontier.shift();
+                    for (const n of hexNeighbors(cur.q, cur.r)) {
+                        const key = hexKey(n.q, n.r);
+                        if (visited.has(key)) continue;
+                        visited.add(key);
+                        if (hexDistance(playerHex.q, playerHex.r, n.q, n.r) > 6) continue;
+                        const tile = map.tiles.get(key);
+                        if (!tile) continue;
+                        frontier.push({ q: n.q, r: n.r });
+                        if (tile.type === 'shallow' || tile.type === 'deep_ocean') {
+                            waterHexes.push({ q: n.q, r: n.r, dist: hexDistance(playerHex.q, playerHex.r, n.q, n.r) });
+                        }
+                    }
+                }
+                // Pick 3 water hexes ~3-5 hexes out (close enough to find, far enough to react)
+                const spawnCandidates = waterHexes
+                    .filter(h => h.dist >= 3 && h.dist <= 5)
+                    .sort((a, b) => a.dist - b.dist);
+                const enemyOwner = gameState.aiPlayers.length > 0 ? 'ai1' : 'pirate';
+                const occupied = new Set(gameState.ships.map(s => hexKey(s.q, s.r)));
+                let spawned = 0;
+                for (const hex of spawnCandidates) {
+                    if (spawned >= 3) break;
+                    const key = hexKey(hex.q, hex.r);
+                    if (occupied.has(key)) continue;
+                    gameState.ships.push(createShip('cutter', hex.q, hex.r, enemyOwner));
+                    occupied.add(key);
+                    spawned++;
+                }
+                console.log(`Debug mode: spawned ${spawned} enemy ${enemyOwner} cutters near player port`);
+            }
         } else {
             // Sandbox and Defend modes: single player start
             const startTile = findStartingPosition(map);
