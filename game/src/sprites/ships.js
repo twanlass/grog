@@ -112,7 +112,6 @@ export const SHIPS = {
     cutter: {
         name: "Cutter",                 // Ship display name
         sprite: CUTTER,                 // Ship ASCII art or pixel array for in-game display
-        imageSprite: "cutter",          // Kaplay sprite asset name (loaded separately in main.js)
         directionalSprite: "cutter-v2", // 3x5 directional sprite (5 dirs, mirror for 3 more)
         animFrames: 3,                  // Animation frames per direction
         spriteScale: 1,               // scale multiplier for image sprite in UI/game
@@ -141,7 +140,6 @@ export const SHIPS = {
     schooner: {
         name: "Schooner",
         sprite: SCHOONER,
-        imageSprite: "schooner",
         directionalSprite: "schooner", // 3x5 directional sprite (5 dirs, mirror for 3 more)
         animFrames: 3,
         spriteScale: 1,
