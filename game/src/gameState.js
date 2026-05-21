@@ -322,7 +322,7 @@ export function saveSelectionToGroup(gameState, slot) {
 }
 
 // Recall a saved selection, filtering out destroyed units
-// Returns array of { type, index } for still-existing units
+// Returns array of { type, index, entityId } for still-existing units
 export function recallSelectionFromGroup(gameState, slot) {
     if (slot < 0 || slot > 9) return [];
 
@@ -339,7 +339,7 @@ export function recallSelectionFromGroup(gameState, slot) {
         if (collection) {
             const index = collection.findIndex(e => e.id === entry.id);
             if (index !== -1) {
-                recalled.push({ type: entry.type, index });
+                recalled.push({ type: entry.type, index, entityId: entry.id });
             }
         }
     }
