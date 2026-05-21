@@ -1787,17 +1787,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Control group key handlers (0-9)
         // Shift+Number: Save current selection to slot
-        // Number: Recall saved selection
-        // Double-tap Number: Recall + snap camera to units
-        const lastNumberKeyPresses = {};
-        const DOUBLE_TAP_THRESHOLD = 350; // milliseconds
-
+        // Number: Recall saved selection AND snap camera to its center
         const numberKeys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
         for (const numKey of numberKeys) {
             k.onKeyPress(numKey, () => {
                 const slot = parseInt(numKey, 10);
                 const isSaveHeld = k.isKeyDown("shift");
-                const now = Date.now();
 
                 if (isSaveHeld) {
                     // Shift+Number: Save current selection to slot
@@ -1807,28 +1802,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         showNotification(gameState, `Saved ${count} unit${count > 1 ? 's' : ''} to group ${slot}`);
                     }
                 } else {
-                    // Number key: Recall selection
+                    // Number key: Recall selection and snap camera to its center
                     const units = recallSelectionFromGroup(gameState, slot);
 
                     if (units.length > 0) {
-                        // Check for double-tap (camera snap)
-                        const lastPress = lastNumberKeyPresses[numKey] || 0;
-                        const isDoubleTap = (now - lastPress) < DOUBLE_TAP_THRESHOLD;
-
-                        // Set selection
                         gameState.selectedUnits = units;
 
-                        if (isDoubleTap) {
-                            // Double-tap: Also snap camera to group center
-                            const center = getGroupCenterPosition(gameState, slot, hexToPixel);
-                            if (center) {
-                                cameraX = center.x;
-                                cameraY = center.y;
-                            }
+                        const center = getGroupCenterPosition(gameState, slot, hexToPixel);
+                        if (center) {
+                            cameraX = center.x;
+                            cameraY = center.y;
                         }
-                    }
 
-                    lastNumberKeyPresses[numKey] = now;
+                        showNotification(gameState, `Recalled group ${slot} (${units.length} unit${units.length > 1 ? 's' : ''})`);
+                    }
                 }
             });
         }
