@@ -69,7 +69,7 @@ export const TOWERS = {
     watchtower: {
         name: "Watchtower",
         sprite: WATCHTOWER,
-        imageSprite: "watchtower",
+        imageSprite: "tower",  // Per-owner color resolved at draw time (tower-red/green/blue/orange)
         buildTime: 15,
         health: 40,
         cost: { wood: 25 },

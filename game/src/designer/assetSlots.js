@@ -23,7 +23,11 @@ export const ASSET_SLOTS = [
     // Structures (2-frame strips: normal + flash)
     { key: 'home-port', label: 'Dock', category: 'structures', originalPath: 'sprites/assets/home-port.png', sliceX: 2, sliceY: 1, expectedSize: '64×32 (2×1)' },
     { key: 'settlement', label: 'Settlement', category: 'structures', originalPath: 'sprites/assets/settlement.png', sliceX: 2, sliceY: 1, expectedSize: '64×32 (2×1)' },
-    { key: 'watchtower', label: 'Watchtower', category: 'structures', originalPath: 'sprites/assets/watchtower.png', sliceX: 2, sliceY: 1, expectedSize: '64×32 (2×1)' },
+    // Colored watchtower variants (3-frame strips: animated flag)
+    { key: 'tower-red', label: 'Watchtower Red', category: 'structures', group: 'tower', originalPath: 'sprites/assets/tower-red.png', sliceX: 3, sliceY: 1, expectedSize: '114×67 (3×1)' },
+    { key: 'tower-green', label: 'Watchtower Green', category: 'structures', group: 'tower', originalPath: 'sprites/assets/tower-green.png', sliceX: 3, sliceY: 1, expectedSize: '114×67 (3×1)' },
+    { key: 'tower-blue', label: 'Watchtower Blue', category: 'structures', group: 'tower', originalPath: 'sprites/assets/tower-blue.png', sliceX: 3, sliceY: 1, expectedSize: '114×67 (3×1)' },
+    { key: 'tower-orange', label: 'Watchtower Orange', category: 'structures', group: 'tower', originalPath: 'sprites/assets/tower-orange.png', sliceX: 3, sliceY: 1, expectedSize: '114×67 (3×1)' },
 
     // VFX
     { key: 'damage', label: 'Damage flipbook', category: 'vfx', originalPath: 'sprites/assets/damage.png', sliceX: 4, sliceY: 1, expectedSize: '128×32 (4×1)' },

@@ -76,6 +76,18 @@ export function getDirectionalSprite(shipData, owner) {
     return 'cutter-red';  // Player default
 }
 
+/**
+ * Resolve the colored tower sprite name for an owner. Mirrors the
+ * cutter/schooner color mapping so all of a faction's units flag the same way.
+ */
+function getTowerSprite(owner) {
+    if (owner === 'ai1') return 'tower-green';
+    if (owner === 'ai2') return 'tower-blue';
+    if (owner === 'ai3') return 'tower-orange';
+    if (owner === 'player2') return 'tower-blue';
+    return 'tower-red';
+}
+
 // Faction colors for visual differentiation (matches cutter sprite colors)
 const FACTION_COLORS = {
     player: { r: 180, g: 60, b: 60 },    // Red (matches cutter-red sprite)
@@ -306,9 +318,17 @@ export function drawTowers(ctx, gameState, fogState) {
             const flashIntensity = tower.hitFlash > 0 ? Math.min(tower.hitFlash / 0.15, 1) : 0;
             const baseOpacity = isConstructing ? 0.5 : 1.0;
             const flashOpacity = flashIntensity > 0 ? (1.0 - flashIntensity) : baseOpacity;
+            // 'tower' is a virtual slot — pick the colored variant for this owner.
+            const spriteName = towerData.imageSprite === 'tower'
+                ? getTowerSprite(tower.owner)
+                : towerData.imageSprite;
+            // 3-frame flag flutter at ~5 fps. Offset by tower position so
+            // adjacent towers don't flap in lockstep.
+            const phase = (tower.q * 7 + tower.r * 13) * 0.13;
+            const animFrame = Math.floor((k.time() + phase) * 5) % 3;
             k.drawSprite({
-                sprite: towerData.imageSprite,
-                frame: 0,
+                sprite: spriteName,
+                frame: animFrame,
                 pos: k.vec2(screenX, screenY),
                 anchor: "center",
                 scale: spriteScale,

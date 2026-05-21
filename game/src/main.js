@@ -97,9 +97,21 @@ k.loadSprite("settlement", "sprites/assets/settlement.png", {
     sliceY: 1,
 });
 
-// Load tower sprites (2 frames: normal, flash)
-k.loadSprite("watchtower", "sprites/assets/watchtower.png", {
-    sliceX: 2,
+// Load colored watchtower variants (3 frames: animated flag)
+k.loadSprite("tower-red", "sprites/assets/tower-red.png", {
+    sliceX: 3,
+    sliceY: 1,
+});
+k.loadSprite("tower-green", "sprites/assets/tower-green.png", {
+    sliceX: 3,
+    sliceY: 1,
+});
+k.loadSprite("tower-blue", "sprites/assets/tower-blue.png", {
+    sliceX: 3,
+    sliceY: 1,
+});
+k.loadSprite("tower-orange", "sprites/assets/tower-orange.png", {
+    sliceX: 3,
     sliceY: 1,
 });
 
@@ -949,7 +961,7 @@ k.scene("title", () => {
 
             let spriteName;
             if (structure.type === 'port') spriteName = 'home-port';
-            else if (structure.type === 'tower') spriteName = 'watchtower';
+            else if (structure.type === 'tower') spriteName = 'tower-red';
             else spriteName = 'settlement';
 
             k.drawSprite({
