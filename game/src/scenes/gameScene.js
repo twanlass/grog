@@ -1788,10 +1788,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Control group key handlers (0-9)
         // Shift+Number: Save current selection to slot
         // Number: Recall saved selection AND snap camera to its center
+        // Kaplay reports keys as event.key.toLowerCase(), so Shift+1 arrives as
+        // "!" (not "1"). Bind both the digit and its US-layout shifted variant.
         const numberKeys = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-        for (const numKey of numberKeys) {
-            k.onKeyPress(numKey, () => {
-                const slot = parseInt(numKey, 10);
+        const shiftedKeys = [')', '!', '@', '#', '$', '%', '^', '&', '*', '('];
+        for (let slot = 0; slot < 10; slot++) {
+            const handler = () => {
                 const isSaveHeld = k.isKeyDown("shift");
 
                 if (isSaveHeld) {
@@ -1817,7 +1819,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         showNotification(gameState, `Recalled group ${slot} (${units.length} unit${units.length > 1 ? 's' : ''})`);
                     }
                 }
-            });
+            };
+            k.onKeyPress(numberKeys[slot], handler);
+            k.onKeyPress(shiftedKeys[slot], handler);
         }
 
         // M to enter move mode (when ships selected)
