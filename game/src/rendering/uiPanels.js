@@ -1,6 +1,6 @@
 // UI panel rendering: resource panel, build panels, ship info panel
 import { drawSprite, drawSpriteHealthTint, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
-import { getDirectionalSprite } from "./unitRenderer.js";
+import { getDirectionalSprite, getTowerSprite, VIRTUAL_TOWER_SPRITES } from "./unitRenderer.js";
 import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew, isAIOwner, getResourcesForOwner } from "../gameState.js";
 import { getLocalPlayerId } from "../systems/inputHandler.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
@@ -1163,11 +1163,16 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
             opacity: canBuild ? 1.0 : 0.4,
         });
     } else if (spriteData.imageSprite) {
-        // For rotation-based sprites, use frame 0
+        // For rotation-based sprites, use frame 0.
+        // Virtual tower slots ('tower', 'mortar-tower', 'cannon-battery') need to
+        // be resolved to a real colored sprite before drawing.
+        const resolvedSprite = VIRTUAL_TOWER_SPRITES.has(spriteData.imageSprite)
+            ? getTowerSprite(getLocalPlayerId(), spriteData.imageSprite)
+            : spriteData.imageSprite;
         const pngScale = (spriteData.spriteScale || 1) * 0.8;
         const spriteY = btnY + btnHeight / 2;
         k.drawSprite({
-            sprite: spriteData.imageSprite,
+            sprite: resolvedSprite,
             frame: 0,
             pos: k.vec2(spriteX + 14, spriteY),
             anchor: "center",

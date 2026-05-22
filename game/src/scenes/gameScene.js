@@ -3,6 +3,7 @@ import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hex
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland } from "../mapGenerator.js";
 import { createGameState, createShip, createPort, createSettlement, createTower, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner } from "../gameState.js";
 import { drawDesignerPanel, hitTestRegion } from "../rendering/designerPanel.js";
+import { clampScale, SCALE_MIN, SCALE_MAX } from "../designer/scaleTuner.js";
 import { uploadSprite, resetSprite } from "../designer/assetSwap.js";
 import { QUICK_SPAWN_OPTIONS, findSlot } from "../designer/assetSlots.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
@@ -502,10 +503,94 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             document.body.appendChild(input);
             return input;
         })() : null;
+
+        // Hidden <input type="number"> reused for the Sprite-scale tuner (debug mode).
+        // Positioned over the clicked value box when the user wants to type an exact value.
+        let editingScaleKey = null;
+        const designerScaleInput = typeof document !== 'undefined' ? (() => {
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = '0.01';
+            input.min = String(SCALE_MIN);
+            input.max = String(SCALE_MAX);
+            input.style.position = 'fixed';
+            input.style.display = 'none';
+            input.style.font = '11px monospace';
+            input.style.textAlign = 'center';
+            input.style.padding = '0 2px';
+            input.style.background = '#23283a';
+            input.style.color = '#dcdcdc';
+            input.style.border = '1px solid #6a7a90';
+            input.style.borderRadius = '2px';
+            input.style.outline = 'none';
+            input.style.zIndex = '9999';
+            // Prevent the click on the input from reaching kaplay (which would
+            // otherwise start a selection box / steal focus).
+            const stopProp = (e) => e.stopPropagation();
+            input.addEventListener('mousedown', stopProp);
+            input.addEventListener('mouseup', stopProp);
+            input.addEventListener('click', stopProp);
+            // Blur cancels rather than auto-commits — any accidental focus loss
+            // shouldn't silently write a value the user didn't confirm.
+            input.addEventListener('blur', () => closeScaleInput());
+            document.body.appendChild(input);
+            return input;
+        })() : null;
+        function commitScaleInput() {
+            if (!designerScaleInput || !editingScaleKey) return;
+            const parsed = clampScale(parseFloat(designerScaleInput.value));
+            if (parsed !== null) gameState.designerPanel.scaleOverrides[editingScaleKey] = parsed;
+            closeScaleInput();
+        }
+        function closeScaleInput() {
+            if (!designerScaleInput) return;
+            editingScaleKey = null;
+            designerScaleInput.style.display = 'none';
+        }
+        function openScaleInput(key, region, currentValue) {
+            if (!designerScaleInput) return;
+            editingScaleKey = key;
+            // Kaplay's draw/mouse coords are already in CSS pixels (despite the
+            // `pixelDensity: devicePixelRatio` backing-store boost), so no scaling
+            // is needed — just offset by the canvas's CSS-pixel position.
+            const canvas = k.canvas;
+            const rect = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0 };
+            designerScaleInput.style.left = `${rect.left + region.x}px`;
+            designerScaleInput.style.top = `${rect.top + region.y}px`;
+            designerScaleInput.style.width = `${region.w}px`;
+            designerScaleInput.style.height = `${region.h}px`;
+            designerScaleInput.value = currentValue.toFixed(2);
+            designerScaleInput.style.display = 'block';
+            // Defer focus so the click that opened it doesn't immediately blur it
+            setTimeout(() => { designerScaleInput.focus(); designerScaleInput.select(); }, 0);
+        }
+
+        // Window-capture key guard. Runs before kaplay's document listeners can
+        // preventDefault on keystrokes (which would block typing into the input).
+        // We also handle Enter/Esc here since stopPropagation prevents the
+        // input's own keydown listener from ever firing.
+        const scaleInputKeyGuard = (e) => {
+            if (!designerScaleInput || document.activeElement !== designerScaleInput) return;
+            e.stopPropagation();
+            if (e.type === 'keydown') {
+                if (e.key === 'Enter') { e.preventDefault(); commitScaleInput(); }
+                else if (e.key === 'Escape') { e.preventDefault(); closeScaleInput(); }
+            }
+        };
+        window.addEventListener('keydown', scaleInputKeyGuard, true);
+        window.addEventListener('keyup', scaleInputKeyGuard, true);
+        window.addEventListener('keypress', scaleInputKeyGuard, true);
+
         k.onSceneLeave(() => {
             if (designerFileInput && designerFileInput.parentNode) {
                 designerFileInput.parentNode.removeChild(designerFileInput);
             }
+            if (designerScaleInput && designerScaleInput.parentNode) {
+                designerScaleInput.parentNode.removeChild(designerScaleInput);
+            }
+            window.removeEventListener('keydown', scaleInputKeyGuard, true);
+            window.removeEventListener('keyup', scaleInputKeyGuard, true);
+            window.removeEventListener('keypress', scaleInputKeyGuard, true);
         });
         let timeScaleBeforeMenu = 1;  // Store time scale before opening menu
         let lastNonZeroSpeed = 1;  // Track speed before pausing
@@ -1473,6 +1558,33 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         k.onMousePress("left", () => {
             if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver || gameState.surrenderPending) return; // Block clicks during overlays
+
+            // Designer-panel scale tuner — handle on press so slider drag and input
+            // editing start cleanly (the regular click flow runs on release and would
+            // miss any drag past DRAG_THRESHOLD).
+            if (designerPanelHits) {
+                const mp = k.mousePos();
+                const point = { x: mp.x, y: mp.y };
+                const trackHit = designerPanelHits.scaleTracks.find(r =>
+                    point.x >= r.x && point.x <= r.x + r.w && point.y >= r.y && point.y <= r.y + r.h);
+                if (trackHit) {
+                    closeScaleInput();
+                    gameState.designerPanel.draggingScale = { key: trackHit.key, trackX: trackHit.trackX, trackW: trackHit.trackW };
+                    const norm = Math.max(0, Math.min(1, (point.x - trackHit.trackX) / trackHit.trackW));
+                    gameState.designerPanel.scaleOverrides[trackHit.key] = clampScale(SCALE_MIN + norm * (SCALE_MAX - SCALE_MIN));
+                    playUIClick();
+                    return;  // skip isLeftMouseDown / selection start
+                }
+                const valueHit = designerPanelHits.scaleValues.find(r =>
+                    point.x >= r.x && point.x <= r.x + r.w && point.y >= r.y && point.y <= r.y + r.h);
+                if (valueHit) {
+                    const current = gameState.designerPanel.scaleOverrides[valueHit.key] ?? valueHit.defaultScale;
+                    openScaleInput(valueHit.key, valueHit, current);
+                    playUIClick();
+                    return;  // skip isLeftMouseDown / selection start
+                }
+            }
+
             isLeftMouseDown = true;
 
             // Spacebar + left-click = pan mode
@@ -1493,6 +1605,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         k.onMouseRelease("left", () => {
             if (isMobile) return; // Touch handlers manage input on mobile
+
+            // End any active scale-slider drag (independent of game-over state)
+            if (gameState.designerPanel.draggingScale) {
+                gameState.designerPanel.draggingScale = null;
+            }
+
             if (gameState.gameOver) return; // Block clicks when game over
 
             // Handle surrender button clicks
@@ -1606,6 +1724,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         k.onMouseMove(() => {
             if (isMobile) return; // Touch handlers manage input on mobile
+
+            // Designer-panel scale slider drag — takes priority over selection/pan
+            if (gameState.designerPanel.draggingScale) {
+                const drag = gameState.designerPanel.draggingScale;
+                const mp = k.mousePos();
+                const norm = Math.max(0, Math.min(1, (mp.x - drag.trackX) / drag.trackW));
+                gameState.designerPanel.scaleOverrides[drag.key] = clampScale(SCALE_MIN + norm * (SCALE_MAX - SCALE_MIN));
+                return;
+            }
 
             // Camera panning (spacebar+left-drag or right-drag)
             if (isPanning) {
@@ -2376,6 +2503,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Designer panel (debug mode): hit-test buttons before anything else
             if (designerPanelHits) {
                 const point = { x: mouseX, y: mouseY };
+
+                // Sprite-scale reset (slider drag + value-box open are handled in onMousePress)
+                const scaleResetKey = hitTestRegion(point, designerPanelHits.scaleResets);
+                if (scaleResetKey) {
+                    delete gameState.designerPanel.scaleOverrides[scaleResetKey];
+                    closeScaleInput();
+                    playUIClick();
+                    return;
+                }
 
                 const uploadKey = hitTestRegion(point, designerPanelHits.uploads);
                 if (uploadKey) {

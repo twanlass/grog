@@ -70,6 +70,8 @@ export const TOWERS = {
         name: "Watchtower",
         sprite: WATCHTOWER,
         imageSprite: "tower",  // Per-owner color resolved at draw time (tower-red/green/blue/orange)
+        imageFrames: 3,
+        imageScale: 0.75,
         buildTime: 15,
         health: 40,
         cost: { wood: 25 },
@@ -80,6 +82,9 @@ export const TOWERS = {
     mortarTower: {
         name: "Mortar Tower",
         sprite: MORTAR_TOWER,
+        imageSprite: "mortar-tower",  // Per-owner color resolved at draw time
+        imageFrames: 3,
+        imageScale: 0.65,
         buildTime: 15,
         health: 60,
         cost: { wood: 25 },
@@ -94,6 +99,9 @@ export const TOWERS = {
     cannonBattery: {
         name: "Cannon Battery",
         sprite: CANNON_BATTERY,
+        imageSprite: "cannon-battery",  // Per-owner color resolved at draw time
+        imageFrames: 4,
+        imageScale: 0.6,
         buildTime: 15,
         health: 100,
         cost: { wood: 25 },

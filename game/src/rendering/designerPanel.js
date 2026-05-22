@@ -3,6 +3,7 @@
 
 import { ASSET_SLOTS, CATEGORY_LABELS, QUICK_SPAWN_OPTIONS, DIRECTIONAL_GROUPS, getSlotsByCategory } from '../designer/assetSlots.js';
 import { isModified } from '../designer/assetSwap.js';
+import { getTunableSprites, getRenderScale, SCALE_MIN, SCALE_MAX } from '../designer/scaleTuner.js';
 import { drawPanelContainer, PANEL_COLORS } from './uiPrimitives.js';
 
 const PANEL_WIDTH = 360;
@@ -26,6 +27,14 @@ const QUICK_SPAWN_HEIGHT = 80; // 2 rows × (26 + 6) = 64 + a hint line below
 const SPAWN_BUTTON_HEIGHT = 26;
 const SPAWN_BUTTON_GAP = 6;
 
+// Sprite scale tuner row layout
+const SCALE_ROW_HEIGHT = 22;
+const SCALE_SLIDER_WIDTH = 110;
+const SCALE_TRACK_HEIGHT = 4;
+const SCALE_THUMB_RADIUS = 6;
+const SCALE_VALUE_WIDTH = 44;
+const SCALE_RESET_WIDTH = 36;
+
 /**
  * Render the panel. Returns hit regions for the click handler:
  *   { uploads: [{ key, x, y, w, h }], resets: [...], spawns: [{ id, x, y, w, h }],
@@ -33,7 +42,11 @@ const SPAWN_BUTTON_GAP = 6;
  */
 export function drawDesignerPanel(ctx, gameState) {
     const { k, screenWidth, screenHeight } = ctx;
-    const hits = { uploads: [], resets: [], spawns: [], groupToggles: [], close: null };
+    const hits = {
+        uploads: [], resets: [], spawns: [], groupToggles: [], close: null,
+        // Sprite-scale tuner: tracks (sliderTrack | valueBox | resetBtn) regions per row
+        scaleTracks: [], scaleValues: [], scaleResets: [],
+    };
 
     const panelX = screenWidth - PANEL_WIDTH - PANEL_RIGHT_MARGIN;
     const panelY = PANEL_TOP;
@@ -137,6 +150,32 @@ export function drawDesignerPanel(ctx, gameState) {
         const bottom = top + height;
         return bottom > listTop && top < listBottom;
     };
+
+    // Sprite Scale tuner (collapsible group at top of scrollable area)
+    const scaleToggleId = 'group:scale-tuner';
+    const scaleCollapsed = gameState.designerPanel.collapsedGroups.has(scaleToggleId);
+    const scaleHeaderH = CATEGORY_HEADER_HEIGHT + 4;
+    if (isRowVisible(y, scaleHeaderH)) {
+        k.drawText({
+            text: `${scaleCollapsed ? '▶' : '▼'} Sprite scale (live)`,
+            pos: k.vec2(panelX + PADDING, y),
+            size: 10,
+            color: k.rgb(150, 170, 200),
+        });
+    }
+    hits.groupToggles.push({ id: scaleToggleId, x: panelX + PADDING, y, w: PANEL_WIDTH - PADDING * 2, h: scaleHeaderH });
+    y += scaleHeaderH;
+
+    if (!scaleCollapsed) {
+        const tunables = getTunableSprites();
+        for (const t of tunables) {
+            if (isRowVisible(y, SCALE_ROW_HEIGHT)) {
+                drawScaleRow(ctx, gameState, t, panelX + PADDING, y, PANEL_WIDTH - PADDING * 2, hits);
+            }
+            y += SCALE_ROW_HEIGHT + 2;
+        }
+    }
+    y += CATEGORY_GAP;
 
     for (const cat of Object.keys(grouped)) {
         const slots = grouped[cat];
@@ -335,6 +374,92 @@ function drawSlotRow(ctx, slot, x, y, w, hits) {
     });
     if (modified) {
         hits.resets.push({ key: slot.key, x: resetX, y: buttonY, w: BUTTON_WIDTH_RESET, h: BUTTON_HEIGHT });
+    }
+}
+
+/**
+ * Render one row of the Sprite-scale tuner: label, draggable slider, click-to-edit
+ * value, reset-to-default button. Pushes hit regions to `hits`.
+ */
+function drawScaleRow(ctx, gameState, tunable, x, y, w, hits) {
+    const { k } = ctx;
+    const currentScale = getRenderScale(gameState, tunable.key, tunable.defaultScale);
+    const isOverridden = tunable.key in gameState.designerPanel.scaleOverrides;
+
+    // Label on the left
+    k.drawText({
+        text: tunable.label,
+        pos: k.vec2(x, y + SCALE_ROW_HEIGHT / 2),
+        size: 11,
+        anchor: 'left',
+        color: isOverridden ? k.rgb(220, 180, 80) : k.rgb(220, 220, 220),
+    });
+
+    // Right-aligned: [reset] [value] [slider]
+    const resetX = x + w - SCALE_RESET_WIDTH;
+    const valueX = resetX - SCALE_VALUE_WIDTH - 6;
+    const trackX = valueX - SCALE_SLIDER_WIDTH - 8;
+    const centerY = y + SCALE_ROW_HEIGHT / 2;
+
+    // Slider track
+    k.drawRect({
+        pos: k.vec2(trackX, centerY - SCALE_TRACK_HEIGHT / 2),
+        width: SCALE_SLIDER_WIDTH,
+        height: SCALE_TRACK_HEIGHT,
+        color: k.rgb(50, 55, 65),
+        radius: 2,
+    });
+    // Slider thumb
+    const norm = (currentScale - SCALE_MIN) / (SCALE_MAX - SCALE_MIN);
+    const thumbX = trackX + Math.max(0, Math.min(1, norm)) * SCALE_SLIDER_WIDTH;
+    k.drawCircle({
+        pos: k.vec2(thumbX, centerY),
+        radius: SCALE_THUMB_RADIUS,
+        color: isOverridden ? k.rgb(220, 180, 80) : k.rgb(160, 170, 190),
+    });
+    hits.scaleTracks.push({
+        key: tunable.key, x: trackX, y: y, w: SCALE_SLIDER_WIDTH, h: SCALE_ROW_HEIGHT,
+        trackX, trackW: SCALE_SLIDER_WIDTH,
+    });
+
+    // Value box (click to edit)
+    k.drawRect({
+        pos: k.vec2(valueX, y + 2),
+        width: SCALE_VALUE_WIDTH,
+        height: SCALE_ROW_HEIGHT - 4,
+        color: k.rgb(40, 45, 55),
+        radius: 2,
+        outline: { width: 1, color: k.rgb(80, 90, 110) },
+    });
+    k.drawText({
+        text: currentScale.toFixed(2),
+        pos: k.vec2(valueX + SCALE_VALUE_WIDTH / 2, centerY),
+        size: 11,
+        anchor: 'center',
+        color: k.rgb(220, 220, 220),
+    });
+    hits.scaleValues.push({
+        key: tunable.key, x: valueX, y: y + 2, w: SCALE_VALUE_WIDTH, h: SCALE_ROW_HEIGHT - 4,
+        defaultScale: tunable.defaultScale,
+    });
+
+    // Reset (only active when overridden)
+    k.drawRect({
+        pos: k.vec2(resetX, y + 2),
+        width: SCALE_RESET_WIDTH,
+        height: SCALE_ROW_HEIGHT - 4,
+        color: isOverridden ? k.rgb(100, 70, 70) : k.rgb(40, 45, 55),
+        radius: 2,
+    });
+    k.drawText({
+        text: 'Reset',
+        pos: k.vec2(resetX + SCALE_RESET_WIDTH / 2, centerY),
+        size: 10,
+        anchor: 'center',
+        color: isOverridden ? k.rgb(255, 220, 220) : k.rgb(110, 110, 110),
+    });
+    if (isOverridden) {
+        hits.scaleResets.push({ key: tunable.key, x: resetX, y: y + 2, w: SCALE_RESET_WIDTH, h: SCALE_ROW_HEIGHT - 4 });
     }
 }
 

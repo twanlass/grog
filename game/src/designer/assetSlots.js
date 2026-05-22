@@ -28,6 +28,16 @@ export const ASSET_SLOTS = [
     { key: 'tower-green', label: 'Watchtower Green', category: 'structures', group: 'tower', originalPath: 'sprites/assets/tower-green.png', sliceX: 3, sliceY: 1, expectedSize: '114×67 (3×1)' },
     { key: 'tower-blue', label: 'Watchtower Blue', category: 'structures', group: 'tower', originalPath: 'sprites/assets/tower-blue.png', sliceX: 3, sliceY: 1, expectedSize: '114×67 (3×1)' },
     { key: 'tower-orange', label: 'Watchtower Orange', category: 'structures', group: 'tower', originalPath: 'sprites/assets/tower-orange.png', sliceX: 3, sliceY: 1, expectedSize: '114×67 (3×1)' },
+    // Colored mortar tower variants (3-frame strips: animated flag)
+    { key: 'mortar-tower-red', label: 'Mortar Tower Red', category: 'structures', group: 'mortar-tower', originalPath: 'sprites/assets/mortar-tower-red.png', sliceX: 3, sliceY: 1, expectedSize: '162×91 (3×1)' },
+    { key: 'mortar-tower-green', label: 'Mortar Tower Green', category: 'structures', group: 'mortar-tower', originalPath: 'sprites/assets/mortar-tower-green.png', sliceX: 3, sliceY: 1, expectedSize: '162×91 (3×1)' },
+    { key: 'mortar-tower-blue', label: 'Mortar Tower Blue', category: 'structures', group: 'mortar-tower', originalPath: 'sprites/assets/mortar-tower-blue.png', sliceX: 3, sliceY: 1, expectedSize: '162×91 (3×1)' },
+    { key: 'mortar-tower-orange', label: 'Mortar Tower Orange', category: 'structures', group: 'mortar-tower', originalPath: 'sprites/assets/mortar-tower-orange.png', sliceX: 3, sliceY: 1, expectedSize: '162×91 (3×1)' },
+    // Colored cannon battery variants (4-frame strips: animated flag)
+    { key: 'cannon-battery-red', label: 'Cannon Battery Red', category: 'structures', group: 'cannon-battery', originalPath: 'sprites/assets/cannon-battery-red.png', sliceX: 4, sliceY: 1, expectedSize: '184×97 (4×1)' },
+    { key: 'cannon-battery-green', label: 'Cannon Battery Green', category: 'structures', group: 'cannon-battery', originalPath: 'sprites/assets/cannon-battery-green.png', sliceX: 4, sliceY: 1, expectedSize: '184×97 (4×1)' },
+    { key: 'cannon-battery-blue', label: 'Cannon Battery Blue', category: 'structures', group: 'cannon-battery', originalPath: 'sprites/assets/cannon-battery-blue.png', sliceX: 4, sliceY: 1, expectedSize: '184×97 (4×1)' },
+    { key: 'cannon-battery-orange', label: 'Cannon Battery Orange', category: 'structures', group: 'cannon-battery', originalPath: 'sprites/assets/cannon-battery-orange.png', sliceX: 4, sliceY: 1, expectedSize: '184×97 (4×1)' },
 
     // VFX
     { key: 'damage', label: 'Damage flipbook', category: 'vfx', originalPath: 'sprites/assets/damage.png', sliceX: 4, sliceY: 1, expectedSize: '128×32 (4×1)' },

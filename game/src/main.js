@@ -115,6 +115,42 @@ k.loadSprite("tower-orange", "sprites/assets/tower-orange.png", {
     sliceY: 1,
 });
 
+// Load colored mortar tower variants (3 frames: animated flag)
+k.loadSprite("mortar-tower-red", "sprites/assets/mortar-tower-red.png", {
+    sliceX: 3,
+    sliceY: 1,
+});
+k.loadSprite("mortar-tower-green", "sprites/assets/mortar-tower-green.png", {
+    sliceX: 3,
+    sliceY: 1,
+});
+k.loadSprite("mortar-tower-blue", "sprites/assets/mortar-tower-blue.png", {
+    sliceX: 3,
+    sliceY: 1,
+});
+k.loadSprite("mortar-tower-orange", "sprites/assets/mortar-tower-orange.png", {
+    sliceX: 3,
+    sliceY: 1,
+});
+
+// Load colored cannon battery variants (4 frames: animated flag)
+k.loadSprite("cannon-battery-red", "sprites/assets/cannon-battery-red.png", {
+    sliceX: 4,
+    sliceY: 1,
+});
+k.loadSprite("cannon-battery-green", "sprites/assets/cannon-battery-green.png", {
+    sliceX: 4,
+    sliceY: 1,
+});
+k.loadSprite("cannon-battery-blue", "sprites/assets/cannon-battery-blue.png", {
+    sliceX: 4,
+    sliceY: 1,
+});
+k.loadSprite("cannon-battery-orange", "sprites/assets/cannon-battery-orange.png", {
+    sliceX: 4,
+    sliceY: 1,
+});
+
 // Load destruction VFX (4-frame flipbook shown when a unit/structure is destroyed)
 k.loadSprite("damage", "sprites/assets/damage.png", {
     sliceX: 4,
