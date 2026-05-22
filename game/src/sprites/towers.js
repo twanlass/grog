@@ -21,8 +21,8 @@ export const WATCHTOWER = [
     [D, D, D, D, D, D, D, D, D, D, D, D],
 ];
 
-// Mortar Tower - Stone tower with single cannon (12x16)
-export const MORTAR_TOWER = [
+// Crossbow Tower - Stone tower garrisoned with crossbowmen (12x16)
+export const CROSSBOW_TOWER = [
     [_, _, _, _, R, R, R, R, _, _, _, _],
     [_, _, _, K, K, K, K, K, K, _, _, _],
     [_, _, _, K, G, G, G, G, K, _, _, _],
@@ -62,7 +62,7 @@ export const CANNON_BATTERY = [
 ];
 
 // Tower tech tree (upgrade order)
-export const TOWER_TECH_TREE = ['watchtower', 'mortarTower', 'cannonBattery'];
+export const TOWER_TECH_TREE = ['watchtower', 'crossbowTower', 'cannonBattery'];
 
 // Tower metadata
 export const TOWERS = {
@@ -79,10 +79,10 @@ export const TOWERS = {
         sightDistance: 4,
         description: "Reveals fog of war",
     },
-    mortarTower: {
-        name: "Mortar Tower",
-        sprite: MORTAR_TOWER,
-        imageSprite: "mortar-tower",  // Per-owner color resolved at draw time
+    crossbowTower: {
+        name: "Crossbow Tower",
+        sprite: CROSSBOW_TOWER,
+        imageSprite: "mortar-tower",  // Asset slot still uses legacy "mortar-tower" name; rename PNGs + loaders when new art lands
         imageFrames: 3,
         imageScale: 0.65,
         buildTime: 15,
@@ -90,11 +90,13 @@ export const TOWERS = {
         cost: { wood: 25 },
         crewCost: 5,
         attackRange: 4,
-        fireCooldown: 4,
-        damage: 5,
-        projectileCount: 1,
+        fireCooldown: 3,
+        damage: 2,
+        projectileCount: 3,
+        staggerDelay: 0.12,
+        projectileType: 'arrow',
         sightDistance: 6,
-        description: "Single cannon tower",
+        description: "Rapid-volley arrow tower",
     },
     cannonBattery: {
         name: "Cannon Battery",

@@ -928,11 +928,11 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
             const isMouseOverUpgrade = mousePos.x >= infoPanelX && mousePos.x <= infoPanelX + infoPanelWidth &&
                                        mousePos.y >= upgradeBtnY && mousePos.y <= upgradeBtnY + upgradeBtnHeight;
             if (isMouseOverUpgrade) {
-                if (nextTowerType === 'mortarTower') {
+                if (nextTowerType === 'crossbowTower') {
                     bounds.tooltip = {
                         x: infoPanelX + infoPanelWidth + 8,
                         y: upgradeBtnY,
-                        text: "Armed defensive structure with a single cannon. Auto-fires at enemies within range.",
+                        text: "Garrisoned archers fire a 3-arrow volley every few seconds. Trades raw damage for rate of fire.",
                     };
                 } else if (nextTowerType === 'cannonBattery') {
                     bounds.tooltip = {
@@ -1549,7 +1549,7 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
         bounds.tooltip = {
             x: sbpX + sbpWidth + 8,
             y: towerBtnY,
-            text: "Extends vision across nearby hexes. No weapons—upgrade to Mortar Tower for defense.",
+            text: "Extends vision across nearby hexes. No weapons—upgrade to Crossbow Tower for defense.",
         };
     }
 
@@ -1764,7 +1764,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
             bounds.tooltip = {
                 x: bpX + bpWidth + 8,
                 y: towerBtnY,
-                text: "Extends vision across nearby hexes. No weapons—upgrade to Mortar Tower for defense.",
+                text: "Extends vision across nearby hexes. No weapons—upgrade to Crossbow Tower for defense.",
             };
         }
 

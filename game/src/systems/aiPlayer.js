@@ -1802,7 +1802,7 @@ function tryArmTNTIfWorthIt(gameState, ship, shipIndex, aiOwner) {
 
 /**
  * Fire a Cutter's Broadside at a high-value enemy target if one is in range.
- * High-value = enemy ports (priority) and upgraded towers (mortarTower /
+ * High-value = enemy ports (priority) and upgraded towers (crossbowTower /
  * cannonBattery). Plain watchtowers and enemy ships don't justify burning the
  * 60s cooldown (and 10 HP recoil). Fire-and-forget: silently no-ops if the
  * ability isn't ready or the cutter is too damaged to absorb the penalty.
@@ -1830,7 +1830,7 @@ function tryFireBroadsideAtHighValueTarget(gameState, ship, shipIndex, aiOwner) 
     for (let i = 0; i < gameState.towers.length; i++) {
         const tower = gameState.towers[i];
         if (tower.owner === aiOwner) continue;
-        if (tower.type !== 'mortarTower' && tower.type !== 'cannonBattery') continue;
+        if (tower.type !== 'crossbowTower' && tower.type !== 'cannonBattery') continue;
         if (hexDistance(ship.q, ship.r, tower.q, tower.r) > attackDistance) continue;
         if (triggerBroadside(gameState, shipIndex, 'tower', i)) {
             ship.attackTarget = { type: 'tower', index: i };

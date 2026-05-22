@@ -24,12 +24,14 @@ Ships can construct defensive towers on nearby land. Towers automatically attack
 - Cancelling an upgrade clears the upgrade progress, keeps the tower at its current tier, and refunds the upgrade cost
 
 ### Combat
-- Completed towers automatically fire at pirates within 3 hexes
-- Towers fire every 4 seconds (fireCooldown)
-- Each shot deals 5 damage (same as ships)
-- Towers have 30 HP and can be destroyed by pirates
-- Towers show a health bar when selected or in combat
-- Hit flash effect when taking damage
+- Completed combat towers automatically fire at enemies within their `attackRange`
+- Per-tier stats (see `TOWERS` in `sprites/towers.js`):
+  - **Watchtower** — scout only, no weapons; 40 HP
+  - **Crossbow Tower** — 3 arrows per volley, 2 damage each, every 3s, range 4; 60 HP
+  - **Cannon Battery** — 2 cannonballs per volley, 5 damage each, every 4s, range 5; 100 HP
+- Multi-shot volleys are staggered: first shot fires immediately, remaining shots queue into `tower.pendingShots` with per-tower `staggerDelay` (falls back to `SHOT_STAGGER_DELAY` = 0.3s)
+- Crossbow shots render as low-arc brown arrows (`projectileType: 'arrow'`); other shots render as cannonballs with fiery trails
+- Towers show a health bar when selected or in combat; hit flash on damage
 
 ## Restrictions
 - Ship can only build one thing at a time (port or tower)
@@ -114,14 +116,10 @@ TOWERS = {
 ```
 
 ## Constants
-- `buildTime`: 15 seconds
-- `health`: 30 HP
-- `cost`: 25 wood
-- `attackRange`: 3 hexes
-- `fireCooldown`: 4 seconds
-- `damage`: 5 per shot
-- `sightDistance`: 3 hexes (fog reveal on completion)
+- `buildTime`: 15 seconds (all tiers)
+- `cost`: 25 wood (all tiers)
 - `MAX_TOWER_BUILD_DISTANCE`: 5 hexes from ship
+- Per-tier `health` / `attackRange` / `fireCooldown` / `damage` / `projectileCount` / `staggerDelay` / `sightDistance` live in `TOWERS` in `game/src/sprites/towers.js` — see Combat above for the current numbers
 
 ## Edge Cases
 - **Ship already building port/tower**: Build panel hidden
