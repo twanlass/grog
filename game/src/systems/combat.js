@@ -1,5 +1,5 @@
 // Combat system - handles projectile attacks and damage
-import { hexDistance, hexKey } from "../hex.js";
+import { hexDistance, hexKey, HEX_SIZE } from "../hex.js";
 import { SHIPS } from "../sprites/ships.js";
 import { TOWERS } from "../sprites/towers.js";
 import { PORTS } from "../sprites/ports.js";
@@ -909,6 +909,27 @@ function detonateTNT(gameState, shipIndex, fogState) {
         massive: true,
         ignoreFog: true,
     });
+
+    // Secondary blasts: a cluster of smaller explosions scattered around the
+    // epicenter with staggered delays. `silent: true` keeps the camera shake
+    // on the main blast (no chain-stacked shake from each pop).
+    const SECONDARY_COUNT = 5;
+    for (let i = 0; i < SECONDARY_COUNT; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = HEX_SIZE * (0.5 + Math.random() * 1.1);
+        gameState.shipExplosions.push({
+            q: epicenterQ,
+            r: epicenterR,
+            offsetX: Math.cos(angle) * dist,
+            offsetY: Math.sin(angle) * dist,
+            age: 0,
+            duration: 0.7 + Math.random() * 0.5,
+            scale: 0.9 + Math.random() * 0.9,
+            delay: 0.05 + Math.random() * 0.4,
+            silent: true,
+            ignoreFog: true,
+        });
+    }
     queueImpactSound(gameState, epicenterQ, epicenterR);
 
     // Damage falloff: 1.0 at center, linear down to minFactor at edge

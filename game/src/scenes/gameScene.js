@@ -777,7 +777,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const gHalfH = k.height() / 2;
                     for (let i = gameState.shipExplosions.length - 1; i >= 0; i--) {
                         const explosion = gameState.shipExplosions[i];
-                        if (explosion.age < rawDt * 2) {
+                        const delay = explosion.delay || 0;
+                        // Shake on the first frames of the *visible* start (after delay),
+                        // and skip entirely for `silent` secondary blasts so we don't
+                        // stack shake from the TNT pyrotechnic chain.
+                        if (!explosion.silent && explosion.age >= delay && explosion.age < delay + rawDt * 2) {
                             const pos = hexToPixel(explosion.q, explosion.r);
                             const screenX = (pos.x - cameraX) * zoom + gHalfW;
                             const screenY = (pos.y - cameraY) * zoom + gHalfH;
@@ -789,7 +793,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                             }
                         }
                         explosion.age += dt;
-                        if (explosion.age >= explosion.duration) {
+                        if (explosion.age >= delay + explosion.duration) {
                             gameState.shipExplosions.splice(i, 1);
                         }
                     }
@@ -903,8 +907,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const halfH = k.height() / 2;
             for (let i = gameState.shipExplosions.length - 1; i >= 0; i--) {
                 const explosion = gameState.shipExplosions[i];
-                // Trigger camera shake for new explosions only if on screen
-                if (explosion.age < rawDt * 2) {
+                const delay = explosion.delay || 0;
+                // Trigger camera shake on the first frames of the *visible* start
+                // (after delay), and skip entirely for `silent` secondary blasts so the
+                // TNT pyrotechnic chain doesn't keep retriggering shake.
+                if (!explosion.silent && explosion.age >= delay && explosion.age < delay + rawDt * 2) {
                     const pos = hexToPixel(explosion.q, explosion.r);
                     const screenX = (pos.x - cameraX) * zoom + halfW;
                     const screenY = (pos.y - cameraY) * zoom + halfH;
@@ -917,7 +924,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     }
                 }
                 explosion.age += dt;
-                if (explosion.age >= explosion.duration) {
+                if (explosion.age >= delay + explosion.duration) {
                     gameState.shipExplosions.splice(i, 1);
                 }
             }

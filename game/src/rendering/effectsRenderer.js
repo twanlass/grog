@@ -243,15 +243,22 @@ export function drawExplosions(ctx, gameState, fogState) {
         // fog so the kamikaze payoff is visible even after vision lapses)
         if (!explosion.ignoreFog && !isHexVisible(fogState, explosion.q, explosion.r)) continue;
 
+        // `delay` lets a single push become a staggered chain — secondary TNT
+        // blasts pop off in sequence by sharing one update loop entry each.
+        const delay = explosion.delay || 0;
+        if (explosion.age < delay) continue;
+
         const pos = hexToPixel(explosion.q, explosion.r);
-        const screenX = (pos.x - cameraX) * zoom + halfWidth;
-        const screenY = (pos.y - cameraY) * zoom + halfHeight;
+        const worldX = pos.x + (explosion.offsetX || 0);
+        const worldY = pos.y + (explosion.offsetY || 0);
+        const screenX = (worldX - cameraX) * zoom + halfWidth;
+        const screenY = (worldY - cameraY) * zoom + halfHeight;
 
         // Skip if off screen
         if (screenX < -100 || screenX > screenWidth + 100 ||
             screenY < -100 || screenY > screenHeight + 100) continue;
 
-        const progress = Math.min(explosion.age / explosion.duration, 0.9999);
+        const progress = Math.min((explosion.age - delay) / explosion.duration, 0.9999);
 
         // Full-screen white flash on first frames of a massive (TNT) explosion
         if (explosion.massive && progress < 0.18) {
@@ -266,7 +273,8 @@ export function drawExplosions(ctx, gameState, fogState) {
 
         // 4-frame damage flipbook over the impact site (TNT detonations get an outsized blast)
         const frame = Math.floor(progress * 4);
-        const spriteScale = zoom * (explosion.massive ? 5 : 2.5);
+        const userScale = explosion.scale || 1;
+        const spriteScale = zoom * (explosion.massive ? 5 : 2.5) * userScale;
 
         k.drawSprite({
             sprite: "damage",

@@ -35,6 +35,14 @@ The explosion is flagged `massive: true`, which the renderer reads to:
 - Stamp a brief full-screen white flash
 - Trigger a 3x stronger camera shake (24 vs the usual 8)
 
+On top of the main blast, `detonateTNT` pushes 5 **secondary explosions** scattered around the epicenter to sell the chain-reaction. Each one carries:
+- `offsetX/offsetY` — random world-pixel offset within ~0.5–1.6 hex radii
+- `scale` — 0.9–1.8 multiplier on the base sprite scale
+- `delay` — 0.05–0.45s stagger so they pop off in sequence
+- `silent: true` — skips camera shake (only the main `massive` blast shakes, so the chain doesn't keep retriggering it)
+
+The renderer (`drawExplosions`) honors all four fields generically — any explosion entry can use them, not just TNT. Total visible explosion life becomes `delay + duration`; the update loop in `gameScene.js` splices on that combined threshold.
+
 ## Blast Radius
 
 Radius is **derived** from the ship's cannon range, not configured per-ship:
