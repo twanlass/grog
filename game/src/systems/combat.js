@@ -1025,6 +1025,7 @@ function handleTowerAttacks(gameState, dt) {
                             progress: 0,
                             damage: shot.damage,
                             speed: PROJECTILE_SPEED,
+                            projectileType: shot.projectileType,
                         });
                         queueCannonSound(gameState, tower.q, tower.r);
                     }
@@ -1080,15 +1081,18 @@ function handleTowerAttacks(gameState, dt) {
                         progress: 0,
                         damage: towerData.damage,
                         speed: PROJECTILE_SPEED,
+                        projectileType: towerData.projectileType,
                     });
                     queueCannonSound(gameState, tower.q, tower.r);
                 } else {
-                    // Queue subsequent shots with stagger delay
+                    // Queue subsequent shots with stagger delay (per-tower override or default)
                     if (!tower.pendingShots) tower.pendingShots = [];
+                    const staggerDelay = towerData.staggerDelay ?? SHOT_STAGGER_DELAY;
                     tower.pendingShots.push({
                         targetIndex: target.index,
                         damage: towerData.damage,
-                        delay: p * SHOT_STAGGER_DELAY,
+                        delay: p * staggerDelay,
+                        projectileType: towerData.projectileType,
                     });
                 }
             }

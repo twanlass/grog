@@ -106,7 +106,8 @@ export function drawFloatingDebris(ctx, floatingDebris, fogState) {
 }
 
 /**
- * Draw projectiles (cannon balls) with fiery trails
+ * Draw projectiles. Default = cannon ball with fiery trail. 'arrow' = flat-arc
+ * wooden shaft, no trail.
  */
 export function drawProjectiles(ctx, gameState, fogState) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
@@ -122,19 +123,23 @@ export function drawProjectiles(ctx, gameState, fogState) {
             if (sourceTower && !shouldRenderEntity(fogState, sourceTower)) continue;
         }
 
+        const isArrow = proj.projectileType === 'arrow';
+        const arcHeight = isArrow ? 12 : 40;
+
         // Interpolate position based on progress
         const fromPos = hexToPixel(proj.fromQ, proj.fromR);
         const toPos = hexToPixel(proj.toQ, proj.toR);
-        const x = fromPos.x + (toPos.x - fromPos.x) * proj.progress;
-        const y = fromPos.y + (toPos.y - fromPos.y) * proj.progress;
+        const dx = toPos.x - fromPos.x;
+        const dy = toPos.y - fromPos.y;
+        const x = fromPos.x + dx * proj.progress;
+        const y = fromPos.y + dy * proj.progress;
 
-        // Add arc: parabola that peaks at midpoint (progress = 0.5)
-        const arcHeight = 40;
+        // Parabolic arc peaking at progress = 0.5
         const arcFactor = 4 * proj.progress * (1 - proj.progress);
         const arcOffset = arcHeight * arcFactor;
 
-        // Scale up at peak to simulate coming closer to camera
-        const sizeScale = 0.8 + 0.4 * arcFactor;
+        // Cannons scale up at peak to fake depth; arrows don't
+        const sizeScale = isArrow ? 1.0 : (0.8 + 0.4 * arcFactor);
 
         const screenX = (x - cameraX) * zoom + halfWidth;
         const screenY = (y - cameraY) * zoom + halfHeight - (arcOffset * zoom);
@@ -143,7 +148,42 @@ export function drawProjectiles(ctx, gameState, fogState) {
         if (screenX < -50 || screenX > screenWidth + 50 ||
             screenY < -50 || screenY > screenHeight + 50) continue;
 
-        // Draw fiery trail (multiple particles behind the ball)
+        if (isArrow) {
+            // Arrow: oriented brown shaft + lighter tip, tilts with arc trajectory.
+            // d(arcOffset)/dt = arcHeight * 4 * (1 - 2t); subtract because arcOffset moves screen-Y up.
+            const arcSlope = arcHeight * 4 * (1 - 2 * proj.progress);
+            const angle = Math.atan2(dy - arcSlope, dx) * 180 / Math.PI;
+
+            const shaftLength = 14 * zoom;
+            const shaftWidth = 2 * zoom;
+            const tipSize = 3 * zoom;
+
+            // Shaft (dark brown)
+            k.drawRect({
+                pos: k.vec2(screenX, screenY),
+                width: shaftLength,
+                height: shaftWidth,
+                anchor: "center",
+                color: k.rgb(90, 55, 25),
+                angle,
+            });
+
+            // Tip (lighter, at leading edge)
+            const rad = angle * Math.PI / 180;
+            const tipX = screenX + Math.cos(rad) * (shaftLength * 0.5);
+            const tipY = screenY + Math.sin(rad) * (shaftLength * 0.5);
+            k.drawRect({
+                pos: k.vec2(tipX, tipY),
+                width: tipSize,
+                height: tipSize,
+                anchor: "center",
+                color: k.rgb(200, 200, 200),
+                angle,
+            });
+            continue;
+        }
+
+        // Cannonball fiery trail (multiple particles behind the ball)
         const trailSegments = 5;
         const trailLength = 0.15;
 
@@ -151,8 +191,8 @@ export function drawProjectiles(ctx, gameState, fogState) {
             const trailProgress = proj.progress - (t / trailSegments) * trailLength;
             if (trailProgress < 0) continue;
 
-            const trailX = fromPos.x + (toPos.x - fromPos.x) * trailProgress;
-            const trailY = fromPos.y + (toPos.y - fromPos.y) * trailProgress;
+            const trailX = fromPos.x + dx * trailProgress;
+            const trailY = fromPos.y + dy * trailProgress;
             const trailArcFactor = 4 * trailProgress * (1 - trailProgress);
             const trailArcOffset = arcHeight * trailArcFactor;
 
@@ -163,12 +203,10 @@ export function drawProjectiles(ctx, gameState, fogState) {
             const trailOpacity = 0.7 * fadeRatio;
             const trailSize = (2.55 + 1.7 * fadeRatio) * zoom * sizeScale;
 
-            // Fiery colors: orange to red gradient
             const r = 255;
             const g = Math.floor(100 + 80 * fadeRatio);
             const b = Math.floor(30 * fadeRatio);
 
-            // Fiery trail square (retro style)
             k.drawRect({
                 pos: k.vec2(trailScreenX, trailScreenY),
                 width: trailSize * 2,
@@ -179,7 +217,7 @@ export function drawProjectiles(ctx, gameState, fogState) {
             });
         }
 
-        // Draw cannon ball (keep round)
+        // Cannon ball
         k.drawCircle({
             pos: k.vec2(screenX, screenY),
             radius: 3.4 * zoom * sizeScale,
