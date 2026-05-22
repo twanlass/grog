@@ -132,6 +132,11 @@ export function createGameState(config = {}) {
             // Collapsed sections (prefixed: 'cat:<name>' for categories, 'group:<id>' for
             // ship sub-groups). Directional ship groups start collapsed.
             collapsedGroups: new Set(['group:cutter', 'group:schooner']),
+            // Sprite scale overrides (debug mode): sprite-key → scale number.
+            // Empty/missing key means "use default from sprites/*.js metadata".
+            scaleOverrides: {},
+            // Active slider drag state: { key, trackX, trackW, min, max } or null
+            draggingScale: null,
         },
 
         // Loot drops from destroyed pirates

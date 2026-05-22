@@ -1,10 +1,11 @@
 // Unit rendering: ships, ports, settlements, towers
-import { hexToPixel, HEX_SIZE } from "../hex.js";
+import { hexToPixel, HEX_SIZE, HEX_HEIGHT } from "../hex.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { isHexVisible, shouldRenderEntity } from "../fogOfWar.js";
 import { getShipVisualPos } from "../systems/shipMovement.js";
 import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js";
 import { isAIOwner } from "../gameState.js";
+import { getRenderScale } from "../designer/scaleTuner.js";
 
 // Check if an entity is "non-local" (should show enemy faction indicator)
 // Uses fogState.localPlayerId to determine the local player
@@ -79,14 +80,21 @@ export function getDirectionalSprite(shipData, owner) {
 /**
  * Resolve the colored tower sprite name for an owner. Mirrors the
  * cutter/schooner color mapping so all of a faction's units flag the same way.
+ * @param {string} owner - The faction owner key
+ * @param {string} baseSprite - Virtual sprite name (e.g. 'tower', 'mortar-tower', 'cannon-battery')
  */
-function getTowerSprite(owner) {
-    if (owner === 'ai1') return 'tower-green';
-    if (owner === 'ai2') return 'tower-blue';
-    if (owner === 'ai3') return 'tower-orange';
-    if (owner === 'player2') return 'tower-blue';
-    return 'tower-red';
+export function getTowerSprite(owner, baseSprite = 'tower') {
+    let color;
+    if (owner === 'ai1') color = 'green';
+    else if (owner === 'ai2') color = 'blue';
+    else if (owner === 'ai3') color = 'orange';
+    else if (owner === 'player2') color = 'blue';
+    else color = 'red';
+    return `${baseSprite}-${color}`;
 }
+
+// Virtual tower sprite slots that resolve to per-owner colored variants
+export const VIRTUAL_TOWER_SPRITES = new Set(['tower', 'mortar-tower', 'cannon-battery']);
 
 // Faction colors for visual differentiation (matches cutter sprite colors)
 const FACTION_COLORS = {
@@ -172,7 +180,7 @@ export function drawPorts(ctx, gameState, map, fogState) {
 
         // Use PNG sprite for docks (if available), otherwise pixel art
         if (portData.imageSprite) {
-            const spriteScale = zoom * (portData.spriteScale || 1);
+            const spriteScale = zoom * getRenderScale(gameState, portData.imageSprite, portData.spriteScale || 1);
             // Use shader for damage flash effect - pass via opacity
             const flashIntensity = port.hitFlash > 0 ? Math.min(port.hitFlash / 0.15, 1) : 0;
             // Combine construction opacity with flash (flash takes priority when active)
@@ -252,7 +260,7 @@ export function drawSettlements(ctx, gameState, fogState) {
 
         // Use image sprite if available, otherwise fall back to pixel art
         if (settlementData.imageSprite) {
-            const spriteScale = zoom * 1.0;
+            const spriteScale = zoom * getRenderScale(gameState, settlementData.imageSprite, 1.0);
             // Use shader for damage flash effect - pass via opacity
             const flashIntensity = settlement.hitFlash > 0 ? Math.min(settlement.hitFlash / 0.15, 1) : 0;
             const baseOpacity = isConstructing ? 0.5 : 1.0;
@@ -313,24 +321,29 @@ export function drawTowers(ctx, gameState, fogState) {
 
         // Use image sprite if available, otherwise fall back to pixel art
         if (towerData.imageSprite) {
-            const spriteScale = zoom * 1.0;
+            const spriteScale = zoom * getRenderScale(gameState, towerData.imageSprite, towerData.imageScale || 1.0);
             // Use shader for damage flash effect - pass via opacity
             const flashIntensity = tower.hitFlash > 0 ? Math.min(tower.hitFlash / 0.15, 1) : 0;
             const baseOpacity = isConstructing ? 0.5 : 1.0;
             const flashOpacity = flashIntensity > 0 ? (1.0 - flashIntensity) : baseOpacity;
-            // 'tower' is a virtual slot — pick the colored variant for this owner.
-            const spriteName = towerData.imageSprite === 'tower'
-                ? getTowerSprite(tower.owner)
+            // 'tower'/'mortar-tower'/'cannon-battery' are virtual slots — pick
+            // the colored variant for this owner.
+            const spriteName = VIRTUAL_TOWER_SPRITES.has(towerData.imageSprite)
+                ? getTowerSprite(tower.owner, towerData.imageSprite)
                 : towerData.imageSprite;
-            // 3-frame flag flutter at ~5 fps. Offset by tower position so
+            // Flag flutter at ~5 fps. Offset by tower position so
             // adjacent towers don't flap in lockstep.
             const phase = (tower.q * 7 + tower.r * 13) * 0.13;
-            const animFrame = Math.floor((k.time() + phase) * 5) % 3;
+            const frameCount = towerData.imageFrames || 3;
+            const animFrame = Math.floor((k.time() + phase) * 5) % frameCount;
+            // Anchor the sprite's base 1/4 up from the bottom of the hex (so the
+            // tower base sits forward on the tile rather than at the hex center).
+            const baseY = screenY + (HEX_HEIGHT / 4) * zoom;
             k.drawSprite({
                 sprite: spriteName,
                 frame: animFrame,
-                pos: k.vec2(screenX, screenY),
-                anchor: "center",
+                pos: k.vec2(screenX, baseY),
+                anchor: "bot",
                 scale: spriteScale,
                 opacity: flashOpacity,
                 shader: "whiteFlash",
@@ -408,7 +421,7 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             const animCol = ship.animFrame || 0;
             const frame = dir.row * 3 + animCol;  // row * 3 cols + column
 
-            const spriteScale = zoom * (shipData.spriteScale || 1);
+            const spriteScale = zoom * getRenderScale(gameState, shipData.directionalSprite, shipData.spriteScale || 1);
 
             k.drawSprite({
                 sprite: dirSprite,
@@ -424,7 +437,7 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
             // Use rotation-based image sprite (for ships without directional sprites)
             // Sprite faces north (up), heading 0 = east, so rotate by heading + 90°
             const rotationDeg = (ship.heading || 0) * (180 / Math.PI) + 90;
-            const spriteScale = zoom * (shipData.spriteScale || 1);
+            const spriteScale = zoom * getRenderScale(gameState, shipData.imageSprite, shipData.spriteScale || 1);
             k.drawSprite({
                 sprite: shipData.imageSprite,
                 frame: 0,
