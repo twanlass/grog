@@ -1118,6 +1118,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         if (canBuildCutter) continue;
 
                         gameState.surrenderPending = aiOwner;
+                        // Exit any mode that would steal clicks or hold the attack cursor
+                        // while the modal is up.
+                        if (gameState.actionMode.active) exitActionMode(gameState);
+                        if (gameState.patrolMode.active) exitPatrolMode(gameState);
+                        if (gameState.portBuildMode.active) exitPortBuildMode(gameState);
+                        if (gameState.settlementBuildMode.active) exitSettlementBuildMode(gameState);
+                        if (gameState.towerBuildMode.active) exitTowerBuildMode(gameState);
                         break;  // Only one surrender at a time
                     }
                 }
@@ -1832,8 +1839,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             let newCursor = CURSOR_DEFAULT;
             const selectedShips = getSelectedShips(gameState);
 
+            // Surrender / game-over modals own the cursor — keep it as the default
+            // pointer so Accept/Decline don't look uninteractable.
+            if (gameState.surrenderPending || gameState.gameOver) {
+                newCursor = CURSOR_DEFAULT;
+            }
             // Always show attack cursor when in attack mode
-            if (gameState.actionMode.active === 'attack') {
+            else if (gameState.actionMode.active === 'attack') {
                 newCursor = CURSOR_ATTACK;
             } else if (selectedShips.length > 0) {
                 const halfW = k.width() / 2;
