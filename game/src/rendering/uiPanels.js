@@ -1166,10 +1166,11 @@ export function drawPanelButton(ctx, panelX, panelWidth, btnY, btnHeight, sprite
         // For rotation-based sprites, use frame 0.
         // Virtual tower slots ('tower', 'mortar-tower', 'cannon-battery') need to
         // be resolved to a real colored sprite before drawing.
-        const resolvedSprite = VIRTUAL_TOWER_SPRITES.has(spriteData.imageSprite)
+        const isTower = VIRTUAL_TOWER_SPRITES.has(spriteData.imageSprite);
+        const resolvedSprite = isTower
             ? getTowerSprite(getLocalPlayerId(), spriteData.imageSprite)
             : spriteData.imageSprite;
-        const pngScale = (spriteData.spriteScale || 1) * 0.8;
+        const pngScale = (spriteData.spriteScale || 1) * 0.8 * (isTower ? 0.75 : 1);
         const spriteY = btnY + btnHeight / 2;
         k.drawSprite({
             sprite: resolvedSprite,
