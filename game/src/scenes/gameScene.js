@@ -1096,16 +1096,29 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     gameState.gameOver = 'lose';
                 }
 
-                // Check for AI surrender: only settlements remain (no ships, ports, or towers)
+                // Check for AI surrender: zero ships and no way to deploy a new one
+                // (no port in queue, no wood for cutter, or no crew for cutter)
                 if (!gameState.surrenderPending) {
+                    const cutterCost = SHIPS.cutter.cost.wood;
+                    const cutterCrew = SHIPS.cutter.crewCost;
                     for (const aiOwner of ['ai1', 'ai2', 'ai3']) {
                         const counts = aiOwner === 'ai1' ? ai1Counts : aiOwner === 'ai2' ? ai2Counts : ai3Counts;
-                        const onlySettlements = counts.ships === 0 && counts.ports === 0 &&
-                                                counts.towers === 0 && counts.settlements > 0;
-                        if (onlySettlements && !gameState.surrenderDeclined[aiOwner]) {
-                            gameState.surrenderPending = aiOwner;
-                            break;  // Only one surrender at a time
-                        }
+                        if (counts.total === 0 || counts.ships > 0) continue;
+                        if (gameState.surrenderDeclined[aiOwner]) continue;
+
+                        const buildingShip = gameState.ports.some(p =>
+                            p.owner === aiOwner && p.buildQueue && p.buildQueue.length > 0
+                        );
+                        if (buildingShip) continue;
+
+                        const aiResources = getResourcesForOwner(gameState, aiOwner);
+                        const canBuildCutter = counts.ports > 0 &&
+                                               aiResources && aiResources.wood >= cutterCost &&
+                                               canAffordCrew(gameState, cutterCrew, aiOwner);
+                        if (canBuildCutter) continue;
+
+                        gameState.surrenderPending = aiOwner;
+                        break;  // Only one surrender at a time
                     }
                 }
             }
