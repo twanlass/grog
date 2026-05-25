@@ -47,6 +47,7 @@ import {
 
 // Mobile touch support
 import { isTouchDevice, initTouchHandlers, resetTouchState } from "../systems/touchHandler.js";
+import { initModifierTracker, isShiftHeld as nativeShiftHeld, isMetaHeld as nativeMetaHeld } from "../systems/modifierKeys.js";
 
 // Default scenario config (used if none provided)
 import { getScenario, DEFAULT_SCENARIO_ID } from "../scenarios/index.js";
@@ -601,6 +602,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Mobile touch state
         const isMobile = isTouchDevice();
+        initModifierTracker();
         let touchZoomBase = zoom;  // Store initial zoom for pinch gesture
         let touchPanCameraX = cameraX;  // Store initial camera for two-finger pan
         let touchPanCameraY = cameraY;
@@ -2764,9 +2766,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const worldY = (mouseY - k.height() / 2) / zoom + cameraY;
             const clickedHex = pixelToHex(worldX, worldY);
 
-            // Check modifier keys
-            const isShiftHeld = k.isKeyDown("shift");
-            const isCommandHeld = k.isKeyDown("meta");
+            // Check modifier keys via the window-level tracker (kaplay's
+            // canvas-scoped state can get stuck "down" when focus shifts away
+            // mid-press — common with macOS trackpad gestures).
+            const isShiftHeld = nativeShiftHeld();
+            const isCommandHeld = nativeMetaHeld();
 
             // Handle action mode clicks (from action buttons)
             if (gameState.actionMode.active === 'move') {
@@ -3001,7 +3005,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const worldY = (mouseY - k.height() / 2) / zoom + cameraY;
             const clickedHex = pixelToHex(worldX, worldY);
 
-            const isShiftHeld = k.isKeyDown("shift");
+            const isShiftHeld = nativeShiftHeld();
 
             // Attack enemy (skips ports if shift held for plundering)
             if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal, isShiftHeld)) {
