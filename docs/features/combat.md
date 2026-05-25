@@ -71,6 +71,37 @@ SHIPS.cutter = {
 
 The button is only shown when **every** selected ship has a `burstAttack` config; it is disabled (clicks consumed but ignored) when **all** selected ships are still on cooldown. Today only Cutters ship with a `burstAttack` config, so mixed selections that include any other hull hide the button.
 
+## Aim & Hit Resolution
+
+Hit detection is **position-based**: a projectile damages whatever sits on its destination hex when it arrives. Projectile flight time is fixed (~0.8s, from `1 / PROJECTILE_SPEED`) regardless of distance, so a fast hull (cutter speed=2) can cover 1.6 hexes during flight. Two mechanics prevent that from turning combat into a whiff-fest:
+
+### Predictive Aim (Lead Shots)
+
+Every fire site (`handlePirateAttacks`, `handlePlayerAttacks`, `processShipPendingShots`, `triggerBroadside`, `handleTowerAttacks`) routes ship targets through `predictTargetHex(target, LEAD_TIME)`, which walks forward along the target's planned `path` by `LEAD_TIME * speed` hexes and returns the lead hex as the projectile destination.
+
+- `LEAD_TIME = 1 / PROJECTILE_SPEED` (~0.8s)
+- Stationary targets (no `path`) return current position — gunners still aim at idle ships normally
+- Structures (port/tower/settlement) skip prediction entirely
+- Pending shots in a volley re-predict at fire time, so later shots in a Broadside track sharp turns mid-volley
+- Skill expression preserved: a cutter that changes course after a shot is fired still dodges, because the prediction was baked in at fire time
+
+### Splash Damage (Near-Miss)
+
+When a projectile lands on its destination hex and finds nothing there, `updateProjectiles` checks whether the **originally intended ship target** is within `SPLASH_RADIUS` (1 hex) of impact. If so, it applies `proj.damage * SPLASH_DAMAGE_FACTOR` (25%, minimum 1) to that ship.
+
+- Only applies to `targetType === 'ship'` — structures don't move so direct hits resolve normally
+- Only applies to the intended target, not any nearby enemy — keeps semantics clean ("you almost nailed the dodge") and avoids friendly-fire on bystanders
+- Skipped if `proj.targetIndex === -1` (target destroyed mid-flight via `cleanupStaleReferences`)
+- Source-owner check prevents a projectile from splashing a friendly that happens to be near the impact
+
+### Tunables (in `combat.js`)
+
+| Constant | Default | Effect |
+|---|---|---|
+| `LEAD_TIME` | `1 / PROJECTILE_SPEED` | Lower = less prediction = cutters dodge more |
+| `SPLASH_DAMAGE_FACTOR` | `0.25` | Higher = more forgiving near-misses |
+| `SPLASH_RADIUS` | `1` (hex) | Bump to 2 if 1-hex splash still feels too punishing on dodging |
+
 ## Cooldowns on a Ship
 
 | Field | Set by | Drained in | Purpose |
