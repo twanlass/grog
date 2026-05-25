@@ -1868,7 +1868,7 @@ export function drawMenuPanel(ctx) {
     const { k, screenWidth, screenHeight } = ctx;
 
     const panelWidth = 320;
-    const panelHeight = 385;
+    const panelHeight = 437;
     const panelX = screenWidth / 2 - panelWidth / 2;
     const panelY = screenHeight / 2 - panelHeight / 2;
 
@@ -1907,9 +1907,11 @@ export function drawMenuPanel(ctx) {
         { key: "Right Click", action: "Move / Attack" },
         { key: "Right Drag", action: "Pan camera" },
         { key: "Scroll", action: "Zoom in/out" },
+        { key: "A + Left Click", action: "Attack mode" },
         { key: "P", action: "Set patrol route" },
         { key: "H", action: "Return to home port" },
-        { key: "1-5", action: "Set game speed" },
+        { key: "Shift + Num", action: "Save group" },
+        { key: "Num (0-9)", action: "Recall group" },
         { key: ".", action: "Pause / Resume" },
         { key: "/", action: "Toggle this menu" },
     ];
