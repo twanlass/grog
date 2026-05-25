@@ -151,11 +151,47 @@ export function findCenterSpawnPositions(map, hexKeyFn, count, occupiedHexes) {
 const PROJECTILE_SPEED = 1.25;     // progress per second (~0.8s travel time)
 const SHOT_STAGGER_DELAY = 0.3;   // seconds between multi-shot tower shots
 
+// Aim & hit resolution constants
+const LEAD_TIME = 1 / PROJECTILE_SPEED;  // Seconds of target movement to lead by
+const SPLASH_DAMAGE_FACTOR = 0.25;       // Near-miss damage = direct * this factor
+const SPLASH_RADIUS = 1;                 // Hex distance from impact to count as splash
+
 // Loot drop constants
 const LOOT_DROP_CHANCE = 0.33;    // 33% chance to drop loot
 const LOOT_MIN_AMOUNT = 10;       // minimum wood per barrel
 const LOOT_MAX_AMOUNT = 50;       // maximum wood per barrel
 const LOOT_DURATION = 30;         // seconds before loot expires
+
+/**
+ * Predict where a moving target will be after `leadTime` seconds, by walking
+ * forward along its planned path. Stationary targets (no path) return current
+ * position so gunners aim where they are. Used so cutters and other fast hulls
+ * can't trivially out-pace projectile flight time by sailing straight away.
+ */
+function predictTargetHex(target, leadTime) {
+    if (!target.path || target.path.length === 0) {
+        return { q: target.q, r: target.r };
+    }
+    const speed = SHIPS[target.type]?.speed || 0;
+    if (speed <= 0) return { q: target.q, r: target.r };
+
+    const hexesAhead = leadTime * speed;
+    const remainingOnCurrentStep = 1 - (target.moveProgress || 0);
+    let stepsToAdvance = hexesAhead - remainingOnCurrentStep;
+
+    // Projectile lands before the target finishes its current step — aim at the
+    // next hex anyway since it's the closest position they're committed to.
+    if (stepsToAdvance < 0) {
+        return { q: target.path[0].q, r: target.path[0].r };
+    }
+
+    let idx = 0;
+    while (stepsToAdvance >= 1 && idx + 1 < target.path.length) {
+        stepsToAdvance -= 1;
+        idx++;
+    }
+    return { q: target.path[idx].q, r: target.path[idx].r };
+}
 
 /**
  * Queue a cannon fire sound event with position for visibility check
@@ -292,14 +328,17 @@ function processShipPendingShots(gameState, dt, fogState) {
                 }
 
                 if (target && (target.health === undefined || target.health > 0)) {
+                    const aim = shot.targetType === 'ship'
+                        ? predictTargetHex(target, LEAD_TIME)
+                        : { q: target.q, r: target.r };
                     gameState.projectiles.push({
                         sourceShipIndex: i,
                         targetType: shot.targetType,
                         targetIndex: shot.targetIndex,
                         fromQ: ship.q,
                         fromR: ship.r,
-                        toQ: target.q,
-                        toR: target.r,
+                        toQ: aim.q,
+                        toR: aim.r,
                         progress: 0,
                         damage: shot.damage,
                         speed: PROJECTILE_SPEED,
@@ -339,6 +378,9 @@ function handlePirateAttacks(gameState, dt, fogState) {
             if (target) {
                 const shipData = SHIPS[ship.type];
                 const projectileCount = shipData.projectileCount || 1;
+                const aim = ship.aiTarget.type === 'ship'
+                    ? predictTargetHex(target, LEAD_TIME)
+                    : { q: target.q, r: target.r };
 
                 // Fire first shot immediately
                 gameState.projectiles.push({
@@ -347,8 +389,8 @@ function handlePirateAttacks(gameState, dt, fogState) {
                     targetIndex: ship.aiTarget.index,
                     fromQ: ship.q,
                     fromR: ship.r,
-                    toQ: target.q,
-                    toR: target.r,
+                    toQ: aim.q,
+                    toR: aim.r,
                     progress: 0,
                     damage: CANNON_DAMAGE,
                     speed: PROJECTILE_SPEED,
@@ -751,6 +793,9 @@ function handlePlayerAttacks(gameState, dt, fogState) {
 
         if (ship.attackCooldown <= 0) {
             const projectileCount = shipData.projectileCount || 1;
+            const aim = targetType === 'ship'
+                ? predictTargetHex(target, LEAD_TIME)
+                : { q: target.q, r: target.r };
 
             // Fire first shot immediately
             gameState.projectiles.push({
@@ -759,8 +804,8 @@ function handlePlayerAttacks(gameState, dt, fogState) {
                 targetIndex: ship.attackTarget.index,
                 fromQ: ship.q,
                 fromR: ship.r,
-                toQ: target.q,
-                toR: target.r,
+                toQ: aim.q,
+                toR: aim.r,
                 progress: 0,
                 damage: CANNON_DAMAGE,
                 speed: PROJECTILE_SPEED,
@@ -821,6 +866,10 @@ export function triggerBroadside(gameState, shipIndex, targetType, targetIndex) 
     const attackDistance = shipData.attackDistance || 2;
     if (hexDistance(ship.q, ship.r, target.q, target.r) > attackDistance) return false;
 
+    const aim = targetType === 'ship'
+        ? predictTargetHex(target, LEAD_TIME)
+        : { q: target.q, r: target.r };
+
     // Fire first shot immediately
     gameState.projectiles.push({
         sourceShipIndex: shipIndex,
@@ -828,8 +877,8 @@ export function triggerBroadside(gameState, shipIndex, targetType, targetIndex) 
         targetIndex,
         fromQ: ship.q,
         fromR: ship.r,
-        toQ: target.q,
-        toR: target.r,
+        toQ: aim.q,
+        toR: aim.r,
         progress: 0,
         damage: CANNON_DAMAGE,
         speed: PROJECTILE_SPEED,
@@ -1014,14 +1063,15 @@ function handleTowerAttacks(gameState, dt) {
                     // Re-find target position (it may have moved)
                     const target = gameState.ships[shot.targetIndex];
                     if (target && target.health > 0) {
+                        const aim = predictTargetHex(target, LEAD_TIME);
                         gameState.projectiles.push({
                             sourceTowerIndex: i,
                             targetType: 'ship',
                             targetIndex: shot.targetIndex,
                             fromQ: tower.q,
                             fromR: tower.r,
-                            toQ: target.q,
-                            toR: target.r,
+                            toQ: aim.q,
+                            toR: aim.r,
                             progress: 0,
                             damage: shot.damage,
                             speed: PROJECTILE_SPEED,
@@ -1070,14 +1120,15 @@ function handleTowerAttacks(gameState, dt) {
 
                 if (p === 0) {
                     // First shot fires immediately
+                    const aim = predictTargetHex(target.ship, LEAD_TIME);
                     gameState.projectiles.push({
                         sourceTowerIndex: i,
                         targetType: 'ship',
                         targetIndex: target.index,
                         fromQ: tower.q,
                         fromR: tower.r,
-                        toQ: target.ship.q,
-                        toR: target.ship.r,
+                        toQ: aim.q,
+                        toR: aim.r,
                         progress: 0,
                         damage: towerData.damage,
                         speed: PROJECTILE_SPEED,
@@ -1184,16 +1235,36 @@ function updateProjectiles(gameState, dt, fogState) {
                 }
             }
 
+            const attackerInfo = proj.sourceShipIndex !== undefined && proj.sourceShipIndex >= 0
+                ? { type: 'ship', index: proj.sourceShipIndex }
+                : null;
+
             if (hitIndex !== -1) {
                 // Hit! Apply damage to whatever is at the destination
-                // Pass attacker info for defensive AI to target
-                const attackerInfo = proj.sourceShipIndex !== undefined && proj.sourceShipIndex >= 0
-                    ? { type: 'ship', index: proj.sourceShipIndex }
-                    : null;
                 applyDamage(gameState, hitType, hitIndex, proj.damage, fogState, attackerInfo);
                 queueImpactSound(gameState, proj.toQ, proj.toR);
             } else {
-                // Miss - create water splash effect
+                // Miss — check splash against the intended ship target. Gives
+                // partial credit when prediction was off by a hex so chasing
+                // a zigzagging cutter still chips away at it.
+                if (proj.targetType === 'ship' && proj.targetIndex >= 0) {
+                    const intended = gameState.ships[proj.targetIndex];
+                    if (intended && intended.health > 0) {
+                        const targetOwner = intended.type === 'pirate'
+                            ? 'pirate'
+                            : (intended.owner || 'player');
+                        if (targetOwner !== sourceOwner) {
+                            const dist = hexDistance(proj.toQ, proj.toR, intended.q, intended.r);
+                            if (dist <= SPLASH_RADIUS) {
+                                const splashDmg = Math.max(1, Math.round(proj.damage * SPLASH_DAMAGE_FACTOR));
+                                applyDamage(gameState, 'ship', proj.targetIndex, splashDmg, fogState, attackerInfo);
+                                queueImpactSound(gameState, proj.toQ, proj.toR);
+                            }
+                        }
+                    }
+                }
+                // Water splash at the impact hex regardless of splash damage —
+                // conveys near-miss and keeps the visual consistent.
                 gameState.waterSplashes.push({
                     q: proj.toQ,
                     r: proj.toR,
