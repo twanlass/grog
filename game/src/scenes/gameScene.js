@@ -1938,16 +1938,40 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         showNotification(gameState, `Saved ${count} unit${count > 1 ? 's' : ''} to group ${slot}`);
                     }
                 } else {
-                    // Number key: Recall selection and snap camera to its center
+                    // Number key: Recall selection and snap camera to its center,
+                    // but only if none of the units are currently visible on screen
+                    // (avoids jarring camera snaps when the group is already in view).
                     const units = recallSelectionFromGroup(gameState, slot);
 
                     if (units.length > 0) {
                         gameState.selectedUnits = units;
 
-                        const center = getGroupCenterPosition(gameState, slot, hexToPixel);
-                        if (center) {
-                            cameraX = center.x;
-                            cameraY = center.y;
+                        const halfW = k.width() / 2;
+                        const halfH = k.height() / 2;
+                        let anyVisible = false;
+                        for (const unit of units) {
+                            let entity = null;
+                            if (unit.type === 'ship') entity = gameState.ships[unit.index];
+                            else if (unit.type === 'port') entity = gameState.ports[unit.index];
+                            else if (unit.type === 'settlement') entity = gameState.settlements[unit.index];
+                            else if (unit.type === 'tower') entity = gameState.towers[unit.index];
+                            if (!entity) continue;
+                            const pos = hexToPixel(entity.q, entity.r);
+                            const screenX = (pos.x - cameraX) * zoom + halfW;
+                            const screenY = (pos.y - cameraY) * zoom + halfH;
+                            if (screenX >= 0 && screenX <= k.width() &&
+                                screenY >= 0 && screenY <= k.height()) {
+                                anyVisible = true;
+                                break;
+                            }
+                        }
+
+                        if (!anyVisible) {
+                            const center = getGroupCenterPosition(gameState, slot, hexToPixel);
+                            if (center) {
+                                cameraX = center.x;
+                                cameraY = center.y;
+                            }
                         }
 
                         showNotification(gameState, `Recalled group ${slot} (${units.length} unit${units.length > 1 ? 's' : ''})`);
