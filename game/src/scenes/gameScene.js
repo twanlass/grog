@@ -955,6 +955,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         playCannonFire();
                     } else if (event.type === 'cannon-impact') {
                         playCannonImpact();
+                    } else if (event.type === 'arrow-fire') {
+                        playArrowFire();
                     }
                 }
                 gameState.soundEvents = [];
@@ -2492,6 +2494,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             k.play(`cannon-impact-${soundNum}`, { volume: 0.3 });
         }
 
+        // Crossbow tower arrow fire sound helper (plays random 1-4)
+        function playArrowFire() {
+            const soundNum = Math.floor(Math.random() * 4) + 1;
+            k.play(`arrow-fire-${soundNum}`, { volume: 0.3 });
+        }
+
+        // Port waypoint/rally-point set sound helper (plays random 1-2)
+        function playPortWaypoint() {
+            const soundNum = Math.floor(Math.random() * 2) + 1;
+            k.play(`port-waypoint-${soundNum}`, { volume: 0.4 });
+        }
+
         // Click handler for selection and waypoints - delegates to input handler helpers
         function handleClick() {
             const mousePos = getMousePos();
@@ -2889,7 +2903,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             if (gameState.actionMode.active === 'rally') {
                 // Rally mode: set rally point for selected port(s)
-                handlePortRallyPointClick(gameState, map, clickedHex);
+                if (handlePortRallyPointClick(gameState, map, clickedHex)) {
+                    playPortWaypoint();
+                }
                 if (isMultiplayer && isGuest) {
                     for (const sel of gameState.selectedUnits) {
                         if (sel.type === 'port') {
@@ -3001,7 +3017,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (!clickedOnUnit) {
                 if (isCommandHeld) {
                     // Command+click = set waypoint (try port rally point first, then ship waypoint)
-                    if (!handlePortRallyPointClick(gameState, map, clickedHex)) {
+                    if (handlePortRallyPointClick(gameState, map, clickedHex)) {
+                        playPortWaypoint();
+                    } else {
                         handleWaypointClick(gameState, map, clickedHex, isShiftHeld);
                     }
                 } else if (!isShiftHeld) {
@@ -3098,15 +3116,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         append: isShiftHeld,
                     });
                 }
-            } else if (isMultiplayer && isGuest) {
-                // Rally point set for a port
-                for (const sel of gameState.selectedUnits) {
-                    if (sel.type === 'port') {
-                        const port = gameState.ports[sel.index];
-                        if (port && port.owner === localPlayerId) {
-                            sendGuestGenericCommand(COMMAND_TYPES.SET_RALLY, {
-                                portId: port.id, q: clickedHex.q, r: clickedHex.r,
-                            });
+            } else {
+                playPortWaypoint();
+                if (isMultiplayer && isGuest) {
+                    // Rally point set for a port
+                    for (const sel of gameState.selectedUnits) {
+                        if (sel.type === 'port') {
+                            const port = gameState.ports[sel.index];
+                            if (port && port.owner === localPlayerId) {
+                                sendGuestGenericCommand(COMMAND_TYPES.SET_RALLY, {
+                                    portId: port.id, q: clickedHex.q, r: clickedHex.r,
+                                });
+                            }
                         }
                     }
                 }

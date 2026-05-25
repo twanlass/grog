@@ -190,6 +190,16 @@ k.loadSound("cannon-impact-3", "sounds/units/cannons/impact-3.mp3");
 k.loadSound("cannon-impact-4", "sounds/units/cannons/impact-4.mp3");
 k.loadSound("cannon-impact-5", "sounds/units/cannons/impact-5.mp3");
 
+// Load crossbow tower arrow sounds
+k.loadSound("arrow-fire-1", "sounds/units/crossbow-tower/arrow-1.mp3");
+k.loadSound("arrow-fire-2", "sounds/units/crossbow-tower/arrow-2.mp3");
+k.loadSound("arrow-fire-3", "sounds/units/crossbow-tower/arrow-3.mp3");
+k.loadSound("arrow-fire-4", "sounds/units/crossbow-tower/arrow-4.mp3");
+
+// Load port waypoint/rally-point set sounds
+k.loadSound("port-waypoint-1", "sounds/units/ports/waypoint-1.mp3");
+k.loadSound("port-waypoint-2", "sounds/units/ports/waypoint-2.mp3");
+
 // Load ambient sounds
 k.loadSound("ambient-ocean", "sounds/ambient/ocean.mp3");
 k.loadSound("ambient-music", "sounds/ambient/background-music.mp3");

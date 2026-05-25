@@ -210,6 +210,25 @@ function queueImpactSound(gameState, q, r) {
 }
 
 /**
+ * Queue an arrow fire sound event with position for visibility check
+ */
+function queueArrowSound(gameState, q, r) {
+    if (!gameState.soundEvents) gameState.soundEvents = [];
+    gameState.soundEvents.push({ type: 'arrow-fire', q, r });
+}
+
+/**
+ * Queue a fire sound matching the tower's projectile type
+ */
+function queueTowerFireSound(gameState, q, r, projectileType) {
+    if (projectileType === 'arrow') {
+        queueArrowSound(gameState, q, r);
+    } else {
+        queueCannonSound(gameState, q, r);
+    }
+}
+
+/**
  * Spawn cannon smoke puff at a location
  */
 function spawnCannonSmoke(gameState, q, r) {
@@ -1077,7 +1096,7 @@ function handleTowerAttacks(gameState, dt) {
                             speed: PROJECTILE_SPEED,
                             projectileType: shot.projectileType,
                         });
-                        queueCannonSound(gameState, tower.q, tower.r);
+                        queueTowerFireSound(gameState, tower.q, tower.r, shot.projectileType);
                     }
                     tower.pendingShots.splice(s, 1);
                 }
@@ -1134,7 +1153,7 @@ function handleTowerAttacks(gameState, dt) {
                         speed: PROJECTILE_SPEED,
                         projectileType: towerData.projectileType,
                     });
-                    queueCannonSound(gameState, tower.q, tower.r);
+                    queueTowerFireSound(gameState, tower.q, tower.r, towerData.projectileType);
                 } else {
                     // Queue subsequent shots with stagger delay (per-tower override or default)
                     if (!tower.pendingShots) tower.pendingShots = [];
