@@ -1457,11 +1457,20 @@ function updateShipCommands(gameState, map, ai, aiOwner) {
         // missed just because tactics owns the ship this frame. Skipped while docked so a
         // surrounded ship at home doesn't blow up its own port.
         if (!ship.dockingState) {
-            if (tryArmTNTIfWorthIt(gameState, ship, i, aiOwner)) {
-                // Hold position so the 3s fuse detonates in the middle of the enemy cluster.
-                ship.waypoints = [];
-                ship.path = null;
-                ship.attackTarget = null;
+            tryArmTNTIfWorthIt(gameState, ship, i, aiOwner);
+            if ((ship.tntFuse || 0) > 0) {
+                // TNT armed — charge the nearest enemy and skip retreat/patrol logic
+                // for the remainder of the fuse. Retreating mid-fuse defeats the
+                // kamikaze (and risks detonating near friendlies at home).
+                const target = findNearestEnemy(ship, gameState, aiOwner);
+                if (target) {
+                    const targetPos = getTargetPosition(target, gameState, map);
+                    if (targetPos) {
+                        ship.waypoints = [{ q: targetPos.q, r: targetPos.r }];
+                        ship.path = null;
+                    }
+                    ship.attackTarget = { type: target.type, index: target.index };
+                }
                 continue;
             }
             tryFireBroadsideAtHighValueTarget(gameState, ship, i, aiOwner);

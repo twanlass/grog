@@ -261,7 +261,7 @@ active AI ship, so scouts, attack-group members, and plunderers all participate
 | Ability | AI Trigger | Implementation |
 |---------|-----------|----------------|
 | **Broadside** (Cutter) | An enemy **port** OR an upgraded tower (`crossbowTower` / `cannonBattery`) is in `attackDistance`, `burstCooldown <= 0`, and the cutter has more HP than the 10 HP recoil penalty. Ports take priority over towers. Watchtowers are ignored — too soft to justify the 60s cooldown and self-damage. | `tryFireBroadsideAtHighValueTarget()` calls `triggerBroadside()` and sets `ship.attackTarget` so `handlePlayerAttacks` keeps firing after the volley. |
-| **TNT** (Schooner) | Ship health `< 50%` AND `> 4` enemy entities (ships + ports + towers + settlements) inside the blast radius. | `tryArmTNTIfWorthIt()` calls `armTNT()`, then the caller clears `waypoints`/`path`/`attackTarget` so the ship holds position and the 3s fuse detonates on the cluster. |
+| **TNT** (Schooner) | Ship health `< 50%` AND `> 4` enemy entities (ships + ports + towers + settlements) inside the blast radius. | `tryArmTNTIfWorthIt()` calls `armTNT()`. While `tntFuse > 0`, the ship is locked into a kamikaze charge: each tick the caller points `waypoints`/`attackTarget` at the nearest enemy and skips retreat/patrol logic, so the schooner sails straight into the cluster instead of fleeing home when its health is below the retreat threshold. |
 
 Both helpers live in `aiPlayer.js` next to `findNearestEnemy`. The TNT radius is
 recomputed from `shipData.attackDistance` to match `detonateTNT`, so any future
