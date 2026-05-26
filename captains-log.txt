@@ -1,6 +1,12 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-26 | Expose CRT shader controls in debug panel
+-------------------------------------------------------
+### New
+- CRT effect controls live in the Debug panel (game menu → Debug): enabled toggle, sliders for curvature/scanlines/vignette/aberration/aperture/flicker, and Subtle/Classic/Heavy preset buttons
+- Slider drags update CRT_CONFIG in real time so the screen reflects each tweak immediately
+
 2026-05-26 | Add CRT scanline post-processing shader
 -----------------------------------------------------
 ### New

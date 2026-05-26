@@ -7,12 +7,11 @@
 // and hex picking still operate on the un-warped scene coordinates.
 
 // Tweak these in code; they're read fresh each frame via the uniform getter,
-// so edits take effect on the next frame without a reload.
+// so edits take effect on the next frame without a reload. The in-game debug
+// panel exposes the same fields as sliders for live tuning.
 //
-// Reference presets:
-//   Subtle:        curvature 0.10, scanline 0.15, vignette 0.25, aberration 0.001, aperture 0.10, flicker 0.01
-//   Classic CRT:   curvature 0.20, scanline 0.35, vignette 0.45, aberration 0.003, aperture 0.25, flicker 0.02
-//   Heavy arcade:  curvature 0.40, scanline 0.60, vignette 0.70, aberration 0.008, aperture 0.50, flicker 0.05
+// Reference presets are listed in CRT_PRESETS below — the default values here
+// match the "Classic" preset.
 export const CRT_CONFIG = {
     enabled: true,
     curvature: 0.20,
@@ -22,6 +21,30 @@ export const CRT_CONFIG = {
     aperture: 0.25,
     flicker: 0.02,
 };
+
+// Slider metadata used by the debug panel. Each entry's `key` must match a
+// CRT_CONFIG field; min/max bound the slider; precision controls how many
+// decimal places the live value display shows.
+export const CRT_SLIDERS = [
+    { key: 'curvature',  label: 'Curvature',  min: 0.0, max: 0.6,   precision: 2 },
+    { key: 'scanline',   label: 'Scanlines',  min: 0.0, max: 1.0,   precision: 2 },
+    { key: 'vignette',   label: 'Vignette',   min: 0.0, max: 1.0,   precision: 2 },
+    { key: 'aberration', label: 'Aberration', min: 0.0, max: 0.015, precision: 4 },
+    { key: 'aperture',   label: 'Aperture',   min: 0.0, max: 0.7,   precision: 2 },
+    { key: 'flicker',    label: 'Flicker',    min: 0.0, max: 0.1,   precision: 3 },
+];
+
+// One-click recipes from the demo. `classic` matches CRT_CONFIG's defaults.
+export const CRT_PRESETS = [
+    { id: 'subtle',  label: 'Subtle',  values: { curvature: 0.10, scanline: 0.15, vignette: 0.25, aberration: 0.001, aperture: 0.10, flicker: 0.01 } },
+    { id: 'classic', label: 'Classic', values: { curvature: 0.20, scanline: 0.35, vignette: 0.45, aberration: 0.003, aperture: 0.25, flicker: 0.02 } },
+    { id: 'heavy',   label: 'Heavy',   values: { curvature: 0.40, scanline: 0.60, vignette: 0.70, aberration: 0.008, aperture: 0.50, flicker: 0.05 } },
+];
+
+export function applyCRTPreset(presetId) {
+    const preset = CRT_PRESETS.find((p) => p.id === presetId);
+    if (preset) Object.assign(CRT_CONFIG, preset.values);
+}
 
 // Kaplay wraps user fragment code in a template that supplies v_uv as the
 // `uv` parameter and u_tex as the `tex` sampler. The scanline math is tuned
