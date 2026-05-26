@@ -1,6 +1,13 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-26 | Add CRT scanline post-processing shader
+-----------------------------------------------------
+### New
+- Toggleable CRT screen effect with curvature, scanlines, vignette, chromatic aberration, RGB aperture grille, and subtle flicker
+- CRT_CONFIG exposed in crtPostEffect.js for live tuning (curvature, scanline, vignette, aberration, aperture, flicker) — values read each frame so edits take effect immediately
+- CRT_CONFIG.enabled toggle bypasses the shader pass entirely with no overhead when off
+
 2026-03-05 | Hide birds over fogged hexes in multiplayer
 ---------------------------------------------------------
 ### Fixed
