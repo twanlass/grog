@@ -1,6 +1,24 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-26 | Tune CRT defaults
+-------------------------------
+### Improved
+- New CRT default values: curvature 0.11, scanlines 0.59, vignette 0.27, aberration 0.0005, aperture 0.06, flicker 0.020 — lighter curvature/vignette/aperture/aberration with heavier scanlines
+
+2026-05-26 | Expose CRT shader controls in debug panel
+-------------------------------------------------------
+### New
+- CRT effect controls live in the Debug panel (game menu → Debug): enabled toggle, sliders for curvature/scanlines/vignette/aberration/aperture/flicker, and Subtle/Classic/Heavy preset buttons
+- Slider drags update CRT_CONFIG in real time so the screen reflects each tweak immediately
+
+2026-05-26 | Add CRT scanline post-processing shader
+-----------------------------------------------------
+### New
+- Toggleable CRT screen effect with curvature, scanlines, vignette, chromatic aberration, RGB aperture grille, and subtle flicker
+- CRT_CONFIG exposed in crtPostEffect.js for live tuning (curvature, scanline, vignette, aberration, aperture, flicker) — values read each frame so edits take effect immediately
+- CRT_CONFIG.enabled toggle bypasses the shader pass entirely with no overhead when off
+
 2026-03-05 | Hide birds over fogged hexes in multiplayer
 ---------------------------------------------------------
 ### Fixed

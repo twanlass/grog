@@ -11,6 +11,7 @@ import { hexToPixel, pixelToHex, HEX_SIZE } from "./hex.js";
 import { createRenderContext } from "./rendering/renderContext.js";
 import { drawTiles, drawDecorations } from "./rendering/tileRenderer.js";
 import { computeIslands, drawIslandWaves } from "./rendering/waveRenderer.js";
+import { installCRTPostEffect } from "./rendering/crtPostEffect.js";
 import { enableScreenWakeLock } from "./wakeLock.js";
 
 const k = kaplay({
@@ -231,6 +232,11 @@ k.loadShader("redFlash", null, `
 
 // Health overlay shader - grayscales sprite and applies health-based color tint
 // Pass health percentage (0-1) via opacity property
+// CRT scanline / curvature / aperture-grille post-processing pass. Tweak
+// the constants in CRT_CONFIG inside crtPostEffect.js to taste — toggle
+// `enabled` to disable the effect with no overhead.
+installCRTPostEffect(k);
+
 k.loadShader("healthOverlay", null, `
     vec4 frag(vec2 pos, vec2 uv, vec4 color, sampler2D tex) {
         vec4 texColor = texture2D(tex, uv);

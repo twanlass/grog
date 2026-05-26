@@ -5,6 +5,7 @@ import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSet
 import { getLocalPlayerId } from "../systems/inputHandler.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
 import { isTouchDevice } from "../systems/touchHandler.js";
+import { CRT_SLIDERS, CRT_PRESETS } from "./crtPostEffect.js";
 import {
     drawPanelContainer,
     drawStatusBadge,
@@ -1957,19 +1958,31 @@ export function drawMenuPanel(ctx) {
 }
 
 /**
- * Draw debug panel modal with toggleable options
+ * Draw debug panel modal with toggleable options and CRT post-effect sliders.
+ * Sliders mutate `crtConfig` live; preset buttons swap whole sets of values.
  * @param {Object} ctx - Drawing context
  * @param {Object} debugState - Current debug state { hideFog: boolean, ... }
- * @returns {Object} Bounds for click detection
+ * @param {Object} crtConfig - Live CRT config (CRT_CONFIG from crtPostEffect)
+ * @returns {Object} Bounds for click / drag detection
  */
-export function drawDebugPanel(ctx, debugState) {
+export function drawDebugPanel(ctx, debugState, crtConfig) {
     const { k, screenWidth, screenHeight } = ctx;
     const mousePos = k.mousePos();
 
-    const panelWidth = 280;
-    const panelHeight = 160;
+    const panelWidth = 340;
+    const panelHeight = 410;
     const panelX = screenWidth / 2 - panelWidth / 2;
     const panelY = screenHeight / 2 - panelHeight / 2;
+    const padX = 20;
+    const checkboxSize = 18;
+    const rowHeight = 30;
+
+    const bounds = {
+        panel: { x: panelX, y: panelY, width: panelWidth, height: panelHeight },
+        options: [],
+        sliders: [],
+        presets: [],
+    };
 
     // Panel background
     k.drawRect({
@@ -1984,103 +1997,214 @@ export function drawDebugPanel(ctx, debugState) {
     // Title
     k.drawText({
         text: "DEBUG OPTIONS",
-        pos: k.vec2(screenWidth / 2, panelY + 25),
+        pos: k.vec2(screenWidth / 2, panelY + 22),
         size: 20,
         anchor: "center",
         color: k.rgb(255, 255, 255),
     });
-
-    // Separator
     k.drawLine({
-        p1: k.vec2(panelX + 20, panelY + 50),
-        p2: k.vec2(panelX + panelWidth - 20, panelY + 50),
+        p1: k.vec2(panelX + padX, panelY + 46),
+        p2: k.vec2(panelX + panelWidth - padX, panelY + 46),
         width: 1,
         color: k.rgb(60, 70, 80),
     });
 
-    // Debug options with checkboxes
+    // Generic toggle rows — currently just hide-fog, but the array is set up
+    // so other booleans can be appended without touching the layout.
     const options = [
         { id: 'hideFog', label: 'Hide fog of war', value: debugState.hideFog },
     ];
 
-    const startY = panelY + 70;
-    const rowHeight = 30;
-    const checkboxSize = 18;
-    const bounds = {
-        panel: { x: panelX, y: panelY, width: panelWidth, height: panelHeight },
-        options: [],
-    };
-
+    const optionsStartY = panelY + 66;
     for (let i = 0; i < options.length; i++) {
         const opt = options[i];
-        const y = startY + i * rowHeight;
-        const checkboxX = panelX + 25;
-        const checkboxY = y - checkboxSize / 2 + 2;
+        const y = optionsStartY + i * rowHeight;
+        drawCheckboxRow(k, opt, panelX, panelWidth, y, padX, checkboxSize, rowHeight, mousePos, bounds.options);
+    }
 
-        // Check if hovering this row
-        const isHovered = mousePos.x >= panelX + 20 && mousePos.x <= panelX + panelWidth - 20 &&
-                          mousePos.y >= y - rowHeight / 2 && mousePos.y <= y + rowHeight / 2;
+    // CRT section separator + heading
+    const crtSectionY = optionsStartY + options.length * rowHeight + 6;
+    k.drawLine({
+        p1: k.vec2(panelX + padX, crtSectionY),
+        p2: k.vec2(panelX + panelWidth - padX, crtSectionY),
+        width: 1,
+        color: k.rgb(60, 70, 80),
+    });
+    k.drawText({
+        text: "CRT EFFECT",
+        pos: k.vec2(panelX + padX, crtSectionY + 14),
+        size: 12,
+        anchor: "left",
+        color: k.rgb(180, 190, 200),
+    });
 
-        // Highlight on hover
-        if (isHovered) {
-            k.drawRect({
-                pos: k.vec2(panelX + 15, y - 10),
-                width: panelWidth - 30,
-                height: rowHeight - 4,
-                color: k.rgb(40, 50, 60),
-                radius: 4,
-            });
-        }
+    // CRT enabled checkbox
+    const crtEnabledY = crtSectionY + 38;
+    drawCheckboxRow(
+        k,
+        { id: 'crtEnabled', label: 'CRT enabled', value: !!crtConfig.enabled },
+        panelX, panelWidth, crtEnabledY, padX, checkboxSize, rowHeight, mousePos, bounds.options,
+    );
 
-        // Checkbox box
-        k.drawRect({
-            pos: k.vec2(checkboxX, checkboxY),
-            width: checkboxSize,
-            height: checkboxSize,
-            color: k.rgb(30, 40, 50),
-            radius: 3,
-            outline: { color: k.rgb(100, 110, 120), width: 1 },
-        });
+    // Slider rows — label / track / value
+    const sliderRowHeight = 24;
+    const slidersStartY = crtEnabledY + rowHeight - 4;
+    const labelW = 75;
+    const valueW = 50;
+    const sliderTrackX = panelX + padX + labelW + 6;
+    const sliderTrackW = panelWidth - padX * 2 - labelW - valueW - 12;
 
-        // Checkmark if enabled
-        if (opt.value) {
-            k.drawText({
-                text: "✓",
-                pos: k.vec2(checkboxX + checkboxSize / 2, checkboxY + checkboxSize / 2 + 1),
-                size: 14,
-                anchor: "center",
-                color: k.rgb(100, 200, 100),
-            });
-        }
+    for (let i = 0; i < CRT_SLIDERS.length; i++) {
+        const spec = CRT_SLIDERS[i];
+        const y = slidersStartY + i * sliderRowHeight;
+        const centerY = y + sliderRowHeight / 2;
+        const value = crtConfig[spec.key];
+        const norm = Math.max(0, Math.min(1, (value - spec.min) / (spec.max - spec.min)));
+        const thumbX = sliderTrackX + norm * sliderTrackW;
+        const enabledTint = crtConfig.enabled ? 1 : 0.5;
 
-        // Label (vertically centered with checkbox)
         k.drawText({
-            text: opt.label,
-            pos: k.vec2(checkboxX + checkboxSize + 12, checkboxY + checkboxSize / 2),
-            size: 14,
+            text: spec.label,
+            pos: k.vec2(panelX + padX, centerY),
+            size: 12,
             anchor: "left",
-            color: isHovered ? k.rgb(255, 255, 255) : k.rgb(180, 190, 200),
+            color: k.rgb(180 * enabledTint, 190 * enabledTint, 200 * enabledTint),
         });
 
-        bounds.options.push({
-            id: opt.id,
-            x: panelX + 15,
-            y: y - 10,
-            width: panelWidth - 30,
-            height: rowHeight - 4,
+        // Track
+        k.drawRect({
+            pos: k.vec2(sliderTrackX, centerY - 3),
+            width: sliderTrackW,
+            height: 6,
+            color: k.rgb(40, 50, 60),
+            radius: 3,
         });
+        // Filled portion
+        k.drawRect({
+            pos: k.vec2(sliderTrackX, centerY - 3),
+            width: norm * sliderTrackW,
+            height: 6,
+            color: k.rgb(80 * enabledTint, 140 * enabledTint, 180 * enabledTint),
+            radius: 3,
+        });
+        // Thumb
+        k.drawCircle({
+            pos: k.vec2(thumbX, centerY),
+            radius: 6,
+            color: k.rgb(180 * enabledTint, 200 * enabledTint, 220 * enabledTint),
+        });
+
+        // Value readout
+        k.drawText({
+            text: value.toFixed(spec.precision),
+            pos: k.vec2(panelX + panelWidth - padX, centerY),
+            size: 11,
+            anchor: "right",
+            color: k.rgb(160 * enabledTint, 170 * enabledTint, 180 * enabledTint),
+        });
+
+        // Hit region spans the full row height so the slider is easy to grab
+        bounds.sliders.push({
+            key: spec.key,
+            min: spec.min,
+            max: spec.max,
+            trackX: sliderTrackX,
+            trackW: sliderTrackW,
+            x: sliderTrackX - 4,
+            y,
+            width: sliderTrackW + 8,
+            height: sliderRowHeight,
+        });
+    }
+
+    // Preset buttons
+    const presetY = slidersStartY + CRT_SLIDERS.length * sliderRowHeight + 8;
+    const presetBtnH = 22;
+    const presetGap = 8;
+    const presetBtnW = (panelWidth - padX * 2 - presetGap * (CRT_PRESETS.length - 1)) / CRT_PRESETS.length;
+    for (let i = 0; i < CRT_PRESETS.length; i++) {
+        const preset = CRT_PRESETS[i];
+        const bx = panelX + padX + i * (presetBtnW + presetGap);
+        const isHovered = mousePos.x >= bx && mousePos.x <= bx + presetBtnW &&
+                          mousePos.y >= presetY && mousePos.y <= presetY + presetBtnH;
+        k.drawRect({
+            pos: k.vec2(bx, presetY),
+            width: presetBtnW,
+            height: presetBtnH,
+            color: isHovered ? k.rgb(60, 80, 100) : k.rgb(30, 40, 50),
+            radius: 4,
+            outline: { color: k.rgb(80, 100, 120), width: 1 },
+        });
+        k.drawText({
+            text: preset.label,
+            pos: k.vec2(bx + presetBtnW / 2, presetY + presetBtnH / 2),
+            size: 11,
+            anchor: "center",
+            color: isHovered ? k.rgb(255, 255, 255) : k.rgb(200, 210, 220),
+        });
+        bounds.presets.push({ id: preset.id, x: bx, y: presetY, width: presetBtnW, height: presetBtnH });
     }
 
     // Close hint
     k.drawText({
         text: "Click outside to close",
-        pos: k.vec2(screenWidth / 2, panelY + panelHeight - 20),
+        pos: k.vec2(screenWidth / 2, panelY + panelHeight - 18),
         size: 11,
         anchor: "center",
         color: k.rgb(100, 100, 100),
     });
 
     return bounds;
+}
+
+// Shared checkbox row renderer used by both the boolean toggles and the CRT
+// enabled toggle. Mutates `outList` with the hit region.
+function drawCheckboxRow(k, opt, panelX, panelWidth, y, padX, checkboxSize, rowHeight, mousePos, outList) {
+    const checkboxX = panelX + padX + 5;
+    const checkboxY = y - checkboxSize / 2 + 2;
+    const rowX = panelX + padX - 5;
+    const rowW = panelWidth - (padX - 5) * 2;
+    const rowY = y - rowHeight / 2 + 5;
+    const rowH = rowHeight - 4;
+    const isHovered = mousePos.x >= rowX && mousePos.x <= rowX + rowW &&
+                      mousePos.y >= rowY && mousePos.y <= rowY + rowH;
+
+    if (isHovered) {
+        k.drawRect({
+            pos: k.vec2(rowX, rowY),
+            width: rowW,
+            height: rowH,
+            color: k.rgb(40, 50, 60),
+            radius: 4,
+        });
+    }
+
+    k.drawRect({
+        pos: k.vec2(checkboxX, checkboxY),
+        width: checkboxSize,
+        height: checkboxSize,
+        color: k.rgb(30, 40, 50),
+        radius: 3,
+        outline: { color: k.rgb(100, 110, 120), width: 1 },
+    });
+    if (opt.value) {
+        k.drawText({
+            text: "✓",
+            pos: k.vec2(checkboxX + checkboxSize / 2, checkboxY + checkboxSize / 2 + 1),
+            size: 14,
+            anchor: "center",
+            color: k.rgb(100, 200, 100),
+        });
+    }
+    k.drawText({
+        text: opt.label,
+        pos: k.vec2(checkboxX + checkboxSize + 12, checkboxY + checkboxSize / 2),
+        size: 14,
+        anchor: "left",
+        color: isHovered ? k.rgb(255, 255, 255) : k.rgb(180, 190, 200),
+    });
+
+    outList.push({ id: opt.id, x: rowX, y: rowY, width: rowW, height: rowH });
 }
 
 /**
