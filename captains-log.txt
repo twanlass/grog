@@ -1,6 +1,11 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-26 | Tune CRT defaults
+-------------------------------
+### Improved
+- New CRT default values: curvature 0.11, scanlines 0.59, vignette 0.27, aberration 0.0005, aperture 0.06, flicker 0.020 — lighter curvature/vignette/aperture/aberration with heavier scanlines
+
 2026-05-26 | Expose CRT shader controls in debug panel
 -------------------------------------------------------
 ### New

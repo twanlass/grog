@@ -10,16 +10,17 @@
 // so edits take effect on the next frame without a reload. The in-game debug
 // panel exposes the same fields as sliders for live tuning.
 //
-// Reference presets are listed in CRT_PRESETS below — the default values here
-// match the "Classic" preset.
+// Reference presets are listed in CRT_PRESETS below — these defaults are a
+// hand-tuned mix (heavier scanlines, lighter curvature/vignette/aperture/
+// aberration than "Classic").
 export const CRT_CONFIG = {
     enabled: true,
-    curvature: 0.20,
-    scanline: 0.35,
-    vignette: 0.45,
-    aberration: 0.003,
-    aperture: 0.25,
-    flicker: 0.02,
+    curvature: 0.11,
+    scanline: 0.59,
+    vignette: 0.27,
+    aberration: 0.0005,
+    aperture: 0.06,
+    flicker: 0.020,
 };
 
 // Slider metadata used by the debug panel. Each entry's `key` must match a
