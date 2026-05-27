@@ -1,6 +1,13 @@
 // Multiplayer lobby scene — host/join pre-game connection screen
 import { createHost, joinHost, disconnect, getPeerCode, getConnectionState, CONNECTION_STATE, sendMessage } from '../networking/peerConnection.js';
 import { MESSAGE_TYPES, createMessage } from '../networking/commands.js';
+import {
+    requestMic,
+    attachHostCallHandler,
+    startGuestCall,
+    writeVoicePreference,
+    isVoiceEnabled,
+} from '../networking/voiceChat.js';
 
 export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) {
     return function multiplayerLobbyScene() {
@@ -18,6 +25,10 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
 
         let joiningTimer = 0; // tracks how long we've been in 'joining' state
         const JOIN_TIMEOUT = 15; // seconds before showing timeout error
+
+        // Voice chat toggle state — module state is source of truth
+        let voiceStatus = ''; // user-facing feedback ('', 'denied', 'unavailable', 'ready')
+        let voiceRequesting = false;
 
         // Auto-join if launched via ?join= link
         const initialJoinCode = getInitialJoinCode ? getInitialJoinCode() : null;
@@ -57,6 +68,7 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                         isHost: true,
                         isGuest: false,
                         mapSeed,
+                        voiceEnabled: isVoiceEnabled(),
                         // Callbacks populated during game
                         onGuestCommand: null,
                         onStateSnapshot: null,
@@ -66,6 +78,10 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                         mapSeed,
                         config: { startingResources: { wood: 25 } },
                     }));
+                    // If mic was already enabled in lobby, listen for the guest's call
+                    if (isVoiceEnabled()) {
+                        attachHostCallHandler();
+                    }
                     // Start countdown
                     startCountdown();
                 },
@@ -119,10 +135,16 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                             isHost: false,
                             isGuest: true,
                             mapSeed: data.mapSeed,
+                            voiceEnabled: isVoiceEnabled(),
                             onGuestCommand: null,
                             onStateSnapshot: null,
                             onDisconnect: null,
                         };
+                        // Dial the host's voice channel if mic was enabled in lobby.
+                        // Small delay lets the host attach its call handler first.
+                        if (isVoiceEnabled()) {
+                            k.wait(0.3, () => startGuestCall());
+                        }
                         startCountdown();
                     }
                     if (data.messageType === MESSAGE_TYPES.STATE_SNAPSHOT && data.snapshot) {
@@ -155,6 +177,78 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
         function startCountdown() {
             countdownActive = true;
             countdown = 3;
+        }
+
+        // ============================================================
+        // Voice chat toggle
+        // ============================================================
+        async function toggleVoice() {
+            if (voiceRequesting) return;
+            if (isVoiceEnabled()) {
+                // Can't disable mid-lobby without losing the connection setup;
+                // user can mute in-game with V instead. No-op for now.
+                voiceStatus = 'on';
+                return;
+            }
+            voiceRequesting = true;
+            voiceStatus = 'requesting';
+            try {
+                await requestMic();
+                voiceStatus = 'ready';
+                writeVoicePreference(true);
+            } catch (err) {
+                voiceStatus = (err && err.name === 'NotAllowedError') ? 'denied' : 'unavailable';
+                writeVoicePreference(false);
+                console.warn('[Grog Voice] Mic request failed:', err);
+            } finally {
+                voiceRequesting = false;
+            }
+        }
+
+        // Voice toggle button bounds (so click + draw share geometry)
+        function getVoiceButtonBounds() {
+            const cx = k.width() / 2;
+            const y = k.height() - 60;
+            const w = 240;
+            const h = 32;
+            return { x: cx - w / 2, y: y - h / 2, width: w, height: h };
+        }
+
+        function drawVoiceToggle() {
+            const b = getVoiceButtonBounds();
+            const mp = k.mousePos();
+            const hover = mp.x >= b.x && mp.x <= b.x + b.width && mp.y >= b.y && mp.y <= b.y + b.height;
+            const active = isVoiceEnabled();
+            const fill = active
+                ? (hover ? k.rgb(40, 90, 60) : k.rgb(30, 70, 45))
+                : (hover ? k.rgb(40, 55, 75) : panelColor);
+            const outline = active ? k.rgb(120, 220, 140) : accentColor;
+
+            k.drawRect({
+                width: b.width, height: b.height, radius: 6,
+                pos: k.vec2(b.x + b.width / 2, b.y + b.height / 2), anchor: "center",
+                color: fill,
+                outline: { width: 1.5, color: outline },
+            });
+
+            let label;
+            if (voiceRequesting) label = "Requesting mic...";
+            else if (active) label = "Voice chat: ON  (V to mute in-game)";
+            else if (voiceStatus === 'denied') label = "Mic blocked — check browser settings";
+            else if (voiceStatus === 'unavailable') label = "Voice chat unavailable";
+            else label = "Enable voice chat";
+
+            k.drawText({
+                text: label,
+                size: 13, pos: k.vec2(b.x + b.width / 2, b.y + b.height / 2), anchor: "center",
+                color: active ? k.rgb(180, 240, 200) : textColor,
+            });
+        }
+
+        function voiceButtonClicked() {
+            const b = getVoiceButtonBounds();
+            const mp = k.mousePos();
+            return mp.x >= b.x && mp.x <= b.x + b.width && mp.y >= b.y && mp.y <= b.y + b.height;
         }
 
         // ============================================================
@@ -235,6 +329,11 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                 anchor: "center",
                 color: accentColor,
             });
+
+            // Voice chat toggle — visible in pre-connection screens
+            if (mode === 'choose' || mode === 'hosting' || mode === 'joining_input') {
+                drawVoiceToggle();
+            }
 
             if (mode === 'choose') {
                 // Host button
@@ -418,6 +517,12 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
             const my = k.mousePos().y;
             const cx = k.width() / 2;
             const cy = k.height() / 2;
+
+            // Voice toggle hit test (works in choose/hosting/joining_input screens)
+            if ((mode === 'choose' || mode === 'hosting' || mode === 'joining_input') && voiceButtonClicked()) {
+                toggleVoice();
+                return;
+            }
 
             if (mode === 'choose') {
                 // Host button

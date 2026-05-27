@@ -149,3 +149,8 @@ Guest commands use **entity IDs** (not array indices) for network safety. The ho
 - Chrome pauses tab updates when not visible — players should use separate windows, not tabs
 - Camera shake is cleared on game over for guest to prevent stuck shake loops
 - Guest fog of war is recalculated locally from the reconciled entity positions
+
+## Voice Chat
+
+Optional opt-in voice chat runs as a parallel `MediaConnection` on the same
+peer. See [Voice Chat](voice-chat.md) for details.

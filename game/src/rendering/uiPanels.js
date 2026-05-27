@@ -177,9 +177,84 @@ export function drawTopRightButtons(ctx, gameState) {
         });
     }
 
-    return {
+    const bounds = {
         menuButton: { x: menuX, y: buttonY, width: buttonWidth, height: buttonHeight },
     };
+
+    // Voice chat mic button — only shown in multiplayer with voice active
+    if (gameState && gameState.voiceChat && gameState.voiceChat.active) {
+        const micX = menuX - buttonWidth - 8;
+        const micHovered = mousePos.x >= micX && mousePos.x <= micX + buttonWidth &&
+                           mousePos.y >= buttonY && mousePos.y <= buttonY + buttonHeight;
+        const muted = !!gameState.voiceChat.muted;
+        const speaking = !!gameState.voiceChat.partnerSpeaking;
+
+        k.drawRect({
+            pos: k.vec2(micX, buttonY),
+            width: buttonWidth,
+            height: buttonHeight,
+            color: k.rgb(0, 0, 0),
+            radius: 6,
+            opacity: micHovered ? 1.0 : 0.85,
+        });
+
+        // Outline pulses green when partner is talking
+        if (speaking) {
+            k.drawRect({
+                pos: k.vec2(micX, buttonY),
+                width: buttonWidth,
+                height: buttonHeight,
+                color: k.rgb(0, 0, 0),
+                radius: 6,
+                opacity: 0,
+                outline: { width: 2, color: k.rgb(100, 220, 140) },
+            });
+        }
+
+        // Mic icon — simple capsule + stand. Red tint when muted.
+        const iconColor = muted
+            ? k.rgb(220, 90, 90)
+            : (micHovered ? k.rgb(220, 230, 240) : k.rgb(170, 185, 200));
+        const mcx = micX + buttonWidth / 2;
+        const mcy = buttonY + buttonHeight / 2;
+
+        // Capsule
+        k.drawRect({
+            pos: k.vec2(mcx - 4, mcy - 9),
+            width: 8,
+            height: 12,
+            color: iconColor,
+            radius: 4,
+        });
+        // Stand (U-shape simplified as two short verticals + base)
+        k.drawRect({
+            pos: k.vec2(mcx - 6, mcy + 4),
+            width: 12,
+            height: 2,
+            color: iconColor,
+            radius: 1,
+        });
+        k.drawRect({
+            pos: k.vec2(mcx - 1, mcy + 5),
+            width: 2,
+            height: 4,
+            color: iconColor,
+            radius: 1,
+        });
+        // Slash when muted
+        if (muted) {
+            k.drawLine({
+                p1: k.vec2(micX + 6, buttonY + 6),
+                p2: k.vec2(micX + buttonWidth - 6, buttonY + buttonHeight - 6),
+                width: 2,
+                color: k.rgb(220, 90, 90),
+            });
+        }
+
+        bounds.micButton = { x: micX, y: buttonY, width: buttonWidth, height: buttonHeight };
+    }
+
+    return bounds;
 }
 
 /**

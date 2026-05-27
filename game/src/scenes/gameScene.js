@@ -57,6 +57,7 @@ import { extractNetworkState, applyNetworkState } from "../networking/stateSync.
 import { processGuestCommand } from "../networking/commandProcessor.js";
 import { sendStateSnapshot, sendPlayerCommand, isConnected, getLatency, getConnectionState, CONNECTION_STATE, disconnect } from "../networking/peerConnection.js";
 import { COMMAND_TYPES, createCommand } from "../networking/commands.js";
+import { isVoiceEnabled as isVoiceChatActive, hasActiveCall as hasVoiceCall, isMuted as isVoiceMuted, toggleMute as toggleVoiceMute, isRemoteSpeaking as isVoicePartnerSpeaking } from "../networking/voiceChat.js";
 import { setLocalPlayerId, drainPendingNetworkCommands } from "../systems/inputHandler.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
 
@@ -1276,6 +1277,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Draw floating resource numbers (above selection UI)
             drawFloatingNumbers(ctx, floatingNumbers);
 
+            // Refresh voice chat status snapshot for the HUD renderer.
+            // (Cheap reads of voiceChat module state — kept here so the panel
+            // module doesn't import networking directly.)
+            if (isMultiplayer) {
+                gameState.voiceChat = {
+                    active: isVoiceChatActive() && hasVoiceCall(),
+                    muted: isVoiceMuted(),
+                    partnerSpeaking: isVoicePartnerSpeaking(),
+                };
+            }
+
             // Draw simple UI panels (migrated to rendering module)
             const waveStatus = getWaveStatus(gameState);
             topButtonBounds = drawSimpleUIPanels(ctx, gameState, waveStatus);
@@ -2201,6 +2213,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         }
 
+        // V to toggle mic mute (multiplayer + voice chat enabled)
+        k.onKeyPress("v", () => {
+            if (!isMultiplayer || !isVoiceChatActive()) return;
+            const nowMuted = toggleVoiceMute();
+            showNotification(gameState, nowMuted ? "Mic muted" : "Mic on");
+        });
+
         // H to center camera on home port
         k.onKeyPress("h", snapCameraHome);
 
@@ -2781,9 +2800,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 // Don't return - allow click to pass through
             }
 
-            // Check top button clicks (menu button)
+            // Check top button clicks (menu button + voice mic button)
             if (topButtonBounds) {
-                const { menuButton } = topButtonBounds;
+                const { menuButton, micButton } = topButtonBounds;
+                if (micButton &&
+                    mouseX >= micButton.x && mouseX <= micButton.x + micButton.width &&
+                    mouseY >= micButton.y && mouseY <= micButton.y + micButton.height) {
+                    playUIClick();
+                    const nowMuted = toggleVoiceMute();
+                    showNotification(gameState, nowMuted ? "Mic muted" : "Mic on");
+                    return;
+                }
                 if (menuButton &&
                     mouseX >= menuButton.x && mouseX <= menuButton.x + menuButton.width &&
                     mouseY >= menuButton.y && mouseY <= menuButton.y + menuButton.height) {
