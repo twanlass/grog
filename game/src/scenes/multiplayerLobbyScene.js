@@ -30,14 +30,14 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
         let voiceStatus = ''; // user-facing feedback ('', 'denied', 'unavailable', 'ready')
         let voiceRequesting = false;
 
-        // Auto-join if launched via ?join= link
+        // Auto-join if launched via ?join= link.
+        // Land in 'joining_input' (rather than 'joining') so the player has a
+        // chance to enable voice chat and confirm before connecting.
         const initialJoinCode = getInitialJoinCode ? getInitialJoinCode() : null;
         if (initialJoinCode) {
             inputCode = initialJoinCode;
-            mode = 'joining';
-            console.log(`[Grog MP] Auto-joining with code: ${initialJoinCode}`);
-            // Defer joinGame() to after scene is fully initialized
-            k.wait(0.1, () => joinGame());
+            mode = 'joining_input';
+            console.log(`[Grog MP] Auto-join code prefilled: ${initialJoinCode}`);
         }
 
         // Network callback holders (will be wired to game scene)
@@ -427,7 +427,7 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
 
             } else if (mode === 'joining_input') {
                 k.drawText({
-                    text: "Enter host code:",
+                    text: "Host code:",
                     size: 18, pos: k.vec2(cx, cy - 60), anchor: "center",
                     color: dimColor,
                 });
@@ -445,14 +445,28 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                     size: 28, pos: k.vec2(cx, cy - 15), anchor: "center",
                     color: textColor,
                 });
-                k.drawText({
-                    text: "Type the code and press ENTER",
-                    size: 12, pos: k.vec2(cx, cy + 30), anchor: "center",
-                    color: dimColor,
+
+                // Connect button (also triggered by ENTER)
+                const connectBtnY = cy + 25;
+                const connectEnabled = inputCode.length >= 5;
+                const connectHover = isMouseInRect(cx - 80, connectBtnY - 18, 160, 36);
+                k.drawRect({
+                    width: 160, height: 36, radius: 6,
+                    pos: k.vec2(cx, connectBtnY), anchor: "center",
+                    color: connectEnabled
+                        ? (connectHover ? k.rgb(40, 90, 60) : k.rgb(30, 70, 45))
+                        : panelColor,
+                    outline: { width: 1.5, color: connectEnabled ? k.rgb(120, 220, 140) : dimColor },
                 });
                 k.drawText({
+                    text: "CONNECT",
+                    size: 16, pos: k.vec2(cx, connectBtnY), anchor: "center",
+                    color: connectEnabled ? k.rgb(180, 240, 200) : dimColor,
+                });
+
+                k.drawText({
                     text: "Press ESC to go back",
-                    size: 12, pos: k.vec2(cx, cy + 60), anchor: "center",
+                    size: 12, pos: k.vec2(cx, cy + 75), anchor: "center",
                     color: dimColor,
                 });
 
@@ -533,6 +547,14 @@ export function createMultiplayerLobbyScene(k, onStartGame, getInitialJoinCode) 
                 if (isMouseInRect(cx - 120, cy + 10 - 25, 240, 50)) {
                     mode = 'joining_input';
                     inputCode = '';
+                }
+            }
+
+            if (mode === 'joining_input' && inputCode.length >= 5) {
+                // Connect button
+                const connectBtnY = cy + 25;
+                if (isMouseInRect(cx - 80, connectBtnY - 18, 160, 36)) {
+                    joinGame();
                 }
             }
 
