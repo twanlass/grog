@@ -296,7 +296,7 @@ export function updateCombat(hexToPixel, gameState, map, dt, fogState) {
     handlePlayerAttacks(gameState, dt, fogState);
     handleTowerAttacks(gameState, dt);  // Towers auto-attack pirates
     updateTNTFuses(gameState, dt, fogState);  // Burn down armed kamikaze fuses
-    updateProjectiles(gameState, dt, fogState);
+    updateProjectiles(gameState, map, dt, fogState);
 }
 
 /**
@@ -1188,7 +1188,7 @@ function handleTowerAttacks(gameState, dt) {
  * Uses position-based hit detection with O(1) lookup via entityPositionMap
  * Now owner-aware: projectiles only hit entities owned by enemies
  */
-function updateProjectiles(gameState, dt, fogState) {
+function updateProjectiles(gameState, map, dt, fogState) {
     for (let i = gameState.projectiles.length - 1; i >= 0; i--) {
         const proj = gameState.projectiles[i];
         proj.progress += proj.speed * dt;
@@ -1294,13 +1294,18 @@ function updateProjectiles(gameState, dt, fogState) {
                     }
                 }
                 // Water splash at the impact hex regardless of splash damage —
-                // conveys near-miss and keeps the visual consistent.
-                gameState.waterSplashes.push({
-                    q: proj.toQ,
-                    r: proj.toR,
-                    age: 0,
-                    duration: 0.5,
-                });
+                // conveys near-miss and keeps the visual consistent. Skip on
+                // land tiles (e.g. follow-up shots at a tower that's already
+                // been destroyed) — a water ring on dirt looks silly.
+                const impactTile = map.tiles.get(hexKey(proj.toQ, proj.toR));
+                if (isWater(impactTile)) {
+                    gameState.waterSplashes.push({
+                        q: proj.toQ,
+                        r: proj.toR,
+                        age: 0,
+                        duration: 0.5,
+                    });
+                }
             }
 
             gameState.projectiles.splice(i, 1);
