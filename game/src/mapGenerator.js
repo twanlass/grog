@@ -358,6 +358,31 @@ export function generateMap(options = {}) {
         }
     }
 
+    // PHASE 2.5: Enforce water depth gradient (shore > shallow > ocean > deep_ocean).
+    // Noise can place deep water directly against a coast; smooth those abrupt
+    // transitions by demoting any tile that's too deep for its distance to land.
+    // Pass 1 first so any new SHALLOW tiles are visible to Pass 2.
+    for (const tile of tiles.values()) {
+        if (tile.type !== TILE_TYPES.OCEAN) continue;
+        for (const n of hexNeighbors(tile.q, tile.r)) {
+            const nt = tiles.get(hexKey(n.q, n.r));
+            if (nt && nt.type === TILE_TYPES.LAND) {
+                tile.type = TILE_TYPES.SHALLOW;
+                break;
+            }
+        }
+    }
+    for (const tile of tiles.values()) {
+        if (tile.type !== TILE_TYPES.DEEP_OCEAN) continue;
+        for (const n of hexNeighbors(tile.q, tile.r)) {
+            const nt = tiles.get(hexKey(n.q, n.r));
+            if (nt && (nt.type === TILE_TYPES.LAND || nt.type === TILE_TYPES.SHALLOW)) {
+                tile.type = TILE_TYPES.OCEAN;
+                break;
+            }
+        }
+    }
+
     // PHASE 3: Identify coastal tiles as port sites
     for (const tile of tiles.values()) {
         if (tile.type === TILE_TYPES.LAND) {
