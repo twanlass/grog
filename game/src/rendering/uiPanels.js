@@ -488,7 +488,7 @@ export function drawTimeIndicator(ctx, timeScale, speedMenuOpen = false) {
 }
 
 /**
- * Draw pirate kill counter (top, right of wave status panel in defend mode)
+ * Draw enemy kill counter (top, right of wave status panel in defend mode)
  */
 export function drawPirateKillCounter(ctx, pirateKills) {
     const { k, screenWidth } = ctx;
@@ -496,8 +496,8 @@ export function drawPirateKillCounter(ctx, pirateKills) {
     const padding = 10;
     const fontSize = 16;
     const spacing = 6;
-    const spriteScale = 0.75;
-    const spriteWidth = 48 * spriteScale;
+    const spriteScale = 0.9;
+    const spriteWidth = 40;
 
     // Calculate dynamic width based on text length
     const text = `x ${pirateKills}`;
@@ -520,11 +520,12 @@ export function drawPirateKillCounter(ctx, pirateKills) {
         opacity: 0.85,
     });
 
-    // Draw pirate ship sprite
+    // Draw enemy cutter sprite (SE-facing 3/4 view, matches ship selection panel)
     const spriteX = panelX + padding + spriteWidth / 2;
     const spriteY = panelY + panelHeight / 2;
     k.drawSprite({
-        sprite: "pirate",
+        sprite: "cutter-orange",
+        frame: 2 * 3 + 0,  // row 2 (SE), col 0
         pos: k.vec2(spriteX, spriteY),
         anchor: "center",
         scale: spriteScale,
@@ -583,7 +584,7 @@ export function drawWaveStatus(ctx, waveStatus) {
         statusText = `Starting in ${waveStatus.timer}s`;
     } else if (waveStatus.phase === 'active') {
         statusColor = k.rgb(255, 100, 100);
-        statusText = `${waveStatus.remaining} pirates remaining`;
+        statusText = `${waveStatus.remaining} enemies remaining`;
     } else if (waveStatus.phase === 'rebuild') {
         statusColor = k.rgb(100, 255, 150);
         statusText = `Next wave in ${waveStatus.timer}s`;

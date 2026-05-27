@@ -188,7 +188,7 @@ export function getWaveStatus(gameState) {
             phase: 'active',
             wave: waveState.currentWave,
             remaining: activePirates,
-            message: `Wave ${waveState.currentWave} - ${activePirates} pirates remaining`,
+            message: `Wave ${waveState.currentWave} - ${activePirates} enemies remaining`,
         };
     }
 
