@@ -9,6 +9,7 @@ Ships can construct new ports when docked at shore. This allows players to expan
   - On a water hex adjacent to land
   - Stationary (no active waypoint)
 - Docked ships show a "BUILD PORT" panel (bottom-left)
+- **Cutters** show the build panel whenever stationary, even if not adjacent to land. Placement still requires a valid shore hex within the ship's build range (5 hexes), so the panel may show with no reachable placement targets.
 
 ### Placement Mode
 - Click a port type in the panel to enter placement mode

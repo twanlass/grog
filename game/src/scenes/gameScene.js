@@ -1329,7 +1329,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (selectedShipIndices.length === 1 && !gameState.portBuildMode.active && !gameState.towerBuildMode.active) {
                 const shipIndex = selectedShipIndices[0].index;
                 const ship = gameState.ships[shipIndex];
-                const canShowBuildPanel = isShipDocked(ship) && !isShipBuildingPort(shipIndex, gameState.ports) && !isShipBuildingTower(shipIndex, gameState.towers);
+                // Cutters can show the build menu while stationary even when not adjacent to land;
+                // other ship types still require full docking (stationary + near shore).
+                const isStationary = ship.waypoints.length === 0;
+                const meetsDockRequirement = ship.type === 'cutter' ? isStationary : isShipDocked(ship);
+                const canShowBuildPanel = meetsDockRequirement && !isShipBuildingPort(shipIndex, gameState.ports) && !isShipBuildingTower(shipIndex, gameState.towers);
                 shipBuildPanelBounds = drawShipBuildPanel(ctx, ship, shipIndex, gameState, canShowBuildPanel);
             }
 
