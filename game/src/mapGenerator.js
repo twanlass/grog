@@ -5,9 +5,28 @@ import { selectRandomTemplates } from "./islandTemplates.js";
 // Tile types
 export const TILE_TYPES = {
     DEEP_OCEAN: "deep_ocean",
+    OCEAN: "ocean",
     SHALLOW: "shallow",
     LAND: "land",
 };
+
+// All water tile types (anything ships can traverse).
+// To add a new water tier: add it to TILE_TYPES, list it here, and give it
+// colors in getTileColor/getStippleColors. All gameplay/rendering checks
+// route through isWater(), so no other call sites need updating.
+const WATER_TYPES = new Set([
+    TILE_TYPES.SHALLOW,
+    TILE_TYPES.OCEAN,
+    TILE_TYPES.DEEP_OCEAN,
+]);
+
+export function isWater(tile) {
+    return !!tile && WATER_TYPES.has(tile.type);
+}
+
+export function isWaterType(type) {
+    return WATER_TYPES.has(type);
+}
 
 // Climate zones based on vertical position
 export const CLIMATE_ZONES = {
@@ -317,6 +336,8 @@ export function generateMap(options = {}) {
                 type = TILE_TYPES.LAND;
             } else if (value > landThreshold - 0.15) {
                 type = TILE_TYPES.SHALLOW;
+            } else if (value > landThreshold - 0.4) {
+                type = TILE_TYPES.OCEAN;
             } else {
                 type = TILE_TYPES.DEEP_OCEAN;
             }
@@ -343,10 +364,7 @@ export function generateMap(options = {}) {
             const neighbors = hexNeighbors(tile.q, tile.r);
             const hasWaterNeighbor = neighbors.some(n => {
                 const neighborTile = tiles.get(hexKey(n.q, n.r));
-                return neighborTile && (
-                    neighborTile.type === TILE_TYPES.SHALLOW ||
-                    neighborTile.type === TILE_TYPES.DEEP_OCEAN
-                );
+                return isWater(neighborTile);
             });
             if (hasWaterNeighbor) {
                 tile.isPortSite = true;
@@ -366,6 +384,10 @@ export function generateMap(options = {}) {
 // Get tile color based on type and climate
 export function getTileColor(tile) {
     if (tile.type === TILE_TYPES.DEEP_OCEAN) {
+        return [10, 30, 70];
+    }
+
+    if (tile.type === TILE_TYPES.OCEAN) {
         return [20, 60, 120];
     }
 
@@ -403,6 +425,14 @@ export function getTileColor(tile) {
 // Get 3 stipple colors for tile texture (base + 2 variations)
 export function getStippleColors(tile) {
     if (tile.type === TILE_TYPES.DEEP_OCEAN) {
+        return [
+            [5, 20, 50],    // Darker
+            [10, 30, 70],   // Base
+            [20, 45, 95],   // Lighter
+        ];
+    }
+
+    if (tile.type === TILE_TYPES.OCEAN) {
         return [
             [15, 50, 100],   // Darker
             [20, 60, 120],   // Base

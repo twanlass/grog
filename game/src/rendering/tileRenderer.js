@@ -1,6 +1,7 @@
 // Tile and fog of war rendering
 import { hexCorners, HEX_SIZE } from "../hex.js";
 import { isHexExplored, isHexVisible, getHexFogOpacity } from "../fogOfWar.js";
+import { isWater } from "../mapGenerator.js";
 
 // Decoration rendering config
 const TREE_SCALE = 1.4;        // Tree size multiplier (base * zoom)
@@ -52,11 +53,11 @@ export function drawTiles(ctx, map, tilePositions, tileColors, tileStipples, sti
         if (zoom > 0.65) {
             const stipple = tileStipples.get(tile);
             const dotSize = Math.max(1.5, 2.5 * zoom);
-            const isWater = tile.type === 'deep_ocean' || tile.type === 'shallow';
+            const tileIsWater = isWater(tile);
 
             for (const dot of stipple.dots) {
                 // Twinkling effect for water tiles
-                if (isWater) {
+                if (tileIsWater) {
                     const dotPhase = Math.sin(dot.rx * 3 + dot.ry * 5);
                     const blinkCycle = Math.sin(stippleAnimTime * 3 + dotPhase * Math.PI);
                     if (blinkCycle < 0) continue;  // Skip this dot half the time

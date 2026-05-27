@@ -1,8 +1,6 @@
 // A* pathfinding for hex grids
 import { hexNeighbors, hexDistance, hexKey, getHexRing } from "./hex.js";
-
-// Water tile types that ships can traverse
-const WATER_TILES = new Set(['shallow', 'deep_ocean']);
+import { isWaterType } from "./mapGenerator.js";
 
 /**
  * Binary Min-Heap for efficient priority queue operations
@@ -66,7 +64,7 @@ class MinHeap {
 function isPassable(map, q, r) {
     const key = hexKey(q, r);
     const tile = map.tiles.get(key);
-    return tile && WATER_TILES.has(tile.type);
+    return tile && isWaterType(tile.type);
 }
 
 // Find nearest water tile to a land position (BFS)
@@ -95,7 +93,7 @@ export function findNearestWater(map, q, r, fromQ = null, fromR = null) {
             if (!tile) continue;
 
             // Found water - add as candidate
-            if (WATER_TILES.has(tile.type)) {
+            if (isWaterType(tile.type)) {
                 candidates.push({ q: neighbor.q, r: neighbor.r });
                 if (candidates.length >= maxCandidates) break;
             } else {

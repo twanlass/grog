@@ -3,6 +3,7 @@ import { hexKey, hexDistance, hexToPixel, hexNeighbors } from "../hex.js";
 import { SHIPS } from "../sprites/index.js";
 import { findPath, findNearestAvailable, findNearestWater, findPathWithAvoidance } from "../pathfinding.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
+import { isWater } from "../mapGenerator.js";
 
 // 8 directions at 45° intervals
 const HEX_DIRECTIONS = [
@@ -521,7 +522,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                         const targetQ = center.q + dq;
                         const targetR = center.r + dr;
                         const tile = map.tiles.get(hexKey(targetQ, targetR));
-                        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+                        if (isWater(tile)) {
                             ship.waypoints = [{ q: targetQ, r: targetR }];
                             ship.path = null;
                             break;
@@ -636,7 +637,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
                         const targetQ = ship.q + Math.round(Math.cos(awayAngle) * retreatDist);
                         const targetR = ship.r + Math.round(Math.sin(awayAngle) * retreatDist);
                         const tile = map.tiles.get(hexKey(targetQ, targetR));
-                        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+                        if (isWater(tile)) {
                             ship.waypoints = [{ q: targetQ, r: targetR }];
                             ship.path = null;
                         }

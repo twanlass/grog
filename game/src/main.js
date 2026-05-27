@@ -3,7 +3,7 @@ import { createGameScene } from "./scenes/gameScene.js";
 import { createMultiplayerLobbyScene } from "./scenes/multiplayerLobbyScene.js";
 import { SCENARIOS, DEFAULT_SCENARIO_ID } from "./scenarios/index.js";
 import { AI_DIFFICULTY } from "./systems/aiPlayer.js";
-import { generateMap, getTileColor, getStippleColors, placeIslandTemplate } from "./mapGenerator.js";
+import { generateMap, getTileColor, getStippleColors, placeIslandTemplate, isWater } from "./mapGenerator.js";
 import { findPath } from "./pathfinding.js";
 import { hexKey } from "./hex.js";
 import { STARTER_ISLAND_TEMPLATES } from "./islandTemplates.js";
@@ -378,7 +378,7 @@ k.scene("title", () => {
         // If any neighbor is water, this is a coastal/port site
         for (const n of neighbors) {
             const neighborTile = titleMap.tiles.get(hexKey(n.q, n.r));
-            if (neighborTile && (neighborTile.type === 'shallow' || neighborTile.type === 'deep_ocean')) {
+            if (isWater(neighborTile)) {
                 tile.isPortSite = true;
                 break;
             }
@@ -598,7 +598,7 @@ k.scene("title", () => {
     function findRandomWaterTile() {
         const waterTiles = [];
         for (const tile of titleMap.tiles.values()) {
-            if (tile.type === 'shallow' || tile.type === 'deep_ocean') {
+            if (isWater(tile)) {
                 waterTiles.push(tile);
             }
         }
@@ -618,7 +618,7 @@ k.scene("title", () => {
             ];
             for (const n of neighbors) {
                 const tile = titleMap.tiles.get(hexKey(n.q, n.r));
-                if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+                if (isWater(tile)) {
                     return tile;
                 }
             }
@@ -683,7 +683,7 @@ k.scene("title", () => {
         ];
         for (const n of neighbors) {
             const tile = titleMap.tiles.get(hexKey(n.q, n.r));
-            if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+            if (isWater(tile)) {
                 // Check if not already added
                 if (!islandAdjacentWater.some(w => w.q === n.q && w.r === n.r)) {
                     islandAdjacentWater.push({ q: n.q, r: n.r });

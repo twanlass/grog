@@ -18,6 +18,7 @@ import {
 } from "../gameState.js";
 import { findPath } from "../pathfinding.js";
 import { triggerBroadside, armTNT } from "./combat.js";
+import { isWater } from "../mapGenerator.js";
 
 // Decision intervals (seconds) - tuned for performance
 const BASE_STRATEGIC_DECISION_INTERVAL = 8;    // Major priority adjustments
@@ -535,7 +536,7 @@ function generateScoutTarget(gameState, map, tactics, aiOwner) {
         const targetR = enemyR + dr;
 
         const tile = map.tiles.get(hexKey(targetQ, targetR));
-        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+        if (isWater(tile)) {
             return { q: targetQ, r: targetR };
         }
     }
@@ -550,7 +551,7 @@ function generateScoutTarget(gameState, map, tactics, aiOwner) {
     const targetR = aiHomePort.r + dr;
 
     const tile = map.tiles.get(hexKey(targetQ, targetR));
-    if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+    if (isWater(tile)) {
         return { q: targetQ, r: targetR };
     }
 
@@ -562,7 +563,7 @@ function generateScoutTarget(gameState, map, tactics, aiOwner) {
         const rr = aiHomePort.r + Math.round(Math.sin(randAngle) * randRadius);
 
         const t = map.tiles.get(hexKey(rq, rr));
-        if (t && (t.type === 'shallow' || t.type === 'deep_ocean')) {
+        if (isWater(t)) {
             return { q: rq, r: rr };
         }
     }
@@ -1683,7 +1684,7 @@ function findNearestWaterToLand(map, landQ, landR) {
         visited.add(key);
 
         const tile = map.tiles.get(key);
-        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+        if (isWater(tile)) {
             return { q: current.q, r: current.r };
         }
 
@@ -1854,7 +1855,7 @@ function generatePatrolPoint(port, map, gameState) {
     const targetR = port.r + dr;
 
     const tile = map.tiles.get(hexKey(targetQ, targetR));
-    if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+    if (isWater(tile)) {
         // Check not occupied
         const occupied = gameState.ships.some(s => s.q === targetQ && s.r === targetR);
         if (!occupied) {
@@ -1870,7 +1871,7 @@ function generatePatrolPoint(port, map, gameState) {
         const rr = port.r + Math.round(Math.sin(randAngle) * randRadius);
 
         const t = map.tiles.get(hexKey(rq, rr));
-        if (t && (t.type === 'shallow' || t.type === 'deep_ocean')) {
+        if (isWater(t)) {
             const occ = gameState.ships.some(s => s.q === rq && s.r === rr);
             if (!occ) {
                 return { q: rq, r: rr };
@@ -1897,7 +1898,7 @@ function generatePatrolPointWithStrategy(port, map, gameState, shipBehavior) {
     const targetR = port.r + dr;
 
     const tile = map.tiles.get(hexKey(targetQ, targetR));
-    if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+    if (isWater(tile)) {
         const occupied = gameState.ships.some(s => s.q === targetQ && s.r === targetR);
         if (!occupied) {
             return { q: targetQ, r: targetR };
@@ -1912,7 +1913,7 @@ function generatePatrolPointWithStrategy(port, map, gameState, shipBehavior) {
         const rr = port.r + Math.round(Math.sin(randAngle) * randRadius);
 
         const t = map.tiles.get(hexKey(rq, rr));
-        if (t && (t.type === 'shallow' || t.type === 'deep_ocean')) {
+        if (isWater(t)) {
             const occ = gameState.ships.some(s => s.q === rq && s.r === rr);
             if (!occ) {
                 return { q: rq, r: rr };

@@ -7,6 +7,7 @@ import { SETTLEMENTS } from "../sprites/settlements.js";
 import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex, findNearestWaterInRange, isAIOwner } from "../gameState.js";
 import { notifyAIAttacked } from "./aiPlayer.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
+import { isWater } from "../mapGenerator.js";
 
 // Combat constants
 export const CANNON_DAMAGE = 5;
@@ -137,7 +138,7 @@ export function findCenterSpawnPositions(map, hexKeyFn, count, occupiedHexes) {
             const key = hexKeyFn(q, r);
 
             const tile = map.tiles.get(key);
-            if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+            if (isWater(tile)) {
                 if (!occupiedHexes.has(key)) {
                     positions.push({ q, r });
                     occupiedHexes.add(key);  // Mark as taken
@@ -1872,7 +1873,7 @@ export function updatePirateRespawns(gameState, map, createShip, hexKeyFn, dt) {
                             const pirateR = homePort.r + Math.round(Math.sin(angle) * dist);
                             const pirateTile = map.tiles.get(hexKeyFn(pirateQ, pirateR));
 
-                            if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
+                            if (isWater(pirateTile)) {
                                 gameState.ships.push(createShip('pirate', pirateQ, pirateR, 'pirate'));
                                 spawned = true;
                                 break;

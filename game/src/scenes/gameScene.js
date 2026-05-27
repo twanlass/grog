@@ -1,6 +1,6 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
-import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland } from "../mapGenerator.js";
+import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland, isWater } from "../mapGenerator.js";
 import { createGameState, createShip, createPort, createSettlement, createTower, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner } from "../gameState.js";
 import { drawDesignerPanel, hitTestRegion } from "../rendering/designerPanel.js";
 import { clampScale, SCALE_MIN, SCALE_MAX } from "../designer/scaleTuner.js";
@@ -2430,10 +2430,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 showNotification(gameState, 'Off-map');
                 return false;
             }
-            const isWater = tile.type === 'shallow' || tile.type === 'deep_ocean';
+            const tileIsWater = isWater(tile);
 
             if (opt.kind === 'ship') {
-                if (!isWater) {
+                if (!tileIsWater) {
                     showNotification(gameState, 'Ships must spawn on water');
                     return false;
                 }
@@ -2486,7 +2486,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const tile = map.tiles.get(key);
                     if (!tile) continue;
                     frontier.push({ q: n.q, r: n.r });
-                    if (tile.type === 'shallow' || tile.type === 'deep_ocean') {
+                    if (isWater(tile)) {
                         waterHexes.push({ q: n.q, r: n.r, dist: hexDistance(playerHex.q, playerHex.r, n.q, n.r) });
                     }
                 }

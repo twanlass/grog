@@ -15,7 +15,8 @@ const COLORS = {
     explored: { r: 40, g: 50, b: 60 },
 
     // Terrain (visible)
-    deepOcean: { r: 25, g: 70, b: 130 },
+    deepOcean: { r: 12, g: 35, b: 80 },
+    ocean: { r: 25, g: 70, b: 130 },
     shallow: { r: 50, g: 110, b: 170 },
     land: { r: 90, g: 130, b: 80 },
     landArctic: { r: 200, g: 210, b: 220 },
@@ -95,6 +96,9 @@ export function createMinimapState(map) {
 function getTerrainColor(tile) {
     if (tile.type === TILE_TYPES.DEEP_OCEAN) {
         return COLORS.deepOcean;
+    }
+    if (tile.type === TILE_TYPES.OCEAN) {
+        return COLORS.ocean;
     }
     if (tile.type === TILE_TYPES.SHALLOW) {
         return COLORS.shallow;

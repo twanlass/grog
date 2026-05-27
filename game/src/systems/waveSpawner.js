@@ -3,6 +3,7 @@
 
 import { getHomePortIndex } from "../gameState.js";
 import { isHexVisible } from "../fogOfWar.js";
+import { isWater } from "../mapGenerator.js";
 
 /**
  * Update wave spawner state for defend mode
@@ -109,7 +110,7 @@ function spawnWave(gameState, map, createShip, hexKey, waveConfig, waveNumber, f
             const pirateR = homePort.r + Math.round(Math.sin(tryAngle) * tryDist);
             const pirateTile = map.tiles.get(hexKey(pirateQ, pirateR));
 
-            if (pirateTile && (pirateTile.type === 'shallow' || pirateTile.type === 'deep_ocean')) {
+            if (isWater(pirateTile)) {
                 // Check not occupied by another ship
                 const occupied = gameState.ships.some(s => s.q === pirateQ && s.r === pirateR);
                 // Check that spawn location is in fog (not visible)
