@@ -14,11 +14,23 @@ import { computeIslands, drawIslandWaves } from "./rendering/waveRenderer.js";
 import { installCRTPostEffect } from "./rendering/crtPostEffect.js";
 import { enableScreenWakeLock } from "./wakeLock.js";
 
+// Geist Pixel font experiment — change this to swap variants:
+// "geist-square" | "geist-grid" | "geist-circle" | "geist-triangle" | "geist-line"
+const DEFAULT_FONT = "geist-square";
+
 const k = kaplay({
     background: [0, 0, 0], // Pitch black - edge of the world
     pixelDensity: window.devicePixelRatio || 1,
     crisp: true,
+    font: DEFAULT_FONT,
 });
+
+// Load Geist Pixel font variants (https://github.com/vercel/geist-pixel-font, OFL-1.1)
+k.loadFont("geist-square", "fonts/GeistPixel-Square.ttf", { filter: "nearest" });
+k.loadFont("geist-grid", "fonts/GeistPixel-Grid.ttf", { filter: "nearest" });
+k.loadFont("geist-circle", "fonts/GeistPixel-Circle.ttf", { filter: "nearest" });
+k.loadFont("geist-triangle", "fonts/GeistPixel-Triangle.ttf", { filter: "nearest" });
+k.loadFont("geist-line", "fonts/GeistPixel-Line.ttf", { filter: "nearest" });
 
 enableScreenWakeLock();
 
