@@ -1,9 +1,26 @@
 // Wave spawner system for Defend mode
 // Handles wave timing, spawning, and progression
 
-import { getHomePortIndex } from "../gameState.js";
+import { getHomePortIndex, isPirateShip } from "../gameState.js";
 import { isHexVisible } from "../fogOfWar.js";
 import { isWater } from "../mapGenerator.js";
+
+// Default ship type when a wave def doesn't specify (legacy {count: N} entries).
+const DEFAULT_WAVE_SHIP = 'cutter';
+
+// Normalize a wave def to { ships: [{type, count}], abilities: {} }
+function normalizeWave(waveDef) {
+    if (!waveDef) return { ships: [{ type: DEFAULT_WAVE_SHIP, count: 0 }], abilities: {} };
+    const abilities = waveDef.abilities || {};
+    if (Array.isArray(waveDef.ships)) {
+        return { ships: waveDef.ships, abilities };
+    }
+    // Legacy schema: { count: N } → spawn N cutters.
+    if (typeof waveDef.count === 'number') {
+        return { ships: [{ type: DEFAULT_WAVE_SHIP, count: waveDef.count }], abilities };
+    }
+    return { ships: [{ type: DEFAULT_WAVE_SHIP, count: 0 }], abilities };
+}
 
 /**
  * Update wave spawner state for defend mode
@@ -23,8 +40,8 @@ export function updateWaveSpawner(gameState, map, createShip, hexKey, dt, fogSta
     const waveState = gameState.waveState;
     const waveConfig = scenario.waveConfig;
 
-    // Count active pirates
-    const activePirates = gameState.ships.filter(s => s.type === 'pirate').length;
+    // Count active pirate-faction ships (cutter / schooner / legacy pirate hull)
+    const activePirates = gameState.ships.filter(isPirateShip).length;
 
     // Phase 1: Initial delay before first wave
     if (!waveState.waveStarted) {
@@ -63,11 +80,25 @@ export function updateWaveSpawner(gameState, map, createShip, hexKey, dt, fogSta
 function spawnWave(gameState, map, createShip, hexKey, waveConfig, waveNumber, fogState) {
     // Get wave definition (or extrapolate for waves beyond defined)
     const waveIndex = Math.min(waveNumber - 1, waveConfig.waves.length - 1);
-    const waveDef = waveConfig.waves[waveIndex];
+    const wave = normalizeWave(waveConfig.waves[waveIndex]);
 
-    // For waves beyond defined, add extra pirates
-    const extraPirates = Math.max(0, waveNumber - waveConfig.waves.length);
-    const pirateCount = waveDef.count + extraPirates;
+    // For waves past the defined list, escalate by adding extra cutters and
+    // keeping the last defined wave's abilities — endless mode keeps ramping.
+    const extraCutters = Math.max(0, waveNumber - waveConfig.waves.length);
+    const shipQueue = [];
+    for (const group of wave.ships) {
+        for (let i = 0; i < group.count; i++) shipQueue.push(group.type);
+    }
+    for (let i = 0; i < extraCutters; i++) shipQueue.push(DEFAULT_WAVE_SHIP);
+    const pirateCount = shipQueue.length;
+
+    // Apply ability unlocks for this wave (sticky — once unlocked, stays on for
+    // later endless waves since they fall through to the last defined wave's
+    // abilities anyway).
+    gameState.waveState.enabledAbilities = {
+        broadside: !!wave.abilities.broadside,
+        tnt: !!wave.abilities.tnt,
+    };
 
     // Find home port for spawn location reference
     const homePortIndex = getHomePortIndex(gameState, map);
@@ -97,6 +128,7 @@ function spawnWave(gameState, map, createShip, hexKey, waveConfig, waveNumber, f
 
     // Spawn pirates
     for (let i = 0; i < pirateCount; i++) {
+        const shipType = shipQueue[i];
         // Increase base distance to ensure spawning in fog (12-15+ tiles out)
         const dist = 13 + Math.floor(i / 4) * 2;
         const angle = getAngleForPirate(i);
@@ -116,7 +148,7 @@ function spawnWave(gameState, map, createShip, hexKey, waveConfig, waveNumber, f
                 // Check that spawn location is in fog (not visible)
                 const inFog = !isHexVisible(fogState, pirateQ, pirateR);
                 if (!occupied && inFog) {
-                    gameState.ships.push(createShip('pirate', pirateQ, pirateR, 'pirate'));
+                    gameState.ships.push(createShip(shipType, pirateQ, pirateR, 'pirate'));
                     spawned++;
                     break;
                 }
@@ -124,7 +156,11 @@ function spawnWave(gameState, map, createShip, hexKey, waveConfig, waveNumber, f
         }
     }
 
-    console.log(`Wave ${waveNumber}: Spawned ${spawned}/${pirateCount} pirates`);
+    const abilityStr = [
+        gameState.waveState.enabledAbilities.broadside ? 'broadside' : null,
+        gameState.waveState.enabledAbilities.tnt ? 'tnt' : null,
+    ].filter(Boolean).join('+') || 'no abilities';
+    console.log(`Wave ${waveNumber}: Spawned ${spawned}/${pirateCount} pirates (${abilityStr})`);
 }
 
 /**
@@ -137,7 +173,7 @@ export function getWaveStatus(gameState) {
     }
 
     const waveState = gameState.waveState;
-    const activePirates = gameState.ships.filter(s => s.type === 'pirate').length;
+    const activePirates = gameState.ships.filter(isPirateShip).length;
 
     if (!waveState.waveStarted) {
         return {

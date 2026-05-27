@@ -1,6 +1,6 @@
 // Selection UI rendering: selection indicators, waypoints, attack targets, paths
 import { hexToPixel, hexCorners, hexNeighbors, HEX_SIZE } from "../hex.js";
-import { isSelected } from "../gameState.js";
+import { isSelected, isPirateShip } from "../gameState.js";
 import { TOWERS } from "../sprites/index.js";
 import { drawHexRangeFilled, drawHexRangeOutline } from "./renderHelpers.js";
 import { findPath } from "../pathfinding.js";
@@ -228,7 +228,7 @@ export function drawShipSelectionIndicators(ctx, gameState, getShipVisualPosLoca
     // This persists until a new player unit is selected or new attack target chosen
     if (gameState.attackTargetShipIndex !== null) {
         const target = gameState.ships[gameState.attackTargetShipIndex];
-        if (target && target.type === 'pirate') {
+        if (target && isPirateShip(target)) {
             const targetIsMoving = target.path && target.path.length > 0;
             // Only show hex outline when target is stationary
             if (!targetIsMoving) {

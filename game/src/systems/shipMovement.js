@@ -4,6 +4,7 @@ import { SHIPS } from "../sprites/index.js";
 import { findPath, findNearestAvailable, findNearestWater, findPathWithAvoidance } from "../pathfinding.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
 import { isWater } from "../mapGenerator.js";
+import { isPirateShip } from "../gameState.js";
 
 // 8 directions at 45° intervals
 const HEX_DIRECTIONS = [
@@ -336,7 +337,7 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
                 }
 
                 // Mark fog dirty when player ship moves (triggers visibility recalculation)
-                if (ship.type !== 'pirate') {
+                if (!isPirateShip(ship)) {
                     markVisibilityDirty(fogState);
 
                     // Collect any loot drops at this position
@@ -431,10 +432,17 @@ export function getShipVisualPos(hexToPixel, ship) {
  */
 export function updatePirateAI(gameState, map, patrolCenter, dt) {
     for (const ship of gameState.ships) {
-        if (ship.type !== 'pirate') continue;
+        if (!isPirateShip(ship)) continue;
 
+        // Use the ship's own type stats so cutter/schooner pirates get their real
+        // sight/attack ranges. Fall back to the legacy pirate-hull tuning for any
+        // missing AI knobs (retreatCooldown isn't defined on cutter/schooner).
+        const shipData = SHIPS[ship.type] || SHIPS.pirate;
         const pirateData = SHIPS.pirate;
-        const { enemySightDistance, attackDistance, maxChaseDistance, retreatCooldown } = pirateData;
+        const enemySightDistance = shipData.enemySightDistance ?? pirateData.enemySightDistance;
+        const attackDistance = shipData.attackDistance ?? pirateData.attackDistance;
+        const maxChaseDistance = shipData.maxChaseDistance ?? pirateData.maxChaseDistance;
+        const retreatCooldown = shipData.retreatCooldown ?? pirateData.retreatCooldown;
 
         // Find nearest player target (ship or port) within sight
         let nearestTarget = null;
@@ -443,7 +451,7 @@ export function updatePirateAI(gameState, map, patrolCenter, dt) {
         // Check player ships (non-pirates)
         for (let i = 0; i < gameState.ships.length; i++) {
             const target = gameState.ships[i];
-            if (target.type === 'pirate') continue;
+            if (isPirateShip(target)) continue;
             const dist = hexDistance(ship.q, ship.r, target.q, target.r);
             if (dist < nearestDist) {
                 nearestDist = dist;

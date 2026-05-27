@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland, isWater } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, createTower, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, createTower, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner, isPirateShip } from "../gameState.js";
 import { drawDesignerPanel, hitTestRegion } from "../rendering/designerPanel.js";
 import { clampScale, SCALE_MIN, SCALE_MAX } from "../designer/scaleTuner.js";
 import { uploadSprite, resetSprite } from "../designer/assetSwap.js";
@@ -1059,7 +1059,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Check for game over conditions
-            const playerShips = gameState.ships.filter(s => s.type !== 'pirate');
+            const playerShips = gameState.ships.filter(s => !isPirateShip(s));
 
             // Defend mode: lose if home port is destroyed
             if (scenario && scenario.gameMode === 'defend' && !gameState.gameOver) {
@@ -1875,7 +1875,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                 // Check if hovering over an enemy ship (pirate or non-local)
                 for (const ship of gameState.ships) {
-                    const isEnemy = ship.type === 'pirate' || ship.owner !== localPlayerId;
+                    const isEnemy = isPirateShip(ship) || ship.owner !== localPlayerId;
                     if (!isEnemy) continue;
                     if (!isHexVisible(fogState, ship.q, ship.r)) continue;
                     const pos = hexToPixel(ship.q, ship.r);
@@ -2154,7 +2154,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (isShipBuildingPort(sel.index, gameState.ports)) continue;
                 if (isShipBuildingTower(sel.index, gameState.towers)) continue;
                 const ship = gameState.ships[sel.index];
-                if (!ship || ship.type === 'pirate') continue;
+                if (!ship || isPirateShip(ship)) continue;
                 if (ship.owner !== localPlayerId) continue;
                 if (!SHIPS[ship.type] || !SHIPS[ship.type].tntAttack) continue;
                 if (armTNT(gameState, sel.index)) {
@@ -3203,7 +3203,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Check each ship (skip pirate and non-local ships)
             for (let i = 0; i < gameState.ships.length; i++) {
                 const ship = gameState.ships[i];
-                if (ship.type === 'pirate') continue;
+                if (isPirateShip(ship)) continue;
                 if (ship.owner !== localPlayerId) continue;
                 const pos = getShipVisualPosLocal(ship);
                 const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
@@ -3270,7 +3270,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 for (let i = 0; i < gameState.ships.length; i++) {
                     const ship = gameState.ships[i];
                     if (ship.type !== subType) continue;
-                    if (ship.type === 'pirate') continue;  // Don't select pirate ships
+                    if (isPirateShip(ship)) continue;  // Don't select pirate ships
                     if (ship.owner !== localPlayerId) continue;   // Don't select non-local ships
                     // Exclude ships that are currently building something
                     if (isShipBuildingPort(i, gameState.ports)) continue;
