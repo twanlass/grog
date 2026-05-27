@@ -46,17 +46,23 @@ export const SCENARIOS = [
         },
         waveConfig: {
             rebuildDelay: 20,  // seconds after wave cleared before next
+            // Each wave: { ships: [{type, count}], abilities: { broadside, tnt } }
+            // Difficulty ramp:
+            //   - Waves 1-3: cutter-only swarm
+            //   - Wave 4+:   schooners join the mix
+            //   - Wave 6+:   pirate cutters unlock Broadside (5-shot volley)
+            //   - Wave 8+:   pirate schooners unlock TNT kamikaze
             waves: [
-                { count: 2 },
-                { count: 3 },
-                { count: 4 },
-                { count: 5 },
-                { count: 6 },
-                { count: 7 },
-                { count: 8 },
-                { count: 10 },
-                { count: 12 },
-                { count: 15 },
+                { ships: [{ type: 'cutter', count: 2 }] },
+                { ships: [{ type: 'cutter', count: 3 }] },
+                { ships: [{ type: 'cutter', count: 4 }] },
+                { ships: [{ type: 'cutter', count: 4 }, { type: 'schooner', count: 1 }] },
+                { ships: [{ type: 'cutter', count: 5 }, { type: 'schooner', count: 1 }] },
+                { ships: [{ type: 'cutter', count: 5 }, { type: 'schooner', count: 2 }], abilities: { broadside: true } },
+                { ships: [{ type: 'cutter', count: 6 }, { type: 'schooner', count: 2 }], abilities: { broadside: true } },
+                { ships: [{ type: 'cutter', count: 6 }, { type: 'schooner', count: 3 }], abilities: { broadside: true, tnt: true } },
+                { ships: [{ type: 'cutter', count: 8 }, { type: 'schooner', count: 4 }], abilities: { broadside: true, tnt: true } },
+                { ships: [{ type: 'cutter', count: 10 }, { type: 'schooner', count: 5 }], abilities: { broadside: true, tnt: true } },
             ],
         },
     },

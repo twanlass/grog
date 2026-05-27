@@ -66,6 +66,7 @@ export function getDirectionalSprite(shipData, owner) {
         if (owner === 'ai1') return 'schooner-green';
         if (owner === 'ai2') return 'schooner-blue';
         if (owner === 'ai3') return 'schooner-orange';
+        if (owner === 'pirate') return 'schooner-orange';  // Pirate-owned schooner (defend mode waves)
         if (owner === 'player2') return 'schooner-blue';
         return 'schooner-red';
     }
@@ -73,6 +74,7 @@ export function getDirectionalSprite(shipData, owner) {
     if (owner === 'ai1') return 'cutter-green';
     if (owner === 'ai2') return 'cutter-blue';
     if (owner === 'ai3') return 'cutter-orange';
+    if (owner === 'pirate') return 'cutter-orange';  // Pirate-owned cutter (defend mode waves)
     if (owner === 'player2') return 'cutter-blue';
     return 'cutter-red';  // Player default
 }
@@ -103,6 +105,7 @@ const FACTION_COLORS = {
     ai1: { r: 60, g: 160, b: 80 },       // Green (matches cutter-green sprite)
     ai2: { r: 60, g: 120, b: 200 },      // Blue (matches cutter-blue sprite)
     ai3: { r: 220, g: 140, b: 40 },       // Orange (matches cutter-orange sprite)
+    pirate: { r: 220, g: 140, b: 40 },    // Orange (matches pirate cutter/schooner sprite tint)
 };
 
 /**

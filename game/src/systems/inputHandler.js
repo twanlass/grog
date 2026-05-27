@@ -8,7 +8,7 @@ import {
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute, exitPatrolMode,
     findFreeAdjacentWater, findNearestWaterInRange, findNearbyWaitingHex, getHomePortIndex,
-    canAffordCrew, showNotification, isAIOwner, getResourcesForOwner,
+    canAffordCrew, showNotification, isAIOwner, getResourcesForOwner, isPirateShip,
 } from "../gameState.js";
 import { hexKey, hexDistance } from "../hex.js";
 import { findNearestWater, distributeDestinations } from "../pathfinding.js";
@@ -520,7 +520,7 @@ export function handleTradeRouteClick(gameState, map, worldX, worldY, hexToPixel
                 if (isShipBuildingTower(sel.index, gameState.towers)) continue;
 
                 const ship = gameState.ships[sel.index];
-                if (ship.type === 'pirate') continue; // Can't control enemy ships
+                if (isPirateShip(ship)) continue; // Can't control enemy ships
                 ship.tradeRoute = { foreignPortIndex: i, homePortIndex: homePortIndex };
                 ship.isPlundering = true;
                 ship.dockingState = null;
@@ -575,7 +575,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
         if (isShipBuildingTower(sel.index, gameState.towers)) continue;
 
         const ship = gameState.ships[sel.index];
-        if (ship.type === 'pirate') continue; // Can't control enemy ships
+        if (isPirateShip(ship)) continue; // Can't control enemy ships
         const hasCargo = (ship.cargo?.wood || 0) > 0;
         if (!hasCargo) continue;
 
@@ -615,7 +615,7 @@ export function handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELEC
     for (let i = 0; i < gameState.ships.length; i++) {
         const ship = gameState.ships[i];
         // Don't allow selecting pirate ships like player units
-        if (ship.type === 'pirate') continue;
+        if (isPirateShip(ship)) continue;
         // Don't allow selecting non-local ships (AI or remote player)
         if (isNonLocal(ship.owner)) continue;
         // Use visual position if available (smooth movement), fallback to hex position
@@ -735,7 +735,7 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
 
         const ship = gameState.ships[sel.index];
         if (!ship) continue;
-        if (ship.type === 'pirate') continue;
+        if (isPirateShip(ship)) continue;
         if (isNonLocal(ship.owner)) continue;
 
         validShips.push(ship);
@@ -837,7 +837,7 @@ export function handlePatrolWaypointClick(gameState, map, clickedHex) {
 
         const ship = gameState.ships[sel.index];
         if (!ship) continue; // Ship may have been destroyed
-        if (ship.type === 'pirate') continue; // Can't control enemy ships
+        if (isPirateShip(ship)) continue; // Can't control enemy ships
         if (isNonLocal(ship.owner)) continue; // Can't control non-local ships
 
         // Cancel any existing trade route
@@ -898,7 +898,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
             if (isShipBuildingPort(sel.index, gameState.ports)) continue;
             if (isShipBuildingTower(sel.index, gameState.towers)) continue;
             const ship = gameState.ships[sel.index];
-            if (ship.type === 'pirate') continue;  // Can't control pirate ships
+            if (isPirateShip(ship)) continue;  // Can't control pirate ships
             if (isNonLocal(ship.owner)) continue;  // Can't control non-local ships
 
             ship.attackTarget = { type: targetType, index: targetIndex };
@@ -928,7 +928,7 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
     for (let i = 0; i < gameState.ships.length; i++) {
         const target = gameState.ships[i];
         // Target must be an enemy: pirate or non-local
-        const isEnemy = target.type === 'pirate' || isNonLocal(target.owner);
+        const isEnemy = isPirateShip(target) || isNonLocal(target.owner);
         if (!isEnemy) continue;
 
         const pos = getShipVisualPos ? getShipVisualPos(target) : hexToPixel(target.q, target.r);
@@ -1030,7 +1030,7 @@ export function handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel,
     for (const sel of gameState.selectedUnits) {
         if (sel.type !== 'ship') continue;
         const ship = gameState.ships[sel.index];
-        if (!ship || ship.type === 'pirate') continue;
+        if (!ship || isPirateShip(ship)) continue;
         if (isNonLocal(ship.owner)) continue;
         if (isShipBuildingPort(sel.index, gameState.ports)) continue;
         if (isShipBuildingTower(sel.index, gameState.towers)) continue;
@@ -1072,7 +1072,7 @@ export function handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel,
     // Walk ships → ports → settlements → towers, same order as handleAttackClick
     for (let i = 0; i < gameState.ships.length; i++) {
         const target = gameState.ships[i];
-        const isEnemy = target.type === 'pirate' || isNonLocal(target.owner);
+        const isEnemy = isPirateShip(target) || isNonLocal(target.owner);
         if (!isEnemy) continue;
         const pos = getShipVisualPos ? getShipVisualPos(target) : hexToPixel(target.q, target.r);
         const dx = worldX - pos.x;

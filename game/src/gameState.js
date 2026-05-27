@@ -91,6 +91,9 @@ export function createGameState(config = {}) {
             rebuildTimer: 0,         // Countdown after wave cleared
             initialTimer: 0,         // Countdown before first wave
             waveStarted: false,      // Has the first wave been triggered?
+            // Which pirate abilities are unlocked for the current/next wave.
+            // Toggled by spawnWave from the scenario config.
+            enabledAbilities: { broadside: false, tnt: false },
         },
 
         // Ship explosion effects: [{ q, r, age, duration }]
@@ -163,11 +166,18 @@ let entityIdCounter = 0;
 export function resetEntityIdCounter() { entityIdCounter = 0; }
 function nextEntityId(prefix) { return `${prefix}-${++entityIdCounter}`; }
 
+// True for any ship in the pirate faction — includes legacy `type: 'pirate'`
+// hulls and the new wave-mode cutters/schooners spawned with `owner: 'pirate'`.
+export function isPirateShip(ship) {
+    return !!ship && ship.owner === 'pirate';
+}
+
 // Create a new ship with navigation support
 export function createShip(type, q, r, owner = 'player') {
+    const isPirate = owner === 'pirate';
     return {
         id: nextEntityId('ship'),
-        owner,  // 'player' | 'ai1' | 'ai2'
+        owner,  // 'player' | 'ai1' | 'ai2' | 'pirate'
         type,
         q,
         r,
@@ -183,7 +193,7 @@ export function createShip(type, q, r, owner = 'player') {
         isPlundering: false,  // True if on a plunder route (loading from enemy port)
         waitingForDock: null, // { portIndex, retryTimer } | null - waiting for dock to be free
         // AI state (for enemy ships like pirates)
-        aiState: type === 'pirate' ? 'patrol' : null,  // 'patrol' | 'chase' | 'attack' | 'retreat'
+        aiState: isPirate ? 'patrol' : null,  // 'patrol' | 'chase' | 'attack' | 'retreat'
         aiTarget: null,        // { type: 'ship'|'port', index } | null
         aiRetreatTimer: 0,     // Countdown for retreat cooldown
         aiChaseDistance: 0,    // Hexes traveled while chasing
