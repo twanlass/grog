@@ -779,6 +779,16 @@ function handlePlayerAttacks(gameState, dt, fogState) {
             ship.chaseCooldownTimer = Math.max(0, ship.chaseCooldownTimer - dt);
         }
 
+        // Drain queued broadside: when the cutter reaches range and is ready,
+        // fire the volley the player ordered from afar. triggerBroadside
+        // handles the range / cooldown / health gates; we only clear on success.
+        if (ship.pendingBroadside) {
+            const pb = ship.pendingBroadside;
+            if (triggerBroadside(gameState, i, pb.type, pb.index)) {
+                ship.pendingBroadside = null;
+            }
+        }
+
         // Skip firing logic if not attacking
         if (!ship.attackTarget) continue;
 
@@ -1580,6 +1590,13 @@ function cleanupStaleReferences(gameState, removedType, removedIndex) {
                 }
             } else if (ship.attackTarget.index > removedIndex) {
                 ship.attackTarget.index--;
+            }
+        }
+        if (ship.pendingBroadside && ship.pendingBroadside.type === removedType) {
+            if (ship.pendingBroadside.index === removedIndex) {
+                ship.pendingBroadside = null;
+            } else if (ship.pendingBroadside.index > removedIndex) {
+                ship.pendingBroadside.index--;
             }
         }
     }

@@ -1,6 +1,15 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-27 | Broadside now engages every selected cutter, in-range or not
+-------------------------------------------------------------------------
+### Fixed
+- Out-of-range cutters were silently ignored when a Broadside was ordered, so a multi-cutter selection often only fired from the closest ship
+
+### Improved
+- Out-of-range cutters now sail toward the target and fire their Broadside the moment they enter range (tracked via a new `pendingBroadside` field on each ship)
+- Move/Attack orders clear any queued Broadside, and the queue is wiped if the target is destroyed before the cutter arrives
+
 2026-05-26 | Tune CRT defaults
 -------------------------------
 ### Improved
