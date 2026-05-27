@@ -669,18 +669,25 @@ k.scene("title", () => {
         return { row: 1, flipX: true };                                     // NW
     }
 
-    // Create a pirate ship that wanders the ocean
-    const pirateStart = findRandomWaterTile();
-    const pirateStartPos = hexToPixel(pirateStart.q, pirateStart.r);
-    const pirateShip = {
-        q: pirateStart.q,
-        r: pirateStart.r,
-        x: pirateStartPos.x,
-        y: pirateStartPos.y,
-        heading: 0,
-        path: [],
-        pathIndex: 0,
-    };
+    // Create a few schooners that wander the ocean
+    const SCHOONER_COLORS = ['green', 'blue', 'orange'];
+    const schooners = SCHOONER_COLORS.map((color) => {
+        const startTile = findRandomWaterTile();
+        const startTilePos = hexToPixel(startTile.q, startTile.r);
+        return {
+            color,
+            q: startTile.q,
+            r: startTile.r,
+            x: startTilePos.x,
+            y: startTilePos.y,
+            heading: 0,
+            path: [],
+            pathIndex: 0,
+            animFrame: 0,
+            animTimer: Math.random() * 0.15,
+            speedMul: 0.7 + Math.random() * 0.3,
+        };
+    });
 
     // Find water tiles adjacent to the island (for circling)
     const islandAdjacentWater = [];
@@ -716,16 +723,18 @@ k.scene("title", () => {
     }
     pickNewShipDestination();
 
-    // Pick a random destination for the pirate ship
-    function pickNewPirateDestination() {
+    // Pick a random destination for a schooner
+    function pickNewSchoonerDestination(schooner) {
         const dest = findRandomWaterTile();
-        const path = findPath(titleMap, pirateShip.q, pirateShip.r, dest.q, dest.r);
+        const path = findPath(titleMap, schooner.q, schooner.r, dest.q, dest.r);
         if (path && path.length > 0) {
-            pirateShip.path = path;
-            pirateShip.pathIndex = 0;
+            schooner.path = path;
+            schooner.pathIndex = 0;
         }
     }
-    pickNewPirateDestination();
+    for (const schooner of schooners) {
+        pickNewSchoonerDestination(schooner);
+    }
 
     // Create a flock of birds flying from bottom-left to top-right
     const BIRD_COUNT = 7;
@@ -914,36 +923,45 @@ k.scene("title", () => {
             titleShip.animFrame = (titleShip.animFrame + 1) % 3;
         }
 
-        // Update pirate ship - follow A* path
-        if (pirateShip.path.length > 0 && pirateShip.pathIndex < pirateShip.path.length) {
-            const waypoint = pirateShip.path[pirateShip.pathIndex];
-            const waypointPos = hexToPixel(waypoint.q, waypoint.r);
+        // Update schooners - each follows its own A* path
+        for (const schooner of schooners) {
+            if (schooner.path.length > 0 && schooner.pathIndex < schooner.path.length) {
+                const waypoint = schooner.path[schooner.pathIndex];
+                const waypointPos = hexToPixel(waypoint.q, waypoint.r);
 
-            const dx = waypointPos.x - pirateShip.x;
-            const dy = waypointPos.y - pirateShip.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
+                const dx = waypointPos.x - schooner.x;
+                const dy = waypointPos.y - schooner.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist > 0.1) {
-                pirateShip.heading = Math.atan2(dy, dx);
-            }
+                if (dist > 0.1) {
+                    schooner.heading = Math.atan2(dy, dx);
+                }
 
-            const moveAmount = SHIP_SPEED * 0.8 * dt;  // Pirate slightly slower
-            if (dist <= moveAmount) {
-                pirateShip.x = waypointPos.x;
-                pirateShip.y = waypointPos.y;
-                pirateShip.q = waypoint.q;
-                pirateShip.r = waypoint.r;
-                pirateShip.pathIndex++;
+                const moveAmount = SHIP_SPEED * schooner.speedMul * dt;
+                if (dist <= moveAmount) {
+                    schooner.x = waypointPos.x;
+                    schooner.y = waypointPos.y;
+                    schooner.q = waypoint.q;
+                    schooner.r = waypoint.r;
+                    schooner.pathIndex++;
 
-                if (pirateShip.pathIndex >= pirateShip.path.length) {
-                    pickNewPirateDestination();
+                    if (schooner.pathIndex >= schooner.path.length) {
+                        pickNewSchoonerDestination(schooner);
+                    }
+                } else {
+                    schooner.x += (dx / dist) * moveAmount;
+                    schooner.y += (dy / dist) * moveAmount;
                 }
             } else {
-                pirateShip.x += (dx / dist) * moveAmount;
-                pirateShip.y += (dy / dist) * moveAmount;
+                pickNewSchoonerDestination(schooner);
             }
-        } else {
-            pickNewPirateDestination();
+
+            // Animate sail frames
+            schooner.animTimer += dt;
+            if (schooner.animTimer >= 0.15) {
+                schooner.animTimer = 0;
+                schooner.animFrame = (schooner.animFrame + 1) % 3;
+            }
         }
 
         // Update birds - fly from bottom-left to top-right
@@ -1072,17 +1090,21 @@ k.scene("title", () => {
             flipX: shipDir.flipX,
         });
 
-        // Draw the pirate ship
-        const pirateScreenX = (pirateShip.x - cameraX) * zoom + halfWidth;
-        const pirateScreenY = (pirateShip.y - cameraY) * zoom + halfHeight;
-        const pirateRotation = pirateShip.heading * (180 / Math.PI) + 90;
-        k.drawSprite({
-            sprite: 'pirate',
-            pos: k.vec2(pirateScreenX, pirateScreenY),
-            anchor: 'center',
-            scale: zoom * 0.75,
-            angle: pirateRotation,
-        });
+        // Draw the schooners using directional sprites
+        for (const schooner of schooners) {
+            const sx = (schooner.x - cameraX) * zoom + halfWidth;
+            const sy = (schooner.y - cameraY) * zoom + halfHeight;
+            const dir = headingToSpriteDir(schooner.heading);
+            const frame = dir.row * 3 + schooner.animFrame;
+            k.drawSprite({
+                sprite: `schooner-${schooner.color}`,
+                frame,
+                pos: k.vec2(sx, sy),
+                anchor: 'center',
+                scale: zoom * 0.75,
+                flipX: dir.flipX,
+            });
+        }
 
         // Draw birds flying across the screen
         for (const bird of birds) {
