@@ -14,6 +14,7 @@ import { createFogState, initializeFog, isVisibilityDirty, recalculateVisibility
 import { createRenderContext } from "../rendering/renderContext.js";
 import { drawTiles, drawFogOfWar, drawDecorations } from "../rendering/tileRenderer.js";
 import { computeIslands, drawIslandWaves } from "../rendering/waveRenderer.js";
+import { CRT_CONFIG, applyCRTPreset } from "../rendering/crtPostEffect.js";
 
 // Seeded random for deterministic decoration placement
 function seededRandom(seed) {
@@ -477,6 +478,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let menuPanelOpen = false;  // Controls menu panel state
         let debugPanelOpen = false;  // Debug panel state
         let debugState = { hideFog: false };  // Debug toggle values
+        let crtSliderDrag = null;  // Active CRT slider drag: { key, trackX, trackW, min, max }
         let designerPanelHits = null;  // Hit regions returned by drawDesignerPanel each frame
         let pendingUploadSlot = null;  // Slot the next file-input change should upload to
 
@@ -1564,7 +1566,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Draw debug panel when open
             if (debugPanelOpen) {
-                topButtonBounds.debugPanel = drawDebugPanel(ctx, debugState);
+                topButtonBounds.debugPanel = drawDebugPanel(ctx, debugState, CRT_CONFIG);
             }
 
             // Draw designer panel (debug mode only)
@@ -1580,6 +1582,21 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         k.onMousePress("left", () => {
             if (isMobile) return; // Touch handlers manage input on mobile
             if (gameState.gameOver || gameState.surrenderPending) return; // Block clicks during overlays
+
+            // CRT debug-panel sliders — start drag on press so motion past
+            // DRAG_THRESHOLD doesn't trigger a selection-box drag instead.
+            if (debugPanelOpen && topButtonBounds && topButtonBounds.debugPanel) {
+                const mp = k.mousePos();
+                const sliderHit = (topButtonBounds.debugPanel.sliders || []).find(s =>
+                    mp.x >= s.x && mp.x <= s.x + s.width && mp.y >= s.y && mp.y <= s.y + s.height);
+                if (sliderHit) {
+                    crtSliderDrag = { key: sliderHit.key, trackX: sliderHit.trackX, trackW: sliderHit.trackW, min: sliderHit.min, max: sliderHit.max };
+                    const norm = Math.max(0, Math.min(1, (mp.x - sliderHit.trackX) / sliderHit.trackW));
+                    CRT_CONFIG[sliderHit.key] = sliderHit.min + norm * (sliderHit.max - sliderHit.min);
+                    playUIClick();
+                    return;
+                }
+            }
 
             // Designer-panel scale tuner — handle on press so slider drag and input
             // editing start cleanly (the regular click flow runs on release and would
@@ -1631,6 +1648,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // End any active scale-slider drag (independent of game-over state)
             if (gameState.designerPanel.draggingScale) {
                 gameState.designerPanel.draggingScale = null;
+            }
+            if (crtSliderDrag) {
+                crtSliderDrag = null;
+                return;  // swallow this release so handleClick doesn't fire
             }
 
             if (gameState.gameOver) return; // Block clicks when game over
@@ -1746,6 +1767,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         k.onMouseMove(() => {
             if (isMobile) return; // Touch handlers manage input on mobile
+
+            // CRT debug-panel slider drag — runs before selection/pan so values
+            // update fluidly even when the cursor leaves the panel.
+            if (crtSliderDrag) {
+                const mp = k.mousePos();
+                const norm = Math.max(0, Math.min(1, (mp.x - crtSliderDrag.trackX) / crtSliderDrag.trackW));
+                CRT_CONFIG[crtSliderDrag.key] = crtSliderDrag.min + norm * (crtSliderDrag.max - crtSliderDrag.min);
+                return;
+            }
 
             // Designer-panel scale slider drag — takes priority over selection/pan
             if (gameState.designerPanel.draggingScale) {
@@ -2537,21 +2567,33 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (debugPanelOpen && topButtonBounds && topButtonBounds.debugPanel) {
                 const panel = topButtonBounds.debugPanel.panel;
                 const options = topButtonBounds.debugPanel.options;
+                const presets = topButtonBounds.debugPanel.presets || [];
 
                 // Check if clicking on an option checkbox
                 for (const opt of options) {
                     if (mouseX >= opt.x && mouseX <= opt.x + opt.width &&
                         mouseY >= opt.y && mouseY <= opt.y + opt.height) {
                         playUIClick();
-                        // Toggle the option
                         if (opt.id === 'hideFog') {
                             debugState.hideFog = !debugState.hideFog;
+                        } else if (opt.id === 'crtEnabled') {
+                            CRT_CONFIG.enabled = !CRT_CONFIG.enabled;
                         }
                         return;
                     }
                 }
 
-                // Click inside panel but not on option - do nothing
+                // Check preset buttons
+                for (const p of presets) {
+                    if (mouseX >= p.x && mouseX <= p.x + p.width &&
+                        mouseY >= p.y && mouseY <= p.y + p.height) {
+                        playUIClick();
+                        applyCRTPreset(p.id);
+                        return;
+                    }
+                }
+
+                // Click inside panel but not on a control - do nothing
                 if (mouseX >= panel.x && mouseX <= panel.x + panel.width &&
                     mouseY >= panel.y && mouseY <= panel.y + panel.height) {
                     return;
