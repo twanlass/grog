@@ -8,6 +8,7 @@ import {
     addToBuildQueue, cancelBuildItem, startPortUpgrade, startTowerUpgrade,
     findFreeAdjacentWater, findNearestWaterInRange,
     canAffordCrew, cancelTradeRoute, getHomePortIndexForOwner,
+    getNextPortType, getNextTowerType,
 } from '../gameState.js';
 import { findPath, findNearestWater, distributeDestinations } from '../pathfinding.js';
 import { startRepair } from '../systems/repair.js';
@@ -527,7 +528,7 @@ function handleUpgradePort(command, gameState) {
     if (portIdx < 0) return false;
 
     const port = gameState.ports[portIdx];
-    const nextType = port.type === 'dock' ? 'shipyard' : port.type === 'shipyard' ? 'stronghold' : null;
+    const nextType = getNextPortType(port.type);
     if (!nextType) return false;
 
     const portData = PORTS[nextType];
@@ -544,7 +545,7 @@ function handleUpgradeTower(command, gameState) {
     if (towerIdx < 0) return false;
 
     const tower = gameState.towers[towerIdx];
-    const nextType = tower.type === 'watchtower' ? 'garrison' : tower.type === 'garrison' ? 'fortress' : null;
+    const nextType = getNextTowerType(tower.type);
     if (!nextType) return false;
 
     const towerData = TOWERS[nextType];
