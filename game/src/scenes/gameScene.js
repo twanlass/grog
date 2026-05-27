@@ -1341,7 +1341,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (selectedShipIndices.length === 1 && !gameState.portBuildMode.active && !gameState.towerBuildMode.active) {
                 const shipIndex = selectedShipIndices[0].index;
                 const ship = gameState.ships[shipIndex];
-                const canShowBuildPanel = isShipDocked(ship) && !isShipBuildingPort(shipIndex, gameState.ports) && !isShipBuildingTower(shipIndex, gameState.towers);
+                // Build panel shows whenever the ship is stationary, even when not adjacent to land.
+                // Placement still validates shore hexes within build range.
+                const isStationary = ship.waypoints.length === 0;
+                const canShowBuildPanel = isStationary && !isShipBuildingPort(shipIndex, gameState.ports) && !isShipBuildingTower(shipIndex, gameState.towers);
                 shipBuildPanelBounds = drawShipBuildPanel(ctx, ship, shipIndex, gameState, canShowBuildPanel);
             }
 
