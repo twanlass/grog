@@ -27,7 +27,7 @@ Ships can construct defensive towers on nearby land. Towers automatically attack
 - Completed combat towers automatically fire at enemies within their `attackRange`
 - Per-tier stats (see `TOWERS` in `sprites/towers.js`):
   - **Watchtower** — scout only, no weapons; 40 HP
-  - **Crossbow Tower** — 3 arrows per volley, 2 damage each, every 3s, range 4; 60 HP
+  - **Crossbow Tower** — 3 arrows per volley, 1.5 damage each, every 3s, range 4; 60 HP
   - **Cannon Battery** — 2 cannonballs per volley, 5 damage each, every 4s, range 5; 100 HP
 - Multi-shot volleys are staggered: first shot fires immediately, remaining shots queue into `tower.pendingShots` with per-tower `staggerDelay` (falls back to `SHOT_STAGGER_DELAY` = 0.3s)
 - Crossbow shots render as low-arc brown arrows (`projectileType: 'arrow'`); other shots render as cannonballs with fiery trails

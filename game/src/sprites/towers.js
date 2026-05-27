@@ -91,7 +91,7 @@ export const TOWERS = {
         crewCost: 5,
         attackRange: 4,
         fireCooldown: 3,
-        damage: 2,
+        damage: 1.5,
         projectileCount: 3,
         staggerDelay: 0.12,
         projectileType: 'arrow',
