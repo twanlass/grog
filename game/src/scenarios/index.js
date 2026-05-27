@@ -36,7 +36,7 @@ export const SCENARIOS = [
     {
         id: 'defend',
         name: 'Defend',
-        description: 'Survive waves of pirates',
+        description: 'Survive waves of enemies',
         gameMode: 'defend',
         mapSize: { width: 40, height: 40 },
         startingResources: { wood: 50 },
