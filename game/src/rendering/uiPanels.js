@@ -823,13 +823,14 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
     const infoPanelX = 15;  // Bottom left
     const bpRowHeight = 44;
     const bpPadding = 10;
-    const headerHeight = 24;
+    // Header: sprite thumbnail + name + health
+    const headerHeight = 52;
     const constructionHeight = tower.construction ? 55 : 0;
     const cancelHeight = tower.construction ? 42 : 0;
     const upgradeHeight = canUpgrade ? bpRowHeight : 0;
     // Only show repair button when damaged and not already repairing (repair bar shows above unit)
     const repairHeight = (isDamaged && !isRepairing) && !tower.construction ? 50 : 0;
-    const infoPanelHeight = bpPadding + headerHeight + constructionHeight + cancelHeight + upgradeHeight + repairHeight + bpPadding;
+    const infoPanelHeight = headerHeight + constructionHeight + cancelHeight + upgradeHeight + repairHeight + bpPadding;
     const infoPanelY = screenHeight - infoPanelHeight - 15;
 
     const bounds = {
@@ -845,17 +846,52 @@ export function drawTowerInfoPanel(ctx, tower, gameState) {
     // Panel background
     drawPanelContainer(ctx, infoPanelX, infoPanelY, infoPanelWidth, infoPanelHeight);
 
-    // Tower name (left-aligned)
+    // Tower sprite thumbnail (left side of header)
+    const thumbCenterX = infoPanelX + 26;
+    const thumbCenterY = infoPanelY + 26;
+    if (towerData.imageSprite) {
+        const isTower = VIRTUAL_TOWER_SPRITES.has(towerData.imageSprite);
+        const resolvedSprite = isTower
+            ? getTowerSprite(tower.owner, towerData.imageSprite)
+            : towerData.imageSprite;
+        const thumbScale = (towerData.imageScale || 1) * 0.9 * (isTower ? 0.75 : 1);
+        k.drawSprite({
+            sprite: resolvedSprite,
+            frame: 0,
+            pos: k.vec2(thumbCenterX, thumbCenterY),
+            anchor: "center",
+            scale: thumbScale,
+        });
+    }
+
+    // Tower name (right of thumbnail)
+    const textX = infoPanelX + 52;
     k.drawText({
         text: towerData.name,
-        pos: k.vec2(infoPanelX + 14, infoPanelY + bpPadding + 8),
+        pos: k.vec2(textX, infoPanelY + 14),
         size: 16,
         anchor: "left",
-        color: k.rgb(200, 200, 200),
+        color: k.rgb(220, 220, 220),
+    });
+
+    // Health (below name)
+    const currentHp = Math.max(0, Math.ceil(tower.health));
+    const hpRatio = tower.health / maxHealth;
+    const hpColor = hpRatio > 0.5
+        ? k.rgb(140, 200, 120)
+        : hpRatio > 0.25
+            ? k.rgb(220, 180, 80)
+            : k.rgb(220, 80, 80);
+    k.drawText({
+        text: `${currentHp}/${maxHealth}`,
+        pos: k.vec2(textX, infoPanelY + 34),
+        size: 12,
+        anchor: "left",
+        color: hpColor,
     });
 
     const mousePos = k.mousePos();
-    let currentY = infoPanelY + bpPadding + headerHeight;
+    let currentY = infoPanelY + headerHeight;
 
     // Construction/upgrade status
     if (tower.construction) {
@@ -1009,12 +1045,13 @@ export function drawSettlementInfoPanel(ctx, settlement, gameState) {
     const isConstructing = !!settlement.construction;
 
     const infoPanelWidth = 160;
-    // Base height for title only, add construction or repair sections as needed
-    const baseHeight = 40;
+    // Header: sprite thumbnail + name + health
+    const headerHeight = 52;
     const constructionHeight = isConstructing ? 45 : 0;
     // Only show repair button when damaged and not already repairing
     const repairHeight = (isDamaged && !isRepairing && !isConstructing) ? 50 : 0;
-    const infoPanelHeight = baseHeight + constructionHeight + repairHeight;
+    const bottomPadding = 10;
+    const infoPanelHeight = headerHeight + constructionHeight + repairHeight + bottomPadding;
     const infoPanelX = 15;  // Bottom left
     const infoPanelY = screenHeight - infoPanelHeight - 15;
 
@@ -1029,13 +1066,43 @@ export function drawSettlementInfoPanel(ctx, settlement, gameState) {
     // Panel background
     drawPanelContainer(ctx, infoPanelX, infoPanelY, infoPanelWidth, infoPanelHeight);
 
-    // Settlement name (left-aligned)
+    // Settlement sprite thumbnail (left side of header)
+    const thumbCenterX = infoPanelX + 26;
+    const thumbCenterY = infoPanelY + 26;
+    if (settlementData.imageSprite) {
+        k.drawSprite({
+            sprite: settlementData.imageSprite,
+            frame: 0,
+            pos: k.vec2(thumbCenterX, thumbCenterY),
+            anchor: "center",
+            scale: (settlementData.spriteScale || 1) * 0.9,
+        });
+    }
+
+    // Settlement name (right of thumbnail)
+    const textX = infoPanelX + 52;
     k.drawText({
         text: settlementData.name,
-        pos: k.vec2(infoPanelX + 14, infoPanelY + 14),
+        pos: k.vec2(textX, infoPanelY + 14),
         size: 16,
         anchor: "left",
-        color: k.rgb(200, 200, 200),
+        color: k.rgb(220, 220, 220),
+    });
+
+    // Health (below name)
+    const currentHp = Math.max(0, Math.ceil(settlement.health));
+    const hpRatio = settlement.health / maxHealth;
+    const hpColor = hpRatio > 0.5
+        ? k.rgb(140, 200, 120)
+        : hpRatio > 0.25
+            ? k.rgb(220, 180, 80)
+            : k.rgb(220, 80, 80);
+    k.drawText({
+        text: `${currentHp}/${maxHealth}`,
+        pos: k.vec2(textX, infoPanelY + 34),
+        size: 12,
+        anchor: "left",
+        color: hpColor,
     });
 
     // Construction status
@@ -1046,7 +1113,7 @@ export function drawSettlementInfoPanel(ctx, settlement, gameState) {
 
         k.drawText({
             text: "BUILDING",
-            pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + 36),
+            pos: k.vec2(infoPanelX + infoPanelWidth / 2, infoPanelY + headerHeight - 4),
             size: 10,
             anchor: "center",
             color: k.rgb(220, 180, 80),
@@ -1055,7 +1122,7 @@ export function drawSettlementInfoPanel(ctx, settlement, gameState) {
         // Progress bar
         const barWidth = 120;
         const barX = infoPanelX + (infoPanelWidth - barWidth) / 2;
-        const barY = infoPanelY + 50;
+        const barY = infoPanelY + headerHeight + 10;
 
         drawProgressBar(ctx, barX, barY, barWidth, progress / buildTime, {
             fillColor: { r: 220, g: 180, b: 80 }
@@ -1074,7 +1141,7 @@ export function drawSettlementInfoPanel(ctx, settlement, gameState) {
             const repairCost = getRepairCost('settlement', settlement);
             const canAffordRepair = getLocalRes(gameState).wood >= repairCost.wood;
 
-            const repairY = infoPanelY + baseHeight - 5;
+            const repairY = infoPanelY + headerHeight - 5;
 
             k.drawLine({
                 p1: k.vec2(infoPanelX + 10, repairY),
