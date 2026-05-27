@@ -14,6 +14,7 @@ export const COMMAND_TYPES = {
 
     // Building
     BUILD_PORT: 'BUILD_PORT',           // { builderShipId, portType, q, r }
+    QUEUE_DEFERRED_BUILD: 'QUEUE_DEFERRED_BUILD', // { builderShipId, portType, q, r, waypointQ, waypointR }
     BUILD_SETTLEMENT: 'BUILD_SETTLEMENT', // { builderPortId, q, r }
     BUILD_TOWER: 'BUILD_TOWER',         // { builderShipId?, builderPortId?, q, r }
     BUILD_SHIP: 'BUILD_SHIP',           // { portId, shipType }

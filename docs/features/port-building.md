@@ -8,14 +8,22 @@ Ships can construct new ports when docked at shore. This allows players to expan
 - A ship is "docked" when:
   - On a water hex adjacent to land
   - Stationary (no active waypoint)
-- Any stationary ship shows the "BUILD PORT" panel (bottom-left), even when not adjacent to land. Placement still requires a valid shore hex within the ship's build range (5 hexes), so the panel may show with no reachable placement targets.
+- Any stationary ship shows the "BUILD PORT" panel (bottom-left), even when not adjacent to land. Placement still requires a valid shore hex within the ship's build range (5 hexes) for immediate placement; clicking an out-of-range shore queues a deferred build (see below).
 
 ### Placement Mode
 - Click a port type in the panel to enter placement mode
-- Green highlights show valid placement hexes (shore hexes within range)
+- Green highlights show valid in-range placement hexes (within 5 hexes of the ship)
+- Amber highlights show valid out-of-range shore hexes — clicking one queues a deferred build
 - Brighter highlight on currently hovered hex
-- Click a valid hex to start construction
+- Click a green hex to start construction immediately, or an amber hex to sail there and build on arrival
 - Press ESC or right-click to cancel
+
+### Deferred Build (sail-and-build)
+- Clicking an amber (out-of-range) shore hex sets a waypoint to the nearest water tile adjacent to the target and stores `ship.pendingBuild = { portType, q, r }`
+- Resource cost is **not** deducted until the build actually starts (on arrival), so a player who runs out of resources mid-voyage will simply wait at the target until they can afford it
+- On each frame, the construction system checks ships with `pendingBuild`. When the ship is stationary AND within build range AND the site is still valid AND affordable, construction starts automatically
+- If the target site becomes invalid mid-voyage (another player/AI built there), the intent is cleared with a "Build site no longer available" notification
+- Issuing a manual move (Cmd+click), attack click, or attack command to the ship clears its `pendingBuild` — the new command overrides the deferred build
 
 ### Construction
 - Port appears semi-transparent with "BUILDING" label and progress bar

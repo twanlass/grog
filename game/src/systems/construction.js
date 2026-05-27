@@ -1,7 +1,12 @@
 // Construction system - handles port, settlement, and tower building progress
-import { createShip, findFreeAdjacentWater, canAfford, deductCost, canAffordCrew } from "../gameState.js";
+import {
+    createShip, createPort, findFreeAdjacentWater, canAfford, deductCost,
+    canAffordCrew, isValidPortSite, getResourcesForOwner, showNotification,
+    MAX_PORT_BUILD_DISTANCE,
+} from "../gameState.js";
 import { SHIPS, SETTLEMENTS, TOWERS, PORTS } from "../sprites/index.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
+import { hexDistance } from "../hex.js";
 
 /**
  * Updates all construction progress for ports, settlements, and towers
@@ -14,6 +19,9 @@ import { markVisibilityDirty } from "../fogOfWar.js";
 export function updateConstruction(gameState, map, fogState, dt, floatingNumbers = []) {
     if (dt === 0) return; // Paused
 
+    // Trigger deferred port builds for ships that have arrived in range
+    updatePendingBuilds(gameState, map, fogState);
+
     // Update port ship build queue progress
     updatePortBuildQueues(gameState, map, fogState, dt);
 
@@ -25,6 +33,52 @@ export function updateConstruction(gameState, map, fogState, dt, floatingNumbers
 
     // Update tower construction progress
     updateTowerConstruction(gameState, fogState, dt);
+}
+
+/**
+ * Check ships with a deferred port build. When a ship is stationary AND within
+ * build range of its target hex, validate site/affordability and start construction.
+ * If the target became invalid (someone built there), clear the intent silently.
+ */
+function updatePendingBuilds(gameState, map, fogState) {
+    for (let shipIndex = 0; shipIndex < gameState.ships.length; shipIndex++) {
+        const ship = gameState.ships[shipIndex];
+        if (!ship.pendingBuild) continue;
+
+        const { portType, q, r } = ship.pendingBuild;
+        const isStationary = ship.waypoints.length === 0;
+        const dist = hexDistance(ship.q, ship.r, q, r);
+
+        // Cancel silently if the site is no longer valid (e.g. another player built there)
+        if (!isValidPortSite(map, q, r, gameState.ports, gameState.towers, gameState.settlements)) {
+            ship.pendingBuild = null;
+            if (ship.owner === 'player' || ship.owner === 'player2') {
+                showNotification(gameState, "Build site no longer available");
+            }
+            continue;
+        }
+
+        if (!isStationary || dist > MAX_PORT_BUILD_DISTANCE) continue;
+
+        // Arrived in range — try to start the build
+        const portData = PORTS[portType];
+        if (!portData) {
+            ship.pendingBuild = null;
+            continue;
+        }
+        const resources = getResourcesForOwner(gameState, ship.owner) || gameState.resources;
+        if (!canAfford(resources, portData.cost)) {
+            // Wait until affordable — keep intent but don't notify spammily
+            continue;
+        }
+
+        deductCost(resources, portData.cost);
+        const newPort = createPort(portType, q, r, true, shipIndex, ship.owner || 'player');
+        gameState.ports.push(newPort);
+        ship.pendingBuild = null;
+        markVisibilityDirty(fogState);
+        console.log(`Deferred build triggered: ${portType} at (${q}, ${r}) by ship ${shipIndex}`);
+    }
 }
 
 /**

@@ -38,6 +38,8 @@ export function processGuestCommand(command, gameState, map, fogState) {
             return handleDetonateTNT(command, gameState);
         case COMMAND_TYPES.BUILD_PORT:
             return handleBuildPort(command, gameState, map);
+        case COMMAND_TYPES.QUEUE_DEFERRED_BUILD:
+            return handleQueueDeferredBuild(command, gameState, map);
         case COMMAND_TYPES.BUILD_SETTLEMENT:
             return handleBuildSettlement(command, gameState, map);
         case COMMAND_TYPES.BUILD_TOWER:
@@ -144,6 +146,7 @@ function handleMoveShips(command, gameState, map) {
             ship.moveProgress = 0;
         }
         ship.attackTarget = null;
+        ship.pendingBuild = null;
     }
     return true;
 }
@@ -295,6 +298,22 @@ function handleBuildPort(command, gameState, map) {
     deductCost(resources, portData.cost);
     const newPort = createPort(portType, q, r, true, shipIdx, GUEST_OWNER);
     gameState.ports.push(newPort);
+    return true;
+}
+
+function handleQueueDeferredBuild(command, gameState, map) {
+    const { builderShipId, portType, q, r, waypointQ, waypointR } = command;
+    const shipIdx = findShipByIdForGuest(gameState, builderShipId);
+    if (shipIdx < 0) return false;
+
+    if (!PORTS[portType]) return false;
+
+    const ship = gameState.ships[shipIdx];
+    ship.pendingBuild = { portType, q, r };
+    ship.waypoints = [{ q: waypointQ, r: waypointR }];
+    ship.path = null;
+    ship.moveProgress = 0;
+    ship.attackTarget = null;
     return true;
 }
 

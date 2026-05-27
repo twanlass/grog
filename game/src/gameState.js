@@ -204,6 +204,7 @@ export function createShip(type, q, r, owner = 'player') {
         tntFuse: 0,                  // Seconds until kamikaze detonation (0 = inactive)
         attackTarget: null,          // { type: 'ship', index } for player ships attacking pirates
         pendingBroadside: null,      // { type, index } - queued broadside; fires when cutter reaches range
+        pendingBuild: null,          // { portType, q, r } - deferred port build; triggers on arrival in range
         // Repair state
         repair: null,  // { progress, totalTime, healthToRestore } | null
         // Patrol state
@@ -881,6 +882,9 @@ export function startBuilding(port, shipType) {
         buildTime: shipData.build_time,
     }];
 }
+
+// Max distance (in hexes) from a ship to a placeable port site
+export const MAX_PORT_BUILD_DISTANCE = 5;
 
 // Enter port building placement mode
 export function enterPortBuildMode(gameState, shipIndex, portType) {

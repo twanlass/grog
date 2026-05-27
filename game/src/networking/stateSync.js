@@ -36,6 +36,7 @@ export function extractNetworkState(gameState) {
             tntFuse: s.tntFuse || 0,
             attackTarget: s.attackTarget,
             pendingBroadside: s.pendingBroadside || null,
+            pendingBuild: s.pendingBuild || null,
             repair: s.repair,
             patrolRoute: s.patrolRoute,
             isPatrolling: s.isPatrolling,

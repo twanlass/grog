@@ -8,16 +8,16 @@ import { isTouchDevice } from "../systems/touchHandler.js";
 /**
  * Draw a placement highlight for a single hex
  */
-function drawPlacementHighlight(ctx, screenX, screenY, isHovered) {
+function drawPlacementHighlight(ctx, screenX, screenY, isHovered, deferred = false) {
     const { k, scaledHexSize } = ctx;
 
     const corners = hexCorners(screenX, screenY, scaledHexSize);
     const pts = corners.map(c => k.vec2(c.x, c.y));
 
-    // Highlight color (brighter if hovered)
-    const highlightColor = isHovered
-        ? k.rgb(100, 255, 100)  // Bright green for hovered
-        : k.rgb(80, 180, 80);   // Dimmer green for valid
+    // Amber for "will sail there" (deferred), green for immediate placement
+    const baseColor = deferred ? k.rgb(220, 170, 60) : k.rgb(80, 180, 80);
+    const hoverColor = deferred ? k.rgb(255, 210, 90) : k.rgb(100, 255, 100);
+    const highlightColor = isHovered ? hoverColor : baseColor;
 
     // Draw highlight overlay
     k.drawPolygon({
@@ -100,19 +100,24 @@ export function drawPortPlacementMode(ctx, gameState, map, tilePositions, fogSta
     const worldMY = (mouseY - halfHeight) / zoom + cameraY;
     const hoverHex = pixelToHex(worldMX, worldMY);
 
-    // Check if hovered hex is a valid port site AND within range
-    const hoverDistance = hexDistance(builderShip.q, builderShip.r, hoverHex.q, hoverHex.r);
-    const isValidHover = isValidPortSite(map, hoverHex.q, hoverHex.r, gameState.ports, gameState.towers, gameState.settlements) &&
-                         hoverDistance <= MAX_BUILD_DISTANCE;
-    gameState.portBuildMode.hoveredHex = isValidHover ? hoverHex : null;
+    // Hovered hex is valid if it's a valid port site (range no longer required;
+    // out-of-range clicks queue a deferred build instead of placing immediately).
+    const isValidHover = isValidPortSite(map, hoverHex.q, hoverHex.r, gameState.ports, gameState.towers, gameState.settlements);
+    if (isValidHover) {
+        const hoverDistance = hexDistance(builderShip.q, builderShip.r, hoverHex.q, hoverHex.r);
+        gameState.portBuildMode.hoveredHex = {
+            q: hoverHex.q,
+            r: hoverHex.r,
+            deferred: hoverDistance > MAX_BUILD_DISTANCE,
+        };
+    } else {
+        gameState.portBuildMode.hoveredHex = null;
+    }
 
-    // Draw highlights on all valid port sites within range
+    // Draw highlights on every valid port site (green in range, amber out of range)
     for (const tile of map.tiles.values()) {
         if (!tile.isPortSite) continue;
         if (!isHexExplored(fogState, tile.q, tile.r)) continue;
-
-        const dist = hexDistance(builderShip.q, builderShip.r, tile.q, tile.r);
-        if (dist > MAX_BUILD_DISTANCE) continue;
 
         if (!isValidPortSite(map, tile.q, tile.r, gameState.ports, gameState.towers, gameState.settlements)) continue;
 
@@ -124,14 +129,18 @@ export function drawPortPlacementMode(ctx, gameState, map, tilePositions, fogSta
         if (screenX < -margin || screenX > screenWidth + margin ||
             screenY < -margin || screenY > screenHeight + margin) continue;
 
+        const dist = hexDistance(builderShip.q, builderShip.r, tile.q, tile.r);
+        const isDeferred = dist > MAX_BUILD_DISTANCE;
         const isHovered = gameState.portBuildMode.hoveredHex &&
                           tile.q === gameState.portBuildMode.hoveredHex.q &&
                           tile.r === gameState.portBuildMode.hoveredHex.r;
 
-        drawPlacementHighlight(ctx, screenX, screenY, isHovered);
+        drawPlacementHighlight(ctx, screenX, screenY, isHovered, isDeferred);
     }
 
-    return drawPlacementHint(ctx, "Click to place port | ESC to cancel", "Tap a green hex to place port");
+    const desktopHint = "Click green to build, amber to sail there and build on arrival | ESC to cancel";
+    const mobileHint = "Tap green to build, amber to sail and build on arrival";
+    return drawPlacementHint(ctx, desktopHint, mobileHint);
 }
 
 /**
