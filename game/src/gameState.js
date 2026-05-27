@@ -5,6 +5,7 @@ import { SETTLEMENTS } from "./sprites/settlements.js";
 import { TOWERS, TOWER_TECH_TREE } from "./sprites/towers.js";
 import { hexKey, hexNeighbors, hexDistance } from "./hex.js";
 import { AI_DIFFICULTY } from "./systems/aiPlayer.js";
+import { isWater } from "./mapGenerator.js";
 
 export function createGameState(config = {}) {
     const startingResources = config.startingResources || { wood: 25 };
@@ -732,7 +733,7 @@ export function findAdjacentWater(map, q, r) {
     for (const dir of directions) {
         const key = `${q + dir.q},${r + dir.r}`;
         const tile = tiles.get(key);
-        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+        if (isWater(tile)) {
             return tile;
         }
     }
@@ -763,7 +764,7 @@ export function findNearestWaterInRange(map, q, r, maxRange = 2) {
         // Check if this tile is water
         const key = `${current.q},${current.r}`;
         const tile = tiles.get(key);
-        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean')) {
+        if (isWater(tile)) {
             return tile;
         }
 
@@ -803,7 +804,7 @@ export function findFreeAdjacentWater(map, q, r, ships) {
     for (const dir of directions) {
         const key = `${q + dir.q},${r + dir.r}`;
         const tile = tiles.get(key);
-        if (tile && (tile.type === 'shallow' || tile.type === 'deep_ocean') && !occupied.has(key)) {
+        if (isWater(tile) && !occupied.has(key)) {
             return tile;
         }
     }
@@ -1363,8 +1364,7 @@ export function findNearbyWaitingHex(map, portQ, portR, ships) {
             const tile = tiles.get(key);
             if (!tile) continue;
 
-            const isWater = tile.type === 'shallow' || tile.type === 'deep_ocean';
-            if (!isWater) {
+            if (!isWater(tile)) {
                 queue.push({ q: nq, r: nr, dist: dist + 1 });
                 continue;
             }

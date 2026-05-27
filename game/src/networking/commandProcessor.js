@@ -13,6 +13,7 @@ import { findPath, findNearestWater, distributeDestinations } from '../pathfindi
 import { startRepair } from '../systems/repair.js';
 import { triggerBroadside, armTNT, cancelPortConstruction, cancelTowerConstruction } from '../systems/combat.js';
 import { hexKey, hexDistance } from '../hex.js';
+import { isWater } from '../mapGenerator.js';
 
 const GUEST_OWNER = 'player2';
 
@@ -428,7 +429,7 @@ function handleSetRally(command, gameState, map) {
     if (portIdx < 0) return false;
 
     const tile = map.tiles.get(hexKey(q, r));
-    if (!tile || (tile.type !== 'shallow' && tile.type !== 'deep_ocean')) return false;
+    if (!isWater(tile)) return false;
 
     gameState.ports[portIdx].rallyPoint = { q, r };
     return true;
