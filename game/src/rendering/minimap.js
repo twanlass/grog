@@ -1,13 +1,19 @@
 // Minimap rendering for fog of war visualization
 import { hexToPixel, hexKey, parseHexKey } from "../hex.js";
 import { TILE_TYPES, CLIMATE_ZONES } from "../mapGenerator.js";
+import { isTouchDevice } from "../systems/touchHandler.js";
 
 // Minimap dimensions
-const MINIMAP_DIAMETER = 100;
+const MINIMAP_DIAMETER_MOBILE = 100;
+const MINIMAP_DIAMETER_DESKTOP = 200;
 const MINIMAP_MARGIN_RIGHT = 15;
 const MINIMAP_MARGIN_BOTTOM = 15;
 const MINIMAP_BORDER_WIDTH = 0;
 const MINIMAP_PADDING = 8;
+
+export function getMinimapDiameter() {
+    return isTouchDevice() ? MINIMAP_DIAMETER_MOBILE : MINIMAP_DIAMETER_DESKTOP;
+}
 
 // Minimap colors
 const COLORS = {
@@ -51,8 +57,10 @@ export function createMinimapState(map) {
     const worldWidth = maxX - minX;
     const worldHeight = maxY - minY;
 
+    const diameter = getMinimapDiameter();
+
     // Calculate scale to fit within circle (with padding)
-    const effectiveDiameter = MINIMAP_DIAMETER - MINIMAP_PADDING * 2;
+    const effectiveDiameter = diameter - MINIMAP_PADDING * 2;
 
     // Pre-calculate normalized positions for each tile
     const tileCache = new Map();
@@ -76,7 +84,7 @@ export function createMinimapState(map) {
     const tileSize = Math.max(3, (effectiveDiameter / tilesAcross) * 1.6);
 
     return {
-        diameter: MINIMAP_DIAMETER,
+        diameter,
         tileCache,
         worldWidth,
         worldHeight,
