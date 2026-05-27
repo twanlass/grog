@@ -1,6 +1,7 @@
 // WebRTC connection lifecycle via PeerJS
 import { Peer } from 'peerjs';
 import { MESSAGE_TYPES, createMessage } from './commands.js';
+import { teardown as teardownVoice } from './voiceChat.js';
 
 // Connection state enum
 export const CONNECTION_STATE = {
@@ -167,6 +168,7 @@ export function sendPlayerCommand(command) {
  * Disconnect and clean up all resources.
  */
 export function disconnect() {
+    try { teardownVoice(); } catch (e) { /* ignore */ }
     if (heartbeatInterval) {
         clearInterval(heartbeatInterval);
         heartbeatInterval = null;
@@ -198,6 +200,8 @@ export function getIsHost() { return isHost; }
 export function getPeerCode() { return gameCode; }
 export function getLatency() { return latency; }
 export function isConnected() { return connectionState === CONNECTION_STATE.CONNECTED; }
+export function getPeer() { return peer; }
+export function getRemotePeerId() { return connection ? connection.peer : null; }
 
 // ============================================================
 // Internal

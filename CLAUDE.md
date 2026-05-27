@@ -51,6 +51,7 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [Fog of War](docs/features/fog-of-war.md)
 - [Mobile Input](docs/features/mobile-input.md) - Touch gesture vocabulary and `touchHandler` callbacks
 - [Multiplayer](docs/features/multiplayer.md) - P2P WebRTC multiplayer via PeerJS
+- [Voice Chat](docs/features/voice-chat.md) - Opt-in mic chat over the existing peer
 - [Ship Building](docs/features/ship-building.md)
 - [Port Building](docs/features/port-building.md)
 - [Settlement Building](docs/features/settlement-building.md)
