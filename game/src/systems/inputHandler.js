@@ -48,13 +48,14 @@ function queueNetCmd(type, data) {
  * Handle click in port placement mode
  * @returns {boolean} true if handled, false to continue processing
  */
-export function handlePortPlacementClick(gameState) {
+export function handlePortPlacementClick(gameState, map) {
     if (!gameState.portBuildMode.active) return false;
 
     if (gameState.portBuildMode.hoveredHex) {
         const hex = gameState.portBuildMode.hoveredHex;
         const portType = gameState.portBuildMode.portType;
         const builderShipIndex = gameState.portBuildMode.builderShipIndex;
+        const builderShip = gameState.ships[builderShipIndex];
         const portData = PORTS[portType];
         const res = getLocalResources(gameState);
 
@@ -63,9 +64,39 @@ export function handlePortPlacementClick(gameState) {
             exitPortBuildMode(gameState);
             return true;
         }
+
+        if (hex.deferred && builderShip && map) {
+            // Out of range: queue a deferred build and sail toward the target shore.
+            // Cost is deducted on arrival (in updatePendingBuilds), not now.
+            const dockSpot = findNearestWaterInRange(map, hex.q, hex.r, 6);
+            if (!dockSpot) {
+                showNotification(gameState, "No path to that shore");
+                exitPortBuildMode(gameState);
+                return true;
+            }
+
+            builderShip.pendingBuild = { portType, q: hex.q, r: hex.r };
+            builderShip.waypoints = [{ q: dockSpot.q, r: dockSpot.r }];
+            builderShip.path = null;
+            builderShip.moveProgress = 0;
+            if (builderShip.tradeRoute) cancelTradeRoute(builderShip);
+            builderShip.isPatrolling = false;
+
+            queueNetCmd(COMMAND_TYPES.QUEUE_DEFERRED_BUILD, {
+                builderShipId: builderShip.id, portType, q: hex.q, r: hex.r,
+                waypointQ: dockSpot.q, waypointR: dockSpot.r,
+            });
+
+            console.log(`Queued deferred ${portType} build at (${hex.q}, ${hex.r}) — sailing to (${dockSpot.q}, ${dockSpot.r})`);
+            exitPortBuildMode(gameState);
+            return true;
+        }
+
         deductCost(res, portData.cost);
 
-        const builderShip = gameState.ships[builderShipIndex];
+        if (builderShip) {
+            builderShip.pendingBuild = null;  // Clear any prior deferred intent
+        }
         const newPort = createPort(portType, hex.q, hex.r, true, builderShipIndex, localPlayerId);
         gameState.ports.push(newPort);
 
@@ -766,6 +797,7 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         // Clear attack, patrol, and guard state when manually moving
         ship.attackTarget = null;
         ship.pendingBroadside = null;
+        ship.pendingBuild = null;  // Manual move overrides any deferred build intent
         ship.patrolRoute = [];
         ship.isPatrolling = false;
         ship.guardMode = false;
@@ -902,8 +934,9 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
             if (isNonLocal(ship.owner)) continue;  // Can't control non-local ships
 
             ship.attackTarget = { type: targetType, index: targetIndex };
-            // Standard attack overrides any queued broadside
+            // Standard attack overrides any queued broadside or deferred build
             ship.pendingBroadside = null;
+            ship.pendingBuild = null;
             // Only allow immediate fire if not on active cooldown (prevents rapid fire exploit)
             if (!ship.attackCooldown || ship.attackCooldown <= 0) {
                 ship.attackCooldown = 0;

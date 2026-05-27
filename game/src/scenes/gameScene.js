@@ -2734,7 +2734,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Handle placement mode clicks first
-            if (handlePortPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handlePortPlacementClick(gameState, map)) { playUIClick(); flushGuestCommands(); return; }
             if (handleSettlementPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
             if (handleTowerPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
 
