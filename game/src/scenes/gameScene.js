@@ -597,6 +597,23 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let timeScaleBeforeMenu = 1;  // Store time scale before opening menu
         let lastNonZeroSpeed = 1;  // Track speed before pausing
 
+        // Track shift via DOM events. Kaplay's internal keyState can desync
+        // (e.g. after focus loss, or any input event whose keyup is missed),
+        // leaving `k.isKeyDown("shift")` stuck true and causing every click
+        // to add to the selection. We use this DOM-tracked flag instead.
+        let shiftKeyHeld = false;
+        const onShiftKeyDown = (e) => { if (e.key === "Shift") shiftKeyHeld = true; };
+        const onShiftKeyUp = (e) => { if (e.key === "Shift") shiftKeyHeld = false; };
+        const onWindowBlur = () => { shiftKeyHeld = false; };
+        window.addEventListener("keydown", onShiftKeyDown);
+        window.addEventListener("keyup", onShiftKeyUp);
+        window.addEventListener("blur", onWindowBlur);
+        k.onSceneLeave(() => {
+            window.removeEventListener("keydown", onShiftKeyDown);
+            window.removeEventListener("keyup", onShiftKeyUp);
+            window.removeEventListener("blur", onWindowBlur);
+        });
+
         // Floating numbers for resource generation animation
         const floatingNumbers = [];
         const GENERATION_INTERVAL = 30;  // seconds between resource generation
@@ -1977,7 +1994,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const shiftedKeys = [')', '!', '@', '#', '$', '%', '^', '&', '*', '('];
         for (let slot = 0; slot < 10; slot++) {
             const handler = () => {
-                const isSaveHeld = k.isKeyDown("shift");
+                const isSaveHeld = shiftKeyHeld;
 
                 if (isSaveHeld) {
                     // Shift+Number: Save current selection to slot
@@ -2200,7 +2217,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Shift+D toggles the designer panel (debug mode only)
         k.onKeyPress("d", () => {
-            if (!k.isKeyDown("shift")) return;
+            if (!shiftKeyHeld) return;
             if (!scenario || scenario.gameMode !== 'debug') return;
             gameState.designerPanel.open = !gameState.designerPanel.open;
             if (!gameState.designerPanel.open) {
@@ -2862,7 +2879,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const clickedHex = pixelToHex(worldX, worldY);
 
             // Check modifier keys
-            const isShiftHeld = k.isKeyDown("shift");
+            const isShiftHeld = shiftKeyHeld;
             const isCommandHeld = k.isKeyDown("meta");
 
             // Handle action mode clicks (from action buttons)
@@ -3102,7 +3119,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const worldY = (mouseY - k.height() / 2) / zoom + cameraY;
             const clickedHex = pixelToHex(worldX, worldY);
 
-            const isShiftHeld = k.isKeyDown("shift");
+            const isShiftHeld = shiftKeyHeld;
 
             // Attack enemy (skips ports if shift held for plundering)
             if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal, isShiftHeld)) {
@@ -3196,7 +3213,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const boxBottom = Math.max(selectStartY, selectEndY);
 
             // Shift held: add to existing selection. Otherwise replace.
-            const isShiftHeld = k.isKeyDown("shift");
+            const isShiftHeld = shiftKeyHeld;
             if (!isShiftHeld) {
                 clearSelection(gameState);
             }
