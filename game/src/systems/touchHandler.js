@@ -51,10 +51,13 @@ const TAP_MOVE_THRESHOLD = 15; // pixels - movement allowed for tap
 const DRAG_THRESHOLD = 10; // pixels
 
 /**
- * Detect if the device supports touch
+ * Detect if the device's primary input is touch (phones, tablets).
+ * Uses `pointer: coarse` so desktops with touchscreens — which expose
+ * `ontouchstart` / `maxTouchPoints > 0` but are driven by a mouse — are
+ * correctly treated as desktop.
  */
 export function isTouchDevice() {
-    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    return window.matchMedia?.("(pointer: coarse)").matches ?? false;
 }
 
 /**

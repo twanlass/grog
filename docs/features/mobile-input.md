@@ -40,7 +40,7 @@ A short haptic pulse (`navigator.vibrate(15)`) fires when the 300ms hold arms, s
 | `onPinchStart/Move/End(scale, cx, cy)` | Two-finger pinch |
 | `onTwoFingerPanStart/Move/End(x, y, dx, dy)` | Two-finger drag |
 
-`isTouchDevice()` detects touch support; `resetTouchState()` clears in-flight gesture state when switching scenes.
+`isTouchDevice()` detects whether the device's primary input is touch (via `pointer: coarse`), so desktops with touchscreens are still treated as desktop; `resetTouchState()` clears in-flight gesture state when switching scenes.
 
 ### Adding or changing a gesture
 
