@@ -1,6 +1,11 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-27 | Fix surrender Accept button appearing unclickable
+---------------------------------------------------------------
+### Fixed
+- Accepting an AI surrender now eliminates the AI's ships, ports, and towers in addition to settlements — previously only settlements were removed, so the surrender condition (no ships, can't build one) re-triggered next frame on any surviving ports/towers and the screen popped right back up, making both buttons feel unresponsive
+
 2026-05-27 | Broadside now engages every selected cutter, in-range or not
 -------------------------------------------------------------------------
 ### Fixed

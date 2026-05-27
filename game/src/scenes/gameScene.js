@@ -1665,11 +1665,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 // Check Accept button
                 if (mousePos.x >= accept.x && mousePos.x <= accept.x + accept.width &&
                     mousePos.y >= accept.y && mousePos.y <= accept.y + accept.height) {
-                    // Remove surrendering AI's settlements
+                    // Eliminate the surrendering AI entirely — otherwise the
+                    // surrender condition (no ships, can't build one) re-triggers
+                    // next frame on any surviving ports/towers and the screen
+                    // pops right back up.
                     const aiOwner = gameState.surrenderPending;
+                    gameState.ships = gameState.ships.filter(s => s.owner !== aiOwner);
+                    gameState.ports = gameState.ports.filter(p => p.owner !== aiOwner);
+                    gameState.towers = gameState.towers.filter(t => t.owner !== aiOwner);
                     gameState.settlements = gameState.settlements.filter(s => s.owner !== aiOwner);
                     gameState.surrenderPending = null;
-                    // Win condition will be checked next frame if both AIs are now eliminated
                     isLeftMouseDown = false;
                     return;
                 }
@@ -3357,6 +3362,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                             if (x >= accept.x && x <= accept.x + accept.width &&
                                 y >= accept.y && y <= accept.y + accept.height) {
                                 const aiOwner = gameState.surrenderPending;
+                                gameState.ships = gameState.ships.filter(s => s.owner !== aiOwner);
+                                gameState.ports = gameState.ports.filter(p => p.owner !== aiOwner);
+                                gameState.towers = gameState.towers.filter(t => t.owner !== aiOwner);
                                 gameState.settlements = gameState.settlements.filter(s => s.owner !== aiOwner);
                                 gameState.surrenderPending = null;
                                 return;
