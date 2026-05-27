@@ -3191,8 +3191,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const boxTop = Math.min(selectStartY, selectEndY);
             const boxBottom = Math.max(selectStartY, selectEndY);
 
-            // Clear selection first
-            clearSelection(gameState);
+            // Shift held: add to existing selection. Otherwise replace.
+            const isShiftHeld = k.isKeyDown("shift");
+            if (!isShiftHeld) {
+                clearSelection(gameState);
+            }
 
             // Track if any ships are selected for sound
             let shipsSelected = false;
