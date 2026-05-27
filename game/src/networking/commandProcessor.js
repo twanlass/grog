@@ -12,7 +12,7 @@ import {
 import { findPath, findNearestWater, distributeDestinations } from '../pathfinding.js';
 import { startRepair } from '../systems/repair.js';
 import { triggerBroadside, armTNT, cancelPortConstruction, cancelTowerConstruction } from '../systems/combat.js';
-import { hexKey } from '../hex.js';
+import { hexKey, hexDistance } from '../hex.js';
 
 const GUEST_OWNER = 'player2';
 
@@ -32,7 +32,7 @@ export function processGuestCommand(command, gameState, map, fogState) {
         case COMMAND_TYPES.ATTACK:
             return handleAttack(command, gameState, map);
         case COMMAND_TYPES.BROADSIDE:
-            return handleBroadside(command, gameState);
+            return handleBroadside(command, gameState, map);
         case COMMAND_TYPES.DETONATE_TNT:
             return handleDetonateTNT(command, gameState);
         case COMMAND_TYPES.BUILD_PORT:
@@ -197,7 +197,7 @@ function handleAttack(command, gameState, map) {
     return true;
 }
 
-function handleBroadside(command, gameState) {
+function handleBroadside(command, gameState, map) {
     const { shipIds, targetType, targetId } = command;
     if (!shipIds || !targetType || !targetId) return false;
 
@@ -220,18 +220,51 @@ function handleBroadside(command, gameState) {
                     gameState.towers)[targetIndex];
     if (!target || target.owner === GUEST_OWNER) return false;
 
-    let firedAny = false;
+    // For land structures, pre-compute a water approach hex. Use the max
+    // attackDistance across guest cutters so far-out ships can still find one.
+    let waypointQ = target.q;
+    let waypointR = target.r;
+    if (targetType !== 'ship') {
+        let maxAttackDistance = 2;
+        for (const id of shipIds) {
+            const idx = findShipByIdForGuest(gameState, id);
+            if (idx < 0) continue;
+            const ad = SHIPS[gameState.ships[idx].type]?.attackDistance || 2;
+            if (ad > maxAttackDistance) maxAttackDistance = ad;
+        }
+        const waterTile = findNearestWaterInRange(map, target.q, target.r, maxAttackDistance);
+        if (!waterTile) return false;
+        waypointQ = waterTile.q;
+        waypointR = waterTile.r;
+    }
+
+    let engagedAny = false;
     for (const id of shipIds) {
         const idx = findShipByIdForGuest(gameState, id);
         if (idx < 0) continue;
         const ship = gameState.ships[idx];
-        // Mirror local behavior: set attackTarget so red highlight + auto-fire resume
+        const shipData = SHIPS[ship.type];
+        if (!shipData || !shipData.burstAttack) continue;
+
+        const attackDistance = shipData.attackDistance || 2;
+        const inRange = hexDistance(ship.q, ship.r, target.q, target.r) <= attackDistance;
+
         ship.attackTarget = { type: targetType, index: targetIndex };
-        if (triggerBroadside(gameState, idx, targetType, targetIndex)) {
-            firedAny = true;
+        if (ship.tradeRoute) cancelTradeRoute(ship);
+        ship.patrolRoute = [];
+        ship.isPatrolling = false;
+        ship.guardMode = false;
+        ship.waypoints = [{ q: waypointQ, r: waypointR }];
+        ship.path = null;
+
+        if (inRange && triggerBroadside(gameState, idx, targetType, targetIndex)) {
+            ship.pendingBroadside = null;
+        } else {
+            ship.pendingBroadside = { type: targetType, index: targetIndex };
         }
+        engagedAny = true;
     }
-    return firedAny;
+    return engagedAny;
 }
 
 function handleDetonateTNT(command, gameState) {

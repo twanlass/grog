@@ -765,6 +765,7 @@ export function handleWaypointClick(gameState, map, clickedHex, isShiftHeld) {
         }
         // Clear attack, patrol, and guard state when manually moving
         ship.attackTarget = null;
+        ship.pendingBroadside = null;
         ship.patrolRoute = [];
         ship.isPatrolling = false;
         ship.guardMode = false;
@@ -901,6 +902,8 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
             if (isNonLocal(ship.owner)) continue;  // Can't control non-local ships
 
             ship.attackTarget = { type: targetType, index: targetIndex };
+            // Standard attack overrides any queued broadside
+            ship.pendingBroadside = null;
             // Only allow immediate fire if not on active cooldown (prevents rapid fire exploit)
             if (!ship.attackCooldown || ship.attackCooldown <= 0) {
                 ship.attackCooldown = 0;
@@ -1011,14 +1014,15 @@ export function handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SE
 /**
  * Handle a click while in Broadside targeting mode.
  * Searches the click location for an enemy ship/port/settlement/tower and,
- * if found, fires a burst from every selected player Cutter currently in
- * range and off-cooldown.
+ * if found, engages every selected player Cutter against it: in-range cutters
+ * fire their broadside immediately, out-of-range cutters set a pendingBroadside
+ * and navigate toward the target, firing the volley when they enter range.
  *
  * Returns one of:
  *   - null if no enemy was clicked (stay in mode, no notification)
- *   - { fired: true, targetType, targetId } if at least one ship fired
- *   - { fired: false, reason: 'out-of-range' } if a target was clicked but
- *     no eligible ship was in attack range
+ *   - { fired: true, targetType, targetId } if at least one cutter engaged
+ *   - { fired: false, reason } if the target can't be reached (e.g. structure
+ *     with no accessible water within attack range)
  */
 export function handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPos) {
     // Eligible ships: player-owned, has burstAttack config, off-cooldown, not building
@@ -1037,23 +1041,32 @@ export function handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel,
     }
     if (eligibleShips.length === 0) return null;
 
-    // Helper to attempt firing at a found target.
-    // Returns { fired: number, anyInRange: boolean }.
-    function fireAt(targetType, targetIndex, target) {
-        let fired = 0;
-        let anyInRange = false;
+    // Engage all eligible cutters against the target. In-range cutters fire
+    // immediately; out-of-range cutters queue pendingBroadside and pursue.
+    function engageAt(targetType, targetIndex, target, waypointQ, waypointR) {
+        let engaged = 0;
         for (const { ship, index } of eligibleShips) {
             const shipData = SHIPS[ship.type];
             const attackDistance = shipData.attackDistance || 2;
-            if (hexDistance(ship.q, ship.r, target.q, target.r) > attackDistance) continue;
-            anyInRange = true;
-            // Set attackTarget so the red-highlight + post-burst auto-fire takes over
+            const inRange = hexDistance(ship.q, ship.r, target.q, target.r) <= attackDistance;
+
             ship.attackTarget = { type: targetType, index: targetIndex };
-            if (triggerBroadside(gameState, index, targetType, targetIndex)) {
-                fired++;
+            if (ship.tradeRoute) cancelTradeRoute(ship);
+            ship.patrolRoute = [];
+            ship.isPatrolling = false;
+            ship.guardMode = false;
+            ship.waypoints = [{ q: waypointQ, r: waypointR }];
+            ship.path = null;
+
+            if (inRange && triggerBroadside(gameState, index, targetType, targetIndex)) {
+                ship.pendingBroadside = null;
+                engaged++;
+            } else {
+                ship.pendingBroadside = { type: targetType, index: targetIndex };
+                engaged++;
             }
         }
-        return { fired, anyInRange };
+        return engaged;
     }
 
     // Walk ships → ports → settlements → towers, same order as handleAttackClick
@@ -1065,14 +1078,18 @@ export function handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel,
         const dx = worldX - pos.x;
         const dy = worldY - pos.y;
         if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
-            const result = fireAt('ship', i, target);
-            if (result.fired > 0) {
-                gameState.attackTargetShipIndex = i;
-                return { fired: true, targetType: 'ship', targetId: target.id };
-            }
-            if (result.anyInRange) continue;
-            return { fired: false, reason: 'out-of-range' };
+            engageAt('ship', i, target, target.q, target.r);
+            gameState.attackTargetShipIndex = i;
+            return { fired: true, targetType: 'ship', targetId: target.id };
         }
+    }
+
+    // Land structures need a water tile to navigate to. Use the max attackDistance
+    // across selected cutters so far-out ships can find an approach hex.
+    let maxAttackDistance = 2;
+    for (const { ship } of eligibleShips) {
+        const ad = SHIPS[ship.type]?.attackDistance || 2;
+        if (ad > maxAttackDistance) maxAttackDistance = ad;
     }
 
     for (let i = 0; i < gameState.ports.length; i++) {
@@ -1082,9 +1099,10 @@ export function handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel,
         const dx = worldX - pos.x;
         const dy = worldY - pos.y;
         if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
-            const result = fireAt('port', i, target);
-            if (result.fired > 0) return { fired: true, targetType: 'port', targetId: target.id };
-            return { fired: false, reason: 'out-of-range' };
+            const waterTile = findNearestWaterInRange(map, target.q, target.r, maxAttackDistance);
+            if (!waterTile) return { fired: false, reason: 'unreachable' };
+            engageAt('port', i, target, waterTile.q, waterTile.r);
+            return { fired: true, targetType: 'port', targetId: target.id };
         }
     }
 
@@ -1095,9 +1113,10 @@ export function handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel,
         const dx = worldX - pos.x;
         const dy = worldY - pos.y;
         if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
-            const result = fireAt('settlement', i, target);
-            if (result.fired > 0) return { fired: true, targetType: 'settlement', targetId: target.id };
-            return { fired: false, reason: 'out-of-range' };
+            const waterTile = findNearestWaterInRange(map, target.q, target.r, maxAttackDistance);
+            if (!waterTile) return { fired: false, reason: 'unreachable' };
+            engageAt('settlement', i, target, waterTile.q, waterTile.r);
+            return { fired: true, targetType: 'settlement', targetId: target.id };
         }
     }
 
@@ -1108,9 +1127,10 @@ export function handleBroadsideClick(gameState, map, worldX, worldY, hexToPixel,
         const dx = worldX - pos.x;
         const dy = worldY - pos.y;
         if (Math.sqrt(dx * dx + dy * dy) < SELECTION_RADIUS) {
-            const result = fireAt('tower', i, target);
-            if (result.fired > 0) return { fired: true, targetType: 'tower', targetId: target.id };
-            return { fired: false, reason: 'out-of-range' };
+            const waterTile = findNearestWaterInRange(map, target.q, target.r, maxAttackDistance);
+            if (!waterTile) return { fired: false, reason: 'unreachable' };
+            engageAt('tower', i, target, waterTile.q, waterTile.r);
+            return { fired: true, targetType: 'tower', targetId: target.id };
         }
     }
 

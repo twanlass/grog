@@ -2874,7 +2874,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     }
                     exitActionMode(gameState);
                 } else if (result && !result.fired) {
-                    showNotification(gameState, "Out of range");
+                    showNotification(gameState, "No water approach to target");
                 }
                 // If result is null (no enemy clicked), stay in mode for another try
                 return;

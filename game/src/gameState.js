@@ -192,6 +192,7 @@ export function createShip(type, q, r, owner = 'player') {
         burstCooldown: 0,            // Timer for special burst attack (e.g. Cutter Broadside)
         tntFuse: 0,                  // Seconds until kamikaze detonation (0 = inactive)
         attackTarget: null,          // { type: 'ship', index } for player ships attacking pirates
+        pendingBroadside: null,      // { type, index } - queued broadside; fires when cutter reaches range
         // Repair state
         repair: null,  // { progress, totalTime, healthToRestore } | null
         // Patrol state

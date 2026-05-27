@@ -52,12 +52,10 @@ SHIPS.cutter = {
 
 1. Select one or more Cutters; press **B** or click the Broadside button
 2. Click an enemy ship, port, settlement, or tower
-3. For each in-range selected Cutter, `triggerBroadside()`:
-   - Fires the first cannon shot immediately
-   - Queues the remaining shots into `ship.pendingShots` with staggered delays
-   - Sets `ship.burstCooldown = burstAttack.cooldown`
-   - Subtracts `hpPenalty` from `ship.health` (clamped to a minimum of 1; the volley can never kill the firing ship outright)
-4. Each frame, `handlePlayerAttacks()` decrements `burstCooldown` and drains `pendingShots` whose delay has elapsed (firing each as a standard projectile)
+3. Every selected Cutter is engaged against the target — `attackTarget` is set and a waypoint pointed at the target (or a water tile within range, for land structures):
+   - **In-range cutters**: `triggerBroadside()` fires the volley immediately — first shot now, remaining shots queued into `ship.pendingShots`, `burstCooldown` and `hpPenalty` applied
+   - **Out-of-range cutters**: `ship.pendingBroadside = { type, index }` is set so they sail toward the target and fire the volley when they enter range
+4. Each frame, `handlePlayerAttacks()` decrements `burstCooldown`, drains `pendingShots` whose delay has elapsed, and (for ships with `pendingBroadside`) calls `triggerBroadside()` — succeeding once the cutter is in range and clearing the queue
 5. The button fill (`cooldownProgress = 1 - remaining/cooldown`) grows back to 1 over the cooldown window
 
 ### Eligibility
@@ -110,6 +108,7 @@ When a projectile lands on its destination hex and finds nothing there, `updateP
 | `burstCooldown` | `triggerBroadside` | `handlePlayerAttacks` | Special-ability gate |
 | `chaseCooldownTimer` | Giving up chase | `handlePlayerAttacks` | Suppress re-acquisition after losing a target |
 | `pendingShots[]` | `triggerBroadside` | `handlePlayerAttacks` | Staggered queued projectiles |
+| `pendingBroadside` | `handleBroadsideClick` / `handleBroadside` | `handlePlayerAttacks` | Queued volley; fires when out-of-range cutter reaches range |
 
 ## Files
 
@@ -135,5 +134,7 @@ For abilities with different mechanics (not just a burst of standard shots), ext
 - **Mixed selection**: Broadside button only shows when every selected ship has a `burstAttack`. Selecting one Cutter and one Schooner hides it.
 - **One Cutter on cooldown, others ready**: Button shows the worst-case cooldown progress but stays clickable; only ready ships fire.
 - **Cutter too damaged to fire**: A cutter at or below `hpPenalty` HP refuses the volley. If every selected cutter is in this state the click is consumed but nothing fires — repair to restore the ability.
-- **Target dies mid-volley**: Queued `pendingShots` are still fired, but they resolve against a dead target and miss. Standard `cleanupStaleReferences` clears `attackTarget` so the ship returns to idle (or auto-acquires next target if `guardMode`).
+- **Target dies mid-volley**: Queued `pendingShots` are still fired, but they resolve against a dead target and miss. Standard `cleanupStaleReferences` clears `attackTarget` and `pendingBroadside` so the ship returns to idle (or auto-acquires next target if `guardMode`).
+- **Target dies before pursuing cutter arrives**: `cleanupStaleReferences` clears the pending cutter's `pendingBroadside` and `attackTarget`; the ship goes idle on arrival.
+- **Move / Attack order overrides a queued broadside**: `handleWaypointClick` and the attack-click path both clear `pendingBroadside` when they assign a new destination or target.
 - **Multiplayer guest issues Broadside**: `BROADSIDE` command sent to host with `shipIds[]` + `targetType` + `targetId`. Host calls `triggerBroadside()` per ship and the resulting projectiles sync via the normal state snapshot. The HP penalty is applied host-side so both players see the cutter take recoil damage.
