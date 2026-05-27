@@ -5,6 +5,7 @@ import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSet
 import { getLocalPlayerId } from "../systems/inputHandler.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
 import { isTouchDevice } from "../systems/touchHandler.js";
+import { getMinimapDiameter } from "./minimap.js";
 import { CRT_SLIDERS, CRT_PRESETS } from "./crtPostEffect.js";
 import {
     drawPanelContainer,
@@ -2786,8 +2787,8 @@ export function drawActionButtons(ctx, gameState) {
     const buttonHeight = 32;
     const buttonGap = 6;
 
-    // Position to the left of minimap (minimap is 200px diameter, 15px margin)
-    const minimapLeftEdge = screenWidth - 15 - 200;
+    // Position to the left of minimap
+    const minimapLeftEdge = screenWidth - 15 - getMinimapDiameter();
     const buttonsRightEdge = minimapLeftEdge - 10;  // 10px gap from minimap
     const totalWidth = buttons.length * buttonWidth + (buttons.length - 1) * buttonGap;
     const startX = buttonsRightEdge - totalWidth;
