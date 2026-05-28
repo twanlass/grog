@@ -14,6 +14,7 @@ import { hexKey, hexDistance } from "../hex.js";
 import { findNearestWater, distributeDestinations } from "../pathfinding.js";
 import { startRepair } from "./repair.js";
 import { triggerBroadside, cancelPortConstruction, cancelTowerConstruction } from "./combat.js";
+import { commandWorkerMove, commandWorkerHarvest } from "./workers.js";
 import { COMMAND_TYPES } from "../networking/commands.js";
 
 // Local player identity — set via setLocalPlayerId() for multiplayer
@@ -629,6 +630,58 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
     }
     console.log(`Sending ${shipsWithCargo.length} ship(s) to unload at home port`);
     return true;
+}
+
+/**
+ * Worker right-click command. If the clicked hex is a tree (inland land
+ * with wood remaining), every selected worker starts a harvest loop on it.
+ * If the clicked hex is plain land, every selected worker walks to it.
+ * Water clicks are ignored — workers can't sail.
+ *
+ * Returns true if at least one worker accepted the command.
+ */
+export function handleWorkerCommandClick(gameState, map, clickedHex) {
+    const selectedWorkers = gameState.selectedUnits
+        .filter(u => u.type === 'worker')
+        .map(u => gameState.workers[u.index])
+        .filter(w => w && (w.owner || 'player') === localPlayerId);
+    if (selectedWorkers.length === 0) return false;
+
+    const tile = map.tiles.get(hexKey(clickedHex.q, clickedHex.r));
+    if (!tile || tile.type !== 'land') return false;
+
+    const isTreeHex = !tile.isPortSite && (tile.woodRemaining || 0) > 0 && !tile.depleted;
+    let commanded = 0;
+    for (const worker of selectedWorkers) {
+        const ok = isTreeHex
+            ? commandWorkerHarvest(worker, map, clickedHex.q, clickedHex.r)
+            : commandWorkerMove(worker, map, clickedHex.q, clickedHex.r);
+        if (ok) commanded++;
+    }
+    return commanded > 0;
+}
+
+/**
+ * Click-to-select for workers (single click). Mirrors the ship branch of
+ * handleUnitSelection — uses visual position so hit-testing works while
+ * walking. Returns { type: 'worker', index } if a worker was selected.
+ */
+export function handleWorkerSelection(gameState, worldX, worldY, isShiftHeld, getWorkerVisualPos) {
+    if (!gameState.workers) return null;
+    const SELECT_RADIUS = 14;  // bigger than the dot so it's easy to click
+    for (let i = 0; i < gameState.workers.length; i++) {
+        const worker = gameState.workers[i];
+        if (isNonLocal(worker.owner)) continue;
+        const pos = getWorkerVisualPos(worker);
+        const dx = worldX - pos.x;
+        const dy = worldY - pos.y;
+        if (Math.sqrt(dx * dx + dy * dy) < SELECT_RADIUS) {
+            if (isShiftHeld) toggleSelection(gameState, 'worker', i);
+            else selectUnit(gameState, 'worker', i);
+            return { type: 'worker', index: i };
+        }
+    }
+    return null;
 }
 
 /**

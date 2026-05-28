@@ -116,7 +116,12 @@ export function drawDecorations(ctx, map, tilePositions, tileDecorations, gameSt
         if (screenX < -margin || screenX > screenWidth + margin ||
             screenY < -margin || screenY > screenHeight + margin) continue;
 
+        // Hide trees/palms on hexes that workers have chopped clean. Grass
+        // still draws so the tile doesn't look completely flat.
+        const treesGone = tile.depleted === true;
+
         for (const dec of decorations) {
+            if (treesGone && (dec.type === 'tree' || dec.type === 'palm')) continue;
             const dx = dec.rx * scaledHexSize * 0.4;
             const dy = dec.ry * scaledHexSize * 0.4;
 

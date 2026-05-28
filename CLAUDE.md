@@ -23,6 +23,7 @@ game/
       construction.js      # Port/settlement building progress
       resourceGeneration.js # Settlement resource production
       combat.js            # Combat, projectiles, damage
+      workers.js           # Worker movement + tree harvest state machine
       aiPlayer.js          # AI opponent decisions (versus mode)
       inputHandler.js      # Click interaction handlers
     networking/
@@ -39,6 +40,7 @@ game/
       ports.js        # Port definitions and pixel art
       settlements.js  # Settlement definitions and pixel art
       towers.js       # Tower definitions and pixel art
+      workers.js      # Worker entity config + TREE_HEX_WOOD constant
 ```
 
 ## Feature Documentation
@@ -56,6 +58,7 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [Port Building](docs/features/port-building.md)
 - [Settlement Building](docs/features/settlement-building.md)
 - [Tower Building](docs/features/tower-building.md)
+- [Workers](docs/features/workers.md) - Land units that chop trees for wood (prototype)
 - [Trade Routes](docs/features/trade-routes.md)
 - [Patrol Routes](docs/features/patrol.md)
 - [Pirates](docs/features/pirates.md)

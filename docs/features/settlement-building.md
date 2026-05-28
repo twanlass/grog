@@ -1,6 +1,12 @@
 # Settlement Building
 
-Ports can construct settlements on nearby land. Settlements generate wood and food over time.
+Ports can construct settlements on nearby land.
+
+> **Prototype note:** As of the worker prototype, **player settlements no
+> longer produce wood**. Wood now comes from workers chopping tree hexes
+> (see [Workers](workers.md)). Player settlements are inert structures
+> for now — buildable, repairable, destructible, but no economic output.
+> AI settlements still produce wood (the AI doesn't use workers yet).
 
 ## Behavior
 

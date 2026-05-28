@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland, isWater } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, createTower, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner, isPirateShip } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, createTower, createWorker, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, getSelectedWorkers, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner, isPirateShip } from "../gameState.js";
 import { drawDesignerPanel, hitTestRegion } from "../rendering/designerPanel.js";
 import { clampScale, SCALE_MIN, SCALE_MAX } from "../designer/scaleTuner.js";
 import { uploadSprite, resetSprite } from "../designer/assetSwap.js";
@@ -21,7 +21,7 @@ function seededRandom(seed) {
     const x = Math.sin(seed * 12.9898) * 43758.5453;
     return x - Math.floor(x);
 }
-import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
+import { drawPorts, drawSettlements, drawTowers, drawShips, drawWorkers, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
 import { drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
@@ -33,6 +33,8 @@ import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems
 import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
+import { updateWorkers, getWorkerVisualPos } from "../systems/workers.js";
+import { WORKER_CONFIG } from "../sprites/workers.js";
 import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterSpawnPositions, armTNT } from "../systems/combat.js";
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
@@ -45,7 +47,8 @@ import {
     handleShipBuildPanelClick, handleBuildPanelClick, handleBuildQueueClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
     handleUnitSelection, handleWaypointClick, handleAttackClick, handleBroadsideClick, handlePortRallyPointClick,
-    handlePatrolWaypointClick
+    handlePatrolWaypointClick,
+    handleWorkerCommandClick, handleWorkerSelection
 } from "../systems/inputHandler.js";
 
 // Mobile touch support
@@ -134,6 +137,36 @@ function drawHexRangeOutline(k, centerQ, centerR, range, cameraX, cameraY, zoom,
             }
         }
     }
+}
+
+// Spawn `count` starting workers near a port on land tiles. BFS outward from
+// the port hex looking for land hexes; each found hex hosts one worker.
+function spawnStartingWorkers(gameState, map, port, count, owner) {
+    if (!port || count <= 0) return 0;
+    const placed = [];
+    const visited = new Set([hexKey(port.q, port.r)]);
+    const queue = [{ q: port.q, r: port.r }];
+    while (queue.length > 0 && placed.length < count) {
+        const current = queue.shift();
+        for (const n of hexNeighbors(current.q, current.r)) {
+            const nKey = hexKey(n.q, n.r);
+            if (visited.has(nKey)) continue;
+            visited.add(nKey);
+            const tile = map.tiles.get(nKey);
+            if (!tile || tile.type !== 'land') continue;
+            placed.push({ q: n.q, r: n.r });
+            queue.push(n);
+            if (placed.length >= count) break;
+        }
+    }
+    // Fall back to stacking on the port hex if the island has too few land hexes.
+    while (placed.length < count) {
+        placed.push({ q: port.q, r: port.r });
+    }
+    for (const spot of placed) {
+        gameState.workers.push(createWorker(spot.q, spot.r, owner));
+    }
+    return placed.length;
 }
 
 export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, getAIStrategy = () => null, getDifficulty = () => 'normal', getAICount = () => 3, getMultiplayerConfig = () => null) {
@@ -271,8 +304,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const playerPort = findPortSiteOnStarterIsland(map, map.starterPositions[positionIndices[0]]);
 
                 // Player start
-                gameState.ports.push(createPort('dock', playerPort.q, playerPort.r, false, null, 'player'));
+                const versusPlayerPort = createPort('dock', playerPort.q, playerPort.r, false, null, 'player');
+                gameState.ports.push(versusPlayerPort);
                 gameState.homeIslandHex = { q: playerPort.q, r: playerPort.r };
+                spawnStartingWorkers(gameState, map, versusPlayerPort, WORKER_CONFIG.startingCount, 'player');
 
                 // Initialize AI ports and home islands based on selected count
                 const aiOwnerIds = ['ai1', 'ai2', 'ai3'];
@@ -323,8 +358,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (positions) {
                     const fallbackAICount = Math.min(aiCount, 2); // Triangular finder only has 2 AI positions
 
-                    gameState.ports.push(createPort('dock', positions.player.q, positions.player.r, false, null, 'player'));
+                    const versusFallbackPlayerPort = createPort('dock', positions.player.q, positions.player.r, false, null, 'player');
+                    gameState.ports.push(versusFallbackPlayerPort);
                     gameState.homeIslandHex = { q: positions.player.q, r: positions.player.r };
+                    spawnStartingWorkers(gameState, map, versusFallbackPlayerPort, WORKER_CONFIG.startingCount, 'player');
 
                     gameState.aiHomeIslandHexes = [];
                     const aiPositions = [positions.ai1, positions.ai2];
@@ -356,8 +393,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 } else {
                     const startTile = findStartingPosition(map);
                     if (startTile) {
-                        gameState.ports.push(createPort('dock', startTile.q, startTile.r, false, null, 'player'));
+                        const fallbackPort = createPort('dock', startTile.q, startTile.r, false, null, 'player');
+                        gameState.ports.push(fallbackPort);
                         gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
+                        spawnStartingWorkers(gameState, map, fallbackPort, WORKER_CONFIG.startingCount, 'player');
                     }
                     console.warn('Could not find starting positions for versus mode');
                 }
@@ -381,10 +420,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const startTile = findStartingPosition(map);
             if (startTile) {
                 // Place starting dock port (player must build ships)
-                gameState.ports.push(createPort('dock', startTile.q, startTile.r, false, null, 'player'));
+                const sandboxPort = createPort('dock', startTile.q, startTile.r, false, null, 'player');
+                gameState.ports.push(sandboxPort);
 
                 // Set home island - the landmass where the first port was placed
                 gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
+
+                // Spawn starting workers — wood now comes from chopping trees,
+                // not from settlements, so the player needs labour from frame 1.
+                spawnStartingWorkers(gameState, map, sandboxPort, WORKER_CONFIG.startingCount, 'player');
 
                 // Handle initial pirate spawning based on game mode
                 if (scenario.gameMode === 'sandbox') {
@@ -990,6 +1034,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const constructionDt = gameState.instantBuild ? dt * 10000 : dt;
             updateConstruction(gameState, map, fogState, constructionDt, floatingNumbers);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
+            updateWorkers(gameState, map, dt, floatingNumbers);
             updateCombat(hexToPixel, gameState, map, dt, fogState);
 
             // Process sound events from combat (only play if visible to player)
@@ -1226,6 +1271,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             return getShipVisualPos(hexToPixel, ship);
         }
 
+        // Same for workers — interpolates between hexes while walking
+        function getWorkerVisualPosLocal(worker) {
+            return getWorkerVisualPos(worker, hexToPixel);
+        }
+
 
         // Main render loop
         k.onDraw(() => {
@@ -1282,6 +1332,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Draw ships (migrated to rendering module)
             drawShips(ctx, gameState, fogState, getShipVisualPosLocal);
 
+            // Draw workers (land units — dots on grass)
+            drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal);
+
             // Draw projectiles (migrated to rendering module)
             drawProjectiles(ctx, gameState, fogState);
 
@@ -1298,7 +1351,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             drawDockingProgress(ctx, gameState, getShipVisualPosLocal, fogState);
 
             // Draw all selection indicators (migrated to rendering module)
-            drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, null);
+            drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, null, getWorkerVisualPosLocal);
 
             // Draw placement mode UI (migrated to rendering module)
             const placementValidators = { isValidPortSite, isValidSettlementSite, isValidTowerSite };
@@ -3153,9 +3206,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Check unit selection (ships, ports, settlements)
+            // Check unit selection (workers first — they're small/dense, then ships, ports, etc.)
             if (!clickedOnUnit) {
-                const clickedUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPosLocal);
+                let clickedUnit = handleWorkerSelection(gameState, worldX, worldY, isShiftHeld, getWorkerVisualPosLocal);
+                if (!clickedUnit) {
+                    clickedUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPosLocal);
+                }
                 clickedOnUnit = clickedUnit !== null;
 
                 // Exit action mode when selecting a unit
@@ -3180,6 +3236,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         subType = gameState.towers[clickedUnit.index].type;
                     } else if (clickedUnit.type === 'settlement') {
                         subType = 'settlement';  // All settlements are same type
+                    } else if (clickedUnit.type === 'worker') {
+                        subType = 'worker';  // All workers are one type
                     }
 
                     if (lastClickedUnit &&
@@ -3255,6 +3313,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const clickedHex = pixelToHex(worldX, worldY);
 
             const isShiftHeld = shiftKeyHeld;
+
+            // Worker commands: tree = harvest loop, land = walk. Workers
+            // and ships don't share a control vocabulary — if any workers
+            // are selected, the right-click resolves the worker intent
+            // first, then falls through so any co-selected ships can also
+            // act on the same click (water for ships, land for workers).
+            const hasSelectedWorkers = gameState.selectedUnits.some(u => u.type === 'worker');
+            if (hasSelectedWorkers) {
+                handleWorkerCommandClick(gameState, map, clickedHex);
+                // If ONLY workers are selected, stop here. Otherwise let the
+                // ship-side handlers below also process the click.
+                const hasSelectedShips = gameState.selectedUnits.some(u => u.type === 'ship');
+                if (!hasSelectedShips) return;
+            }
 
             // Attack enemy (skips ports if shift held for plundering)
             if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal, isShiftHeld)) {
@@ -3400,6 +3472,20 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
+            // Check each worker (skip non-local workers). Workers are common
+            // and easy to box-select since they're small dots on land.
+            for (let i = 0; i < gameState.workers.length; i++) {
+                const worker = gameState.workers[i];
+                if ((worker.owner || 'player') !== localPlayerId) continue;
+                const pos = getWorkerVisualPosLocal(worker);
+                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
+                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
+                if (screenX >= boxLeft && screenX <= boxRight &&
+                    screenY >= boxTop && screenY <= boxBottom) {
+                    addToSelection(gameState, 'worker', i);
+                }
+            }
+
             const count = gameState.selectedUnits.length;
             if (count > 0) {
                 console.log(`Selected ${count} unit(s)`);
@@ -3479,6 +3565,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                     if (isOnScreen(screenX, screenY)) {
                         addToSelection(gameState, 'settlement', i);
+                    }
+                }
+            } else if (unitType === 'worker') {
+                for (let i = 0; i < gameState.workers.length; i++) {
+                    const worker = gameState.workers[i];
+                    if ((worker.owner || 'player') !== localPlayerId) continue;
+                    const pos = getWorkerVisualPosLocal(worker);
+                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
+                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
+                    if (isOnScreen(screenX, screenY)) {
+                        addToSelection(gameState, 'worker', i);
                     }
                 }
             }

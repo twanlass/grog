@@ -3,6 +3,7 @@ import { PORTS } from "./sprites/ports.js";
 import { SHIPS } from "./sprites/ships.js";
 import { SETTLEMENTS } from "./sprites/settlements.js";
 import { TOWERS, TOWER_TECH_TREE } from "./sprites/towers.js";
+import { WORKER_CONFIG } from "./sprites/workers.js";
 import { hexKey, hexNeighbors, hexDistance } from "./hex.js";
 import { AI_DIFFICULTY } from "./systems/aiPlayer.js";
 import { isWater } from "./mapGenerator.js";
@@ -58,6 +59,10 @@ export function createGameState(config = {}) {
 
         // Player's towers: [{ type, q, r, health, construction, attackCooldown }]
         towers: [],
+
+        // Land-based workers: [{ id, owner, q, r, path, moveProgress, state, ... }]
+        // See systems/workers.js for the state machine.
+        workers: [],
 
         // Tower building placement mode (always builds watchtower)
         towerBuildMode: {
@@ -222,6 +227,34 @@ export function createShip(type, q, r, owner = 'player') {
     };
 }
 
+// Create a new worker. Workers walk on land, harvest wood from inland land
+// tiles, and deposit it at the nearest player-owned port.
+export function createWorker(q, r, owner = 'player') {
+    return {
+        id: nextEntityId('worker'),
+        owner,
+        q,
+        r,
+        // Movement (mirrors ship movement: A* path + per-hex moveProgress)
+        path: null,                 // Array of { q, r } hexes to walk through
+        moveProgress: 0,
+        movingToward: null,         // { q, r } - hex we're currently walking toward
+        // State machine: 'idle' | 'moving' | 'chopping' | 'returning'
+        state: 'idle',
+        // Active harvest assignment: { q, r } of the tree hex we're chopping/heading to.
+        // Null when the worker has no orders. A 'moving' worker may have null target
+        // (just walking somewhere) or a target (heading to that tree to chop).
+        harvestTarget: null,
+        // Cargo
+        cargo: 0,
+        // Chopping progress (seconds elapsed in the current chop)
+        chopProgress: 0,
+        // Combat
+        health: WORKER_CONFIG.health,
+        hitFlash: 0,
+    };
+}
+
 // Create a new port (optionally under construction)
 export function createPort(type, q, r, isConstructing = false, builderShipIndex = null, owner = 'player') {
     return {
@@ -259,6 +292,7 @@ function getEntityId(gameState, type, index) {
     const entity = type === 'ship' ? gameState.ships[index]
         : type === 'port' ? gameState.ports[index]
         : type === 'settlement' ? gameState.settlements[index]
+        : type === 'worker' ? gameState.workers[index]
         : gameState.towers[index];
     return entity?.id || null;
 }
@@ -304,6 +338,7 @@ export function getSelectedUnits(gameState) {
         if (type === 'port') return gameState.ports[index];
         if (type === 'settlement') return gameState.settlements[index];
         if (type === 'tower') return gameState.towers[index];
+        if (type === 'worker') return gameState.workers[index];
         return null;
     }).filter(u => u !== null);
 }
@@ -313,6 +348,13 @@ export function getSelectedShips(gameState) {
     return gameState.selectedUnits
         .filter(u => u.type === 'ship')
         .map(u => gameState.ships[u.index]);
+}
+
+// Get selected workers only (for harvest/move commands)
+export function getSelectedWorkers(gameState) {
+    return gameState.selectedUnits
+        .filter(u => u.type === 'worker')
+        .map(u => gameState.workers[u.index]);
 }
 
 // ============================================================
@@ -331,6 +373,7 @@ export function saveSelectionToGroup(gameState, slot) {
         else if (unit.type === 'port') entity = gameState.ports[unit.index];
         else if (unit.type === 'settlement') entity = gameState.settlements[unit.index];
         else if (unit.type === 'tower') entity = gameState.towers[unit.index];
+        else if (unit.type === 'worker') entity = gameState.workers[unit.index];
 
         if (entity?.id) {
             saved.push({ type: unit.type, id: entity.id });
@@ -353,6 +396,7 @@ export function recallSelectionFromGroup(gameState, slot) {
         else if (entry.type === 'port') collection = gameState.ports;
         else if (entry.type === 'settlement') collection = gameState.settlements;
         else if (entry.type === 'tower') collection = gameState.towers;
+        else if (entry.type === 'worker') collection = gameState.workers;
 
         if (collection) {
             const index = collection.findIndex(e => e.id === entry.id);
@@ -377,6 +421,7 @@ export function getGroupCenterPosition(gameState, slot, hexToPixelFn) {
         else if (unit.type === 'port') entity = gameState.ports[unit.index];
         else if (unit.type === 'settlement') entity = gameState.settlements[unit.index];
         else if (unit.type === 'tower') entity = gameState.towers[unit.index];
+        else if (unit.type === 'worker') entity = gameState.workers[unit.index];
 
         if (entity) {
             const pos = hexToPixelFn(entity.q, entity.r);

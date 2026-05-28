@@ -6,6 +6,7 @@ import { getShipVisualPos } from "../systems/shipMovement.js";
 import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js";
 import { isAIOwner } from "../gameState.js";
 import { getRenderScale } from "../designer/scaleTuner.js";
+import { WORKER_CONFIG } from "../sprites/workers.js";
 
 // Check if an entity is "non-local" (should show enemy faction indicator)
 // Uses fogState.localPlayerId to determine the local player
@@ -470,6 +471,58 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
                     screenY - spriteSize.height / 2,
                     unitScale, ship.hitFlash / 0.15);
             }
+        }
+    }
+}
+
+/**
+ * Draw all workers as simple colored dots with smooth interpolated movement.
+ * A small darker pip on top of the dot indicates the worker is carrying
+ * wood back to a port. Prototype-art only — no sprite yet.
+ */
+export function drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal) {
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
+    if (!gameState.workers || gameState.workers.length === 0) return;
+
+    const baseRadius = WORKER_CONFIG.radius;
+    const color = k.rgb(...WORKER_CONFIG.color);
+    const cargoColor = k.rgb(...WORKER_CONFIG.cargoIndicatorColor);
+    const dyingColor = k.rgb(255, 60, 60);
+
+    for (const worker of gameState.workers) {
+        if (!shouldRenderEntity(fogState, worker)) continue;
+
+        const pos = getWorkerVisualPosLocal(worker);
+        const screenX = (pos.x - cameraX) * zoom + halfWidth;
+        const screenY = (pos.y - cameraY) * zoom + halfHeight;
+        if (screenX < -50 || screenX > ctx.screenWidth + 50 ||
+            screenY < -50 || screenY > ctx.screenHeight + 50) continue;
+
+        const radius = Math.max(2, baseRadius * zoom);
+
+        // Dark outline for legibility against grass
+        k.drawCircle({
+            pos: k.vec2(screenX, screenY),
+            radius: radius + Math.max(1, zoom),
+            color: k.rgb(30, 20, 10),
+            opacity: 0.7,
+        });
+
+        // Body — flashes red briefly when hit
+        const bodyColor = worker.hitFlash > 0 ? dyingColor : color;
+        k.drawCircle({
+            pos: k.vec2(screenX, screenY),
+            radius,
+            color: bodyColor,
+        });
+
+        // Cargo pip — small brown dot offset upward
+        if (worker.cargo > 0) {
+            k.drawCircle({
+                pos: k.vec2(screenX, screenY - radius * 0.8),
+                radius: Math.max(1.5, radius * 0.45),
+                color: cargoColor,
+            });
         }
     }
 }

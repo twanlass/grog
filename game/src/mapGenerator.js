@@ -1,6 +1,7 @@
 // Procedural map generation for Trade Winds
 import { hexKey, hexNeighbors } from "./hex.js";
 import { selectRandomTemplates } from "./islandTemplates.js";
+import { TREE_HEX_WOOD } from "./sprites/workers.js";
 
 // Tile types
 export const TILE_TYPES = {
@@ -394,6 +395,17 @@ export function generateMap(options = {}) {
             if (hasWaterNeighbor) {
                 tile.isPortSite = true;
             }
+        }
+    }
+
+    // PHASE 4: Seed harvestable wood on every inland (non-coastal) land tile.
+    // These are the same tiles where settlements can be placed and where the
+    // decoration layer draws trees, so workers can read `tile.woodRemaining`
+    // directly to know which hexes are choppable.
+    for (const tile of tiles.values()) {
+        if (tile.type === TILE_TYPES.LAND && !tile.isPortSite) {
+            tile.woodRemaining = TREE_HEX_WOOD;
+            tile.depleted = false;
         }
     }
 
