@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland, isWater } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, createTower, createWorker, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner, isPirateShip } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, createTower, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner, isPirateShip } from "../gameState.js";
 import { drawDesignerPanel, hitTestRegion } from "../rendering/designerPanel.js";
 import { clampScale, SCALE_MIN, SCALE_MAX } from "../designer/scaleTuner.js";
 import { uploadSprite, resetSprite } from "../designer/assetSwap.js";
@@ -34,7 +34,6 @@ import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
 import { updateWorkers, getWorkerVisualPos } from "../systems/workers.js";
-import { WORKER_CONFIG } from "../sprites/workers.js";
 import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterSpawnPositions, armTNT } from "../systems/combat.js";
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
@@ -136,36 +135,6 @@ function drawHexRangeOutline(k, centerQ, centerR, range, cameraX, cameraY, zoom,
             }
         }
     }
-}
-
-// Spawn `count` starting workers near a port on land tiles. BFS outward from
-// the port hex looking for land hexes; each found hex hosts one worker.
-function spawnStartingWorkers(gameState, map, port, count, owner) {
-    if (!port || count <= 0) return 0;
-    const placed = [];
-    const visited = new Set([hexKey(port.q, port.r)]);
-    const queue = [{ q: port.q, r: port.r }];
-    while (queue.length > 0 && placed.length < count) {
-        const current = queue.shift();
-        for (const n of hexNeighbors(current.q, current.r)) {
-            const nKey = hexKey(n.q, n.r);
-            if (visited.has(nKey)) continue;
-            visited.add(nKey);
-            const tile = map.tiles.get(nKey);
-            if (!tile || tile.type !== 'land') continue;
-            placed.push({ q: n.q, r: n.r });
-            queue.push(n);
-            if (placed.length >= count) break;
-        }
-    }
-    // Fall back to stacking on the port hex if the island has too few land hexes.
-    while (placed.length < count) {
-        placed.push({ q: port.q, r: port.r });
-    }
-    for (const spot of placed) {
-        gameState.workers.push(createWorker(spot.q, spot.r, owner));
-    }
-    return placed.length;
 }
 
 export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, getAIStrategy = () => null, getDifficulty = () => 'normal', getAICount = () => 3, getMultiplayerConfig = () => null) {
@@ -303,10 +272,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const playerPort = findPortSiteOnStarterIsland(map, map.starterPositions[positionIndices[0]]);
 
                 // Player start
-                const versusPlayerPort = createPort('dock', playerPort.q, playerPort.r, false, null, 'player');
-                gameState.ports.push(versusPlayerPort);
+                gameState.ports.push(createPort('dock', playerPort.q, playerPort.r, false, null, 'player'));
                 gameState.homeIslandHex = { q: playerPort.q, r: playerPort.r };
-                spawnStartingWorkers(gameState, map, versusPlayerPort, WORKER_CONFIG.startingCount, 'player');
 
                 // Initialize AI ports and home islands based on selected count
                 const aiOwnerIds = ['ai1', 'ai2', 'ai3'];
@@ -357,10 +324,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (positions) {
                     const fallbackAICount = Math.min(aiCount, 2); // Triangular finder only has 2 AI positions
 
-                    const versusFallbackPlayerPort = createPort('dock', positions.player.q, positions.player.r, false, null, 'player');
-                    gameState.ports.push(versusFallbackPlayerPort);
+                    gameState.ports.push(createPort('dock', positions.player.q, positions.player.r, false, null, 'player'));
                     gameState.homeIslandHex = { q: positions.player.q, r: positions.player.r };
-                    spawnStartingWorkers(gameState, map, versusFallbackPlayerPort, WORKER_CONFIG.startingCount, 'player');
 
                     gameState.aiHomeIslandHexes = [];
                     const aiPositions = [positions.ai1, positions.ai2];
@@ -392,10 +357,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 } else {
                     const startTile = findStartingPosition(map);
                     if (startTile) {
-                        const fallbackPort = createPort('dock', startTile.q, startTile.r, false, null, 'player');
-                        gameState.ports.push(fallbackPort);
+                        gameState.ports.push(createPort('dock', startTile.q, startTile.r, false, null, 'player'));
                         gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
-                        spawnStartingWorkers(gameState, map, fallbackPort, WORKER_CONFIG.startingCount, 'player');
                     }
                     console.warn('Could not find starting positions for versus mode');
                 }
@@ -419,15 +382,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const startTile = findStartingPosition(map);
             if (startTile) {
                 // Place starting dock port (player must build ships)
-                const sandboxPort = createPort('dock', startTile.q, startTile.r, false, null, 'player');
-                gameState.ports.push(sandboxPort);
+                gameState.ports.push(createPort('dock', startTile.q, startTile.r, false, null, 'player'));
 
                 // Set home island - the landmass where the first port was placed
                 gameState.homeIslandHex = { q: startTile.q, r: startTile.r };
-
-                // Spawn starting workers — wood now comes from chopping trees,
-                // not from settlements, so the player needs labour from frame 1.
-                spawnStartingWorkers(gameState, map, sandboxPort, WORKER_CONFIG.startingCount, 'player');
 
                 // Handle initial pirate spawning based on game mode
                 if (scenario.gameMode === 'sandbox') {

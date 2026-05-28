@@ -15,11 +15,12 @@ timer-based generator (no AI workers).
 
 ## How wood is produced
 
-1. **Game start:** the home port spawns `WORKER_CONFIG.startingCount` (3)
-   workers next to it. They immediately start chopping.
+1. **Game start:** the home port has **no workers**. The player has
+   25 starting wood — enough to build the first settlement (5 wood)
+   plus a cutter (10) plus some buffer.
 2. **Build a settlement** from the port build panel. When construction
-   completes, the settlement spawns `SETTLEMENT_WORKERS` (3) more
-   workers next to it.
+   completes, the settlement spawns `SETTLEMENT_WORKERS` (3) workers
+   next to it.
 3. Every worker repeats: **idle → walk to nearest tree on the same island
    → chop until cargo full → walk to nearest hub (port or settlement) →
    deposit (instant +5 wood, floating number) → idle**.
@@ -108,7 +109,7 @@ tile.depleted = false;
 | `game/src/gameState.js` | `createWorker` |
 | `game/src/mapGenerator.js` | Seeds `woodRemaining` on inland land tiles |
 | `game/src/pathfinding.js` | `findLandPath`, `findNearestTreeOnIsland`, `findNearestDepositHexOnIsland` |
-| `game/src/scenes/gameScene.js` | `spawnStartingWorkers` (home port at game start), workers update + draw |
+| `game/src/scenes/gameScene.js` | Workers update + draw wiring |
 | `game/src/rendering/unitRenderer.js` | `drawWorkers` (dots + cargo pip) |
 | `game/src/rendering/tileRenderer.js` | Hides trees on `tile.depleted === true` |
 | `game/src/systems/resourceGeneration.js` | Player-settlement wood removed; AI settlement wood retained |
@@ -117,7 +118,6 @@ tile.depleted = false;
 
 | Constant                          | Default | What it controls                                  |
 | --------------------------------- | ------- | ------------------------------------------------- |
-| `WORKER_CONFIG.startingCount`     | 3       | Workers spawned next to the home port at game start |
 | `SETTLEMENT_WORKERS`              | 3       | Workers spawned when a settlement completes       |
 | `WORKER_CONFIG.speed`             | 0.6     | Walk speed (hexes / sec)                          |
 | `WORKER_CONFIG.health`            | 20      | HP                                                |

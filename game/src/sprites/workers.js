@@ -7,11 +7,6 @@
 // a unit the player micromanages.
 
 export const WORKER_CONFIG = {
-    // Workers spawned next to the home port at game start. The home port
-    // is the player's "settlement-zero" — without these the early game has
-    // no wood income until the first settlement is built.
-    startingCount: 3,
-
     // How fast a worker walks across hexes (hexes per second). Ships are
     // ~1.2 hex/sec for reference; workers should feel slower than ships.
     speed: 0.6,
