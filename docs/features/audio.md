@@ -14,6 +14,8 @@ Open the in-game menu panel (`/` key or the menu button) and adjust the two slid
 - Desktop: click+drag on a slider track.
 - Touch: tap anywhere on a slider track to jump the thumb.
 
+Opening the controls panel pauses the game (`timeScale = 0`) but the ambient music and ocean loops keep playing so the sliders give live audible feedback while dragging. Auto-pausing ambient audio is suppressed for as long as `menuPanelOpen` is true (see `gameScene.js`).
+
 ## Implementation
 
 `src/audio.js` exports:

@@ -426,7 +426,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     ctx.resume();
                 }
                 // Re-apply paused state to nudge handles back into playback
-                const shouldPauseAudio = gameState.timeScale === 0;
+                const shouldPauseAudio = gameState.timeScale === 0 && !menuPanelOpen;
                 ambientOcean.paused = true;
                 ambientMusic.paused = true;
                 ambientOcean.paused = shouldPauseAudio;
@@ -831,8 +831,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const rawDt = Math.min(k.dt(), 0.1);
             const dt = rawDt * gameState.timeScale;
 
-            // Pause/resume ambient audio when game is paused
-            const shouldPauseAudio = gameState.timeScale === 0;
+            // Pause/resume ambient audio when game is paused. Keep audio
+            // playing while the controls panel is open so the volume sliders
+            // give live feedback as the user drags them.
+            const shouldPauseAudio = gameState.timeScale === 0 && !menuPanelOpen;
             if (ambientOcean.paused !== shouldPauseAudio) {
                 ambientOcean.paused = shouldPauseAudio;
             }
