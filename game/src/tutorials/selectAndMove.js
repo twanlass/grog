@@ -26,6 +26,9 @@ export const selectAndMoveVignette = {
 
     setup(gameState, map) {
         gameState.ships = [];
+        gameState.ports = [];
+        gameState.settlements = [];
+        gameState.towers = [];
         clearSelection(gameState);
 
         const allCoastal = findStarterIslandCoastalWater(map);
@@ -78,6 +81,6 @@ export const selectAndMoveVignette = {
         { type: 'wait', duration: 2.5 },
         { type: 'caption', text: 'Scroll the mouse wheel to zoom' },
         { type: 'wait', duration: 2.5 },
-        { type: 'nextVignette', id: 'select-and-attack' },
+        { type: 'nextVignette', id: 'select-and-build' },
     ],
 };
