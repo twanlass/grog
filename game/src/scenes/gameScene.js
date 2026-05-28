@@ -823,7 +823,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Main game update loop - delegates to system modules
         k.onUpdate(() => {
-            const rawDt = k.dt();
+            // Clamp dt so a stalled frame (tab backgrounded, scene transition,
+            // mobile thread throttling) can't teleport simulation state. Without
+            // this a >1s spike fast-forwards every timer in one tick — most
+            // visibly the tutorial, which would race past select-and-move and
+            // select-and-build straight into select-and-attack.
+            const rawDt = Math.min(k.dt(), 0.1);
             const dt = rawDt * gameState.timeScale;
 
             // Pause/resume ambient audio when game is paused
