@@ -2,7 +2,7 @@
 import {
     createShip, createPort, findFreeAdjacentWater, canAfford, deductCost,
     canAffordCrew, isValidPortSite, getResourcesForOwner, showNotification,
-    MAX_PORT_BUILD_DISTANCE,
+    PORT_DOCK_DISTANCE,
 } from "../gameState.js";
 import { SHIPS, SETTLEMENTS, TOWERS, PORTS } from "../sprites/index.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
@@ -36,8 +36,8 @@ export function updateConstruction(gameState, map, fogState, dt, floatingNumbers
 }
 
 /**
- * Check ships with a deferred port build. When a ship is stationary AND within
- * build range of its target hex, validate site/affordability and start construction.
+ * Check ships with a deferred port build. When a ship is stationary AND docked
+ * adjacent to its target shore, validate site/affordability and start construction.
  * If the target became invalid (someone built there), clear the intent silently.
  */
 function updatePendingBuilds(gameState, map, fogState) {
@@ -58,9 +58,9 @@ function updatePendingBuilds(gameState, map, fogState) {
             continue;
         }
 
-        if (!isStationary || dist > MAX_PORT_BUILD_DISTANCE) continue;
+        if (!isStationary || dist > PORT_DOCK_DISTANCE) continue;
 
-        // Arrived in range — try to start the build
+        // Docked against the shore — try to start the build
         const portData = PORTS[portType];
         if (!portData) {
             ship.pendingBuild = null;

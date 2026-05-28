@@ -8,20 +8,20 @@ Ships can construct new ports when docked at shore. This allows players to expan
 - A ship is "docked" when:
   - On a water hex adjacent to land
   - Stationary (no active waypoint)
-- Any stationary ship shows the "BUILD PORT" panel (bottom-left), even when not adjacent to land. Placement still requires a valid shore hex within the ship's build range (5 hexes) for immediate placement; clicking an out-of-range shore queues a deferred build (see below).
+- Any stationary ship shows the "BUILD PORT" panel (bottom-left), even when not adjacent to land. Clicking a valid shore sails the ship to a water hex adjacent to it and builds on arrival; a ship already docked there builds immediately (see Sail-and-build below).
 
 ### Placement Mode
 - Click a port type in the panel to enter placement mode
-- Green highlights show valid in-range placement hexes (within 5 hexes of the ship)
-- Amber highlights show valid out-of-range shore hexes — clicking one queues a deferred build
+- Green highlights show valid shore hexes within placement range (≤5 hexes of the ship); amber highlights show valid shores farther out
 - Brighter highlight on currently hovered hex
-- Click a green hex to start construction immediately, or an amber hex to sail there and build on arrival
+- A port is always built from a water hex **directly adjacent to the chosen shore**. Click any valid shore (green or amber) and the ship sails there to build — green just means a shorter trip
+- If the ship is already docked adjacent to the clicked shore, construction starts immediately
 - Press ESC or right-click to cancel
 
-### Deferred Build (sail-and-build)
-- Clicking an amber (out-of-range) shore hex sets a waypoint to the nearest water tile adjacent to the target and stores `ship.pendingBuild = { portType, q, r }`
+### Sail-and-build
+- Clicking a shore the ship isn't already docked at sets a waypoint to the nearest water tile adjacent to the target and stores `ship.pendingBuild = { portType, q, r }`
 - Resource cost is **not** deducted until the build actually starts (on arrival), so a player who runs out of resources mid-voyage will simply wait at the target until they can afford it
-- On each frame, the construction system checks ships with `pendingBuild`. When the ship is stationary AND within build range AND the site is still valid AND affordable, construction starts automatically
+- On each frame, the construction system checks ships with `pendingBuild`. When the ship is stationary AND docked adjacent (within `PORT_DOCK_DISTANCE`, 1 hex) of the target AND the site is still valid AND affordable, construction starts automatically
 - If the target site becomes invalid mid-voyage (another player/AI built there), the intent is cleared with a "Build site no longer available" notification
 - Issuing a manual move (Cmd+click), attack click, or attack command to the ship clears its `pendingBuild` — the new command overrides the deferred build
 
@@ -40,7 +40,7 @@ Ships can construct new ports when docked at shore. This allows players to expan
 
 ## Costs
 
-Ports require wood to build. Costs are deducted when placement is confirmed.
+Ports require wood to build. Cost is deducted when construction actually starts — on arrival for a sail-and-build, or immediately if the ship is already docked.
 
 | Port Type | Wood | Build Time |
 |-----------|------|------------|
@@ -57,10 +57,10 @@ Non-home ports (built during gameplay) have local resource storage:
 
 ## Restrictions
 - Can only place on shore hexes (land adjacent to water)
-- Must be within max build distance of the ship (5 hexes)
+- Construction only starts once the ship is docked on water adjacent to the shore (it sails there first if needed)
 - Cannot place where a port already exists
 - Ship must not already be building a port
-- Must be able to afford the wood cost
+- Must be able to afford the wood cost (checked when construction starts)
 
 ## Files
 
