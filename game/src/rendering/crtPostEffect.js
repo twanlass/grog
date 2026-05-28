@@ -15,12 +15,12 @@
 // aberration than "Classic").
 export const CRT_CONFIG = {
     enabled: true,
-    curvature: 0.11,
-    scanline: 0.59,
-    vignette: 0.27,
-    aberration: 0.0005,
-    aperture: 0.06,
-    flicker: 0.020,
+    curvature: 0.10,
+    scanline: 0.23,
+    vignette: 0.25,
+    aberration: 0.0002,
+    aperture: 0.10,
+    flicker: 0.034,
 };
 
 // Slider metadata used by the debug panel. Each entry's `key` must match a
