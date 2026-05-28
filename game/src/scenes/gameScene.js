@@ -38,6 +38,8 @@ import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
 import { startRepair } from "../systems/repair.js";
 import { updateAIPlayer, STRATEGY_KEYS } from "../systems/aiPlayer.js";
+import { createTutorialState, startVignette, updateTutorial, drawTutorial, hitTestBackButton } from "../systems/tutorialDirector.js";
+import { getVignette } from "../tutorials/index.js";
 import {
     handlePortPlacementClick, handleSettlementPlacementClick, handleTowerPlacementClick,
     handleShipBuildPanelClick, handleBuildPanelClick, handleBuildQueueClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
@@ -179,7 +181,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const map = generateMap({
             width: scenario.mapSize.width,
             height: scenario.mapSize.height,
-            versusMode: scenario.gameMode === 'versus' || scenario.gameMode === 'multiplayer' || scenario.gameMode === 'debug',
+            versusMode: scenario.gameMode === 'versus' || scenario.gameMode === 'multiplayer' || scenario.gameMode === 'debug' || scenario.gameMode === 'tutorial',
             seed: mapSeed,
         });
 
@@ -200,6 +202,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Multiplayer: track the game mode and roles
         gameState.isMultiplayer = isMultiplayer;
         gameState.localPlayerId = localPlayerId;
+
+        // Tutorial director — populated by the tutorial setup branch.
+        // When non-null, player input is gated and the director drives the scene.
+        let tutorialState = null;
 
         // Handle initialization based on game mode
         if (scenario.gameMode === 'multiplayer') {
@@ -359,6 +365,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Debug mode: enemy test ships are spawnable on-demand from the Designer
             // panel (Shift+D) so the player isn't immediately attacked on game start.
+        } else if (scenario.gameMode === 'tutorial') {
+            // Tutorial: no AI players, no pirates, no home port. The active
+            // vignette spawns its own ships in setup() via the director.
+            gameState.aiPlayers = [];
+            gameState.aiHomeIslandHexes = [];
+            // For now we always boot the first vignette; later we can pick by id.
+            const vignette = getVignette('select-and-attack');
+            tutorialState = createTutorialState(vignette);
+            startVignette(tutorialState, gameState, map);
+            gameState.tutorialActive = true;
         } else {
             // Sandbox and Defend modes: single player start
             const startTile = findStartingPosition(map);
@@ -991,6 +1007,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             updatePirateRespawns(gameState, map, createShip, hexKey, dt);
             updateWaveSpawner(gameState, map, createShip, hexKey, dt, fogState);
 
+            // Tutorial vignette steps run last so cursor moves and scripted
+            // clicks key off the post-update entity state.
+            if (tutorialState) {
+                updateTutorial(tutorialState, gameState, map, dt);
+            }
+
             // Recalculate fog visibility if any vision source changed (throttled for performance)
             fogRecalcCooldown = Math.max(0, fogRecalcCooldown - rawDt);
             if (isVisibilityDirty(fogState) && fogRecalcCooldown <= 0) {
@@ -1151,7 +1173,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
 
             // Generic game over: all player ships and ports destroyed (for non-versus modes)
-            if (scenario && scenario.gameMode !== 'versus' && scenario.gameMode !== 'debug' && playerShips.length === 0 && gameState.ports.length === 0) {
+            if (scenario && scenario.gameMode !== 'versus' && scenario.gameMode !== 'debug' && scenario.gameMode !== 'tutorial' && playerShips.length === 0 && gameState.ports.length === 0) {
                 gameState.gameOver = 'lose';
             }
 
@@ -1595,6 +1617,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Draw birds at the very top (above all UI) - only if their hex is visible
             const visibleBirds = birdStates.filter(b => isHexVisible(fogState, b.q, b.r));
             drawBirds(ctx, visibleBirds);
+
+            // Tutorial overlay (caption + ghost cursor + back button) drawn
+            // above gameplay so it can't be obscured by selection UI.
+            if (tutorialState) {
+                drawTutorial(ctx, tutorialState);
+            }
 
             // Draw menu panel last (above birds) when open
             if (menuPanelOpen) {
@@ -2282,8 +2310,21 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             playUIClick();
         });
 
+        // Tutorial mode: ESC returns to title (same as Back button).
+        // Helper used by both ESC and the back-button click test.
+        function exitTutorialToTitle() {
+            gameState.tutorialActive = false;
+            tutorialState = null;
+            cleanupAudio();
+            k.go("title");
+        }
+
         // ESC to cancel placement modes or deselect all units
         k.onKeyPress("escape", () => {
+            if (gameState.tutorialActive) {
+                exitTutorialToTitle();
+                return;
+            }
             if (gameMenuOpen) {
                 gameMenuOpen = false;
                 speedSubmenuOpen = false;
@@ -2617,6 +2658,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const mousePos = getMousePos();
             const mouseX = mousePos.x;
             const mouseY = mousePos.y;
+
+            // Tutorial mode: only the Back button is interactive — the scripted
+            // demo owns everything else.
+            if (gameState.tutorialActive) {
+                if (hitTestBackButton(tutorialState, mouseX, mouseY)) {
+                    exitTutorialToTitle();
+                }
+                return;
+            }
 
             // Close menu panel on any click (except menu button itself, handled below)
             if (menuPanelOpen) {
@@ -3171,6 +3221,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Right-click handler for commands (attack, waypoint, trade route, unload)
         // Acts like Command+click but without needing the modifier key
         function handleRightClick() {
+            // Tutorial mode: right-click is owned by the scripted demo.
+            if (gameState.tutorialActive) return;
+
             // Cancel any active placement mode (matches desktop right-click behavior;
             // on mobile this is reached via long-press)
             if (gameState.portBuildMode.active) {
@@ -3614,6 +3667,14 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         }
 
         // Center camera on starting position (or map center if no start)
+        // Tutorial mode centers on the vignette's cameraTarget instead.
+        if (tutorialState && tutorialState.cameraTarget) {
+            const t = tutorialState.cameraTarget;
+            const pos = hexToPixel(t.q, t.r);
+            cameraX = pos.x;
+            cameraY = pos.y;
+            return;
+        }
         // Guest uses their own home island, not the host's
         const cameraHome = (isMultiplayer && isGuest && gameState.player2HomeIslandHex)
             ? gameState.player2HomeIslandHex

@@ -2,6 +2,17 @@
 
 export const SCENARIOS = [
     {
+        id: 'tutorial',
+        name: 'Tutorial',
+        description: 'Learn the basics',
+        gameMode: 'tutorial',
+        mapSize: { width: 30, height: 30 },
+        startingResources: { wood: 0 },
+        pirateConfig: {
+            startingCount: 0,
+        },
+    },
+    {
         id: 'multiplayer',
         name: 'Multiplayer',
         description: 'Play against a friend (P2P)',
