@@ -288,6 +288,73 @@ export function drawAllPlacementUI(ctx, gameState, map, tilePositions, fogState,
         drawPortPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, isValidPortSite) ||
         drawSettlementPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, isValidSettlementSite) ||
         drawTowerPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, isValidTowerSite) ||
+        drawWorkerBuildPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, validators) ||
         null
     );
+}
+
+/**
+ * Worker-driven build placement preview. Reuses the settlement / tower /
+ * port validators depending on what structure the worker is about to put
+ * down. No max-distance check — workers walk to wherever the placement
+ * is, and the actual command silently fails if no land path exists.
+ */
+export function drawWorkerBuildPlacementMode(ctx, gameState, map, tilePositions, fogState, pixelToHex, validators) {
+    if (!gameState.workerBuildMode.active) return null;
+
+    const { k, zoom, cameraX, cameraY, halfWidth, halfHeight, screenWidth, screenHeight } = ctx;
+    const margin = HEX_SIZE * zoom * 2;
+
+    const structureType = gameState.workerBuildMode.structureType;
+    const { isValidSettlementSite, isValidTowerSite, isValidPortSite } = validators;
+
+    // Get current mouse position in world coords
+    const mouseX = k.mousePos().x;
+    const mouseY = k.mousePos().y;
+    const worldMX = (mouseX - halfWidth) / zoom + cameraX;
+    const worldMY = (mouseY - halfHeight) / zoom + cameraY;
+    const hoverHex = pixelToHex(worldMX, worldMY);
+
+    function checkValid(q, r) {
+        if (structureType === 'settlement') {
+            return isValidSettlementSite(map, q, r, gameState.settlements, gameState.ports, gameState.towers);
+        }
+        if (structureType === 'tower') {
+            return isValidTowerSite(map, q, r, gameState.towers, gameState.ports, gameState.settlements);
+        }
+        if (structureType === 'port') {
+            return isValidPortSite(map, q, r, gameState.ports, gameState.towers, gameState.settlements);
+        }
+        return false;
+    }
+
+    const isValidHover = checkValid(hoverHex.q, hoverHex.r);
+    gameState.workerBuildMode.hoveredHex = isValidHover ? hoverHex : null;
+
+    // Highlight every visible valid hex on the map. (Could be capped to
+    // the worker's island via a BFS, but for prototype we let the player
+    // see every option and reject the command if cross-island.)
+    for (const tile of map.tiles.values()) {
+        if (tile.type !== 'land') continue;
+        if (!isHexExplored(fogState, tile.q, tile.r)) continue;
+        if (!checkValid(tile.q, tile.r)) continue;
+
+        const pos = tilePositions.get(tile);
+        const screenX = (pos.x - cameraX) * zoom + halfWidth;
+        const screenY = (pos.y - cameraY) * zoom + halfHeight;
+        if (screenX < -margin || screenX > screenWidth + margin ||
+            screenY < -margin || screenY > screenHeight + margin) continue;
+
+        const isHovered = gameState.workerBuildMode.hoveredHex &&
+                          tile.q === gameState.workerBuildMode.hoveredHex.q &&
+                          tile.r === gameState.workerBuildMode.hoveredHex.r;
+        drawPlacementHighlight(ctx, screenX, screenY, isHovered);
+    }
+
+    const label = structureType === 'settlement'
+        ? "Click to place settlement | ESC to cancel"
+        : structureType === 'tower'
+            ? "Click to place watchtower | ESC to cancel"
+            : "Click to place dock | ESC to cancel";
+    return drawPlacementHint(ctx, label, label);
 }

@@ -1,12 +1,14 @@
-// Worker system — handles land-unit movement, tree harvesting, and wood
-// drop-off at the nearest player port. Workers replace the wood-from-
-// settlements economy: chopping is now the only way to acquire wood.
+// Worker system — handles land-unit movement, tree harvesting, wood
+// drop-off, and construction-site labour. Workers are the only way to
+// build settlements, towers, and same-island ports; ships still handle
+// cross-water port placement.
 //
 // State machine per worker (`worker.state`):
 //   - idle:       Standing still, no orders. Renders as a stationary dot.
 //   - moving:     Walking along `worker.path` to a destination. If
 //                 `harvestTarget` is set and we arrive at it, transition
-//                 to chopping. Otherwise transition to idle on arrival.
+//                 to chopping. If `buildTask` is set and we arrive at the
+//                 site, transition to building. Otherwise transition to idle.
 //   - chopping:   Standing on `harvestTarget`, draining the tile's
 //                 woodRemaining into `worker.cargo`. When cargo fills,
 //                 transition to returning.
@@ -14,6 +16,16 @@
 //                 deposit cargo into resources, then either resume
 //                 harvesting (target still has wood, or auto-find next
 //                 tree) or go idle.
+//   - building:   Standing on a construction site. The worker doesn't do
+//                 anything in this state — construction.js advances the
+//                 structure's progress as long as the worker is here. When
+//                 the structure clears its `construction` field (build
+//                 complete) OR the worker's buildTask is cleared
+//                 externally (cancel), the worker transitions back to idle.
+//
+// Workers in `building` state ignore new move/harvest/build commands until
+// the build finishes or is cancelled — same lock-during-construction model
+// as ships building ports.
 //
 // Movement code mirrors shipMovement.js: a worker has an A* `path` and a
 // per-segment `moveProgress` that ticks toward 1 at WORKER_CONFIG.speed.
@@ -27,12 +39,24 @@ import {
 } from "../pathfinding.js";
 import { WORKER_CONFIG } from "../sprites/workers.js";
 
+// Workers that are tied to an active construction site are locked — they
+// won't accept new movement, harvest, or build orders until the build
+// finishes (worker.buildTask is cleared by construction.js) or the
+// player explicitly cancels (which also clears buildTask).
+function isLockedByBuild(worker) {
+    return worker.state === 'building' || worker.buildTask !== null;
+}
+
 /**
  * Assign a move order to a worker. Pathfinds from current hex to (q, r) on
  * land and starts walking. Returns true if a path was found.
  * `harvestTarget` is set to null (a plain move), so the worker idles on arrival.
+ *
+ * A worker that is currently tied to a construction site rejects move
+ * orders (the build is locking it in place).
  */
 export function commandWorkerMove(worker, map, goalQ, goalR) {
+    if (isLockedByBuild(worker)) return false;
     const path = findLandPath(map, worker.q, worker.r, goalQ, goalR);
     if (!path || path.length === 0) {
         // Already there, or no path
@@ -63,6 +87,7 @@ export function commandWorkerMove(worker, map, goalQ, goalR) {
  * as the target instead.
  */
 export function commandWorkerHarvest(worker, map, q, r) {
+    if (isLockedByBuild(worker)) return false;
     let targetQ = q;
     let targetR = r;
 
@@ -96,6 +121,58 @@ export function commandWorkerHarvest(worker, map, q, r) {
     worker.state = 'moving';
     worker.chopProgress = 0;
     return true;
+}
+
+/**
+ * Assign a build order to a worker — walk to (q, r) and stand there in the
+ * `building` state. Construction progress is driven by construction.js
+ * which checks for a worker tethered to the structure via builderWorkerId.
+ *
+ * @param {Object} task - { structureType, structureId, q, r }
+ *   `structureType`: 'settlement' | 'tower' | 'port' (informational only)
+ *   `structureId`: the entity id of the structure we're tied to (so the
+ *     construction tick can find us back via builderWorkerId)
+ *
+ * Returns true if a path was found OR the worker is already on-site.
+ * A worker that's already mid-build is locked and rejects the order.
+ */
+export function commandWorkerBuild(worker, map, task) {
+    if (isLockedByBuild(worker)) return false;
+    const { q, r } = task;
+
+    if (worker.q === q && worker.r === r) {
+        worker.buildTask = { ...task };
+        worker.path = null;
+        worker.state = 'building';
+        worker.harvestTarget = null;
+        worker.chopProgress = 0;
+        return true;
+    }
+
+    const path = findLandPath(map, worker.q, worker.r, q, r);
+    if (!path) return false;
+    worker.buildTask = { ...task };
+    worker.path = path;
+    worker.moveProgress = 0;
+    worker.movingToward = path[0];
+    worker.state = 'moving';
+    worker.harvestTarget = null;
+    worker.chopProgress = 0;
+    return true;
+}
+
+/**
+ * Externally clear a worker's build assignment (used when construction
+ * completes or is cancelled). The worker drops out of `building` /
+ * en-route-to-build state and goes idle, ready for new orders.
+ */
+export function releaseWorkerFromBuild(worker) {
+    if (!worker) return;
+    worker.buildTask = null;
+    if (worker.state === 'building') {
+        worker.state = 'idle';
+        worker.path = null;
+    }
 }
 
 // Walk along `worker.path` for `dt` seconds at WORKER_CONFIG.speed. Returns
@@ -200,10 +277,16 @@ export function updateWorkers(gameState, map, dt, floatingNumbers = []) {
             case 'moving': {
                 const arrived = advanceMovement(worker, dt);
                 if (arrived) {
-                    // If we arrived at a harvest target, start chopping
-                    if (worker.harvestTarget
+                    // If we arrived at a build site, park in 'building'
+                    if (worker.buildTask
+                        && worker.q === worker.buildTask.q
+                        && worker.r === worker.buildTask.r) {
+                        worker.state = 'building';
+                        worker.path = null;
+                    } else if (worker.harvestTarget
                         && worker.q === worker.harvestTarget.q
                         && worker.r === worker.harvestTarget.r) {
+                        // Arrived at a harvest target → start chopping
                         const tile = map.tiles.get(hexKey(worker.q, worker.r));
                         if (tile && !tile.depleted && (tile.woodRemaining || 0) > 0) {
                             worker.state = 'chopping';
@@ -218,6 +301,12 @@ export function updateWorkers(gameState, map, dt, floatingNumbers = []) {
                 }
                 break;
             }
+
+            case 'building':
+                // Construction.js handles progress. We just hold position.
+                // If buildTask is cleared externally (cancel/complete), the
+                // release helper transitions us back to idle.
+                break;
 
             case 'chopping': {
                 const tile = map.tiles.get(hexKey(worker.q, worker.r));

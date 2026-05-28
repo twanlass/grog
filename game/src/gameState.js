@@ -64,6 +64,18 @@ export function createGameState(config = {}) {
         // See systems/workers.js for the state machine.
         workers: [],
 
+        // Worker-driven build placement mode. When the player clicks one of
+        // the BUILD buttons in the worker panel we enter this mode; the
+        // next click on a valid hex spawns the construction and ties one of
+        // the selected workers to it.
+        workerBuildMode: {
+            active: false,
+            structureType: null,   // 'settlement' | 'tower' | 'port'
+            portType: null,        // For 'port' structureType: 'dock' (only)
+            builderWorkerIndices: [],  // The selected workers at the time the mode was entered
+            hoveredHex: null,
+        },
+
         // Tower building placement mode (always builds watchtower)
         towerBuildMode: {
             active: false,
@@ -239,12 +251,18 @@ export function createWorker(q, r, owner = 'player') {
         path: null,                 // Array of { q, r } hexes to walk through
         moveProgress: 0,
         movingToward: null,         // { q, r } - hex we're currently walking toward
-        // State machine: 'idle' | 'moving' | 'chopping' | 'returning'
+        // State machine: 'idle' | 'moving' | 'chopping' | 'returning' | 'building'
         state: 'idle',
         // Active harvest assignment: { q, r } of the tree hex we're chopping/heading to.
         // Null when the worker has no orders. A 'moving' worker may have null target
         // (just walking somewhere) or a target (heading to that tree to chop).
         harvestTarget: null,
+        // Active build assignment: { structureType, structureId, q, r } when the
+        // worker is on its way to / standing on a construction site. The
+        // structure's `construction.builderWorkerId` field points back at
+        // this worker; the two get cleared when the build completes or is
+        // cancelled.
+        buildTask: null,
         // Cargo
         cargo: 0,
         // Chopping progress (seconds elapsed in the current chop)
@@ -264,13 +282,19 @@ export function createPort(type, q, r, isConstructing = false, builderShipIndex 
         q,
         r,
         buildQueue: [],  // [{ shipType, progress, buildTime }, ...] - first item is active
+        // Single-slot worker production. When the player clicks "BUILD WORKER"
+        // in the port panel we set { progress: 0, buildTime } and tick it in
+        // construction.js. On completion the port spawns a worker on the
+        // nearest free land hex. Null = no worker in progress.
+        workerBuild: null,
         storage: { wood: 0 },  // Local resource storage for built ports
         rallyPoint: null,  // { q, r } - waypoint for newly built ships
-        // Port construction state (while being built by a ship)
+        // Port construction state (while being built by a ship OR a worker)
         construction: isConstructing ? {
             progress: 0,
             buildTime: PORTS[type].buildTime,
-            builderShipIndex: builderShipIndex,  // Ship that's building this port
+            builderShipIndex: builderShipIndex,  // Ship that's building this port (null if worker-built)
+            builderWorkerId: null,  // Worker that's building this port (null if ship-built)
         } : null,
         // Combat state
         health: PORTS[type].health,  // Current health (from port metadata)
@@ -998,7 +1022,7 @@ export function startPortUpgrade(port) {
 }
 
 // Create a new settlement (optionally under construction)
-export function createSettlement(q, r, isConstructing = false, builderPortIndex = null, owner = 'player') {
+export function createSettlement(q, r, isConstructing = false, builderPortIndex = null, owner = 'player', builderWorkerId = null) {
     return {
         id: nextEntityId('settlement'),
         owner,  // 'player' | 'ai1' | 'ai2'
@@ -1010,6 +1034,12 @@ export function createSettlement(q, r, isConstructing = false, builderPortIndex 
         construction: isConstructing ? {
             progress: 0,
             buildTime: SETTLEMENTS.settlement.buildTime,
+            // Worker tethered to this build. For player-built settlements, the
+            // construction system only advances progress while this worker is
+            // alive, on-site, and in the 'building' state. AI-built
+            // settlements leave this null and tick unconditionally (AI doesn't
+            // use workers yet).
+            builderWorkerId,
         } : null,
     };
 }
@@ -1028,6 +1058,34 @@ export function exitSettlementBuildMode(gameState) {
     gameState.settlementBuildMode = {
         active: false,
         builderPortIndex: null,
+        hoveredHex: null,
+    };
+}
+
+// Enter worker-driven build placement mode. `structureType` is one of
+// 'settlement', 'tower', 'port'. For ports, pass `portType: 'dock'` (only
+// docks are worker-buildable for now — strongholds/shipyards still require
+// the upgrade path). The actual builder worker is picked at placement-
+// click time from the current selection (nearest to the clicked hex).
+export function enterWorkerBuildMode(gameState, structureType, portType = null) {
+    // Cancel any other placement modes
+    exitSettlementBuildMode(gameState);
+    exitTowerBuildMode(gameState);
+    exitPortBuildMode(gameState);
+    gameState.workerBuildMode = {
+        active: true,
+        structureType,
+        portType,
+        hoveredHex: null,
+    };
+}
+
+// Exit worker-driven build placement mode
+export function exitWorkerBuildMode(gameState) {
+    gameState.workerBuildMode = {
+        active: false,
+        structureType: null,
+        portType: null,
         hoveredHex: null,
     };
 }
@@ -1156,7 +1214,7 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
 }
 
 // Create a new tower (optionally under construction)
-export function createTower(type, q, r, isConstructing = false, builderShipIndex = null, builderPortIndex = null, owner = 'player') {
+export function createTower(type, q, r, isConstructing = false, builderShipIndex = null, builderPortIndex = null, owner = 'player', builderWorkerId = null) {
     return {
         id: nextEntityId('tower'),
         owner,  // 'player' | 'ai1' | 'ai2'
@@ -1170,6 +1228,10 @@ export function createTower(type, q, r, isConstructing = false, builderShipIndex
             buildTime: TOWERS[type].buildTime,
             builderShipIndex: builderShipIndex,
             builderPortIndex: builderPortIndex,
+            // For player-built towers (now worker-driven), this points at the
+            // worker tethered to the build. construction.js will only
+            // advance progress while the worker is on-site.
+            builderWorkerId,
         } : null,
         // Repair state
         repair: null,  // { progress, totalTime, healthToRestore } | null

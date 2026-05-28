@@ -1,6 +1,14 @@
 # Tower Building
 
-Ships can construct defensive towers on nearby land. Towers automatically attack pirates within range.
+> **Prototype note (RTS workers iteration):** Towers are now built primarily
+> by **workers**. Select a worker → **BUILD WATCHTOWER** → click a valid hex.
+> The worker walks to the site and construction only progresses while
+> they're on it. Ships can also still build towers from sea (the existing
+> ship build panel watchtower button is unchanged) — useful for slotting
+> defence on a hostile coast where you don't have a worker. See
+> [Workers](workers.md) for the full flow.
+
+Towers automatically attack pirates within range.
 
 ## Behavior
 

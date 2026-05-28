@@ -4,6 +4,8 @@ import {
     canAfford, deductCost, createPort, exitPortBuildMode,
     createSettlement, exitSettlementBuildMode, enterPortBuildMode, enterSettlementBuildMode,
     createTower, exitTowerBuildMode, enterTowerBuildMode,
+    enterWorkerBuildMode, exitWorkerBuildMode,
+    isValidSettlementSite, isValidTowerSite, isValidPortSite,
     startBuilding, addToBuildQueue, cancelBuildItem, startPortUpgrade, startTowerUpgrade, isPortBuildingSettlement, isPortBuildingTower,
     selectUnit, toggleSelection, getSelectedShips, isShipBuildingPort, isShipBuildingTower,
     clearSelection, cancelTradeRoute, exitPatrolMode,
@@ -13,8 +15,9 @@ import {
 import { hexKey, hexDistance } from "../hex.js";
 import { findNearestWater, distributeDestinations } from "../pathfinding.js";
 import { startRepair } from "./repair.js";
-import { triggerBroadside, cancelPortConstruction, cancelTowerConstruction } from "./combat.js";
-import { commandWorkerMove, commandWorkerHarvest } from "./workers.js";
+import { triggerBroadside, cancelPortConstruction, cancelTowerConstruction, cancelSettlementConstruction } from "./combat.js";
+import { commandWorkerMove, commandWorkerHarvest, commandWorkerBuild } from "./workers.js";
+import { WORKER_CONFIG } from "../sprites/workers.js";
 import { COMMAND_TYPES } from "../networking/commands.js";
 
 // Local player identity — set via setLocalPlayerId() for multiplayer
@@ -142,6 +145,115 @@ export function handleSettlementPlacementClick(gameState) {
         console.log(`Started building settlement at (${hex.q}, ${hex.r}) by port ${builderPortIndex}`);
         exitSettlementBuildMode(gameState);
     }
+    return true;
+}
+
+/**
+ * Handle click while in worker-driven build placement mode. Validates the
+ * site, picks the nearest selected idle/interruptible worker, deducts cost,
+ * spawns the in-progress structure with `construction.builderWorkerId` set,
+ * and dispatches the worker to walk there and build.
+ *
+ * Returns true if the click was consumed (mode was active) — true even on
+ * invalid placement, so the caller doesn't fall through to "select unit".
+ */
+export function handleWorkerBuildPlacementClick(gameState, map) {
+    if (!gameState.workerBuildMode.active) return false;
+
+    const hex = gameState.workerBuildMode.hoveredHex;
+    if (!hex) return true;
+
+    const { structureType, portType } = gameState.workerBuildMode;
+    const res = getLocalResources(gameState);
+
+    // Resolve structure cost and validate the site
+    let cost, valid;
+    if (structureType === 'settlement') {
+        cost = SETTLEMENTS.settlement.cost;
+        valid = isValidSettlementSite(map, hex.q, hex.r, gameState.settlements, gameState.ports, gameState.towers);
+    } else if (structureType === 'tower') {
+        cost = TOWERS.watchtower.cost;
+        valid = isValidTowerSite(map, hex.q, hex.r, gameState.towers, gameState.ports, gameState.settlements);
+    } else if (structureType === 'port') {
+        const pt = portType || 'dock';
+        cost = PORTS[pt].cost;
+        valid = isValidPortSite(map, hex.q, hex.r, gameState.ports, gameState.towers, gameState.settlements);
+    } else {
+        exitWorkerBuildMode(gameState);
+        return true;
+    }
+
+    if (!valid) {
+        // Invalid site — keep the mode active so the player can try again
+        return true;
+    }
+    if (!canAfford(res, cost)) {
+        showNotification(gameState, `Not enough wood`);
+        exitWorkerBuildMode(gameState);
+        return true;
+    }
+
+    // Pick the nearest selected worker that can accept the order.
+    const candidateIndices = [];
+    for (const sel of gameState.selectedUnits) {
+        if (sel.type !== 'worker') continue;
+        const w = gameState.workers[sel.index];
+        if (!w) continue;
+        if ((w.owner || 'player') !== localPlayerId) continue;
+        // Workers locked in another build can't be reassigned
+        if (w.state === 'building' || w.buildTask) continue;
+        candidateIndices.push(sel.index);
+    }
+    if (candidateIndices.length === 0) {
+        showNotification(gameState, `No available worker selected`);
+        exitWorkerBuildMode(gameState);
+        return true;
+    }
+    let bestIdx = candidateIndices[0];
+    let bestDist = Infinity;
+    for (const idx of candidateIndices) {
+        const w = gameState.workers[idx];
+        const d = hexDistance(w.q, w.r, hex.q, hex.r);
+        if (d < bestDist) { bestDist = d; bestIdx = idx; }
+    }
+    const builder = gameState.workers[bestIdx];
+
+    // Spawn the in-progress structure with the worker tether
+    deductCost(res, cost);
+    let structure = null;
+    if (structureType === 'settlement') {
+        structure = createSettlement(hex.q, hex.r, true, null, localPlayerId, builder.id);
+        gameState.settlements.push(structure);
+    } else if (structureType === 'tower') {
+        structure = createTower('watchtower', hex.q, hex.r, true, null, null, localPlayerId, builder.id);
+        gameState.towers.push(structure);
+    } else if (structureType === 'port') {
+        const pt = portType || 'dock';
+        structure = createPort(pt, hex.q, hex.r, true, null, localPlayerId);
+        structure.construction.builderWorkerId = builder.id;
+        gameState.ports.push(structure);
+    }
+
+    // Walk the worker to the site and lock them in 'building'
+    const ok = commandWorkerBuild(builder, map, {
+        structureType,
+        structureId: structure.id,
+        q: hex.q, r: hex.r,
+    });
+    if (!ok) {
+        // Cross-island or otherwise unreachable — roll back the build
+        if (structureType === 'settlement') {
+            gameState.settlements.pop();
+        } else if (structureType === 'tower') {
+            gameState.towers.pop();
+        } else if (structureType === 'port') {
+            gameState.ports.pop();
+        }
+        res.wood = (res.wood || 0) + (cost.wood || 0);
+        showNotification(gameState, `No land path to that hex`);
+    }
+
+    exitWorkerBuildMode(gameState);
     return true;
 }
 
@@ -331,38 +443,25 @@ export function handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameStat
         }
     }
 
-    // Check settlement button
-    if (bp.settlementButton) {
-        const sbtn = bp.settlementButton;
-        if (mouseY >= sbtn.y && mouseY <= sbtn.y + sbtn.height) {
-            const settlementData = SETTLEMENTS.settlement;
+    // Check worker production button (single-slot per port)
+    if (bp.workerButton) {
+        const wbtn = bp.workerButton;
+        if (mouseY >= wbtn.y && mouseY <= wbtn.y + wbtn.height) {
             const port = gameState.ports[bp.portIndex];
-            if (!port.repair && !isPortBuildingSettlement(bp.portIndex, gameState.settlements) && canAfford(res, settlementData.cost)) {
-                enterSettlementBuildMode(gameState, bp.portIndex);
-                console.log(`Entering settlement placement mode from port ${bp.portIndex}`);
-            }
+            if (!port) return true;
+            if (port.workerBuild) return true;       // Already producing
+            if (port.repair) return true;
+            if (!canAfford(res, WORKER_CONFIG.cost)) return true;
+            deductCost(res, WORKER_CONFIG.cost);
+            port.workerBuild = { progress: 0, buildTime: WORKER_CONFIG.buildTime };
+            console.log(`Started building worker at port ${bp.portIndex}`);
             return true;
         }
     }
 
-    // Check watchtower button
-    if (bp.towerButton) {
-        const tbtn = bp.towerButton;
-        if (mouseY >= tbtn.y && mouseY <= tbtn.y + tbtn.height) {
-            const watchtowerData = TOWERS.watchtower;
-            const port = gameState.ports[bp.portIndex];
-            const portBusy = port.repair || isPortBuildingTower(bp.portIndex, gameState.towers);
-            if (!portBusy && canAfford(res, watchtowerData.cost)) {
-                if (!canAffordCrew(gameState, watchtowerData.crewCost || 0, localPlayerId)) {
-                    showNotification(gameState, "Max crew reached. Build more settlements.");
-                } else {
-                    enterTowerBuildMode(gameState, bp.portIndex, 'port');
-                    console.log(`Entering watchtower placement mode from port ${bp.portIndex}`);
-                }
-            }
-            return true;
-        }
-    }
+
+    // (Watchtower button was removed from the port panel — workers now
+    //  handle tower construction. See worker build panel.)
 
     // Check repair button
     if (bp.repairButton) {
@@ -630,6 +729,30 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
     }
     console.log(`Sending ${shipsWithCargo.length} ship(s) to unload at home port`);
     return true;
+}
+
+/**
+ * Click handler for the worker build panel (drawn when 1+ workers are
+ * selected). Returns true if the click hit a button; the caller stops
+ * processing in that case.
+ */
+export function handleWorkerBuildPanelClick(mouseX, mouseY, panelBounds, gameState) {
+    if (!panelBounds) return false;
+    if (mouseX < panelBounds.x || mouseX > panelBounds.x + panelBounds.width ||
+        mouseY < panelBounds.y || mouseY > panelBounds.y + panelBounds.height) {
+        return false;
+    }
+    for (const btn of panelBounds.buttons || []) {
+        if (mouseY >= btn.y && mouseY <= btn.y + btn.height) {
+            // Don't pre-check resources here — `enterWorkerBuildMode` lets
+            // the player see the placement preview either way; we deduct
+            // and re-check on the actual placement click.
+            const portType = btn.id === 'port' ? 'dock' : null;
+            enterWorkerBuildMode(gameState, btn.id, portType);
+            return true;
+        }
+    }
+    return true;  // Clicked panel but missed a button — still consume
 }
 
 /**

@@ -1,12 +1,13 @@
 # Settlement Building
 
-Ports can construct settlements on nearby land.
-
-> **Prototype note:** As of the worker prototype, **player settlements no
-> longer produce wood**. Wood now comes from workers chopping tree hexes
-> (see [Workers](workers.md)). Player settlements are inert structures
-> for now — buildable, repairable, destructible, but no economic output.
-> AI settlements still produce wood (the AI doesn't use workers yet).
+> **Prototype note (RTS workers iteration):** Settlements are now built by
+> **workers**, not ports. Select a worker → click **BUILD SETTLEMENT** in
+> the worker panel → click a valid land hex. The nearest selected worker
+> walks to the site and the construction only progresses while they're
+> standing on it. Player settlements no longer produce wood (the worker
+> chopping loop replaced that); they still raise the **crew cap**. AI
+> settlements still auto-produce wood (no AI workers yet). See
+> [Workers](workers.md) for the full flow.
 
 ## Behavior
 

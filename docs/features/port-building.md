@@ -1,5 +1,19 @@
 # Port Building
 
+> **Prototype note (RTS workers iteration):** Ports can be built two ways:
+>
+> 1. **By a worker** on the same island — select a worker → **BUILD DOCK**
+>    → click a valid coastal hex. The worker walks there and builds it.
+> 2. **By a Schooner** across water (cross-island expansion). The Cutter
+>    can no longer plant a port from sea — it's a Schooner-tier capability,
+>    so expansion is gated behind a Shipyard upgrade plus a Schooner build.
+>
+> Every completed port — whether worker-built or ship-built — spawns
+> `PORT_STARTER_WORKERS` (3) starter workers next to it on completion, so
+> a new island never needs you to ferry workers across water.
+>
+> See [Workers](workers.md) for the full flow.
+
 Ships can construct new ports when docked at shore. This allows players to expand their territory.
 
 ## Behavior
