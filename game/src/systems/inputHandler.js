@@ -9,6 +9,7 @@ import {
     clearSelection, cancelTradeRoute, exitPatrolMode,
     findFreeAdjacentWater, findNearestWaterInRange, findNearbyWaitingHex, getHomePortIndex,
     canAffordCrew, showNotification, isAIOwner, getResourcesForOwner, isPirateShip,
+    PORT_DOCK_DISTANCE,
 } from "../gameState.js";
 import { hexKey, hexDistance } from "../hex.js";
 import { findNearestWater, distributeDestinations } from "../pathfinding.js";
@@ -65,9 +66,19 @@ export function handlePortPlacementClick(gameState, map) {
             return true;
         }
 
-        if (hex.deferred && builderShip && map) {
-            // Out of range: queue a deferred build and sail toward the target shore.
-            // Cost is deducted on arrival (in updatePendingBuilds), not now.
+        if (!builderShip) {
+            exitPortBuildMode(gameState);
+            return true;
+        }
+
+        // A port can only be built from a water hex directly adjacent to the
+        // target shore. If the ship isn't docked there yet, sail it over and let
+        // updatePendingBuilds start construction on arrival (cost deducted then).
+        const alreadyDocked = hexDistance(builderShip.q, builderShip.r, hex.q, hex.r) <= PORT_DOCK_DISTANCE;
+
+        if (!alreadyDocked) {
+            if (!map) { exitPortBuildMode(gameState); return true; }
+
             const dockSpot = findNearestWaterInRange(map, hex.q, hex.r, 6);
             if (!dockSpot) {
                 showNotification(gameState, "No path to that shore");
@@ -87,21 +98,19 @@ export function handlePortPlacementClick(gameState, map) {
                 waypointQ: dockSpot.q, waypointR: dockSpot.r,
             });
 
-            console.log(`Queued deferred ${portType} build at (${hex.q}, ${hex.r}) — sailing to (${dockSpot.q}, ${dockSpot.r})`);
+            console.log(`Queued ${portType} build at (${hex.q}, ${hex.r}) — sailing to (${dockSpot.q}, ${dockSpot.r})`);
             exitPortBuildMode(gameState);
             return true;
         }
 
+        // Already docked against the shore — build right away.
         deductCost(res, portData.cost);
-
-        if (builderShip) {
-            builderShip.pendingBuild = null;  // Clear any prior deferred intent
-        }
+        builderShip.pendingBuild = null;  // Clear any prior deferred intent
         const newPort = createPort(portType, hex.q, hex.r, true, builderShipIndex, localPlayerId);
         gameState.ports.push(newPort);
 
         queueNetCmd(COMMAND_TYPES.BUILD_PORT, {
-            builderShipId: builderShip?.id, portType, q: hex.q, r: hex.r,
+            builderShipId: builderShip.id, portType, q: hex.q, r: hex.r,
         });
 
         console.log(`Started building ${portType} at (${hex.q}, ${hex.r}) by ship ${builderShipIndex}`);

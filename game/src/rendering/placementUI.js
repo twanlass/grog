@@ -138,8 +138,8 @@ export function drawPortPlacementMode(ctx, gameState, map, tilePositions, fogSta
         drawPlacementHighlight(ctx, screenX, screenY, isHovered, isDeferred);
     }
 
-    const desktopHint = "Click green to build, amber to sail there and build on arrival | ESC to cancel";
-    const mobileHint = "Tap green to build, amber to sail and build on arrival";
+    const desktopHint = "Click a shore — your ship sails there and builds on arrival | ESC to cancel";
+    const mobileHint = "Tap a shore to sail there and build on arrival";
     return drawPlacementHint(ctx, desktopHint, mobileHint);
 }
 

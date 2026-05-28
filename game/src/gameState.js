@@ -883,8 +883,13 @@ export function startBuilding(port, shipType) {
     }];
 }
 
-// Max distance (in hexes) from a ship to a placeable port site
+// Max distance (in hexes) from a ship to a placeable port site (placement range
+// shown in the UI). Out-of-range clicks queue a deferred sail-and-build instead.
 export const MAX_PORT_BUILD_DISTANCE = 5;
+
+// A ship must be on a water hex directly adjacent to a shore (1 hex away) to
+// actually build a port there. Any further away, it sails to such a hex first.
+export const PORT_DOCK_DISTANCE = 1;
 
 // Enter port building placement mode
 export function enterPortBuildMode(gameState, shipIndex, portType) {
