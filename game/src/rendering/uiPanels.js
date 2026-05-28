@@ -17,6 +17,7 @@ import {
     PANEL_COLORS,
 } from "./uiPrimitives.js";
 import { healthToColor } from "./renderHelpers.js";
+import { getMusicVolume, getSfxVolume } from "../audio.js";
 
 // Helper to get local player's resources for UI display
 function getLocalRes(gameState) {
@@ -2013,7 +2014,29 @@ export function drawMenuPanel(ctx) {
     const { k, screenWidth, screenHeight } = ctx;
 
     const panelWidth = 320;
-    const panelHeight = 437;
+    const controlsRowHeight = 26;
+    const controls = [
+        { key: "Left Click", action: "Select units" },
+        { key: "Shift + Click", action: "Add to selection" },
+        { key: "Left Drag", action: "Box select" },
+        { key: "Right Click", action: "Move / Attack" },
+        { key: "Right Drag", action: "Pan camera" },
+        { key: "Scroll", action: "Zoom in/out" },
+        { key: "A + Left Click", action: "Attack mode" },
+        { key: "P", action: "Set patrol route" },
+        { key: "H", action: "Return to home port" },
+        { key: "Shift + Num", action: "Save group" },
+        { key: "Num (0-9)", action: "Recall group" },
+        { key: ".", action: "Pause / Resume" },
+        { key: "/", action: "Toggle this menu" },
+    ];
+
+    const headerHeight = 50;       // title + separator
+    const controlsHeight = controls.length * controlsRowHeight;
+    const audioSectionHeight = 110; // header + 2 slider rows + padding
+    const closeHintHeight = 30;
+    const panelHeight = headerHeight + 20 + controlsHeight + audioSectionHeight + closeHintHeight;
+
     const panelX = screenWidth / 2 - panelWidth / 2;
     const panelY = screenHeight / 2 - panelHeight / 2;
 
@@ -2044,28 +2067,9 @@ export function drawMenuPanel(ctx) {
         color: k.rgb(60, 70, 80),
     });
 
-    // Controls list
-    const controls = [
-        { key: "Left Click", action: "Select units" },
-        { key: "Shift + Click", action: "Add to selection" },
-        { key: "Left Drag", action: "Box select" },
-        { key: "Right Click", action: "Move / Attack" },
-        { key: "Right Drag", action: "Pan camera" },
-        { key: "Scroll", action: "Zoom in/out" },
-        { key: "A + Left Click", action: "Attack mode" },
-        { key: "P", action: "Set patrol route" },
-        { key: "H", action: "Return to home port" },
-        { key: "Shift + Num", action: "Save group" },
-        { key: "Num (0-9)", action: "Recall group" },
-        { key: ".", action: "Pause / Resume" },
-        { key: "/", action: "Toggle this menu" },
-    ];
-
     const startY = panelY + 70;
-    const rowHeight = 26;
-
     for (let i = 0; i < controls.length; i++) {
-        const y = startY + i * rowHeight;
+        const y = startY + i * controlsRowHeight;
 
         // Key
         k.drawText({
@@ -2084,10 +2088,94 @@ export function drawMenuPanel(ctx) {
         });
     }
 
+    // Audio section
+    const audioSectionY = startY + controlsHeight + 4;
+    k.drawLine({
+        p1: k.vec2(panelX + 20, audioSectionY),
+        p2: k.vec2(panelX + panelWidth - 20, audioSectionY),
+        width: 1,
+        color: k.rgb(60, 70, 80),
+    });
+    k.drawText({
+        text: "AUDIO",
+        pos: k.vec2(panelX + 25, audioSectionY + 16),
+        size: 13,
+        color: k.rgb(180, 200, 220),
+    });
+
+    const sliderRows = [
+        { key: 'music', label: 'Music', value: getMusicVolume() },
+        { key: 'sfx', label: 'SFX', value: getSfxVolume() },
+    ];
+
+    const labelW = 50;
+    const valueW = 38;
+    const sliderRowHeight = 28;
+    const sliderTrackX = panelX + 25 + labelW + 6;
+    const sliderTrackW = panelWidth - 25 - 25 - labelW - valueW - 12;
+    const slidersStartY = audioSectionY + 36;
+    const sliders = [];
+
+    for (let i = 0; i < sliderRows.length; i++) {
+        const row = sliderRows[i];
+        const y = slidersStartY + i * sliderRowHeight;
+        const centerY = y + sliderRowHeight / 2;
+        const norm = Math.max(0, Math.min(1, row.value));
+        const thumbX = sliderTrackX + norm * sliderTrackW;
+
+        k.drawText({
+            text: row.label,
+            pos: k.vec2(panelX + 25, centerY),
+            size: 12,
+            anchor: "left",
+            color: k.rgb(180, 190, 200),
+        });
+        // Track
+        k.drawRect({
+            pos: k.vec2(sliderTrackX, centerY - 3),
+            width: sliderTrackW,
+            height: 6,
+            color: k.rgb(40, 50, 60),
+            radius: 3,
+        });
+        // Filled portion
+        k.drawRect({
+            pos: k.vec2(sliderTrackX, centerY - 3),
+            width: norm * sliderTrackW,
+            height: 6,
+            color: k.rgb(80, 140, 180),
+            radius: 3,
+        });
+        // Thumb
+        k.drawCircle({
+            pos: k.vec2(thumbX, centerY),
+            radius: 6,
+            color: k.rgb(180, 200, 220),
+        });
+        // Value readout (0-100%)
+        k.drawText({
+            text: `${Math.round(norm * 100)}%`,
+            pos: k.vec2(panelX + panelWidth - 25, centerY),
+            size: 11,
+            anchor: "right",
+            color: k.rgb(160, 170, 180),
+        });
+
+        sliders.push({
+            key: row.key,
+            trackX: sliderTrackX,
+            trackW: sliderTrackW,
+            x: sliderTrackX - 4,
+            y,
+            width: sliderTrackW + 8,
+            height: sliderRowHeight,
+        });
+    }
+
     // Close hint
     k.drawText({
         text: "Click anywhere to close",
-        pos: k.vec2(screenWidth / 2, panelY + panelHeight - 25),
+        pos: k.vec2(screenWidth / 2, panelY + panelHeight - 18),
         size: 11,
         anchor: "center",
         color: k.rgb(100, 100, 100),
@@ -2098,6 +2186,7 @@ export function drawMenuPanel(ctx) {
         y: panelY,
         width: panelWidth,
         height: panelHeight,
+        sliders,
     };
 }
 

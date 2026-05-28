@@ -13,6 +13,7 @@ import { drawTiles, drawDecorations } from "./rendering/tileRenderer.js";
 import { computeIslands, drawIslandWaves } from "./rendering/waveRenderer.js";
 import { installCRTPostEffect } from "./rendering/crtPostEffect.js";
 import { enableScreenWakeLock } from "./wakeLock.js";
+import { playMusic } from "./audio.js";
 
 // Geist Pixel font experiment — change this to swap variants:
 // "geist-square" | "geist-grid" | "geist-circle" | "geist-triangle" | "geist-line"
@@ -297,7 +298,7 @@ let currentModeSound = null;
 let titleMusicChainToken = 0;
 
 function playTitleMusic() {
-    titleMusic = k.play("title-music", { volume: 0.5 });
+    titleMusic = playMusic(k, "title-music", { volume: 0.5 });
     const myToken = titleMusicChainToken;
     titleMusic.onEnd(() => {
         if (myToken !== titleMusicChainToken) return;
@@ -1494,7 +1495,7 @@ k.scene("title", () => {
         const soundMap = { multiplayer: 'mode-skirmish', versus: 'mode-skirmish', defend: 'mode-defend', sandbox: 'mode-sandbox' };
         const soundName = soundMap[scenarioId];
         if (soundName) {
-            currentModeSound = k.play(soundName, { volume: 0.6 });
+            currentModeSound = playMusic(k, soundName, { volume: 0.6 });
         }
     }
 

@@ -49,6 +49,9 @@ import {
 // Mobile touch support
 import { isTouchDevice, initTouchHandlers, resetTouchState } from "../systems/touchHandler.js";
 
+// Audio (volume settings + category-aware play wrappers)
+import { playMusic, playSfx, getMusicVolume, getSfxVolume, setMusicVolume, setSfxVolume } from "../audio.js";
+
 // Default scenario config (used if none provided)
 import { getScenario, DEFAULT_SCENARIO_ID } from "../scenarios/index.js";
 
@@ -387,9 +390,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Initialize minimap
         const minimapState = createMinimapState(map);
 
-        // Start ambient audio (both loop at 25% volume)
-        const ambientOcean = k.play("ambient-ocean", { loop: true, volume: 0.25 });
-        const ambientMusic = k.play("ambient-music", { loop: true, volume: 0.25 });
+        // Start ambient audio (both loop at 25% volume).
+        // Ocean = sfx (environmental), background track = music.
+        const ambientOcean = playSfx(k, "ambient-ocean", { loop: true, volume: 0.25 });
+        const ambientMusic = playMusic(k, "ambient-music", { loop: true, volume: 0.25 });
 
         // Mobile/tab switching: resume audio when page becomes visible again.
         // iOS/Safari suspends the AudioContext when the app is backgrounded, and Kaplay's
@@ -480,6 +484,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         let debugPanelOpen = false;  // Debug panel state
         let debugState = { hideFog: false };  // Debug toggle values
         let crtSliderDrag = null;  // Active CRT slider drag: { key, trackX, trackW, min, max }
+        let menuSliderDrag = null; // Active settings-menu slider drag: { key: 'music'|'sfx', trackX, trackW }
         let designerPanelHits = null;  // Hit regions returned by drawDesignerPanel each frame
         let pendingUploadSlot = null;  // Slot the next file-input change should upload to
 
@@ -1630,6 +1635,21 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
+            // Settings-menu volume sliders — same press-to-drag pattern as CRT
+            // sliders so the menu's "click to close" doesn't fire on drag end.
+            if (menuPanelOpen && topButtonBounds && topButtonBounds.menuPanel) {
+                const mp = k.mousePos();
+                const sliderHit = (topButtonBounds.menuPanel.sliders || []).find(s =>
+                    mp.x >= s.x && mp.x <= s.x + s.width && mp.y >= s.y && mp.y <= s.y + s.height);
+                if (sliderHit) {
+                    menuSliderDrag = { key: sliderHit.key, trackX: sliderHit.trackX, trackW: sliderHit.trackW };
+                    const norm = Math.max(0, Math.min(1, (mp.x - sliderHit.trackX) / sliderHit.trackW));
+                    if (sliderHit.key === 'music') setMusicVolume(norm);
+                    else setSfxVolume(norm);
+                    return;
+                }
+            }
+
             // Designer-panel scale tuner — handle on press so slider drag and input
             // editing start cleanly (the regular click flow runs on release and would
             // miss any drag past DRAG_THRESHOLD).
@@ -1684,6 +1704,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (crtSliderDrag) {
                 crtSliderDrag = null;
                 return;  // swallow this release so handleClick doesn't fire
+            }
+            if (menuSliderDrag) {
+                menuSliderDrag = null;
+                return;  // swallow so the menu doesn't close on slider release
             }
 
             if (gameState.gameOver) return; // Block clicks when game over
@@ -1810,6 +1834,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const mp = k.mousePos();
                 const norm = Math.max(0, Math.min(1, (mp.x - crtSliderDrag.trackX) / crtSliderDrag.trackW));
                 CRT_CONFIG[crtSliderDrag.key] = crtSliderDrag.min + norm * (crtSliderDrag.max - crtSliderDrag.min);
+                return;
+            }
+
+            // Settings-menu volume slider drag
+            if (menuSliderDrag) {
+                const mp = k.mousePos();
+                const norm = Math.max(0, Math.min(1, (mp.x - menuSliderDrag.trackX) / menuSliderDrag.trackW));
+                if (menuSliderDrag.key === 'music') setMusicVolume(norm);
+                else setSfxVolume(norm);
                 return;
             }
 
@@ -2458,7 +2491,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // UI click sound helper
         function playUIClick() {
-            k.play("ui-click", { volume: 0.4 });
+            playSfx(k, "ui-click", { volume: 0.4 });
         }
 
         // Designer-mode quick spawn: drop a player-owned unit at the clicked hex with
@@ -2552,31 +2585,31 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Ship selection sound helper (plays random 1-5)
         function playShipSelect() {
             const soundNum = Math.floor(Math.random() * 5) + 1;
-            k.play(`select-ship-${soundNum}`, { volume: 0.4 });
+            playSfx(k, `select-ship-${soundNum}`, { volume: 0.4 });
         }
 
         // Cannon fire sound helper (plays random 1-4)
         function playCannonFire() {
             const soundNum = Math.floor(Math.random() * 4) + 1;
-            k.play(`cannon-fire-${soundNum}`, { volume: 0.3 });
+            playSfx(k, `cannon-fire-${soundNum}`, { volume: 0.3 });
         }
 
         // Cannon impact sound helper (plays random 1-5)
         function playCannonImpact() {
             const soundNum = Math.floor(Math.random() * 5) + 1;
-            k.play(`cannon-impact-${soundNum}`, { volume: 0.3 });
+            playSfx(k, `cannon-impact-${soundNum}`, { volume: 0.3 });
         }
 
         // Crossbow tower arrow fire sound helper (plays random 1-4)
         function playArrowFire() {
             const soundNum = Math.floor(Math.random() * 4) + 1;
-            k.play(`arrow-fire-${soundNum}`, { volume: 0.3 });
+            playSfx(k, `arrow-fire-${soundNum}`, { volume: 0.3 });
         }
 
         // Port waypoint/rally-point set sound helper (plays random 1-2)
         function playPortWaypoint() {
             const soundNum = Math.floor(Math.random() * 2) + 1;
-            k.play(`port-waypoint-${soundNum}`, { volume: 0.4 });
+            playSfx(k, `port-waypoint-${soundNum}`, { volume: 0.4 });
         }
 
         // Click handler for selection and waypoints - delegates to input handler helpers
@@ -2587,6 +2620,19 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Close menu panel on any click (except menu button itself, handled below)
             if (menuPanelOpen) {
+                // Tap on a volume slider sets that volume and keeps the panel open.
+                // (Desktop drags are handled in onMousePress; this branch primarily
+                // serves touch devices where there's no separate press/release flow.)
+                const menuSliders = topButtonBounds?.menuPanel?.sliders || [];
+                const sliderHit = menuSliders.find(s =>
+                    mouseX >= s.x && mouseX <= s.x + s.width && mouseY >= s.y && mouseY <= s.y + s.height);
+                if (sliderHit) {
+                    const norm = Math.max(0, Math.min(1, (mouseX - sliderHit.trackX) / sliderHit.trackW));
+                    if (sliderHit.key === 'music') setMusicVolume(norm);
+                    else setSfxVolume(norm);
+                    return;
+                }
+
                 // Check if clicking the menu button to toggle off
                 if (topButtonBounds && topButtonBounds.menuButton) {
                     const mb = topButtonBounds.menuButton;
