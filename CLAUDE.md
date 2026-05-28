@@ -61,6 +61,7 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [Pirates](docs/features/pirates.md)
 - [Sea Birds](docs/features/sea-birds.md)
 - [Repair](docs/features/repair.md)
+- [Audio](docs/features/audio.md) - Music/SFX volume controls and `playMusic`/`playSfx` wrappers
 - [Tooltips](docs/features/tooltips.md)
 
 ## Key Patterns
