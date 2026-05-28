@@ -1831,9 +1831,12 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         const isHovered = enabled && isMouseOverWorker;
 
         // Synthesize a minimal "spriteData" shape for drawPanelButton — the
-        // helper expects { sprite } | { imageSprite } and we don't have
-        // worker art yet. Pass a placeholder so layout stays consistent.
-        const workerStub = { imageSprite: null, sprite: null };
+        // helper needs *some* sprite to draw the thumbnail. We don't have
+        // worker art yet, so use a tiny solid-color pixel-art square in
+        // the worker's body color so the button reads as "worker".
+        const workerThumb = [[WORKER_CONFIG.color, WORKER_CONFIG.color],
+                             [WORKER_CONFIG.color, WORKER_CONFIG.color]];
+        const workerStub = { imageSprite: null, sprite: workerThumb };
         const label = isBuildingWorker
             ? `Building Worker… ${Math.floor((port.workerBuild.progress / port.workerBuild.buildTime) * 100)}%`
             : `Build Worker (W)`;
