@@ -1,13 +1,13 @@
 # Settlement Building
 
-> **Prototype note (RTS workers iteration):** Settlements are now built by
-> **workers**, not ports. Select a worker → click **BUILD SETTLEMENT** in
-> the worker panel → click a valid land hex. The nearest selected worker
-> walks to the site and the construction only progresses while they're
-> standing on it. Player settlements no longer produce wood (the worker
-> chopping loop replaced that); they still raise the **crew cap**. AI
-> settlements still auto-produce wood (no AI workers yet). See
-> [Workers](workers.md) for the full flow.
+> **Prototype note (autonomous workers iteration):** Ports build
+> settlements via the existing BUILD SETTLEMENT button (unchanged). On
+> completion a settlement now **spawns `SETTLEMENT_WORKERS` (3)
+> autonomous workers** next to it; those workers handle the wood-chopping
+> loop. Player settlements no longer directly produce wood — the workers
+> they spawn do. Settlements still raise the **crew cap**. AI settlements
+> still auto-produce wood via the legacy timer (no AI workers yet). See
+> [Workers](workers.md) for the worker loop.
 
 ## Behavior
 

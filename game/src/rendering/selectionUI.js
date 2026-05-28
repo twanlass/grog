@@ -648,7 +648,7 @@ export function drawWaypointsAndRallyPoints(ctx, gameState, getShipVisualPos, ma
 /**
  * Draw all selection UI elements (selection outlines, paths, attack targets)
  */
-export function drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, selectionState, getWorkerVisualPosLocal = null) {
+export function drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, selectionState) {
     const { k } = ctx;
     const selectionColor = k.rgb(255, 255, 255);
 
@@ -699,29 +699,6 @@ export function drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, select
     for (const ship of movingSelectedShips) {
         const pos = getShipVisualPosLocal(ship);
         drawSelectionAtPosition(ctx, pos.x, pos.y, selectionColor);
-    }
-
-    // Draw worker selection rings at their visual positions. Workers move
-    // between hexes too quickly for a hex-outline indicator to feel right,
-    // so we draw a small ring centered on the dot.
-    if (gameState.workers && getWorkerVisualPosLocal) {
-        const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
-        for (let i = 0; i < gameState.workers.length; i++) {
-            if (!isSelected(gameState, 'worker', i)) continue;
-            const worker = gameState.workers[i];
-            const pos = getWorkerVisualPosLocal(worker);
-            const screenX = (pos.x - cameraX) * zoom + halfWidth;
-            const screenY = (pos.y - cameraY) * zoom + halfHeight;
-            const radius = Math.max(6, 9 * zoom);
-            k.drawCircle({
-                pos: k.vec2(screenX, screenY),
-                radius,
-                color: selectionColor,
-                fill: false,
-                outline: { width: Math.max(1.5, 2 * zoom), color: selectionColor },
-                opacity: 0.9,
-            });
-        }
     }
 
     // Draw additional ship-specific indicators (attack targets, paths - waypoints drawn earlier)

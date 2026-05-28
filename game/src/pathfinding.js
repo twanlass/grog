@@ -163,6 +163,50 @@ export function findNearestTreeOnIsland(map, fromQ, fromR) {
 }
 
 /**
+ * BFS the worker's island for the nearest deposit hub — a hex with either
+ * a player-owned port or a player-owned settlement. Returns
+ * { q, r } or null if none reachable on this island. Used by worker
+ * return trips: workers deposit at whichever hub is closest.
+ */
+export function findNearestDepositHexOnIsland(map, fromQ, fromR, ports, settlements, owner) {
+    const hubHexes = new Set();
+    for (const p of ports) {
+        if ((p.owner || 'player') !== owner) continue;
+        if (p.construction) continue;
+        hubHexes.add(hexKey(p.q, p.r));
+    }
+    for (const s of settlements) {
+        if ((s.owner || 'player') !== owner) continue;
+        if (s.construction) continue;
+        hubHexes.add(hexKey(s.q, s.r));
+    }
+    if (hubHexes.size === 0) return null;
+
+    const startKey = hexKey(fromQ, fromR);
+    const visited = new Set([startKey]);
+    const queue = [{ q: fromQ, r: fromR }];
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+        const tile = map.tiles.get(hexKey(current.q, current.r));
+        if (!tile || tile.type !== 'land') continue;
+
+        if (hubHexes.has(hexKey(current.q, current.r))) {
+            return { q: current.q, r: current.r };
+        }
+        for (const n of hexNeighbors(current.q, current.r)) {
+            const nKey = hexKey(n.q, n.r);
+            if (visited.has(nKey)) continue;
+            const nTile = map.tiles.get(nKey);
+            if (!nTile || nTile.type !== 'land') continue;
+            visited.add(nKey);
+            queue.push(n);
+        }
+    }
+    return null;
+}
+
+/**
  * BFS the worker's island for the nearest port hex owned by the given
  * faction. Returns the port's index in gameState.ports, or null if none
  * reachable on this island.

@@ -1,94 +1,78 @@
 # Workers
 
-Workers are the player's land-based labour force. They harvest wood from
-tree hexes, carry it back to the nearest port, and are the **only** way
-to build settlements, watchtowers, and new ports on the same island.
-Ships still build ports across water (but only Schooners do, now), and
-every completed port spawns a small starter crew so a new island can
-bootstrap without ferrying workers over.
+Workers are autonomous land units that turn nearby trees into wood. They
+are **not player-controllable** — no selection, no commands, no panel.
+Settlements spawn them automatically; they walk to the nearest tree, chop
+it down, walk back to the nearest player hub (port or settlement), and
+deposit. Trees are a limited resource (100 wood each, no regrowth), so
+when a settlement strips its surroundings it goes quiet — forcing the
+player to expand. Player attention stays on ships and combat; the
+chopping loop is ambient.
 
-This is a **prototype** — minimal art (colored dots), no caps, no food
-cost, single-player only. AI players still get wood from settlements.
+This is a **prototype** — workers are colored dots with a small brown
+cargo pip. AI players still get wood from settlements via the legacy
+timer-based generator (no AI workers).
 
-## What workers do
+## How wood is produced
 
-| Action                  | How                                                                                |
-| ----------------------- | ---------------------------------------------------------------------------------- |
-| Harvest wood            | Right-click a tree hex → auto-loop (chop → return to nearest port → repeat)        |
-| Walk                    | Right-click any non-tree land hex                                                  |
-| Build a settlement      | Select worker(s) → **BUILD SETTLEMENT** (S) → click a valid hex                    |
-| Build a watchtower      | Select worker(s) → **BUILD WATCHTOWER** (T) → click a valid hex                    |
-| Build a new dock        | Select worker(s) → **BUILD DOCK** (D) → click a valid coastal hex                  |
+1. **Game start:** the home port spawns `WORKER_CONFIG.startingCount` (3)
+   workers next to it. They immediately start chopping.
+2. **Build a settlement** from the port build panel. When construction
+   completes, the settlement spawns `SETTLEMENT_WORKERS` (3) more
+   workers next to it.
+3. Every worker repeats: **idle → walk to nearest tree on the same island
+   → chop until cargo full → walk to nearest hub (port or settlement) →
+   deposit (instant +5 wood, floating number) → idle**.
+4. When the nearest tree depletes (`woodRemaining <= 0`), the tile is
+   marked `depleted` (renderer hides trees) and the worker BFS-finds the
+   next one.
+5. When **no tree is reachable on this island**, the worker idles
+   indefinitely. This is the signal that the island is tapped out — go
+   build a port somewhere else.
 
-## What ports do (worker production)
+## What the player still controls
 
-Ports produce workers, single-slot:
+- Ports build everything (ships, settlements, watchtowers — unchanged
+  from the pre-worker game).
+- Settlements still raise the **crew cap**, so building them is mandatory
+  even beyond the wood angle.
+- Ships build new ports across water (any ship, as before — no Schooner
+  gate). A brand-new port at game start has zero workers; it relies on
+  whatever settlement crews end up land-connected to it.
 
-- **BUILD WORKER (W)** in the port build panel: deducts 5 wood, ticks
-  for 5 seconds, spawns a worker on the nearest free land hex.
-- Only one worker production per port at a time. Click again after the
-  current one finishes to start another.
-- The port build panel no longer has BUILD SETTLEMENT or BUILD WATCHTOWER
-  — those moved to the worker panel.
+## Worker state machine
 
-## Schooner gate for ship-built ports
+```
+idle ──cargo>0? yes──► returning ──arrive──► (deposit) ──► idle
+  │
+  └─cargo==0──► moving ──arrive on tree──► chopping ──cargo full──► returning
+                                       └──tree gone──► startTreeTrip
+```
 
-A ship's BUILD PORT button (Build Dock from sea) now requires a Schooner.
-Cutters can no longer plant ports. Expansion = upgrade Dock → Shipyard,
-build a Schooner, sail it across, plant a port. Once the new port
-completes it spawns `PORT_STARTER_WORKERS` (3) workers right next to it —
-so the island has labour from frame one without you having to ferry
-workers across water.
+States: `idle`, `moving`, `chopping`, `returning`. No `building` state —
+workers don't build anything.
 
-## Starting state
+## Tree depletion
 
-- Home port starts with `WORKER_CONFIG.startingCount` (3) workers next
-  to it.
-- Each new port — whether built by a worker on the same island OR by a
-  Schooner across water — spawns `PORT_STARTER_WORKERS` (3) starter
-  workers when its construction completes.
-- The worker that built the port is released back to idle on completion,
-  so a worker-built port nets +2 workers (3 new − 1 invested as builder).
+- Every inland (non-`isPortSite`) land tile starts with
+  `tile.woodRemaining = TREE_HEX_WOOD` (100) at map gen.
+- A chop drains `WORKER_CONFIG.cargoCapacity` (5) per `chopTime` (2s).
+- When `woodRemaining` hits 0: `tile.depleted = true`, the decoration
+  layer hides tree and palm sprites for that hex.
+- A hex where a **settlement / tower / port** completes is also marked
+  depleted (its trees are displaced) so workers don't try to chop under
+  the structure.
 
-## Construction tether
+## Why this design
 
-When a player builds a settlement / tower / dock:
-
-1. Click the button → enter placement mode.
-2. Click a valid hex → the structure spawns in its `construction` state
-   with `construction.builderWorkerId = <nearest selected worker>.id`.
-3. That worker walks to the site and enters the `building` state.
-4. **Construction progress only ticks while the tethered worker is alive,
-   on-site, and in the `building` state.** If the worker is reassigned
-   (impossible right now — locked) or destroyed, progress pauses.
-5. On completion, the worker is released back to `idle` and the structure
-   becomes operational.
-6. **Cancelling** an in-progress structure (the existing CANCEL button on
-   the construction status panel) releases the worker AND refunds the wood.
-
-Workers in the `building` state ignore new move / harvest / build orders
-until the build finishes or is cancelled — same lock-during-construction
-model as ships building ports.
-
-## Selection
-
-- **Single click** on a worker selects it (small white ring on the dot).
-- **Double-click** on a worker selects all visible workers.
-- **Drag-box select** picks up any worker dots in the box.
-- Shift toggles individual workers in the selection.
-- Mobile uses the existing tap / double-tap / long-press vocabulary.
-
-## Right-click semantics with workers selected
-
-| Click target                          | Behavior                                      |
-| ------------------------------------- | --------------------------------------------- |
-| Tree hex (woodRemaining > 0)          | Auto-harvest loop                             |
-| Plain land hex                        | Walk there                                    |
-| Water / off-island land               | No-op (silently)                              |
-| Workers in `building` state           | Reject — they're locked to the construction   |
-
-If both ships and workers are selected, the right-click resolves both —
-workers act on land, ships fall through to their normal handlers.
+- **Player attention stays on ships.** Workers don't need selection or
+  commands; you watch them work.
+- **Settlements matter.** Each new settlement is a wood-income boost
+  (more workers, more chopping) AND a crew-cap boost (more ships).
+- **Expansion is incentivised.** Strip your home island and you have to
+  ship to a new one to keep the wood flowing.
+- **The visual is satisfying.** Dots scurry across the island, trees
+  disappear over time, "+5" pops over hubs.
 
 ## Data structures
 
@@ -99,9 +83,8 @@ worker = {
     owner: 'player',
     q, r,
     path, moveProgress, movingToward,
-    state: 'idle' | 'moving' | 'chopping' | 'returning' | 'building',
+    state: 'idle' | 'moving' | 'chopping' | 'returning',
     harvestTarget: {q, r} | null,
-    buildTask: { structureType, structureId, q, r } | null,
     cargo: 0..5,
     chopProgress: 0,
     health: 20,
@@ -109,33 +92,7 @@ worker = {
 }
 ```
 
-### Structure construction fields
-```js
-// Each of settlement / tower / port carries a builderWorkerId when
-// player-built; AI / ship-built leave it null.
-structure.construction = {
-    progress, buildTime,
-    builderWorkerId: 'worker-N' | null,
-    // (ports also carry builderShipIndex for cross-water builds)
-}
-```
-
-### Port worker production
-```js
-port.workerBuild = { progress, buildTime } | null;
-```
-
-### Worker build mode
-```js
-gameState.workerBuildMode = {
-    active: false,
-    structureType: 'settlement' | 'tower' | 'port' | null,
-    portType: 'dock' | null,  // for structureType === 'port'
-    hoveredHex: {q, r} | null,
-}
-```
-
-### Tree-hex tile fields (unchanged from previous prototype)
+### Tree-hex tile fields
 ```js
 tile.woodRemaining = 100;   // TREE_HEX_WOOD
 tile.depleted = false;
@@ -145,65 +102,48 @@ tile.depleted = false;
 
 | File | Purpose |
 |------|---------|
-| `game/src/sprites/workers.js` | `WORKER_CONFIG` + `TREE_HEX_WOOD` + `PORT_STARTER_WORKERS` |
-| `game/src/systems/workers.js` | State machine + `commandWorkerMove` / `commandWorkerHarvest` / `commandWorkerBuild` / `releaseWorkerFromBuild` |
-| `game/src/systems/construction.js` | `canTickConstruction`, `spawnPortStarterWorkers`, `updatePortWorkerBuilds`, and the worker-aware progress loops |
-| `game/src/systems/combat.js` | `cancelSettlementConstruction` (new), `releaseBuilderWorker` on cancel/destroy |
-| `game/src/gameState.js` | `createWorker`, `enterWorkerBuildMode`, `exitWorkerBuildMode`, `workerBuild`/`buildTask` fields, worker support in selection helpers |
+| `game/src/sprites/workers.js` | `WORKER_CONFIG` + `TREE_HEX_WOOD` + `SETTLEMENT_WORKERS` |
+| `game/src/systems/workers.js` | Autonomous state machine + `updateWorkers` + `getWorkerVisualPos` |
+| `game/src/systems/construction.js` | `spawnHubWorkers`, `markHexDepleted`, settlement-completion spawn |
+| `game/src/gameState.js` | `createWorker` |
 | `game/src/mapGenerator.js` | Seeds `woodRemaining` on inland land tiles |
-| `game/src/pathfinding.js` | `findLandPath`, `findNearestTreeOnIsland`, `findNearestPortIndexOnIsland` |
-| `game/src/systems/inputHandler.js` | `handleWorkerCommandClick`, `handleWorkerSelection`, `handleWorkerBuildPanelClick`, `handleWorkerBuildPlacementClick`, port BUILD WORKER button handler |
-| `game/src/scenes/gameScene.js` | `spawnStartingWorkers`, panel wiring, hotkeys (S/T/D/W), ESC + right-click cancellation |
+| `game/src/pathfinding.js` | `findLandPath`, `findNearestTreeOnIsland`, `findNearestDepositHexOnIsland` |
+| `game/src/scenes/gameScene.js` | `spawnStartingWorkers` (home port at game start), workers update + draw |
 | `game/src/rendering/unitRenderer.js` | `drawWorkers` (dots + cargo pip) |
-| `game/src/rendering/uiPanels.js` | `drawWorkerBuildPanel` + updated port build panel (BUILD WORKER) + Schooner-gated ship port section |
-| `game/src/rendering/placementUI.js` | `drawWorkerBuildPlacementMode` (settlement / tower / port preview) |
-| `game/src/rendering/selectionUI.js` | Worker selection ring |
 | `game/src/rendering/tileRenderer.js` | Hides trees on `tile.depleted === true` |
-| `game/src/systems/resourceGeneration.js` | Player-settlement wood removed |
+| `game/src/systems/resourceGeneration.js` | Player-settlement wood removed; AI settlement wood retained |
 
 ## Tunables (all in `sprites/workers.js`)
 
 | Constant                          | Default | What it controls                                  |
 | --------------------------------- | ------- | ------------------------------------------------- |
-| `WORKER_CONFIG.startingCount`     | 3       | Workers spawned next to home port                 |
-| `PORT_STARTER_WORKERS`            | 3       | Workers spawned when any new port completes       |
-| `WORKER_CONFIG.cost`              | 5 wood  | Cost to produce a worker at a port                |
-| `WORKER_CONFIG.buildTime`         | 5 s     | Time to produce a worker at a port                |
+| `WORKER_CONFIG.startingCount`     | 3       | Workers spawned next to the home port at game start |
+| `SETTLEMENT_WORKERS`              | 3       | Workers spawned when a settlement completes       |
 | `WORKER_CONFIG.speed`             | 0.6     | Walk speed (hexes / sec)                          |
 | `WORKER_CONFIG.health`            | 20      | HP                                                |
-| `WORKER_CONFIG.cargoCapacity`     | 5       | Wood per harvest trip                             |
+| `WORKER_CONFIG.cargoCapacity`     | 5       | Wood per trip                                     |
 | `WORKER_CONFIG.chopTime`          | 2 s     | Seconds per chop                                  |
 | `TREE_HEX_WOOD`                   | 100     | Initial wood per tree hex                         |
 
 ## Out of scope for this prototype
 
-- **AI workers** — AIs still produce wood from settlements
-- **Multiplayer sync** — worker state not serialized in net snapshots
-- **Worker combat targeting** — workers have HP but no enemy intentionally
-  shoots them yet
-- **Worker production queueing** — single-slot only, no AoE-style "queue 5"
-- **Tree regrowth** — depleted is permanent
-- **Pixel art** — workers are colored dots with a brown cargo pip
-- **Per-island reachability filter on placement preview** — every valid
-  hex is highlighted; cross-island clicks are silently rejected at
-  command time
+- **AI workers** — AIs still use the timer-based settlement wood gen.
+- **Multiplayer sync** — worker state not serialized.
+- **Combat targeting** — workers have HP but no enemy intentionally
+  shoots them yet.
+- **Tree regrowth** — depleted is permanent.
+- **Pixel art** — workers are colored dots with a brown cargo pip.
+- **Worker selection / commands** — by design. No panel.
 
 ## Edge cases
 
-- **No idle worker selected when clicking BUILD button:** the placement
-  hex click shows "No available worker selected" and exits build mode.
-- **Selected workers are all `building`:** same — no eligible builder,
-  placement click is a no-op + notification.
-- **No land path to the placement hex:** the structure isn't created and
-  wood is refunded; notification "No land path to that hex".
-- **Worker mid-chop, player issues BUILD command via placement click:**
-  the nearest eligible worker drops harvesting and walks to build.
-  Chopping workers ARE eligible — only `building` / `buildTask`-locked
-  workers are excluded.
-- **Cancel mid-build:** structure removed, wood refunded, worker released.
-- **All ports destroyed mid-trip:** worker can't find a return path,
-  goes `idle` holding cargo. As soon as a port comes back, the next
-  command resumes the loop.
-- **Worker production at a port being destroyed:** the port disappears
-  with its `workerBuild` field; queued wood is forfeit (already
-  deducted). Considered acceptable for prototype.
+- **No hub reachable** (all ports/settlements destroyed on this island):
+  worker goes idle holding cargo. Resumes the loop once a hub comes
+  back.
+- **No tree reachable** (island stripped): worker idles indefinitely.
+  Player must expand.
+- **Worker mid-chop, tree depletes** (another worker hit zero first):
+  the chopping check switches them to the next nearest tree.
+- **Settlement / port / tower built on a tree hex:** that hex is marked
+  depleted on completion so the worker doesn't try to chop the structure.
+- **Game paused (timeScale === 0):** `updateWorkers` returns early.

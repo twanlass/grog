@@ -1,7 +1,7 @@
 // Main game scene - renders the hex map
 import { hexToPixel, hexCorners, HEX_SIZE, pixelToHex, hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { generateMap, getTileColor, getStippleColors, TILE_TYPES, findPortSiteOnStarterIsland, isWater } from "../mapGenerator.js";
-import { createGameState, createShip, createPort, createSettlement, createTower, createWorker, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, getSelectedWorkers, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, enterWorkerBuildMode, exitWorkerBuildMode, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner, isPirateShip } from "../gameState.js";
+import { createGameState, createShip, createPort, createSettlement, createTower, createWorker, findStartingPosition, findOppositeStartingPositions, findTriangularStartingPositions, createAIPlayerState, findFreeAdjacentWater, getBuildableShips, startBuilding, addToBuildQueue, selectUnit, addToSelection, toggleSelection, isSelected, clearSelection, getSelectedUnits, getSelectedShips, enterPortBuildMode, exitPortBuildMode, isValidPortSite, getNextPortType, startPortUpgrade, isShipBuildingPort, enterSettlementBuildMode, exitSettlementBuildMode, isValidSettlementSite, enterTowerBuildMode, exitTowerBuildMode, isValidTowerSite, isShipBuildingTower, canAfford, deductCost, isPortBuildingSettlement, isShipAdjacentToPort, getCargoSpace, cancelTradeRoute, findNearbyWaitingHex, getHomePortIndex, canAffordCrew, showNotification, updateNotification, enterPatrolMode, exitPatrolMode, enterActionMode, exitActionMode, countEntitiesForOwner, isAIOwner, saveSelectionToGroup, recallSelectionFromGroup, getGroupCenterPosition, resetEntityIdCounter, getResourcesForOwner, isPirateShip } from "../gameState.js";
 import { drawDesignerPanel, hitTestRegion } from "../rendering/designerPanel.js";
 import { clampScale, SCALE_MIN, SCALE_MAX } from "../designer/scaleTuner.js";
 import { uploadSprite, resetSprite } from "../designer/assetSwap.js";
@@ -25,7 +25,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawWorkers, drawFlo
 import { drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawWorkerBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
@@ -47,8 +47,7 @@ import {
     handleShipBuildPanelClick, handleBuildPanelClick, handleBuildQueueClick, handleTowerInfoPanelClick, handleSettlementInfoPanelClick, handleShipInfoPanelClick,
     handleTradeRouteClick, handleHomePortUnloadClick,
     handleUnitSelection, handleWaypointClick, handleAttackClick, handleBroadsideClick, handlePortRallyPointClick,
-    handlePatrolWaypointClick,
-    handleWorkerCommandClick, handleWorkerSelection, handleWorkerBuildPanelClick, handleWorkerBuildPlacementClick
+    handlePatrolWaypointClick
 } from "../systems/inputHandler.js";
 
 // Mobile touch support
@@ -528,7 +527,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Build panel state (for click detection)
         let buildPanelBounds = null;  // { x, y, width, height, buttons: [{y, height, shipType}] }
         let shipBuildPanelBounds = null;  // For ship's port build panel
-        let workerBuildPanelBounds = null;  // For worker's settlement/tower/port build panel
         let buildQueuePanelBounds = null;  // For build queue cancel buttons
         let settlementBuildPanelBounds = null;  // For settlement build button in port panel
         let towerInfoPanelBounds = null;  // For tower upgrade button
@@ -1333,7 +1331,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Draw ships (migrated to rendering module)
             drawShips(ctx, gameState, fogState, getShipVisualPosLocal);
 
-            // Draw workers (land units — dots on grass)
+            // Draw workers (autonomous land dots, not player-selectable)
             drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal);
 
             // Draw projectiles (migrated to rendering module)
@@ -1352,7 +1350,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             drawDockingProgress(ctx, gameState, getShipVisualPosLocal, fogState);
 
             // Draw all selection indicators (migrated to rendering module)
-            drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, null, getWorkerVisualPosLocal);
+            drawAllSelectionUI(ctx, gameState, getShipVisualPosLocal, null);
 
             // Draw placement mode UI (migrated to rendering module)
             const placementValidators = { isValidPortSite, isValidSettlementSite, isValidTowerSite };
@@ -1438,19 +1436,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // Draw tooltip if present (from ship build panel hover)
             if (shipBuildPanelBounds?.tooltip) {
                 drawTooltip(ctx, shipBuildPanelBounds.tooltip);
-            }
-
-            // Worker build panel — shown when workers are selected and no
-            // ship/port panel is taking the bottom-left slot. Workers and
-            // ports/ships are mutually exclusive bottom-left occupants
-            // (selecting one type clears the other in practice), so we
-            // skip rendering if a build panel is already drawn.
-            workerBuildPanelBounds = null;
-            if (!buildPanelBounds && !shipBuildPanelBounds) {
-                workerBuildPanelBounds = drawWorkerBuildPanel(ctx, gameState);
-                if (workerBuildPanelBounds?.tooltip) {
-                    drawTooltip(ctx, workerBuildPanelBounds.tooltip);
-                }
             }
 
             // Tower info panel (bottom right, when tower is selected)
@@ -1917,9 +1902,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 } else if (gameState.towerBuildMode.active) {
                     exitTowerBuildMode(gameState);
                     console.log("Tower placement cancelled");
-                } else if (gameState.workerBuildMode.active) {
-                    exitWorkerBuildMode(gameState);
-                    console.log("Worker build placement cancelled");
                 } else {
                     // No placement mode active - handle as command click
                     handleRightClick();
@@ -2416,9 +2398,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             } else if (gameState.towerBuildMode.active) {
                 exitTowerBuildMode(gameState);
                 console.log("Tower placement cancelled");
-            } else if (gameState.workerBuildMode.active) {
-                exitWorkerBuildMode(gameState);
-                console.log("Worker build placement cancelled");
             } else if (gameState.actionMode.active) {
                 const wasPatrolMode = gameState.actionMode.active === 'patrol';
                 exitActionMode(gameState);
@@ -2450,46 +2429,22 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // Hotkey 'S' — enter worker build mode for a settlement when worker
-        // panel is showing (i.e. one or more workers are selected).
+        // Hotkey 'S' to enter settlement build mode when port panel is open
         k.onKeyPress("s", () => {
-            if (workerBuildPanelBounds) {
-                enterWorkerBuildMode(gameState, 'settlement');
-                console.log("Worker settlement placement (hotkey S)");
+            const port = buildPanelBounds?.portIndex != null ? gameState.ports[buildPanelBounds.portIndex] : null;
+            if (buildPanelBounds?.settlementButton &&
+                port && !port.repair &&
+                !isPortBuildingSettlement(buildPanelBounds.portIndex, gameState.settlements) &&
+                canAfford(getResourcesForOwner(gameState, localPlayerId), SETTLEMENTS.settlement.cost)) {
+                enterSettlementBuildMode(gameState, buildPanelBounds.portIndex);
+                console.log("Settlement placement mode (hotkey S)");
             }
         });
 
-        // Hotkey 'D' — enter worker build mode for a dock (new port)
-        k.onKeyPress("d", () => {
-            if (workerBuildPanelBounds) {
-                enterWorkerBuildMode(gameState, 'port', 'dock');
-                console.log("Worker dock placement (hotkey D)");
-            }
-        });
-
-        // Hotkey 'W' — start producing a worker at the selected port
-        k.onKeyPress("w", () => {
-            if (!buildPanelBounds?.workerButton) return;
-            const port = gameState.ports[buildPanelBounds.portIndex];
-            if (!port || port.repair || port.workerBuild) return;
-            const res = getResourcesForOwner(gameState, localPlayerId);
-            if (!canAfford(res, WORKER_CONFIG.cost)) return;
-            deductCost(res, WORKER_CONFIG.cost);
-            port.workerBuild = { progress: 0, buildTime: WORKER_CONFIG.buildTime };
-            console.log("Started worker production at port (hotkey W)");
-        });
-
-        // Hotkey 'T' to enter watchtower build mode when ship, port, or
-        // worker panel is open. Worker panel takes priority if visible.
+        // Hotkey 'T' to enter watchtower build mode when ship or port panel is open
         k.onKeyPress("t", () => {
             const watchtowerData = TOWERS.watchtower;
             const tRes = getResourcesForOwner(gameState, localPlayerId);
-            // Worker panel: enter worker build mode for tower
-            if (workerBuildPanelBounds) {
-                enterWorkerBuildMode(gameState, 'tower');
-                console.log("Worker watchtower placement (hotkey T)");
-                return;
-            }
             // Ship panel takes priority over port panel
             if (shipBuildPanelBounds?.towerButton && canAfford(tRes, watchtowerData.cost)) {
                 if (!canAffordCrew(gameState, watchtowerData.crewCost || 0, localPlayerId)) {
@@ -2935,7 +2890,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             if (handlePortPlacementClick(gameState, map)) { playUIClick(); flushGuestCommands(); return; }
             if (handleSettlementPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
             if (handleTowerPlacementClick(gameState)) { playUIClick(); flushGuestCommands(); return; }
-            if (handleWorkerBuildPlacementClick(gameState, map)) { playUIClick(); flushGuestCommands(); return; }
 
             // Check game menu clicks first (when open)
             if (gameMenuBounds) {
@@ -3042,11 +2996,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (isMobile && (gameState.settlementBuildMode.active || gameState.towerBuildMode.active || gameState.portBuildMode.active)) {
                     clearSelection(gameState);
                 }
-                return;
-            }
-            if (handleWorkerBuildPanelClick(mouseX, mouseY, workerBuildPanelBounds, gameState)) {
-                playUIClick();
-                flushGuestCommands();
                 return;
             }
             if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
@@ -3255,12 +3204,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Check unit selection (workers first — they're small/dense, then ships, ports, etc.)
+            // Check unit selection (ships, ports, settlements)
             if (!clickedOnUnit) {
-                let clickedUnit = handleWorkerSelection(gameState, worldX, worldY, isShiftHeld, getWorkerVisualPosLocal);
-                if (!clickedUnit) {
-                    clickedUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPosLocal);
-                }
+                const clickedUnit = handleUnitSelection(gameState, worldX, worldY, hexToPixel, SELECTION_RADIUS, isShiftHeld, getShipVisualPosLocal);
                 clickedOnUnit = clickedUnit !== null;
 
                 // Exit action mode when selecting a unit
@@ -3285,8 +3231,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         subType = gameState.towers[clickedUnit.index].type;
                     } else if (clickedUnit.type === 'settlement') {
                         subType = 'settlement';  // All settlements are same type
-                    } else if (clickedUnit.type === 'worker') {
-                        subType = 'worker';  // All workers are one type
                     }
 
                     if (lastClickedUnit &&
@@ -3351,10 +3295,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 exitTowerBuildMode(gameState);
                 return;
             }
-            if (gameState.workerBuildMode.active) {
-                exitWorkerBuildMode(gameState);
-                return;
-            }
 
             const mousePos = getMousePos();
             const mouseX = mousePos.x;
@@ -3366,20 +3306,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const clickedHex = pixelToHex(worldX, worldY);
 
             const isShiftHeld = shiftKeyHeld;
-
-            // Worker commands: tree = harvest loop, land = walk. Workers
-            // and ships don't share a control vocabulary — if any workers
-            // are selected, the right-click resolves the worker intent
-            // first, then falls through so any co-selected ships can also
-            // act on the same click (water for ships, land for workers).
-            const hasSelectedWorkers = gameState.selectedUnits.some(u => u.type === 'worker');
-            if (hasSelectedWorkers) {
-                handleWorkerCommandClick(gameState, map, clickedHex);
-                // If ONLY workers are selected, stop here. Otherwise let the
-                // ship-side handlers below also process the click.
-                const hasSelectedShips = gameState.selectedUnits.some(u => u.type === 'ship');
-                if (!hasSelectedShips) return;
-            }
 
             // Attack enemy (skips ports if shift held for plundering)
             if (handleAttackClick(gameState, map, worldX, worldY, hexToPixel, SELECTION_RADIUS, getShipVisualPosLocal, isShiftHeld)) {
@@ -3525,20 +3451,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Check each worker (skip non-local workers). Workers are common
-            // and easy to box-select since they're small dots on land.
-            for (let i = 0; i < gameState.workers.length; i++) {
-                const worker = gameState.workers[i];
-                if ((worker.owner || 'player') !== localPlayerId) continue;
-                const pos = getWorkerVisualPosLocal(worker);
-                const screenX = (pos.x - effectiveCameraX) * zoom + halfWidth;
-                const screenY = (pos.y - effectiveCameraY) * zoom + halfHeight;
-                if (screenX >= boxLeft && screenX <= boxRight &&
-                    screenY >= boxTop && screenY <= boxBottom) {
-                    addToSelection(gameState, 'worker', i);
-                }
-            }
-
             const count = gameState.selectedUnits.length;
             if (count > 0) {
                 console.log(`Selected ${count} unit(s)`);
@@ -3618,17 +3530,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                     if (isOnScreen(screenX, screenY)) {
                         addToSelection(gameState, 'settlement', i);
-                    }
-                }
-            } else if (unitType === 'worker') {
-                for (let i = 0; i < gameState.workers.length; i++) {
-                    const worker = gameState.workers[i];
-                    if ((worker.owner || 'player') !== localPlayerId) continue;
-                    const pos = getWorkerVisualPosLocal(worker);
-                    const screenX = (pos.x - cameraX) * zoom + halfWidth;
-                    const screenY = (pos.y - cameraY) * zoom + halfHeight;
-                    if (isOnScreen(screenX, screenY)) {
-                        addToSelection(gameState, 'worker', i);
                     }
                 }
             }

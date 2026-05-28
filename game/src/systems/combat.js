@@ -5,19 +5,9 @@ import { TOWERS } from "../sprites/towers.js";
 import { PORTS } from "../sprites/ports.js";
 import { SETTLEMENTS } from "../sprites/settlements.js";
 import { isShipBuildingPort, isShipBuildingTower, getHomePortIndex, findNearestWaterInRange, isAIOwner, isPirateShip } from "../gameState.js";
-import { releaseWorkerFromBuild } from "./workers.js";
 import { notifyAIAttacked } from "./aiPlayer.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
 import { isWater } from "../mapGenerator.js";
-
-// Free any worker that's tethered to this structure's construction.
-// Called when a build is cancelled or the structure is destroyed mid-build.
-function releaseBuilderWorker(gameState, structure) {
-    const id = structure?.construction?.builderWorkerId;
-    if (!id) return;
-    const w = gameState.workers?.find(x => x.id === id);
-    releaseWorkerFromBuild(w);
-}
 
 // Combat constants
 export const CANNON_DAMAGE = 5;
@@ -1817,10 +1807,6 @@ export function cancelPortConstruction(gameState, portIndex, resources, fogState
         }
     }
 
-    // Free the worker tethered to this build (if any) so they can take new
-    // orders immediately.
-    releaseBuilderWorker(gameState, port);
-
     if (isUpgrade) {
         port.construction = null;
         console.log(`Cancelled port upgrade to ${refundType} at (${port.q}, ${port.r})`);
@@ -1853,8 +1839,6 @@ export function cancelTowerConstruction(gameState, towerIndex, resources, fogSta
         }
     }
 
-    releaseBuilderWorker(gameState, tower);
-
     if (isUpgrade) {
         tower.construction = null;
         console.log(`Cancelled tower upgrade to ${refundType} at (${tower.q}, ${tower.r})`);
@@ -1883,8 +1867,6 @@ export function cancelSettlementConstruction(gameState, settlementIndex, resourc
             resources[resource] = (resources[resource] || 0) + amount;
         }
     }
-
-    releaseBuilderWorker(gameState, settlement);
 
     gameState.settlements.splice(settlementIndex, 1);
     cleanupStaleReferences(gameState, 'settlement', settlementIndex);

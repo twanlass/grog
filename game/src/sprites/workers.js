@@ -1,51 +1,42 @@
-// Worker entity definition - the land unit that harvests wood from trees
-// and carries it back to the nearest player port. Workers are also the
-// only way to build land structures (settlements, towers, and new ports
-// on the same island). Ships still build ports across water — and each
-// completed port spawns a small starter crew so a new island isn't left
-// without labour.
+// Worker entity definition — autonomous land units that handle the
+// chopping loop. Workers are NOT player-controlled: they spawn from
+// settlements (and from the home port at game start), find the nearest
+// non-depleted tree, walk → chop → walk back to the nearest player-owned
+// hub (port or settlement) → deposit → repeat. When no tree is reachable
+// on their island, they idle. They're a visual + economic substrate, not
+// a unit the player micromanages.
 
 export const WORKER_CONFIG = {
-    // Starting count spawned at the home port at game start. Matches the
-    // PORT_STARTER_WORKERS count so the early game scales the same way
-    // for newly-built ports.
+    // Workers spawned next to the home port at game start. The home port
+    // is the player's "settlement-zero" — without these the early game has
+    // no wood income until the first settlement is built.
     startingCount: 3,
 
     // How fast a worker walks across hexes (hexes per second). Ships are
     // ~1.2 hex/sec for reference; workers should feel slower than ships.
     speed: 0.6,
 
-    // Combat
+    // Combat (workers have HP for future targeting but no enemy shoots
+    // them yet)
     health: 20,
 
-    // Wood carried per trip back to the port
+    // Wood carried per trip back to a hub
     cargoCapacity: 5,
 
-    // Seconds to chop one cargo's worth of wood (cargoCapacity wood)
+    // Seconds to chop one cargo's worth of wood
     chopTime: 2,
-
-    // Cost + build time when produced from a port. Cheap and quick so the
-    // player can grow their labour pool without it feeling like a second
-    // ship-build queue. (Worker production at ports is single-slot, not
-    // queueable — each port can build one worker at a time.)
-    cost: { wood: 5 },
-    buildTime: 5,
 
     // Visual radius of the worker dot (in world pixels at zoom 1)
     radius: 5,
 
-    // Color (RGB) — uses a warm earthy color so it reads against grass.
+    // Color (RGB) — warm earthy color so it reads against grass
     color: [220, 180, 90],
-    selectedRingColor: [255, 255, 255],
-    cargoIndicatorColor: [180, 110, 50],  // brown — visible when carrying wood
+    cargoIndicatorColor: [180, 110, 50],
 };
 
 // Per-tree-hex wood pool. Each inland land tile starts with this much wood.
 export const TREE_HEX_WOOD = 100;
 
-// Number of starter workers spawned next to a port the instant it finishes
-// construction (in addition to the home port, which spawns these at game
-// start). Lets a brand-new island bootstrap a labour pool without making
-// the player ferry workers over.
-export const PORT_STARTER_WORKERS = 3;
-
+// Workers spawned next to a settlement the moment its construction
+// completes. These workers immediately start the chopping loop.
+export const SETTLEMENT_WORKERS = 3;

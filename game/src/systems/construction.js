@@ -5,41 +5,30 @@ import {
     MAX_PORT_BUILD_DISTANCE,
 } from "../gameState.js";
 import { SHIPS, SETTLEMENTS, TOWERS, PORTS } from "../sprites/index.js";
-import { WORKER_CONFIG, PORT_STARTER_WORKERS } from "../sprites/workers.js";
-import { releaseWorkerFromBuild } from "./workers.js";
+import { SETTLEMENT_WORKERS } from "../sprites/workers.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
 import { hexDistance, hexKey, hexNeighbors } from "../hex.js";
 
-/**
- * For player-built (worker-driven) structures, only advance construction
- * progress when the tethered worker is alive, on-site, and in the
- * `building` state. Returns true if the build is allowed to tick.
- *
- * For ship-built ports and AI-built structures (no builderWorkerId set),
- * always allow ticking — the legacy ship-builds-port-from-sea path doesn't
- * have a worker tether.
- */
-function canTickConstruction(structure, gameState) {
-    const builderWorkerId = structure.construction?.builderWorkerId;
-    if (!builderWorkerId) return true;  // No worker tether → tick freely
-
-    const worker = gameState.workers?.find(w => w.id === builderWorkerId);
-    if (!worker) return false;
-    if (worker.state !== 'building') return false;
-    if (worker.q !== structure.q || worker.r !== structure.r) return false;
-    return true;
+// Mark a tile as depleted (trees consumed) — used when a structure
+// completes on that hex so workers don't try to chop under it.
+function markHexDepleted(map, q, r) {
+    const tile = map.tiles.get(hexKey(q, r));
+    if (!tile) return;
+    tile.woodRemaining = 0;
+    tile.depleted = true;
 }
 
 /**
- * Spawn `count` workers on land hexes adjacent to a freshly-completed port.
- * BFS outward from the port hex; falls back to stacking on the port hex
+ * Spawn `count` autonomous workers on land hexes adjacent to a hub
+ * (a freshly-completed settlement, or the home port at game start).
+ * BFS outward from the hub hex; falls back to stacking on the hub hex
  * if the island has too few free land hexes.
  */
-function spawnPortStarterWorkers(gameState, map, port, count) {
+export function spawnHubWorkers(gameState, map, hub, count, owner = 'player') {
     if (count <= 0) return 0;
     const placed = [];
-    const visited = new Set([hexKey(port.q, port.r)]);
-    const queue = [{ q: port.q, r: port.r }];
+    const visited = new Set([hexKey(hub.q, hub.r)]);
+    const queue = [{ q: hub.q, r: hub.r }];
     while (queue.length > 0 && placed.length < count) {
         const current = queue.shift();
         for (const n of hexNeighbors(current.q, current.r)) {
@@ -53,8 +42,7 @@ function spawnPortStarterWorkers(gameState, map, port, count) {
             if (placed.length >= count) break;
         }
     }
-    while (placed.length < count) placed.push({ q: port.q, r: port.r });
-    const owner = port.owner || 'player';
+    while (placed.length < count) placed.push({ q: hub.q, r: hub.r });
     for (const spot of placed) {
         gameState.workers.push(createWorker(spot.q, spot.r, owner));
     }
@@ -63,11 +51,6 @@ function spawnPortStarterWorkers(gameState, map, port, count) {
 
 /**
  * Updates all construction progress for ports, settlements, and towers
- * @param {Object} gameState - The game state
- * @param {Object} map - The game map
- * @param {Object} fogState - Fog of war state
- * @param {number} dt - Delta time (already scaled by timeScale)
- * @param {Array} floatingNumbers - Array to push floating number animations to
  */
 export function updateConstruction(gameState, map, fogState, dt, floatingNumbers = []) {
     if (dt === 0) return; // Paused
@@ -78,18 +61,14 @@ export function updateConstruction(gameState, map, fogState, dt, floatingNumbers
     // Update port ship build queue progress
     updatePortBuildQueues(gameState, map, fogState, dt);
 
-    // Update port single-slot worker production
-    updatePortWorkerBuilds(gameState, map, dt);
+    // Update port construction/upgrade progress
+    updatePortConstruction(gameState, fogState, dt, floatingNumbers, map);
 
-    // Update port construction/upgrade progress (passes map so a completed
-    // port can spawn its starter workers).
-    updatePortConstruction(gameState, map, fogState, dt, floatingNumbers);
-
-    // Update settlement construction progress
-    updateSettlementConstruction(gameState, fogState, dt, floatingNumbers);
+    // Update settlement construction progress (spawns worker crew on completion)
+    updateSettlementConstruction(gameState, map, fogState, dt, floatingNumbers);
 
     // Update tower construction progress
-    updateTowerConstruction(gameState, fogState, dt);
+    updateTowerConstruction(gameState, fogState, dt, map);
 }
 
 /**
@@ -239,14 +218,9 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
 /**
  * Update port construction/upgrade progress
  */
-function updatePortConstruction(gameState, map, fogState, dt, floatingNumbers) {
+function updatePortConstruction(gameState, fogState, dt, floatingNumbers, map = null) {
     for (const port of gameState.ports) {
         if (!port.construction) continue;
-
-        // Worker-built ports (builderWorkerId set) only tick while the
-        // tethered worker is on-site; ship-built ports (and AI ports)
-        // tick freely as before.
-        if (!canTickConstruction(port, gameState)) continue;
 
         port.construction.progress += dt;
 
@@ -260,6 +234,9 @@ function updatePortConstruction(gameState, map, fogState, dt, floatingNumbers) {
                 console.log(`Port upgraded: ${oldType} → ${port.type} at (${port.q}, ${port.r})`);
             } else {
                 console.log(`Port construction complete: ${port.type} at (${port.q}, ${port.r})`);
+                // Trees on the port hex are displaced. Mark depleted so
+                // workers don't try to chop on top of the structure.
+                if (map) markHexDepleted(map, port.q, port.r);
 
                 // Spawn floating crew number for new port (player only)
                 if (!port.owner || port.owner === 'player') {
@@ -276,21 +253,6 @@ function updatePortConstruction(gameState, map, fogState, dt, floatingNumbers) {
                         });
                     }
                 }
-
-                // A brand-new port ships with PORT_STARTER_WORKERS so the
-                // island can immediately start chopping and building
-                // without ferrying workers across water. (Upgrades skip
-                // this — they don't create a new outpost.)
-                if (map) {
-                    spawnPortStarterWorkers(gameState, map, port, PORT_STARTER_WORKERS);
-                }
-            }
-
-            // Free the worker that built this port (if any)
-            const builderWorkerId = port.construction.builderWorkerId;
-            if (builderWorkerId) {
-                const w = gameState.workers?.find(x => x.id === builderWorkerId);
-                releaseWorkerFromBuild(w);
             }
 
             port.construction = null;  // Clear construction state
@@ -304,49 +266,28 @@ function updatePortConstruction(gameState, map, fogState, dt, floatingNumbers) {
 }
 
 /**
- * Update single-slot worker production at each port.
- * port.workerBuild = { progress, buildTime } | null. On completion, the
- * port spawns a worker on the nearest free land hex (BFS from the port).
- */
-function updatePortWorkerBuilds(gameState, map, dt) {
-    for (const port of gameState.ports) {
-        if (!port.workerBuild) continue;
-        if (port.construction) continue;  // Port still building — pause worker production
-
-        port.workerBuild.progress += dt;
-        if (port.workerBuild.progress >= port.workerBuild.buildTime) {
-            // Spawn the worker on the nearest free adjacent land hex
-            spawnPortStarterWorkers(gameState, map, port, 1);
-            port.workerBuild = null;
-        }
-    }
-}
-
-/**
  * Update settlement construction progress
  */
-function updateSettlementConstruction(gameState, fogState, dt, floatingNumbers) {
+function updateSettlementConstruction(gameState, map, fogState, dt, floatingNumbers) {
     for (const settlement of gameState.settlements) {
         if (!settlement.construction) continue;
-
-        // Worker-built (player) settlements only tick while the tethered
-        // worker is on the settlement hex.
-        if (!canTickConstruction(settlement, gameState)) continue;
 
         settlement.construction.progress += dt;
 
         // Check if construction is complete
         if (settlement.construction.progress >= settlement.construction.buildTime) {
             console.log(`Settlement construction complete at (${settlement.q}, ${settlement.r})`);
-
-            // Free the builder worker (if any) before clearing the state
-            const builderWorkerId = settlement.construction.builderWorkerId;
-            if (builderWorkerId) {
-                const w = gameState.workers?.find(x => x.id === builderWorkerId);
-                releaseWorkerFromBuild(w);
-            }
-
             settlement.construction = null;  // Clear construction state
+            // Settlement displaces the trees on its hex.
+            if (map) markHexDepleted(map, settlement.q, settlement.r);
+
+            // Spawn the settlement's worker crew (player settlements only —
+            // AI settlements still use the timer-based wood generator in
+            // resourceGeneration.js, since the AI doesn't manage workers).
+            const owner = settlement.owner || 'player';
+            if (owner === 'player' && map) {
+                spawnHubWorkers(gameState, map, settlement, SETTLEMENT_WORKERS, 'player');
+            }
 
             // Spawn floating crew number for new settlement (player only)
             if (!settlement.owner || settlement.owner === 'player') {
@@ -373,11 +314,9 @@ function updateSettlementConstruction(gameState, fogState, dt, floatingNumbers) 
 /**
  * Update tower construction/upgrade progress
  */
-function updateTowerConstruction(gameState, fogState, dt) {
+function updateTowerConstruction(gameState, fogState, dt, map = null) {
     for (const tower of gameState.towers) {
         if (!tower.construction) continue;
-
-        if (!canTickConstruction(tower, gameState)) continue;
 
         tower.construction.progress += dt;
 
@@ -391,13 +330,7 @@ function updateTowerConstruction(gameState, fogState, dt) {
                 console.log(`Tower upgraded: ${oldType} → ${tower.type} at (${tower.q}, ${tower.r})`);
             } else {
                 console.log(`Tower construction complete at (${tower.q}, ${tower.r})`);
-            }
-
-            // Free the builder worker (if any)
-            const builderWorkerId = tower.construction.builderWorkerId;
-            if (builderWorkerId) {
-                const w = gameState.workers?.find(x => x.id === builderWorkerId);
-                releaseWorkerFromBuild(w);
+                if (map) markHexDepleted(map, tower.q, tower.r);
             }
 
             tower.construction = null;  // Clear construction state

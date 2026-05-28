@@ -1,179 +1,31 @@
-// Worker system — handles land-unit movement, tree harvesting, wood
-// drop-off, and construction-site labour. Workers are the only way to
-// build settlements, towers, and same-island ports; ships still handle
-// cross-water port placement.
+// Worker system — autonomous land units that chop trees and deposit wood
+// at the nearest player hub (port or settlement). Workers are NOT player-
+// controlled: no selection, no commands. They spawn from settlements (and
+// the home port at game start), find the nearest tree, walk → chop → walk
+// back to the nearest hub → deposit → repeat. When no tree is reachable
+// on their island, they idle.
 //
 // State machine per worker (`worker.state`):
-//   - idle:       Standing still, no orders. Renders as a stationary dot.
-//   - moving:     Walking along `worker.path` to a destination. If
-//                 `harvestTarget` is set and we arrive at it, transition
-//                 to chopping. If `buildTask` is set and we arrive at the
-//                 site, transition to building. Otherwise transition to idle.
-//   - chopping:   Standing on `harvestTarget`, draining the tile's
-//                 woodRemaining into `worker.cargo`. When cargo fills,
-//                 transition to returning.
-//   - returning:  Walking to the nearest player-owned port. On arrival,
-//                 deposit cargo into resources, then either resume
-//                 harvesting (target still has wood, or auto-find next
-//                 tree) or go idle.
-//   - building:   Standing on a construction site. The worker doesn't do
-//                 anything in this state — construction.js advances the
-//                 structure's progress as long as the worker is here. When
-//                 the structure clears its `construction` field (build
-//                 complete) OR the worker's buildTask is cleared
-//                 externally (cancel), the worker transitions back to idle.
+//   - idle:       No active assignment. Each frame we look for a tree to
+//                 chop; if one exists we walk toward it.
+//   - moving:     Walking along `worker.path` to a tree. On arrival we
+//                 transition to chopping (or pick another tree if this
+//                 one depleted en route).
+//   - chopping:   Draining the tile's woodRemaining into worker.cargo.
+//                 When cargo fills, transition to returning.
+//   - returning:  Walking to the nearest hub on the island. On arrival
+//                 we deposit (adds to player wood) and go back to idle.
 //
-// Workers in `building` state ignore new move/harvest/build commands until
-// the build finishes or is cancelled — same lock-during-construction model
-// as ships building ports.
-//
-// Movement code mirrors shipMovement.js: a worker has an A* `path` and a
-// per-segment `moveProgress` that ticks toward 1 at WORKER_CONFIG.speed.
-// When it reaches 1, we pop the next hex off the path.
+// Movement code mirrors shipMovement.js: A* path + per-segment moveProgress
+// at WORKER_CONFIG.speed. When moveProgress >= 1 we pop the next hex.
 
-import { hexKey, hexDistance, hexNeighbors } from "../hex.js";
+import { hexKey } from "../hex.js";
 import {
     findLandPath,
     findNearestTreeOnIsland,
-    findNearestPortIndexOnIsland,
+    findNearestDepositHexOnIsland,
 } from "../pathfinding.js";
 import { WORKER_CONFIG } from "../sprites/workers.js";
-
-// Workers that are tied to an active construction site are locked — they
-// won't accept new movement, harvest, or build orders until the build
-// finishes (worker.buildTask is cleared by construction.js) or the
-// player explicitly cancels (which also clears buildTask).
-function isLockedByBuild(worker) {
-    return worker.state === 'building' || worker.buildTask !== null;
-}
-
-/**
- * Assign a move order to a worker. Pathfinds from current hex to (q, r) on
- * land and starts walking. Returns true if a path was found.
- * `harvestTarget` is set to null (a plain move), so the worker idles on arrival.
- *
- * A worker that is currently tied to a construction site rejects move
- * orders (the build is locking it in place).
- */
-export function commandWorkerMove(worker, map, goalQ, goalR) {
-    if (isLockedByBuild(worker)) return false;
-    const path = findLandPath(map, worker.q, worker.r, goalQ, goalR);
-    if (!path || path.length === 0) {
-        // Already there, or no path
-        if (worker.q === goalQ && worker.r === goalR) {
-            worker.path = null;
-            worker.state = 'idle';
-            worker.harvestTarget = null;
-            return true;
-        }
-        return false;
-    }
-    worker.path = path;
-    worker.moveProgress = 0;
-    worker.movingToward = path[0];
-    worker.state = 'moving';
-    worker.harvestTarget = null;
-    worker.chopProgress = 0;
-    return true;
-}
-
-/**
- * Assign a harvest order to a worker for the tree hex at (q, r). Worker
- * pathfinds to the tree and starts chopping on arrival; once cargo fills,
- * runs the return-to-port loop. Returns true if a path was found.
- *
- * If (q, r) is not a tree hex (e.g. player right-clicked a coastal land
- * tile), we BFS the island for the nearest tree from that hex and use that
- * as the target instead.
- */
-export function commandWorkerHarvest(worker, map, q, r) {
-    if (isLockedByBuild(worker)) return false;
-    let targetQ = q;
-    let targetR = r;
-
-    const tile = map.tiles.get(hexKey(q, r));
-    const isTreeHex = tile && tile.type === 'land' && !tile.isPortSite
-        && tile.woodRemaining > 0 && !tile.depleted;
-
-    if (!isTreeHex) {
-        // Find nearest tree on the same island as the clicked hex
-        const nearest = findNearestTreeOnIsland(map, q, r);
-        if (!nearest) return false;
-        targetQ = nearest.q;
-        targetR = nearest.r;
-    }
-
-    // If we're already on the target tree, chop immediately.
-    if (worker.q === targetQ && worker.r === targetR) {
-        worker.harvestTarget = { q: targetQ, r: targetR };
-        worker.path = null;
-        worker.state = 'chopping';
-        worker.chopProgress = 0;
-        return true;
-    }
-
-    const path = findLandPath(map, worker.q, worker.r, targetQ, targetR);
-    if (!path) return false;
-    worker.path = path;
-    worker.moveProgress = 0;
-    worker.movingToward = path[0];
-    worker.harvestTarget = { q: targetQ, r: targetR };
-    worker.state = 'moving';
-    worker.chopProgress = 0;
-    return true;
-}
-
-/**
- * Assign a build order to a worker — walk to (q, r) and stand there in the
- * `building` state. Construction progress is driven by construction.js
- * which checks for a worker tethered to the structure via builderWorkerId.
- *
- * @param {Object} task - { structureType, structureId, q, r }
- *   `structureType`: 'settlement' | 'tower' | 'port' (informational only)
- *   `structureId`: the entity id of the structure we're tied to (so the
- *     construction tick can find us back via builderWorkerId)
- *
- * Returns true if a path was found OR the worker is already on-site.
- * A worker that's already mid-build is locked and rejects the order.
- */
-export function commandWorkerBuild(worker, map, task) {
-    if (isLockedByBuild(worker)) return false;
-    const { q, r } = task;
-
-    if (worker.q === q && worker.r === r) {
-        worker.buildTask = { ...task };
-        worker.path = null;
-        worker.state = 'building';
-        worker.harvestTarget = null;
-        worker.chopProgress = 0;
-        return true;
-    }
-
-    const path = findLandPath(map, worker.q, worker.r, q, r);
-    if (!path) return false;
-    worker.buildTask = { ...task };
-    worker.path = path;
-    worker.moveProgress = 0;
-    worker.movingToward = path[0];
-    worker.state = 'moving';
-    worker.harvestTarget = null;
-    worker.chopProgress = 0;
-    return true;
-}
-
-/**
- * Externally clear a worker's build assignment (used when construction
- * completes or is cancelled). The worker drops out of `building` /
- * en-route-to-build state and goes idle, ready for new orders.
- */
-export function releaseWorkerFromBuild(worker) {
-    if (!worker) return;
-    worker.buildTask = null;
-    if (worker.state === 'building') {
-        worker.state = 'idle';
-        worker.path = null;
-    }
-}
 
 // Walk along `worker.path` for `dt` seconds at WORKER_CONFIG.speed. Returns
 // true if the worker arrived at the end of its path this frame.
@@ -198,16 +50,66 @@ function advanceMovement(worker, dt) {
     return false;
 }
 
-// Try to start (or resume) a return trip to the nearest player port.
-// Returns true if a path was found; sets worker.state = 'returning' on
-// success or leaves it alone on failure (worker will just stand there
-// holding cargo until a port becomes reachable again).
+// Pick a target tree near the worker and start walking to it. If no tree
+// is reachable on this island, the worker stays idle. Returns true if a
+// trip was started.
+function startTreeTrip(worker, map) {
+    const target = findNearestTreeOnIsland(map, worker.q, worker.r);
+    if (!target) {
+        worker.state = 'idle';
+        worker.path = null;
+        worker.harvestTarget = null;
+        return false;
+    }
+    worker.harvestTarget = { q: target.q, r: target.r };
+    if (worker.q === target.q && worker.r === target.r) {
+        worker.path = null;
+        worker.state = 'chopping';
+        worker.chopProgress = 0;
+        return true;
+    }
+    const path = findLandPath(map, worker.q, worker.r, target.q, target.r);
+    if (!path) {
+        // BFS found a tree but A* can't reach it — shouldn't happen on the
+        // same island, but bail out to idle so we retry next frame.
+        worker.state = 'idle';
+        worker.path = null;
+        return false;
+    }
+    worker.path = path;
+    worker.moveProgress = 0;
+    worker.movingToward = path[0];
+    worker.state = 'moving';
+    return true;
+}
+
+// Start a return trip to the nearest deposit hub (port or settlement).
+// Returns true if a trip was started; false leaves the worker idle holding
+// cargo until a hub becomes reachable.
 function startReturnTrip(worker, gameState, map) {
-    const portIdx = findNearestPortIndexOnIsland(map, worker.q, worker.r, gameState.ports, worker.owner);
-    if (portIdx === null) return false;
-    const port = gameState.ports[portIdx];
-    const path = findLandPath(map, worker.q, worker.r, port.q, port.r);
-    if (!path) return false;
+    const hub = findNearestDepositHexOnIsland(
+        map, worker.q, worker.r,
+        gameState.ports, gameState.settlements,
+        worker.owner || 'player',
+    );
+    if (!hub) {
+        worker.state = 'idle';
+        worker.path = null;
+        return false;
+    }
+    if (worker.q === hub.q && worker.r === hub.r) {
+        // Standing on a hub already (shouldn't normally happen — workers
+        // chop on tree hexes, not hub hexes — but handle it cleanly).
+        worker.path = null;
+        worker.state = 'returning';
+        return true;
+    }
+    const path = findLandPath(map, worker.q, worker.r, hub.q, hub.r);
+    if (!path) {
+        worker.state = 'idle';
+        worker.path = null;
+        return false;
+    }
     worker.path = path;
     worker.moveProgress = 0;
     worker.movingToward = path[0];
@@ -215,43 +117,31 @@ function startReturnTrip(worker, gameState, map) {
     return true;
 }
 
-// Try to resume harvesting after a drop-off. Prefer the original
-// `harvestTarget` if it still has wood; otherwise BFS for the next tree.
-function resumeHarvest(worker, map) {
-    let target = worker.harvestTarget;
-    if (target) {
-        const tile = map.tiles.get(hexKey(target.q, target.r));
-        if (!tile || tile.depleted || (tile.woodRemaining || 0) <= 0) {
-            target = null;
+function depositCargo(worker, gameState, floatingNumbers) {
+    const dropped = worker.cargo;
+    worker.cargo = 0;
+    if (dropped <= 0) return;
+    const owner = worker.owner || 'player';
+    if (owner === 'player') {
+        gameState.resources.wood += dropped;
+    } else if (owner === 'player2' && gameState.player2Resources) {
+        gameState.player2Resources.wood += dropped;
+    } else if (gameState.aiPlayers) {
+        const aiIdx = ['ai1', 'ai2', 'ai3'].indexOf(owner);
+        if (aiIdx >= 0 && gameState.aiPlayers[aiIdx]) {
+            gameState.aiPlayers[aiIdx].resources.wood += dropped;
         }
     }
-    if (!target) {
-        target = findNearestTreeOnIsland(map, worker.q, worker.r);
+    if (owner === 'player') {
+        floatingNumbers.push({
+            q: worker.q, r: worker.r,
+            text: `+${dropped}`,
+            type: 'wood',
+            age: 0,
+            duration: 1.5,
+            offsetX: 0,
+        });
     }
-    if (!target) {
-        worker.state = 'idle';
-        worker.path = null;
-        worker.harvestTarget = null;
-        return;
-    }
-    worker.harvestTarget = { q: target.q, r: target.r };
-
-    if (worker.q === target.q && worker.r === target.r) {
-        worker.path = null;
-        worker.state = 'chopping';
-        worker.chopProgress = 0;
-        return;
-    }
-    const path = findLandPath(map, worker.q, worker.r, target.q, target.r);
-    if (!path) {
-        worker.state = 'idle';
-        worker.path = null;
-        return;
-    }
-    worker.path = path;
-    worker.moveProgress = 0;
-    worker.movingToward = path[0];
-    worker.state = 'moving';
 }
 
 /**
@@ -266,34 +156,33 @@ export function updateWorkers(gameState, map, dt, floatingNumbers = []) {
     if (!gameState.workers) return;
 
     for (const worker of gameState.workers) {
-        // Decay hit flash regardless of state
         if (worker.hitFlash > 0) worker.hitFlash = Math.max(0, worker.hitFlash - dt);
 
         switch (worker.state) {
             case 'idle':
-                // Nothing to do
+                // Workers are autonomous: an idle worker proactively looks
+                // for work. If they have cargo, drop it off first;
+                // otherwise find a tree.
+                if (worker.cargo > 0) {
+                    startReturnTrip(worker, gameState, map);
+                } else {
+                    startTreeTrip(worker, map);
+                }
                 break;
 
             case 'moving': {
                 const arrived = advanceMovement(worker, dt);
                 if (arrived) {
-                    // If we arrived at a build site, park in 'building'
-                    if (worker.buildTask
-                        && worker.q === worker.buildTask.q
-                        && worker.r === worker.buildTask.r) {
-                        worker.state = 'building';
-                        worker.path = null;
-                    } else if (worker.harvestTarget
+                    if (worker.harvestTarget
                         && worker.q === worker.harvestTarget.q
                         && worker.r === worker.harvestTarget.r) {
-                        // Arrived at a harvest target → start chopping
                         const tile = map.tiles.get(hexKey(worker.q, worker.r));
                         if (tile && !tile.depleted && (tile.woodRemaining || 0) > 0) {
                             worker.state = 'chopping';
                             worker.chopProgress = 0;
                         } else {
-                            // Tree depleted before we arrived — find another
-                            resumeHarvest(worker, map);
+                            // Tree depleted before we arrived — pick another
+                            startTreeTrip(worker, map);
                         }
                     } else {
                         worker.state = 'idle';
@@ -302,23 +191,18 @@ export function updateWorkers(gameState, map, dt, floatingNumbers = []) {
                 break;
             }
 
-            case 'building':
-                // Construction.js handles progress. We just hold position.
-                // If buildTask is cleared externally (cancel/complete), the
-                // release helper transitions us back to idle.
-                break;
-
             case 'chopping': {
                 const tile = map.tiles.get(hexKey(worker.q, worker.r));
                 if (!tile || tile.depleted || (tile.woodRemaining || 0) <= 0) {
-                    // Current hex isn't choppable — find another or idle
-                    resumeHarvest(worker, map);
+                    if (worker.cargo > 0) {
+                        startReturnTrip(worker, gameState, map);
+                    } else {
+                        startTreeTrip(worker, map);
+                    }
                     break;
                 }
                 worker.chopProgress += dt;
                 if (worker.chopProgress >= WORKER_CONFIG.chopTime) {
-                    // Complete a chop: take cargoCapacity wood from the tile
-                    // (or whatever's left if less). Cargo fills to capacity.
                     const space = WORKER_CONFIG.cargoCapacity - worker.cargo;
                     const taken = Math.min(space, tile.woodRemaining);
                     worker.cargo += taken;
@@ -330,17 +214,12 @@ export function updateWorkers(gameState, map, dt, floatingNumbers = []) {
                     worker.chopProgress = 0;
 
                     if (worker.cargo >= WORKER_CONFIG.cargoCapacity) {
-                        // Head back to port
-                        if (!startReturnTrip(worker, gameState, map)) {
-                            // No port reachable — go idle holding cargo
-                            worker.state = 'idle';
-                            worker.path = null;
-                        }
+                        startReturnTrip(worker, gameState, map);
                     } else if (tile.depleted) {
                         // Cargo not full but tree gone — find next tree
-                        resumeHarvest(worker, map);
+                        startTreeTrip(worker, map);
                     }
-                    // else: still has wood and tile still has wood, keep chopping
+                    // else: keep chopping
                 }
                 break;
             }
@@ -348,33 +227,8 @@ export function updateWorkers(gameState, map, dt, floatingNumbers = []) {
             case 'returning': {
                 const arrived = advanceMovement(worker, dt);
                 if (arrived) {
-                    // Deposit cargo into the owner's wood resources
-                    const dropped = worker.cargo;
-                    worker.cargo = 0;
-                    if (dropped > 0) {
-                        if (worker.owner === 'player') {
-                            gameState.resources.wood += dropped;
-                        } else if (worker.owner === 'player2' && gameState.player2Resources) {
-                            gameState.player2Resources.wood += dropped;
-                        } else if (gameState.aiPlayers) {
-                            const aiIdx = ['ai1', 'ai2', 'ai3'].indexOf(worker.owner);
-                            if (aiIdx >= 0 && gameState.aiPlayers[aiIdx]) {
-                                gameState.aiPlayers[aiIdx].resources.wood += dropped;
-                            }
-                        }
-                        if (worker.owner === 'player') {
-                            floatingNumbers.push({
-                                q: worker.q, r: worker.r,
-                                text: `+${dropped}`,
-                                type: 'wood',
-                                age: 0,
-                                duration: 1.5,
-                                offsetX: 0,
-                            });
-                        }
-                    }
-                    // Resume harvesting on the same target (or find a new tree)
-                    resumeHarvest(worker, map);
+                    depositCargo(worker, gameState, floatingNumbers);
+                    startTreeTrip(worker, map);
                 }
                 break;
             }
@@ -389,7 +243,8 @@ export function updateWorkers(gameState, map, dt, floatingNumbers = []) {
  */
 export function getWorkerVisualPos(worker, hexToPixel) {
     const fromPos = hexToPixel(worker.q, worker.r);
-    if (!worker.path || worker.path.length === 0 || worker.state !== 'moving' && worker.state !== 'returning') {
+    if (!worker.path || worker.path.length === 0
+        || (worker.state !== 'moving' && worker.state !== 'returning')) {
         return fromPos;
     }
     const next = worker.path[0];

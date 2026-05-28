@@ -2,7 +2,6 @@
 import { drawSprite, drawSpriteHealthTint, getSpriteSize, SHIPS, PORTS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { getDirectionalSprite, getTowerSprite, VIRTUAL_TOWER_SPRITES } from "./unitRenderer.js";
 import { getBuildableShips, getNextPortType, getNextTowerType, isPortBuildingSettlement, canAfford, computeCrewStatus, canAffordCrew, isAIOwner, getResourcesForOwner } from "../gameState.js";
-import { WORKER_CONFIG } from "../sprites/workers.js";
 import { getLocalPlayerId } from "../systems/inputHandler.js";
 import { getRepairCost, getRepairTime } from "../systems/repair.js";
 import { isTouchDevice } from "../systems/touchHandler.js";
@@ -1603,15 +1602,9 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
 
     const { k, screenHeight } = ctx;
     const shipData = SHIPS[ship.type];
-    // Ports across water are now a Schooner-tier capability (tech gate for
-    // island expansion). Cutters can no longer plant a port from sea.
-    const canBuildPorts = ship.type === 'schooner';
-    const buildablePortTypes = canBuildPorts ? ['dock'] : [];
+    const buildablePortTypes = ['dock'];
     const watchtowerData = TOWERS.watchtower;
 
-    // Hide the panel entirely if this ship can't build anything on land
-    // (no ports AND we still want to expose the watchtower button below;
-    // watchtower stays available to any ship for now).
     const sbpWidth = 240;
     const sbpRowHeight = 44;
     const sbpPadding = 10;
@@ -1619,9 +1612,7 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
     const sectionGap = 4;
     const portSectionHeight = buildablePortTypes.length * sbpRowHeight;
     const towerSectionHeight = sbpRowHeight;
-    // If there's no port section, drop the section gap too
-    const usedSectionGap = buildablePortTypes.length > 0 ? sectionGap : 0;
-    const sbpHeight = sbpPadding + headerHeight + portSectionHeight + usedSectionGap + towerSectionHeight + sbpPadding;
+    const sbpHeight = sbpPadding + headerHeight + portSectionHeight + sectionGap + towerSectionHeight + sbpPadding;
     const sbpX = 15;
     const sbpY = screenHeight - 15 - sbpHeight;
 
@@ -1682,7 +1673,7 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
         }
     }
 
-    currentY += portSectionHeight + usedSectionGap;
+    currentY += portSectionHeight + sectionGap;
 
     // Watchtower button
     const towerBtnY = currentY;
@@ -1742,13 +1733,12 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
 
     // Track what CAN be built (for enabling/disabling buttons)
     const canUpgrade = nextPortType && !portBusy && !isRepairing;
-    // Worker production: single slot, can't start a new one if already producing
-    const isBuildingWorker = !!port.workerBuild;
-    const canBuildWorker = !isBuildingWorker && !isRepairing && (!port.owner || port.owner === getLocalPlayerId());
+    const canBuildSettlement = !isBuildingSettlement && !gameState.settlementBuildMode.active && !isRepairing;
+    const canBuildDefense = !gameState.towerBuildMode.active && !isRepairing;
 
     // Track what SHOULD be shown (always show these sections for consistent height)
-    // Settlements + towers are now built by workers — see drawWorkerBuildPanel.
-    const showWorker = true;       // Always show worker production
+    const showSettlement = true;  // Always show settlement option
+    const showDefense = true;     // Always show watchtower option
     const showUpgrade = !!nextPortType;  // Only show if there's an upgrade available
 
     const hasStorage = portIndex > 0 && port.storage && port.storage.wood > 0;
@@ -1762,15 +1752,16 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     const shipButtonsHeight = buildableShips.length * bpRowHeight;
     // Always show ship buttons (queue allows adding while building)
     const shipSectionHeight = shipButtonsHeight;
-    const workerHeight = showWorker ? bpRowHeight : 0;
+    const settlementHeight = showSettlement ? bpRowHeight : 0;
+    const defenseHeight = showDefense ? bpRowHeight : 0; // Just Watchtower
     const upgradeHeight = showUpgrade ? bpRowHeight : 0;
     // Only show repair button when damaged and not already repairing (repair bar shows above unit)
     const repairHeight = (isDamaged && !isRepairing) ? 50 : 0;
     // Count number of section gaps needed
-    const numSections = [workerHeight > 0, shipSectionHeight > 0, upgradeHeight > 0, repairHeight > 0].filter(Boolean).length;
+    const numSections = [settlementHeight > 0, shipSectionHeight > 0, defenseHeight > 0, upgradeHeight > 0, repairHeight > 0].filter(Boolean).length;
     const totalSectionGaps = Math.max(0, numSections - 1) * sectionGap;
-    // Order: Header, Worker, Ships, Upgrades, Repair (with padding top/bottom)
-    const bpHeight = bpPadding + headerHeight + storageHeight + workerHeight + shipSectionHeight + upgradeHeight + repairHeight + totalSectionGaps + bpPadding;
+    // Order: Header, Settlement, Ships, Watchtower, Upgrades, Repair (with padding top/bottom)
+    const bpHeight = bpPadding + headerHeight + storageHeight + settlementHeight + shipSectionHeight + defenseHeight + upgradeHeight + repairHeight + totalSectionGaps + bpPadding;
     const bpX = 15;
     const bpY = screenHeight - 15 - bpHeight;
 
@@ -1781,7 +1772,8 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         height: bpHeight,
         buttons: [],
         upgradeButton: null,
-        workerButton: null,   // BUILD WORKER hitbox; null if not buildable
+        settlementButton: null,
+        towerButton: null,
         repairButton: null,
         portIndex: portIndex,
     };
@@ -1815,43 +1807,34 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     let currentY = bpY + bpPadding + headerHeight + storageHeight;
     let hasPreviousSection = false;
 
-    // 1. Worker section — port produces workers one at a time. Settlements
-    //    and towers are now built by workers themselves (see worker build
-    //    panel), so those buttons have moved off the port panel.
-    if (showWorker) {
-        const workerCost = WORKER_CONFIG.cost;
-        const affordable = canAfford(getLocalRes(gameState), workerCost);
-        const enabled = canBuildWorker && affordable;
-        const workerBtnY = currentY;
-        const workerBtnHeight = bpRowHeight - 4;
-        bounds.workerButton = canBuildWorker ? { y: workerBtnY, height: workerBtnHeight } : null;
+    // 1. Settlement section (always visible)
+    if (showSettlement) {
+        const settlementData = SETTLEMENTS.settlement;
+        const alreadyBuildingSettlement = isBuildingSettlement;
+        const settlementAffordable = canAfford(getLocalRes(gameState), settlementData.cost);
+        const canBuildSettlementNow = canBuildSettlement && settlementAffordable && !alreadyBuildingSettlement;
 
-        const isMouseOverWorker = mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
-                                  mousePos.y >= workerBtnY && mousePos.y <= workerBtnY + workerBtnHeight;
-        const isHovered = enabled && isMouseOverWorker;
+        const settlementBtnY = currentY;
+        const settlementBtnHeight = bpRowHeight - 4;
+        bounds.settlementButton = canBuildSettlement ? { y: settlementBtnY, height: settlementBtnHeight } : null;
 
-        // Synthesize a minimal "spriteData" shape for drawPanelButton — the
-        // helper needs *some* sprite to draw the thumbnail. We don't have
-        // worker art yet, so use a tiny solid-color pixel-art square in
-        // the worker's body color so the button reads as "worker".
-        const workerThumb = [[WORKER_CONFIG.color, WORKER_CONFIG.color],
-                             [WORKER_CONFIG.color, WORKER_CONFIG.color]];
-        const workerStub = { imageSprite: null, sprite: workerThumb };
-        const label = isBuildingWorker
-            ? `Building Worker… ${Math.floor((port.workerBuild.progress / port.workerBuild.buildTime) * 100)}%`
-            : `Build Worker (W)`;
-        drawPanelButton(ctx, bpX, bpWidth, workerBtnY, workerBtnHeight, workerStub, label,
-            workerCost, WORKER_CONFIG.buildTime, isHovered, enabled);
+        const isMouseOverSettlement = mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                                      mousePos.y >= settlementBtnY && mousePos.y <= settlementBtnY + settlementBtnHeight;
+        const isSettlementHovered = canBuildSettlementNow && isMouseOverSettlement;
 
-        if (isMouseOverWorker) {
+        const settlementName = `Build ${settlementData.name} (S)`;
+        drawPanelButton(ctx, bpX, bpWidth, settlementBtnY, settlementBtnHeight, settlementData, settlementName,
+            settlementData.cost, settlementData.buildTime, isSettlementHovered, canBuildSettlementNow);
+
+        if (isMouseOverSettlement) {
             bounds.tooltip = {
                 x: bpX + bpWidth + 8,
-                y: workerBtnY,
-                text: "Workers chop trees for wood and build settlements, towers, and new ports on land.",
+                y: settlementBtnY,
+                text: "Increases your crew cap and spawns autonomous workers that chop nearby trees for wood.",
             };
         }
 
-        currentY += workerHeight;
+        currentY += settlementHeight;
         hasPreviousSection = true;
     }
 
@@ -1899,8 +1882,39 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         hasPreviousSection = true;
     }
 
-    // (Defense / Watchtower section moved off the port panel — workers
-    //  build towers now via the worker build panel.)
+    // 3. Defense section (Watchtower only - always visible)
+    if (showDefense) {
+        const watchtowerData = TOWERS.watchtower;
+        const towerAffordable = canBuildDefense && canAfford(getLocalRes(gameState), watchtowerData.cost) &&
+                                canAffordCrew(gameState, watchtowerData.crewCost || 0, getLocalPlayerId());
+
+        if (hasPreviousSection) {
+            currentY += sectionGap;
+        }
+
+        const towerBtnY = currentY;
+        const towerBtnHeight = bpRowHeight - 4;
+        bounds.towerButton = canBuildDefense ? { y: towerBtnY, height: towerBtnHeight } : null;
+
+        const isTowerHovered = towerAffordable && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                               mousePos.y >= towerBtnY && mousePos.y <= towerBtnY + towerBtnHeight;
+
+        drawPanelButton(ctx, bpX, bpWidth, towerBtnY, towerBtnHeight, watchtowerData, `Build ${watchtowerData.name} (T)`,
+            watchtowerData.cost, watchtowerData.buildTime, isTowerHovered, towerAffordable);
+
+        const isMouseOverTower = mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                                 mousePos.y >= towerBtnY && mousePos.y <= towerBtnY + towerBtnHeight;
+        if (isMouseOverTower) {
+            bounds.tooltip = {
+                x: bpX + bpWidth + 8,
+                y: towerBtnY,
+                text: "Extends vision across nearby hexes. No weapons—upgrade to Crossbow Tower for defense.",
+            };
+        }
+
+        currentY += defenseHeight;
+        hasPreviousSection = true;
+    }
 
     // 4. Upgrade section (only if there's an upgrade available)
     if (showUpgrade) {
@@ -1984,106 +1998,6 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
             anchor: "center",
             color: costColor,
         });
-    }
-
-    return bounds;
-}
-
-/**
- * Worker build panel. Shown when one or more workers are selected. Exposes
- * three buttons (BUILD SETTLEMENT, BUILD WATCHTOWER, BUILD DOCK) that
- * enter the worker-build placement mode for that structure type. The
- * actual builder worker is picked at placement-click time from the
- * current selection.
- *
- * Returns a `bounds` object with click hitboxes, or null if the panel
- * shouldn't be drawn (e.g. no workers selected, or a placement mode is
- * already active for something else).
- */
-export function drawWorkerBuildPanel(ctx, gameState) {
-    if (!gameState.workers) return null;
-    // Only show when at least one workable (idle/interruptible) worker is selected
-    const localId = getLocalPlayerId();
-    const eligible = gameState.selectedUnits.filter(u => {
-        if (u.type !== 'worker') return false;
-        const w = gameState.workers[u.index];
-        if (!w) return false;
-        if ((w.owner || 'player') !== localId) return false;
-        if (w.state === 'building' || w.buildTask) return false;
-        return true;
-    });
-    if (eligible.length === 0) return null;
-
-    const { k, screenHeight } = ctx;
-    const res = getLocalRes(gameState);
-    const mousePos = k.mousePos();
-
-    const settlementData = SETTLEMENTS.settlement;
-    const watchtowerData = TOWERS.watchtower;
-    const dockData = PORTS.dock;
-
-    const buttons = [
-        { id: 'settlement', label: 'Build Settlement', cost: settlementData.cost, buildTime: settlementData.buildTime, sprite: settlementData, tooltip: 'Boosts crew cap. Worker walks to placement and constructs over time.' },
-        { id: 'tower',      label: 'Build Watchtower', cost: watchtowerData.cost, buildTime: watchtowerData.buildTime, sprite: watchtowerData, tooltip: 'Extends vision. Worker walks to placement and constructs.' },
-        { id: 'port',       label: 'Build Dock', cost: dockData.cost, buildTime: dockData.buildTime, sprite: dockData, tooltip: 'Build a new port on a coastal land hex. Spawns a fresh crew of workers when complete.' },
-    ];
-
-    const bpWidth = 240;
-    const bpRowHeight = 44;
-    const bpPadding = 10;
-    const headerHeight = 24;
-    const sectionGap = 4;
-    const totalSectionGaps = (buttons.length - 1) * sectionGap;
-    const bpHeight = bpPadding + headerHeight + buttons.length * bpRowHeight + totalSectionGaps + bpPadding;
-    const bpX = 15;
-    const bpY = screenHeight - 15 - bpHeight;
-
-    const bounds = {
-        x: bpX,
-        y: bpY,
-        width: bpWidth,
-        height: bpHeight,
-        buttons: [],
-    };
-
-    drawPanelContainer(ctx, bpX, bpY, bpWidth, bpHeight);
-
-    k.drawText({
-        text: `Worker (${eligible.length} selected)`,
-        pos: k.vec2(bpX + 14, bpY + bpPadding + 8),
-        size: 14,
-        anchor: 'left',
-        color: k.rgb(200, 200, 200),
-    });
-
-    let currentY = bpY + bpPadding + headerHeight;
-    const modeActive = gameState.workerBuildMode.active;
-    const activeStructure = gameState.workerBuildMode.structureType;
-
-    for (let i = 0; i < buttons.length; i++) {
-        const btn = buttons[i];
-        if (i > 0) currentY += sectionGap;
-
-        const btnHeight = bpRowHeight - 4;
-        const affordable = canAfford(res, btn.cost);
-        const enabled = affordable && !modeActive;
-        const isMouseOver = mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
-                            mousePos.y >= currentY && mousePos.y <= currentY + btnHeight;
-        const isHovered = enabled && isMouseOver;
-
-        const label = (modeActive && activeStructure === btn.id)
-            ? `${btn.label} — click hex to place`
-            : btn.label;
-        drawPanelButton(ctx, bpX, bpWidth, currentY, btnHeight, btn.sprite, label,
-            btn.cost, btn.buildTime, isHovered, enabled);
-
-        bounds.buttons.push({ id: btn.id, y: currentY, height: btnHeight });
-
-        if (isMouseOver) {
-            bounds.tooltip = { x: bpX + bpWidth + 8, y: currentY, text: btn.tooltip };
-        }
-
-        currentY += bpRowHeight;
     }
 
     return bounds;
