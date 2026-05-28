@@ -370,8 +370,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             // vignette spawns its own ships in setup() via the director.
             gameState.aiPlayers = [];
             gameState.aiHomeIslandHexes = [];
-            // For now we always boot the first vignette; later we can pick by id.
-            const vignette = getVignette('select-and-attack');
+            // Boot the intro vignette; it chains forward to select-and-attack
+            // via a `nextVignette` step when complete.
+            const vignette = getVignette('select-and-move');
             tutorialState = createTutorialState(vignette);
             startVignette(tutorialState, gameState, map);
             gameState.tutorialActive = true;

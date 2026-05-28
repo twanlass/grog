@@ -3,8 +3,14 @@
 // interprets them, renders the ghost cursor overlay, and exposes a
 // back-button hit region the gameScene can click-test.
 import { hexToPixel, HEX_SIZE } from "../hex.js";
-import { selectUnit, clearSelection, isAIOwner } from "../gameState.js";
-import { handleAttackClick } from "./inputHandler.js";
+import {
+    selectUnit, clearSelection, isAIOwner,
+    enterSettlementBuildMode, addToBuildQueue,
+    canAfford, deductCost,
+} from "../gameState.js";
+import { handleAttackClick, handleWaypointClick, handleSettlementPlacementClick } from "./inputHandler.js";
+import { SHIPS } from "../sprites/ships.js";
+import { getVignette } from "../tutorials/index.js";
 
 const CURSOR_SPEED = 380; // screen px/sec
 const SELECTION_RADIUS = HEX_SIZE * 1.2;
@@ -13,6 +19,7 @@ export function createTutorialState(vignette) {
     return {
         vignette,
         refs: {},                  // entity-id handles returned by setup()
+        hexes: {},                 // named hex coords returned by setup()
         cameraTarget: null,        // { q, r } - where to center on start
         stepIndex: 0,
         caption: '',
@@ -32,22 +39,28 @@ export function createTutorialState(vignette) {
 function resolveTarget(tutorial, gameState, target) {
     if (!target) return null;
 
-    // Named ref → look up by entity ID across collections.
+    // Named ref → look up entity by ID first, then named hex coord.
     if (typeof target === 'string') {
         const id = tutorial.refs[target];
-        if (id == null) return null;
-        for (const [collection, type] of [
-            [gameState.ships, 'ship'],
-            [gameState.ports, 'port'],
-            [gameState.settlements, 'settlement'],
-            [gameState.towers, 'tower'],
-        ]) {
-            const index = collection.findIndex(e => e && e.id === id);
-            if (index !== -1) {
-                const entity = collection[index];
-                const pos = hexToPixel(entity.q, entity.r);
-                return { entity, type, index, worldX: pos.x, worldY: pos.y };
+        if (id != null) {
+            for (const [collection, type] of [
+                [gameState.ships, 'ship'],
+                [gameState.ports, 'port'],
+                [gameState.settlements, 'settlement'],
+                [gameState.towers, 'tower'],
+            ]) {
+                const index = collection.findIndex(e => e && e.id === id);
+                if (index !== -1) {
+                    const entity = collection[index];
+                    const pos = hexToPixel(entity.q, entity.r);
+                    return { entity, type, index, worldX: pos.x, worldY: pos.y };
+                }
             }
+        }
+        const hex = tutorial.hexes && tutorial.hexes[target];
+        if (hex) {
+            const pos = hexToPixel(hex.q, hex.r);
+            return { worldX: pos.x, worldY: pos.y, hex: { q: hex.q, r: hex.r } };
         }
         return null;
     }
@@ -55,7 +68,7 @@ function resolveTarget(tutorial, gameState, target) {
     // Inline hex coord.
     if (target.q != null && target.r != null) {
         const pos = hexToPixel(target.q, target.r);
-        return { worldX: pos.x, worldY: pos.y };
+        return { worldX: pos.x, worldY: pos.y, hex: { q: target.q, r: target.r } };
     }
 
     return null;
@@ -69,6 +82,7 @@ export function startVignette(tutorial, gameState, map) {
         return false;
     }
     tutorial.refs = result.refs || {};
+    tutorial.hexes = result.hexes || {};
     tutorial.cameraTarget = result.cameraTarget || null;
     tutorial.stepIndex = 0;
     tutorial.caption = '';
@@ -132,8 +146,47 @@ export function updateTutorial(tutorial, gameState, map, dt) {
 
         case 'click': {
             const t = resolveTarget(tutorial, gameState, step.target);
-            if (t && t.type === 'ship' && t.index != null) {
-                selectUnit(gameState, 'ship', t.index);
+            if (t && t.type && t.index != null) {
+                selectUnit(gameState, t.type, t.index);
+            }
+            done = true;
+            break;
+        }
+
+        case 'enterSettlementBuildMode': {
+            const t = resolveTarget(tutorial, gameState, step.target);
+            if (t && t.type === 'port' && t.index != null) {
+                enterSettlementBuildMode(gameState, t.index);
+            }
+            done = true;
+            break;
+        }
+
+        case 'placeSettlement': {
+            const t = resolveTarget(tutorial, gameState, step.target);
+            const hex = t && (t.hex || (t.entity ? { q: t.entity.q, r: t.entity.r } : null));
+            if (hex && gameState.settlementBuildMode && gameState.settlementBuildMode.active) {
+                gameState.settlementBuildMode.hoveredHex = hex;
+                handleSettlementPlacementClick(gameState);
+                const last = gameState.settlements[gameState.settlements.length - 1];
+                if (last) tutorial.refs.playerSettlement = last.id;
+            }
+            done = true;
+            break;
+        }
+
+        case 'buildShip': {
+            const t = resolveTarget(tutorial, gameState, step.target);
+            const shipType = step.shipType;
+            if (t && t.type === 'port' && t.index != null && SHIPS[shipType]) {
+                const port = gameState.ports[t.index];
+                const shipData = SHIPS[shipType];
+                if (canAfford(gameState.resources, shipData.cost)) {
+                    deductCost(gameState.resources, shipData.cost);
+                    addToBuildQueue(port, shipType, gameState.resources, true);
+                    if (port.buildQueue.length > 0) port.buildQueue[0].progress = 0;
+                }
+                tutorial.shipCountBefore = gameState.ships.length;
             }
             done = true;
             break;
@@ -141,13 +194,18 @@ export function updateTutorial(tutorial, gameState, map, dt) {
 
         case 'rightClick': {
             const t = resolveTarget(tutorial, gameState, step.target);
-            if (t && t.worldX != null) {
-                handleAttackClick(
-                    gameState, map,
-                    t.worldX, t.worldY,
-                    hexToPixel, SELECTION_RADIUS,
-                    null, false, false,
-                );
+            if (t) {
+                if (step.mode === 'move') {
+                    const hex = t.hex || (t.entity ? { q: t.entity.q, r: t.entity.r } : null);
+                    if (hex) handleWaypointClick(gameState, map, hex, false);
+                } else if (t.worldX != null) {
+                    handleAttackClick(
+                        gameState, map,
+                        t.worldX, t.worldY,
+                        hexToPixel, SELECTION_RADIUS,
+                        null, false, false,
+                    );
+                }
             }
             done = true;
             break;
@@ -160,12 +218,34 @@ export function updateTutorial(tutorial, gameState, map, dt) {
             if (cond === 'enemyDestroyed') {
                 const t = resolveTarget(tutorial, gameState, 'enemyShip');
                 satisfied = !t; // entity gone from gameState
+            } else if (cond === 'shipArrived') {
+                const t = resolveTarget(tutorial, gameState, step.target || 'playerShip');
+                if (t && t.entity) {
+                    const ship = t.entity;
+                    satisfied = (!ship.waypoints || ship.waypoints.length === 0) && !ship.path;
+                }
+            } else if (cond === 'settlementBuilt') {
+                const t = resolveTarget(tutorial, gameState, step.target || 'playerSettlement');
+                if (t && t.entity) {
+                    satisfied = !t.entity.construction;
+                }
+            } else if (cond === 'shipBuilt') {
+                const before = tutorial.shipCountBefore || 0;
+                satisfied = gameState.ships.length > before;
             }
             if (satisfied || tutorial.stepTimer >= (step.timeout || 10)) done = true;
             break;
         }
 
         case 'respawn': {
+            startVignette(tutorial, gameState, map);
+            // startVignette resets stepIndex/stepInit — return so we don't double-advance.
+            return;
+        }
+
+        case 'nextVignette': {
+            const next = getVignette(step.id);
+            if (next) tutorial.vignette = next;
             startVignette(tutorial, gameState, map);
             // startVignette resets stepIndex/stepInit — return so we don't double-advance.
             return;

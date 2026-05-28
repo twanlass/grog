@@ -27,6 +27,9 @@ export const selectAndAttackVignette = {
 
     setup(gameState, map) {
         gameState.ships = [];
+        gameState.ports = [];
+        gameState.settlements = [];
+        gameState.towers = [];
         clearSelection(gameState);
 
         const allCoastal = findStarterIslandCoastalWater(map);
