@@ -1,38 +1,24 @@
 // Vignette: scripted demo of selecting a ship and attacking an enemy.
-import { createShip, selectUnit, clearSelection } from "../gameState.js";
+import { createShip, clearSelection } from "../gameState.js";
 import { hexKey, hexNeighbors, hexDistance } from "../hex.js";
 import { isWater } from "../mapGenerator.js";
 
-// Find a water hex adjacent to a land port site, used as the player cutter's spawn.
-function findCoastalWater(map) {
-    for (const tile of map.tiles.values()) {
-        if (!tile.isPortSite) continue;
-        for (const n of hexNeighbors(tile.q, tile.r)) {
-            const nt = map.tiles.get(hexKey(n.q, n.r));
-            if (isWater(nt)) return { q: n.q, r: n.r };
-        }
-    }
-    // Fallback: any water tile near map center
-    for (const tile of map.tiles.values()) {
-        if (isWater(tile)) return { q: tile.q, r: tile.r };
-    }
-    return null;
-}
-
-// Find a second water hex roughly `dist` hexes away from the first.
-function findWaterAtDistance(map, fromQ, fromR, dist) {
-    let best = null;
-    let bestDelta = Infinity;
+// Collect water hexes adjacent to a starter island's coast. Tutorial maps run
+// with versusMode=true, so 4 starter islands sit in known quadrants with
+// `isStarterIsland: true` set on their land tiles.
+function findStarterIslandCoastalWater(map) {
+    const coastal = [];
     for (const tile of map.tiles.values()) {
         if (!isWater(tile)) continue;
-        const d = hexDistance(fromQ, fromR, tile.q, tile.r);
-        const delta = Math.abs(d - dist);
-        if (delta < bestDelta) {
-            bestDelta = delta;
-            best = { q: tile.q, r: tile.r };
+        for (const n of hexNeighbors(tile.q, tile.r)) {
+            const nt = map.tiles.get(hexKey(n.q, n.r));
+            if (nt && nt.isStarterIsland && nt.type === 'land') {
+                coastal.push({ q: tile.q, r: tile.r, islandQ: n.q, islandR: n.r });
+                break;
+            }
         }
     }
-    return best;
+    return coastal;
 }
 
 export const selectAndAttackVignette = {
@@ -40,26 +26,42 @@ export const selectAndAttackVignette = {
     title: 'Select & Attack',
 
     setup(gameState, map) {
-        // Clear any prior ships from a previous loop iteration.
         gameState.ships = [];
         clearSelection(gameState);
 
-        const playerSpawn = findCoastalWater(map);
-        if (!playerSpawn) return null;
+        const allCoastal = findStarterIslandCoastalWater(map);
+        if (allCoastal.length === 0) return null;
 
-        const enemySpawn = findWaterAtDistance(map, playerSpawn.q, playerSpawn.r, 4);
+        // Anchor to the first starter island (top-left quadrant by default).
+        // Group coastal water by the island they're touching (rough heuristic:
+        // tiles within 6 hexes of each other belong to the same island).
+        const anchor = allCoastal[0];
+        const islandCoastal = allCoastal.filter(c =>
+            hexDistance(anchor.islandQ, anchor.islandR, c.islandQ, c.islandR) <= 6
+        );
+
+        // Player spawns on the first coastal water hex; enemy spawns ~3 hexes
+        // away along the same island so both fit in one camera view AND the
+        // cutter is already inside attackDistance=3 when the script fires.
+        const playerSpawn = islandCoastal[0];
+        let enemySpawn = null;
+        let bestDelta = Infinity;
+        for (const c of islandCoastal) {
+            if (c.q === playerSpawn.q && c.r === playerSpawn.r) continue;
+            const d = hexDistance(playerSpawn.q, playerSpawn.r, c.q, c.r);
+            const delta = Math.abs(d - 3);
+            if (delta < bestDelta) { bestDelta = delta; enemySpawn = c; }
+        }
         if (!enemySpawn) return null;
 
         const playerShip = createShip('cutter', playerSpawn.q, playerSpawn.r, 'player');
         const enemyShip = createShip('cutter', enemySpawn.q, enemySpawn.r, 'ai1');
         gameState.ships.push(playerShip, enemyShip);
 
+        // Camera sits on the island center so the surrounding land frames the action.
         return {
             refs: { playerShip: playerShip.id, enemyShip: enemyShip.id },
-            cameraTarget: {
-                q: (playerSpawn.q + enemySpawn.q) / 2,
-                r: (playerSpawn.r + enemySpawn.r) / 2,
-            },
+            cameraTarget: { q: anchor.islandQ, r: anchor.islandR },
         };
     },
 
@@ -72,7 +74,7 @@ export const selectAndAttackVignette = {
         { type: 'caption', text: 'Right-click an enemy to attack' },
         { type: 'moveCursorTo', target: 'enemyShip', sprite: 'cursor-attack' },
         { type: 'rightClick', target: 'enemyShip' },
-        { type: 'waitUntil', condition: 'enemyDestroyed', timeout: 12 },
+        { type: 'waitUntil', condition: 'enemyDestroyed', timeout: 22 },
         { type: 'caption', text: 'Direct hit!' },
         { type: 'wait', duration: 2.0 },
         { type: 'respawn' },

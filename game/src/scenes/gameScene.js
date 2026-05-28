@@ -181,7 +181,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         const map = generateMap({
             width: scenario.mapSize.width,
             height: scenario.mapSize.height,
-            versusMode: scenario.gameMode === 'versus' || scenario.gameMode === 'multiplayer' || scenario.gameMode === 'debug',
+            versusMode: scenario.gameMode === 'versus' || scenario.gameMode === 'multiplayer' || scenario.gameMode === 'debug' || scenario.gameMode === 'tutorial',
             seed: mapSeed,
         });
 
