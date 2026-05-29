@@ -111,10 +111,14 @@ export const selectAndBuildVignette = {
         { type: 'click', target: 'playerPort' },
         { type: 'wait', duration: 0.9 },
 
-        // Build a settlement.
+        // Build a settlement — move the cursor onto the build-menu button and
+        // "click" it so the player sees where the option lives.
         { type: 'caption', text: 'Build a settlement to gather wood' },
-        { type: 'wait', duration: 0.6 },
+        { type: 'wait', duration: 0.5 },
+        { type: 'moveCursorToButton', button: 'settlement' },
+        { type: 'wait', duration: 0.35 },
         { type: 'enterSettlementBuildMode', target: 'playerPort' },
+        { type: 'wait', duration: 0.4 },
         { type: 'moveCursorTo', target: 'settlementSite' },
         { type: 'placeSettlement', target: 'settlementSite' },
         { type: 'waitUntil', condition: 'settlementBuilt', timeout: 9 },
@@ -127,7 +131,9 @@ export const selectAndBuildVignette = {
         { type: 'click', target: 'playerPort' },
         { type: 'wait', duration: 0.8 },
         { type: 'caption', text: 'Build a Cutter — your first warship' },
-        { type: 'wait', duration: 0.6 },
+        { type: 'wait', duration: 0.4 },
+        { type: 'moveCursorToButton', button: 'cutter' },
+        { type: 'wait', duration: 0.35 },
         { type: 'buildShip', target: 'playerPort', shipType: 'cutter' },
         { type: 'waitUntil', condition: 'shipBuilt', timeout: 10 },
         { type: 'wait', duration: 1.5 },
