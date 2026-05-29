@@ -2,6 +2,7 @@
 import { hexCorners, HEX_SIZE } from "../hex.js";
 import { isHexExplored, isHexVisible, getHexFogOpacity } from "../fogOfWar.js";
 import { isWater } from "../mapGenerator.js";
+import { TREE_HEX_WOOD } from "../sprites/workers.js";
 
 // Decoration rendering config
 const TREE_SCALE = 1.4;        // Tree size multiplier (base * zoom)
@@ -116,12 +117,29 @@ export function drawDecorations(ctx, map, tilePositions, tileDecorations, gameSt
         if (screenX < -margin || screenX > screenWidth + margin ||
             screenY < -margin || screenY > screenHeight + margin) continue;
 
-        // Hide trees/palms on hexes that workers have chopped clean. Grass
-        // still draws so the tile doesn't look completely flat.
-        const treesGone = tile.depleted === true;
+        // Sparsify trees as workers chop the hex down. Each tree tile
+        // starts with TREE_HEX_WOOD and depletes by 5 per chop; we scale
+        // the visible tree count proportionally so a 50%-chopped hex shows
+        // half its trees. When depleted (or a structure is built here),
+        // all trees vanish but grass keeps drawing so the tile isn't flat.
+        let totalTrees = 0;
+        for (const dec of decorations) {
+            if (dec.type === 'tree' || dec.type === 'palm') totalTrees++;
+        }
+        let visibleTrees = totalTrees;
+        if (tile.depleted === true) {
+            visibleTrees = 0;
+        } else if (typeof tile.woodRemaining === 'number') {
+            const ratio = tile.woodRemaining / TREE_HEX_WOOD;
+            visibleTrees = ratio <= 0 ? 0 : Math.max(1, Math.ceil(ratio * totalTrees));
+        }
+        let treesDrawn = 0;
 
         for (const dec of decorations) {
-            if (treesGone && (dec.type === 'tree' || dec.type === 'palm')) continue;
+            if (dec.type === 'tree' || dec.type === 'palm') {
+                if (treesDrawn >= visibleTrees) continue;
+                treesDrawn++;
+            }
             const dx = dec.rx * scaledHexSize * 0.4;
             const dy = dec.ry * scaledHexSize * 0.4;
 
