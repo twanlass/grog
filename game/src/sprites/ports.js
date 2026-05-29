@@ -87,7 +87,8 @@ export const PORTS = {
         canBuild: ["Cutter", "Schooner"],
         buildTime: 45,
         cost: { wood: 60 },
-        crewCapContribution: 30,
+        // Upgrades don't bump crew cap — the dock's +15 carries through.
+        crewCapContribution: 15,
         sightDistance: 5,
         maxQueueSize: 5,
         parallelBuildSlots: 2,
@@ -102,7 +103,8 @@ export const PORTS = {
         canBuild: ["Cutter", "Schooner"],
         buildTime: 120,
         cost: { wood: 100 },
-        crewCapContribution: 50,
+        // Upgrades don't bump crew cap — the dock's +15 carries through.
+        crewCapContribution: 15,
         sightDistance: 12,
         maxQueueSize: 3,
         parallelBuildSlots: 1,

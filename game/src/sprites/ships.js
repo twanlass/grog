@@ -126,7 +126,7 @@ export const SHIPS = {
         sightDistance: 3,               // How far player can reveal "fog of war"
         maxChaseDistance: 8,            // Give up chase after this many hex moves
         cost: { wood: 10 },             // Build resource costs (object: wood)
-        crewCost: 5,                    // Crew required to operate
+        crewCost: 3,                    // Crew required to operate
         burstAttack: {                  // Special ability: rapid burst of cannon shots
             name: "Broadside",
             shots: 5,
@@ -155,7 +155,7 @@ export const SHIPS = {
         maxChaseDistance: 10,   // give up chase after this many hex moves
         projectileCount: 2,     // fires two shots per volley
         cost: { wood: 30 },
-        crewCost: 10,
+        crewCost: 8,
         maxConcurrent: 1,               // Max simultaneous builds of this ship type per port
         tntAttack: {                    // Special ability: kamikaze self-destruct
             name: "TNT",
