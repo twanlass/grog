@@ -25,7 +25,7 @@ import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers,
 import { drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
-import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons } from "../rendering/uiPanels.js";
+import { drawSimpleUIPanels, drawGameMenu, drawShipInfoPanel, drawTowerInfoPanel, drawSettlementInfoPanel, drawConstructionStatusPanel, drawShipBuildPanel, drawPortBuildPanel, drawMultiPortBuildPanel, drawNotification, drawTooltip, drawMenuPanel, drawDebugPanel, drawBuildQueuePanel, drawSelectedShipsPanel, drawActionButtons } from "../rendering/uiPanels.js";
 import { createMinimapState, drawMinimap, minimapClickToWorld } from "../rendering/minimap.js";
 
 // Game systems
@@ -1348,14 +1348,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
                 // Draw build queue panel at bottom center (if port has items in queue)
                 buildQueuePanelBounds = drawBuildQueuePanel(ctx, [{ port, portIndex }], k.mousePos());
-            } else if (selectedPortIndices.length > 1 && !isTouchDevice()) {
-                // Desktop multi-select: show side-by-side queues when 2+ selected ports are actively building
-                const buildingEntries = selectedPortIndices
-                    .map(u => ({ port: gameState.ports[u.index], portIndex: u.index }))
-                    .filter(({ port }) => port && port.buildQueue.length > 0);
+            } else if (selectedPortIndices.length > 1) {
+                // Multi-select: show a slim ship-only build menu (bottom-left) so players can
+                // still queue ships. Per-port options (settlement/tower/upgrade/repair) are omitted.
+                const entries = selectedPortIndices.map(u => ({ port: gameState.ports[u.index], portIndex: u.index }));
+                buildPanelBounds = drawMultiPortBuildPanel(ctx, entries, gameState);
 
-                if (buildingEntries.length >= 2) {
-                    buildQueuePanelBounds = drawBuildQueuePanel(ctx, buildingEntries, k.mousePos());
+                // Desktop only: show side-by-side queues when 2+ selected ports are actively building
+                if (!isTouchDevice()) {
+                    const buildingEntries = entries.filter(({ port }) => port && port.buildQueue.length > 0);
+                    if (buildingEntries.length >= 2) {
+                        buildQueuePanelBounds = drawBuildQueuePanel(ctx, buildingEntries, k.mousePos());
+                    }
                 }
             }
 
@@ -2417,13 +2421,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // Hotkey 'C' to build a Cutter at selected port(s) - round-robin
+        // Build one ship of the given type at the next eligible selected port (round-robin).
+        // Shared by the 'C' hotkey and the multi-port build menu so repeated builds spread
+        // across the selected ports. Returns true if a ship was queued.
         let lastBuildPortOffset = -1; // Track which port got the last build
-        let lastSelectedPortIds = []; // Track selection to reset round-robin on change
-
-        k.onKeyPress("c", () => {
+        let lastSelectedPortIds = ""; // Track selection to reset round-robin on change
+        function buildShipAtSelectedPortsRoundRobin(shipType) {
             const selectedPortIndices = gameState.selectedUnits.filter(u => u.type === 'port');
-            if (selectedPortIndices.length === 0) return;
+            if (selectedPortIndices.length === 0) return false;
+
+            const shipData = SHIPS[shipType];
+            if (!shipData) return false;
 
             // Reset round-robin if selection changed
             const currentPortIds = selectedPortIndices.map(s => s.index).join(',');
@@ -2432,7 +2440,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 lastSelectedPortIds = currentPortIds;
             }
 
-            const shipData = SHIPS.cutter;
             const numPorts = selectedPortIndices.length;
 
             // Round-robin: start from next port after last successful build
@@ -2443,7 +2450,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 const maxQueueSize = PORTS[port.type]?.maxQueueSize || 3;
 
                 // Skip ineligible ports
-                if (!getBuildableShips(port).includes('cutter')) continue;
+                if (!getBuildableShips(port).includes(shipType)) continue;
                 if (port.buildQueue.length >= maxQueueSize) continue;
                 if (port.repair) continue;
                 if (port.construction) continue;
@@ -2457,18 +2464,24 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         continue;
                     }
                     deductCost(cRes, shipData.cost);
-                    addToBuildQueue(port, 'cutter', cRes, true);
+                    addToBuildQueue(port, shipType, cRes, true);
                     port.buildQueue[0].progress = 0;
                 } else {
                     // Queue has items - just add without resource check
-                    addToBuildQueue(port, 'cutter', cRes, false);
+                    addToBuildQueue(port, shipType, cRes, false);
                 }
                 if (isMultiplayer && isGuest) {
-                    sendGuestGenericCommand(COMMAND_TYPES.BUILD_SHIP, { portId: port.id, shipType: 'cutter' });
+                    sendGuestGenericCommand(COMMAND_TYPES.BUILD_SHIP, { portId: port.id, shipType });
                 }
                 lastBuildPortOffset = offset; // Remember which port we used
-                break; // One ship per keypress
+                return true; // One ship per call
             }
+            return false;
+        }
+
+        // Hotkey 'C' to build a Cutter at selected port(s) - round-robin
+        k.onKeyPress("c", () => {
+            buildShipAtSelectedPortsRoundRobin('cutter');
         });
 
         // Hotkey 'U' to upgrade selected tower
@@ -2939,7 +2952,21 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
                 return;
             }
-            if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState, fogState)) {
+            // Multi-port build menu: route ship-build clicks through the round-robin builder.
+            if (buildPanelBounds?.multiPort) {
+                const bp = buildPanelBounds;
+                if (mouseX >= bp.x && mouseX <= bp.x + bp.width && mouseY >= bp.y && mouseY <= bp.y + bp.height) {
+                    for (const btn of bp.buttons) {
+                        if (mouseY >= btn.y && mouseY <= btn.y + btn.height) {
+                            buildShipAtSelectedPortsRoundRobin(btn.shipType);
+                            break;
+                        }
+                    }
+                    playUIClick();
+                    return;
+                }
+                // Click outside the multi-port panel: fall through to other handlers below.
+            } else if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState, fogState)) {
                 playUIClick();
                 flushGuestCommands();
                 // On mobile, close panel only when entering a placement mode. Keep the dock

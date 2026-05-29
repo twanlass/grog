@@ -2006,6 +2006,109 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     return bounds;
 }
 
+// Canonical ship ordering for the multi-port build menu
+const MULTI_PORT_SHIP_ORDER = ['cutter', 'schooner', 'brigantine', 'galleon'];
+
+/**
+ * Draw a slim ship-only build panel (bottom left) when MULTIPLE ports are selected.
+ * Per-port options (settlement, watchtower, upgrade, repair) are omitted since they
+ * don't have a clear multi-port meaning, but players can still queue ships.
+ * Clicking a ship builds it at the next eligible selected port (round-robin) — see gameScene.
+ * Returns bounds for click detection (with multiPort: true and the selected portIndices).
+ */
+export function drawMultiPortBuildPanel(ctx, entries, gameState) {
+    if (!entries || entries.length === 0) return null;
+
+    const { k, screenHeight } = ctx;
+
+    // Union of buildable ships across all selected (complete) ports, in canonical order
+    const buildable = new Set();
+    for (const { port } of entries) {
+        if (!port || port.construction) continue;
+        for (const s of getBuildableShips(port)) buildable.add(s);
+    }
+    const buildableShips = MULTI_PORT_SHIP_ORDER.filter(s => buildable.has(s));
+    for (const s of buildable) {
+        if (!MULTI_PORT_SHIP_ORDER.includes(s)) buildableShips.push(s);
+    }
+    if (buildableShips.length === 0) return null;
+
+    const bpWidth = 240;
+    const bpRowHeight = 44;
+    const bpPadding = 10;
+    const headerHeight = 24;
+    const shipButtonsHeight = buildableShips.length * bpRowHeight;
+    const bpHeight = bpPadding + headerHeight + shipButtonsHeight + bpPadding;
+    const bpX = 15;
+    const bpY = screenHeight - 15 - bpHeight;
+
+    const bounds = {
+        x: bpX,
+        y: bpY,
+        width: bpWidth,
+        height: bpHeight,
+        buttons: [],
+        multiPort: true,
+        portIndices: entries.map(e => e.portIndex),
+        // No per-port actions in multi-select mode
+        upgradeButton: null,
+        settlementButton: null,
+        towerButton: null,
+        repairButton: null,
+    };
+
+    // Panel background
+    drawPanelContainer(ctx, bpX, bpY, bpWidth, bpHeight);
+
+    // Header: number of selected ports
+    k.drawText({
+        text: `${entries.length} Ports`,
+        pos: k.vec2(bpX + 14, bpY + bpPadding + 8),
+        size: 16,
+        anchor: "left",
+        color: k.rgb(200, 200, 200),
+    });
+
+    const mousePos = k.mousePos();
+    const res = getLocalRes(gameState);
+    const currentY = bpY + bpPadding + headerHeight;
+
+    for (let i = 0; i < buildableShips.length; i++) {
+        const shipType = buildableShips[i];
+        const shipData = SHIPS[shipType];
+        const btnY = currentY + i * bpRowHeight;
+        const btnHeight = bpRowHeight - 4;
+
+        // Enabled if at least one selected port can build this ship right now
+        // (can build the type, has queue space, not repairing/constructing, and either
+        // already has a queue or can afford the cost + crew).
+        let canBuildShip = false;
+        for (const { port } of entries) {
+            if (!port || port.construction || port.repair) continue;
+            if (!getBuildableShips(port).includes(shipType)) continue;
+            const maxQueueSize = PORTS[port.type]?.maxQueueSize || 3;
+            if (port.buildQueue.length >= maxQueueSize) continue;
+            const affordable = canAfford(res, shipData.cost) &&
+                               canAffordCrew(gameState, shipData.crewCost || 0, getLocalPlayerId());
+            if (port.buildQueue.length > 0 || affordable) {
+                canBuildShip = true;
+                break;
+            }
+        }
+
+        bounds.buttons.push({ y: btnY, height: btnHeight, shipType });
+
+        const isHovered = canBuildShip && mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
+                          mousePos.y >= btnY && mousePos.y <= btnY + btnHeight;
+
+        const hotkey = shipType === 'cutter' ? ' (C)' : '';
+        drawPanelButton(ctx, bpX, bpWidth, btnY, btnHeight, shipData, `Build ${shipData.name}` + hotkey,
+            shipData.cost, shipData.build_time, isHovered, canBuildShip);
+    }
+
+    return bounds;
+}
+
 /**
  * Draw controls menu panel (center of screen)
  * Returns bounds for click detection
