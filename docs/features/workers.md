@@ -23,7 +23,7 @@ timer-based generator (no AI workers).
    next to it.
 3. Every worker repeats: **idle → walk to nearest tree on the same island
    → chop until cargo full → walk to the SPECIFIC settlement that
-   spawned them → deposit (instant +5 wood, floating number) → idle**.
+   spawned them → deposit (instant +3 wood, floating number) → idle**.
    Workers don't deposit at the nearest hub or at ports — only at their
    home settlement.
 4. When the nearest tree depletes (`woodRemaining <= 0`), the tile is
@@ -75,7 +75,7 @@ workers don't build anything.
 - **Expansion is incentivised.** Strip your home island and you have to
   ship to a new one to keep the wood flowing.
 - **The visual is satisfying.** Dots scurry across the island, trees
-  disappear over time, "+5" pops over hubs.
+  disappear over time, "+3" pops over hubs.
 
 ## Data structures
 
@@ -123,7 +123,7 @@ tile.depleted = false;
 | `SETTLEMENT_WORKERS`              | 3       | Workers spawned when a settlement completes       |
 | `WORKER_CONFIG.speed`             | 0.6     | Walk speed (hexes / sec)                          |
 | `WORKER_CONFIG.health`            | 20      | HP                                                |
-| `WORKER_CONFIG.cargoCapacity`     | 5       | Wood per trip                                     |
+| `WORKER_CONFIG.cargoCapacity`     | 3       | Wood per trip                                     |
 | `WORKER_CONFIG.chopTime`          | 8 s     | Seconds per chop                                  |
 | `TREE_HEX_WOOD`                   | 100     | Initial wood per tree hex                         |
 

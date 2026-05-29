@@ -16,12 +16,12 @@ export const WORKER_CONFIG = {
     health: 20,
 
     // Wood carried per trip back to a hub
-    cargoCapacity: 5,
+    cargoCapacity: 3,
 
     // Seconds to chop one cargo's worth of wood. Bigger number = slower
-    // economy. At chopTime=8 with cargoCapacity=5 and 3 workers per
+    // economy. At chopTime=8 with cargoCapacity=3 and 3 workers per
     // settlement, a settlement whose workers don't walk far yields about
-    // 3 * 5 / 8 = ~1.9 wood/sec at the chop step (walks subtract from that).
+    // 3 * 3 / 8 = ~1.1 wood/sec at the chop step (walks subtract from that).
     chopTime: 8,
 
     // Visual radius of the worker dot (in world pixels at zoom 1)
