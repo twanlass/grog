@@ -10,7 +10,7 @@
 // they finish before a slider drag matters.
 
 const STORAGE_KEY = 'grog.audio.v1';
-const DEFAULTS = { music: 1.0, sfx: 1.0 };
+const DEFAULTS = { music: 1.0, sfx: 1.0, muted: false };
 
 function clamp01(v) {
     if (typeof v !== 'number' || Number.isNaN(v)) return 1.0;
@@ -25,6 +25,7 @@ function loadSettings() {
         return {
             music: clamp01(parsed.music ?? DEFAULTS.music),
             sfx: clamp01(parsed.sfx ?? DEFAULTS.sfx),
+            muted: !!(parsed.muted ?? DEFAULTS.muted),
         };
     } catch (e) {
         return { ...DEFAULTS };
@@ -42,11 +43,17 @@ function saveSettings() {
     }
 }
 
+// Effective multiplier for a category: zero while globally muted so a single
+// toggle silences everything without losing the per-category slider values.
+function effectiveVolume(category) {
+    return settings.muted ? 0 : settings[category];
+}
+
 function applyTrackedVolumes(category) {
     for (const entry of trackedLoops) {
         if (entry.category !== category) continue;
         try {
-            entry.handle.volume = entry.base * settings[category];
+            entry.handle.volume = entry.base * effectiveVolume(category);
         } catch (e) {
             trackedLoops.delete(entry);
         }
@@ -55,6 +62,7 @@ function applyTrackedVolumes(category) {
 
 export function getMusicVolume() { return settings.music; }
 export function getSfxVolume() { return settings.sfx; }
+export function isMuted() { return settings.muted; }
 
 export function setMusicVolume(v) {
     settings.music = clamp01(v);
@@ -66,6 +74,19 @@ export function setSfxVolume(v) {
     settings.sfx = clamp01(v);
     saveSettings();
     applyTrackedVolumes('sfx');
+}
+
+export function setMuted(v) {
+    settings.muted = !!v;
+    saveSettings();
+    // Update both categories' live loops so the toggle is heard immediately.
+    applyTrackedVolumes('music');
+    applyTrackedVolumes('sfx');
+}
+
+export function toggleMute() {
+    setMuted(!settings.muted);
+    return settings.muted;
 }
 
 function trackLoopHandle(handle, base, category) {
@@ -89,7 +110,7 @@ function trackLoopHandle(handle, base, category) {
 
 function play(k, category, name, opts = {}) {
     const base = typeof opts.volume === 'number' ? opts.volume : 1.0;
-    const handle = k.play(name, { ...opts, volume: base * settings[category] });
+    const handle = k.play(name, { ...opts, volume: base * effectiveVolume(category) });
     if (opts.loop) trackLoopHandle(handle, base, category);
     return handle;
 }

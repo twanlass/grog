@@ -14,15 +14,19 @@ Open the in-game menu panel (`/` key or the menu button) and adjust the two slid
 - Desktop: click+drag on a slider track.
 - Touch: tap anywhere on a slider track to jump the thumb.
 
+A **Mute** checkbox sits on the AUDIO header row as a one-tap kill switch for all sound. Muting forces the effective output volume to 0 for both categories (silencing live looping ambience instantly) while preserving each slider's value, so unmuting restores the previous mix. The muted flag is persisted alongside the slider values.
+
 Opening the controls panel pauses the game (`timeScale = 0`) but the ambient music and ocean loops keep playing so the sliders give live audible feedback while dragging. Auto-pausing ambient audio is suppressed for as long as `menuPanelOpen` is true (see `gameScene.js`).
 
 ## Implementation
 
 `src/audio.js` exports:
 
-- `playMusic(k, name, opts)` / `playSfx(k, name, opts)` — wrap `k.play()`, multiplying the caller's `opts.volume` by the current category multiplier.
+- `playMusic(k, name, opts)` / `playSfx(k, name, opts)` — wrap `k.play()`, multiplying the caller's `opts.volume` by the current category multiplier (which is forced to 0 while muted).
 - `getMusicVolume()` / `getSfxVolume()` — read current values (0.0-1.0).
 - `setMusicVolume(v)` / `setSfxVolume(v)` — clamp + persist + update any tracked looping handles live so slider drags change ambience without restarting the loop.
+- `isMuted()` — read the global mute flag.
+- `setMuted(v)` / `toggleMute()` — set/flip the mute flag, persist it, and re-apply live loop volumes for both categories. `toggleMute()` returns the new state.
 
 Looping plays (`opts.loop = true`) are tracked in a set and have their `.stop` wrapped to clean up the entry; one-shots aren't tracked since they finish before a slider drag matters.
 

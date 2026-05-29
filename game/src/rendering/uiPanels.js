@@ -17,7 +17,7 @@ import {
     PANEL_COLORS,
 } from "./uiPrimitives.js";
 import { healthToColor } from "./renderHelpers.js";
-import { getMusicVolume, getSfxVolume } from "../audio.js";
+import { getMusicVolume, getSfxVolume, isMuted } from "../audio.js";
 
 // Helper to get local player's resources for UI display
 function getLocalRes(gameState) {
@@ -2234,6 +2234,47 @@ export function drawMenuPanel(ctx) {
         color: k.rgb(180, 200, 220),
     });
 
+    // Mute checkbox — right side of the AUDIO header row; a one-tap kill switch
+    // for all sound that preserves the individual slider values.
+    const muted = isMuted();
+    const boxSize = 16;
+    const boxX = panelX + panelWidth - 25 - boxSize;
+    const boxCenterY = audioSectionY + 16 + 7;
+    const boxY = boxCenterY - boxSize / 2;
+
+    k.drawText({
+        text: "Mute",
+        pos: k.vec2(boxX - 8, boxCenterY),
+        size: 12,
+        anchor: "right",
+        color: muted ? k.rgb(220, 120, 120) : k.rgb(180, 190, 200),
+    });
+    k.drawRect({
+        pos: k.vec2(boxX, boxY),
+        width: boxSize,
+        height: boxSize,
+        color: muted ? k.rgb(120, 40, 40) : k.rgb(30, 40, 50),
+        radius: 3,
+        outline: { color: k.rgb(120, 130, 140), width: 1 },
+    });
+    if (muted) {
+        k.drawText({
+            text: "✓",
+            pos: k.vec2(boxX + boxSize / 2, boxCenterY + 1),
+            size: 14,
+            anchor: "center",
+            color: k.rgb(240, 210, 210),
+        });
+    }
+
+    // Generous hit region spanning the "Mute" label and the box.
+    const muteCheckbox = {
+        x: boxX - 50,
+        y: boxY - 6,
+        width: 50 + boxSize + 8,
+        height: boxSize + 12,
+    };
+
     const sliderRows = [
         { key: 'music', label: 'Music', value: getMusicVolume() },
         { key: 'sfx', label: 'SFX', value: getSfxVolume() },
@@ -2318,6 +2359,7 @@ export function drawMenuPanel(ctx) {
         width: panelWidth,
         height: panelHeight,
         sliders,
+        muteCheckbox,
     };
 }
 
