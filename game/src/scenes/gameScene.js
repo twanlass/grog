@@ -52,7 +52,7 @@ import {
 import { isTouchDevice, initTouchHandlers, resetTouchState } from "../systems/touchHandler.js";
 
 // Audio (volume settings + category-aware play wrappers)
-import { playMusic, playSfx, getMusicVolume, getSfxVolume, setMusicVolume, setSfxVolume } from "../audio.js";
+import { playMusic, playSfx, getMusicVolume, getSfxVolume, setMusicVolume, setSfxVolume, toggleMute } from "../audio.js";
 
 // Default scenario config (used if none provided)
 import { getScenario, DEFAULT_SCENARIO_ID } from "../scenarios/index.js";
@@ -2804,6 +2804,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     const norm = Math.max(0, Math.min(1, (mouseX - sliderHit.trackX) / sliderHit.trackW));
                     if (sliderHit.key === 'music') setMusicVolume(norm);
                     else setSfxVolume(norm);
+                    return;
+                }
+
+                // Tap on the Mute checkbox toggles all audio and keeps the panel open.
+                const muteBox = topButtonBounds?.menuPanel?.muteCheckbox;
+                if (muteBox &&
+                    mouseX >= muteBox.x && mouseX <= muteBox.x + muteBox.width &&
+                    mouseY >= muteBox.y && mouseY <= muteBox.y + muteBox.height) {
+                    toggleMute();
+                    playUIClick();  // audible when unmuting; silent when muting
                     return;
                 }
 

@@ -1,6 +1,12 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-29 | Add a Mute checkbox to the controls AUDIO section
+------------------------------------------------------------
+### New
+- The CONTROLS panel's AUDIO header now has a Mute checkbox — a one-tap kill switch for all sound that works on desktop and touch
+- Muting silences live ambient music/ocean loops instantly and preserves the Music/SFX slider values, so unmuting restores the previous mix; the muted state persists across sessions
+
 2026-05-29 | Fold ship commands into the selected-ship menu
 ---------------------------------------------------------
 ### Improved
