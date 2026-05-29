@@ -499,7 +499,7 @@ export function drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal) {
         if (screenX < -50 || screenX > ctx.screenWidth + 50 ||
             screenY < -50 || screenY > ctx.screenHeight + 50) continue;
 
-        const row = worker.animRow ?? 2;        // default: facing south
+        const row = worker.animRow ?? 4;        // default: facing south
         const col = worker.animFrame ?? 0;
         const frame = row * COLS + col;
         const flashShader = worker.hitFlash > 0 ? "redFlash" : undefined;

@@ -257,11 +257,12 @@ export function createWorker(q, r, owner = 'player', homeSettlementId = null) {
         health: WORKER_CONFIG.health,
         hitFlash: 0,
         // Sprite animation. animRow is the row in the villager sheet
-        // (0=W, 1=SW, 2=S, 3=SE, 4=E). animFrame cycles 0..2 across the
-        // walk cycle. We only advance the frame while moving so idle
-        // workers freeze on whatever frame they're on, and we only reset
-        // animFrame=0 when the row actually changes.
-        animRow: 2,             // default: facing south (camera)
+        // (0=N, 1=NE, 2=E, 3=SE, 4=S) — west facings reuse east rows
+        // with flipX=true. animFrame cycles 0..2 across the walk cycle.
+        // We only advance the frame while moving so idle workers freeze
+        // on whatever frame they're on, and we only reset animFrame=0
+        // when the row actually changes (E↔W flip keeps the cycle going).
+        animRow: 4,             // default: facing south (camera)
         animFrame: 0,
         animTimer: 0,
         flipX: false,
