@@ -43,24 +43,32 @@ export const TREE_HEX_WOOD = 100;
 export const SETTLEMENT_WORKERS = 3;
 
 // Villager sprite sheet layout (3 anim frames × 5 rows of facings,
-// 32×32 per cell). The 5 rows go top → bottom: N, NE, E, SE, S. West-
-// facing variants (W, NW, SW) reuse the east-side rows with flipX=true.
+// 32×32 per cell). The artist drew the south-half: top → bottom is
+// W, SW, S, SE, E. There are NO back-facing (north) poses on the
+// sheet, so northward facings alias to the closest side profile —
+// villagers walking away from the camera are shown side-on, not from
+// behind. flipX is never needed because both east and west sides are
+// drawn explicitly.
 export const VILLAGER_SPRITE = 'villager';
 export const VILLAGER_ROWS = 5;
 export const VILLAGER_COLS = 3;
-export const VILLAGER_DEFAULT_ROW = 4;  // 'south' = facing camera
+export const VILLAGER_DEFAULT_ROW = 2;  // 'south' = facing camera
 
 // Map 8-way facing → { row, flipX } for the villager sheet.
-// row index into the 5-row sheet; flipX mirrors east → west.
+// Hex flat-top walks only ever produce n, ne, se, s, sw, nw (no pure
+// e/w), so the e/w entries below mainly cover the alias targets.
 export const FACING_TO_ROW = {
-    n:  { row: 0, flipX: false },
-    ne: { row: 1, flipX: false },
-    e:  { row: 2, flipX: false },
+    w:  { row: 0, flipX: false },
+    sw: { row: 1, flipX: false },
+    s:  { row: 2, flipX: false },
     se: { row: 3, flipX: false },
-    s:  { row: 4, flipX: false },
-    sw: { row: 3, flipX: true  },
-    w:  { row: 2, flipX: true  },
-    nw: { row: 1, flipX: true  },
+    e:  { row: 4, flipX: false },
+    // Northward facings: no back views on the sheet, so alias to the
+    // closest side profile. nw → W, ne → E, pure n → E (arbitrary but
+    // consistent — pure n is rare in flat-top hex movement).
+    nw: { row: 0, flipX: false },
+    n:  { row: 4, flipX: false },
+    ne: { row: 4, flipX: false },
 };
 
 /**
