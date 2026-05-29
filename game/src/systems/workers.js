@@ -237,15 +237,17 @@ export function updateWorkers(gameState, map, dt, floatingNumbers = []) {
  */
 export function getWorkerVisualPos(worker, hexToPixel) {
     const fromPos = hexToPixel(worker.q, worker.r);
+    const ox = worker.offsetX || 0;
+    const oy = worker.offsetY || 0;
     if (!worker.path || worker.path.length === 0
         || (worker.state !== 'moving' && worker.state !== 'returning')) {
-        return fromPos;
+        return { x: fromPos.x + ox, y: fromPos.y + oy };
     }
     const next = worker.path[0];
     const toPos = hexToPixel(next.q, next.r);
     const t = Math.max(0, Math.min(1, worker.moveProgress));
     return {
-        x: fromPos.x + (toPos.x - fromPos.x) * t,
-        y: fromPos.y + (toPos.y - fromPos.y) * t,
+        x: fromPos.x + (toPos.x - fromPos.x) * t + ox,
+        y: fromPos.y + (toPos.y - fromPos.y) * t + oy,
     };
 }

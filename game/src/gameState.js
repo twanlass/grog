@@ -256,6 +256,11 @@ export function createWorker(q, r, owner = 'player', homeSettlementId = null) {
         // Combat
         health: WORKER_CONFIG.health,
         hitFlash: 0,
+        // Small per-worker pixel offset so a group of villagers parked on
+        // the same hex (chopping a tree, queueing at a settlement) fan
+        // out a bit instead of stacking. Set once at spawn for stability.
+        offsetX: (Math.random() - 0.5) * 10,
+        offsetY: (Math.random() - 0.5) * 8,
         // Sprite animation. animRow is the row in the villager sheet
         // (0=N, 1=NE, 2=E, 3=SE, 4=S) — west facings reuse east rows
         // with flipX=true. animFrame cycles 0..2 across the walk cycle.
