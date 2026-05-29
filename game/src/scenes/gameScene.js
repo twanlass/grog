@@ -1798,12 +1798,16 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 return;
             }
 
-            // Check for minimap click first (navigate camera)
+            // Check for minimap click first. With an action mode active (e.g. A +
+            // click), issue that order at the clicked location — sending a scout
+            // across the map without moving the view. Otherwise navigate the camera.
             const mousePos = k.mousePos();
             const minimapClick = minimapClickToWorld(mousePos.x, mousePos.y, minimapBounds, minimapState);
             if (minimapClick.hit) {
-                cameraX = minimapClick.worldX;
-                cameraY = minimapClick.worldY;
+                if (!handleMinimapActionClick(minimapClick.worldX, minimapClick.worldY)) {
+                    cameraX = minimapClick.worldX;
+                    cameraY = minimapClick.worldY;
+                }
                 isLeftMouseDown = false;
                 isSelecting = false;
                 return;
@@ -2688,6 +2692,80 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         function playPortWaypoint() {
             const soundNum = Math.floor(Math.random() * 2) + 1;
             playSfx(k, `port-waypoint-${soundNum}`, { volume: 0.4 });
+        }
+
+        // Issue the active action-mode order at a world location picked from the
+        // minimap. The minimap can't hit a precise unit, so these are all
+        // location-based orders (attack here = attack-move, ideal for sending a
+        // scout across the map). Returns true if the click was consumed as an
+        // order; false means the caller should fall back to camera navigation.
+        function handleMinimapActionClick(worldX, worldY) {
+            const mode = gameState.actionMode.active;
+            if (!mode) return false;
+
+            const clickedHex = pixelToHex(worldX, worldY);
+            const isShiftHeld = shiftKeyHeld;
+
+            if (mode === 'move') {
+                if (!handleWaypointClick(gameState, map, clickedHex, isShiftHeld)) return false;
+                if (isMultiplayer && isGuest) {
+                    sendGuestCommandForSelectedShips(COMMAND_TYPES.MOVE_SHIPS, {
+                        waypoints: [{ q: clickedHex.q, r: clickedHex.r }], append: isShiftHeld,
+                    });
+                }
+                exitActionMode(gameState);
+                return true;
+            }
+
+            if (mode === 'attack') {
+                // Attack-move: navigate to the location with guardMode so ships
+                // auto-acquire any enemy met en route.
+                if (!handleWaypointClick(gameState, map, clickedHex, isShiftHeld)) return false;
+                for (const ship of getSelectedShips(gameState)) {
+                    ship.guardMode = true;
+                }
+                if (isMultiplayer && isGuest) {
+                    sendGuestCommandForSelectedShips(COMMAND_TYPES.MOVE_SHIPS, {
+                        waypoints: [{ q: clickedHex.q, r: clickedHex.r }], append: isShiftHeld,
+                    });
+                }
+                exitActionMode(gameState);
+                return true;
+            }
+
+            if (mode === 'patrol') {
+                if (!handlePatrolWaypointClick(gameState, map, clickedHex)) return false;
+                if (isMultiplayer && isGuest) {
+                    const selShips = getSelectedShips(gameState);
+                    if (selShips.length > 0 && selShips[0].patrolRoute) {
+                        sendGuestCommandForSelectedShips(COMMAND_TYPES.SET_PATROL, { waypoints: selShips[0].patrolRoute });
+                    }
+                }
+                // Stay in patrol mode so further taps extend the route (matches world clicks)
+                return true;
+            }
+
+            if (mode === 'rally') {
+                if (!handlePortRallyPointClick(gameState, map, clickedHex)) return false;
+                playPortWaypoint();
+                if (isMultiplayer && isGuest) {
+                    for (const sel of gameState.selectedUnits) {
+                        if (sel.type !== 'port') continue;
+                        const port = gameState.ports[sel.index];
+                        if (port && port.owner === localPlayerId) {
+                            sendGuestGenericCommand(COMMAND_TYPES.SET_RALLY, {
+                                portId: port.id, q: clickedHex.q, r: clickedHex.r,
+                            });
+                        }
+                    }
+                }
+                exitActionMode(gameState);
+                return true;
+            }
+
+            // Broadside (and any future target-locked mode) needs a precise unit
+            // the minimap can't provide — let the camera navigate instead.
+            return false;
         }
 
         // Click handler for selection and waypoints - delegates to input handler helpers
@@ -3581,6 +3659,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     // Tap on minimap: single tap navigates camera, double tap snaps home
                     const minimapClick = minimapClickToWorld(x, y, minimapBounds, minimapState);
                     if (minimapClick.hit) {
+                        // With an action mode active (entered via the action buttons),
+                        // a minimap tap issues that order at the tapped location.
+                        if (handleMinimapActionClick(minimapClick.worldX, minimapClick.worldY)) {
+                            return;
+                        }
                         const now = Date.now();
                         if (pendingMinimapTap !== null && now - lastMinimapTapTime < MINIMAP_DOUBLE_TAP_THRESHOLD) {
                             clearTimeout(pendingMinimapTap);

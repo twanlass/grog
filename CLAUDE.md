@@ -49,6 +49,7 @@ See `docs/features/` for detailed feature docs. **Read the relevant feature doc 
 - [Combat](docs/features/combat.md) - Action modes, attack-move, Broadside burst attacks
 - [TNT Mode](docs/features/tnt-mode.md) - Schooner kamikaze self-destruct
 - [Fog of War](docs/features/fog-of-war.md)
+- [Minimap](docs/features/minimap.md) - Circular minimap, click-to-navigate, and action clicks
 - [Mobile Input](docs/features/mobile-input.md) - Touch gesture vocabulary and `touchHandler` callbacks
 - [Multiplayer](docs/features/multiplayer.md) - P2P WebRTC multiplayer via PeerJS
 - [Voice Chat](docs/features/voice-chat.md) - Opt-in mic chat over the existing peer
