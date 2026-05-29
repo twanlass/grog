@@ -42,7 +42,7 @@
 ## Restrictions
 - Port can only build one thing at a time (ship, settlement, or upgrade)
 - Port can only have one settlement under construction at a time
-- **Anywhere on land** — coastal or inland. Building on a still-stocked tree hex displaces those trees (the tile is marked depleted on completion), so the natural play is to chop a patch clean before planting a settlement on it for crew cap.
+- **Any land hex except those that still have trees.** Coast (port-site sand) is fine immediately; inland hexes must be chopped clean first (`woodRemaining === 0`) before the placement preview lights them up.
 - Must be placed on land hex within 10 hexes of port
 - Must be land-connected to the builder port
 - Cannot place on hex already occupied by port or settlement

@@ -1126,10 +1126,16 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
     const tile = map.tiles.get(hexKey(q, r));
     if (!tile || tile.type !== 'land') return false;
 
-    // Settlements can go anywhere on land — coast or inland. Building on
-    // a tree hex displaces those trees (the construction system marks the
-    // tile depleted on completion), so the natural play is to chop a
-    // patch clean first and then plant a settlement on it for crew cap.
+    // Settlements can go on any land hex — coast or inland — EXCEPT a
+    // hex that still has trees on it. Players have to chop the forest
+    // clean first; once the tile is depleted, it's fair game for crew
+    // cap. (Coastal/port-site hexes don't have woodRemaining, so they
+    // pass through automatically.)
+    if (typeof tile.woodRemaining === 'number'
+        && tile.woodRemaining > 0
+        && !tile.depleted) {
+        return false;
+    }
 
     // Check if already occupied by a settlement
     for (const settlement of existingSettlements) {
