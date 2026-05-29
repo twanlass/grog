@@ -229,12 +229,16 @@ export function createShip(type, q, r, owner = 'player') {
     };
 }
 
-// Create a new worker. Workers walk on land, harvest wood from inland land
-// tiles, and deposit it at the nearest player-owned port.
-export function createWorker(q, r, owner = 'player') {
+// Create a new worker. Workers walk on land, harvest wood from inland
+// land tiles, and deposit it at the settlement that spawned them.
+// `homeSettlementId` is the id of that settlement — set by construction.js
+// when a settlement completes. If the home settlement is later destroyed
+// the worker idles (orphaned) instead of falling back to another hub.
+export function createWorker(q, r, owner = 'player', homeSettlementId = null) {
     return {
         id: nextEntityId('worker'),
         owner,
+        homeSettlementId,
         q,
         r,
         // Movement (mirrors ship movement: A* path + per-hex moveProgress)

@@ -32,7 +32,7 @@ export const SETTLEMENTS = {
         sprite: SETTLEMENT,
         imageSprite: "settlement",
         cost: { wood: 5 },
-        crewCapContribution: 5,
+        crewCapContribution: 10,
         buildTime: 5,
         sightDistance: 3,
         health: 25,

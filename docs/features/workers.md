@@ -22,8 +22,10 @@ timer-based generator (no AI workers).
    completes, the settlement spawns `SETTLEMENT_WORKERS` (3) workers
    next to it.
 3. Every worker repeats: **idle → walk to nearest tree on the same island
-   → chop until cargo full → walk to nearest hub (port or settlement) →
-   deposit (instant +5 wood, floating number) → idle**.
+   → chop until cargo full → walk to the SPECIFIC settlement that
+   spawned them → deposit (instant +5 wood, floating number) → idle**.
+   Workers don't deposit at the nearest hub or at ports — only at their
+   home settlement.
 4. When the nearest tree depletes (`woodRemaining <= 0`), the tile is
    marked `depleted` (renderer hides trees) and the worker BFS-finds the
    next one.
@@ -122,7 +124,7 @@ tile.depleted = false;
 | `WORKER_CONFIG.speed`             | 0.6     | Walk speed (hexes / sec)                          |
 | `WORKER_CONFIG.health`            | 20      | HP                                                |
 | `WORKER_CONFIG.cargoCapacity`     | 5       | Wood per trip                                     |
-| `WORKER_CONFIG.chopTime`          | 2 s     | Seconds per chop                                  |
+| `WORKER_CONFIG.chopTime`          | 4 s     | Seconds per chop                                  |
 | `TREE_HEX_WOOD`                   | 100     | Initial wood per tree hex                         |
 
 ## Out of scope for this prototype
@@ -137,9 +139,9 @@ tile.depleted = false;
 
 ## Edge cases
 
-- **No hub reachable** (all ports/settlements destroyed on this island):
-  worker goes idle holding cargo. Resumes the loop once a hub comes
-  back.
+- **Home settlement destroyed:** orphaned workers idle holding cargo.
+  They do NOT migrate to another settlement — the bond is to their
+  specific home.
 - **No tree reachable** (island stripped): worker idles indefinitely.
   Player must expand.
 - **Worker mid-chop, tree depletes** (another worker hit zero first):

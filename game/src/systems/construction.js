@@ -19,16 +19,17 @@ function markHexDepleted(map, q, r) {
 }
 
 /**
- * Spawn `count` autonomous workers on land hexes adjacent to a hub
- * (a freshly-completed settlement, or the home port at game start).
- * BFS outward from the hub hex; falls back to stacking on the hub hex
- * if the island has too few free land hexes.
+ * Spawn `count` autonomous workers on land hexes adjacent to a freshly-
+ * completed settlement. BFS outward from the settlement hex; falls back
+ * to stacking on the settlement hex if the island has too few free land
+ * hexes. Each worker is bound to this settlement via homeSettlementId
+ * and will only deposit there.
  */
-export function spawnHubWorkers(gameState, map, hub, count, owner = 'player') {
+export function spawnSettlementWorkers(gameState, map, settlement, count) {
     if (count <= 0) return 0;
     const placed = [];
-    const visited = new Set([hexKey(hub.q, hub.r)]);
-    const queue = [{ q: hub.q, r: hub.r }];
+    const visited = new Set([hexKey(settlement.q, settlement.r)]);
+    const queue = [{ q: settlement.q, r: settlement.r }];
     while (queue.length > 0 && placed.length < count) {
         const current = queue.shift();
         for (const n of hexNeighbors(current.q, current.r)) {
@@ -42,9 +43,10 @@ export function spawnHubWorkers(gameState, map, hub, count, owner = 'player') {
             if (placed.length >= count) break;
         }
     }
-    while (placed.length < count) placed.push({ q: hub.q, r: hub.r });
+    while (placed.length < count) placed.push({ q: settlement.q, r: settlement.r });
+    const owner = settlement.owner || 'player';
     for (const spot of placed) {
-        gameState.workers.push(createWorker(spot.q, spot.r, owner));
+        gameState.workers.push(createWorker(spot.q, spot.r, owner, settlement.id));
     }
     return placed.length;
 }
@@ -286,7 +288,7 @@ function updateSettlementConstruction(gameState, map, fogState, dt, floatingNumb
             // resourceGeneration.js, since the AI doesn't manage workers).
             const owner = settlement.owner || 'player';
             if (owner === 'player' && map) {
-                spawnHubWorkers(gameState, map, settlement, SETTLEMENT_WORKERS, 'player');
+                spawnSettlementWorkers(gameState, map, settlement, SETTLEMENT_WORKERS);
             }
 
             // Spawn floating crew number for new settlement (player only)

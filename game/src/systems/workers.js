@@ -23,7 +23,6 @@ import { hexKey } from "../hex.js";
 import {
     findLandPath,
     findNearestTreeOnIsland,
-    findNearestDepositHexOnIsland,
 } from "../pathfinding.js";
 import { WORKER_CONFIG } from "../sprites/workers.js";
 
@@ -83,28 +82,23 @@ function startTreeTrip(worker, map) {
     return true;
 }
 
-// Start a return trip to the nearest deposit hub (port or settlement).
-// Returns true if a trip was started; false leaves the worker idle holding
-// cargo until a hub becomes reachable.
+// Start a return trip to the worker's home settlement. Workers deposit
+// only at the settlement that spawned them — if it's been destroyed or
+// is still under construction, they idle holding cargo until... well,
+// forever (they're orphaned). Returns true if a trip was started.
 function startReturnTrip(worker, gameState, map) {
-    const hub = findNearestDepositHexOnIsland(
-        map, worker.q, worker.r,
-        gameState.ports, gameState.settlements,
-        worker.owner || 'player',
-    );
-    if (!hub) {
+    const home = gameState.settlements?.find(s => s.id === worker.homeSettlementId);
+    if (!home || home.construction) {
         worker.state = 'idle';
         worker.path = null;
         return false;
     }
-    if (worker.q === hub.q && worker.r === hub.r) {
-        // Standing on a hub already (shouldn't normally happen — workers
-        // chop on tree hexes, not hub hexes — but handle it cleanly).
+    if (worker.q === home.q && worker.r === home.r) {
         worker.path = null;
         worker.state = 'returning';
         return true;
     }
-    const path = findLandPath(map, worker.q, worker.r, hub.q, hub.r);
+    const path = findLandPath(map, worker.q, worker.r, home.q, home.r);
     if (!path) {
         worker.state = 'idle';
         worker.path = null;

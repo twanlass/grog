@@ -1,10 +1,10 @@
 // Worker entity definition — autonomous land units that handle the
 // chopping loop. Workers are NOT player-controlled: they spawn from
-// settlements (and from the home port at game start), find the nearest
-// non-depleted tree, walk → chop → walk back to the nearest player-owned
-// hub (port or settlement) → deposit → repeat. When no tree is reachable
-// on their island, they idle. They're a visual + economic substrate, not
-// a unit the player micromanages.
+// settlements, find the nearest non-depleted tree on their island, chop
+// it, and walk the cargo back to the SPECIFIC settlement that spawned
+// them (not the nearest one). When their home settlement is gone or no
+// tree is reachable on their island, they idle. They're a visual +
+// economic substrate, not a unit the player micromanages.
 
 export const WORKER_CONFIG = {
     // How fast a worker walks across hexes (hexes per second). Ships are
@@ -18,8 +18,10 @@ export const WORKER_CONFIG = {
     // Wood carried per trip back to a hub
     cargoCapacity: 5,
 
-    // Seconds to chop one cargo's worth of wood
-    chopTime: 2,
+    // Seconds to chop one cargo's worth of wood. Bigger number = slower
+    // economy. At chopTime=4 with cargoCapacity=5, a worker yields
+    // 5 wood per ~4s of standing on a tree.
+    chopTime: 4,
 
     // Visual radius of the worker dot (in world pixels at zoom 1)
     radius: 5,
