@@ -34,6 +34,7 @@ import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
 import { updateWorkers, getWorkerVisualPos } from "../systems/workers.js";
+import { WORKER_CONFIG, FACING_TO_ROW, facingFromVec } from "../sprites/workers.js";
 import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterSpawnPositions, armTNT } from "../systems/combat.js";
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
@@ -1202,6 +1203,39 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (ship.animTimer >= 0.15) {  // ~6 FPS animation
                     ship.animTimer = 0;
                     ship.animFrame = ((ship.animFrame || 0) + 1) % 3;
+                }
+            }
+
+            // Animate villager (worker) sprites. We only run the walk
+            // cycle while a worker is actually moving; idle/chopping
+            // workers freeze on whatever frame they last hit. Turning
+            // E↔W flips the sprite without resetting the cycle (same
+            // row), but turning E↔N restarts the cycle on the new row.
+            const VILLAGER_FRAME_DUR = 1 / WORKER_CONFIG.animSpeed;
+            for (const worker of gameState.workers) {
+                const isWalking = (worker.state === 'moving' || worker.state === 'returning')
+                    && worker.path && worker.path.length > 0;
+                if (!isWalking) continue;
+
+                const next = worker.path[0];
+                const from = hexToPixel(worker.q, worker.r);
+                const to = hexToPixel(next.q, next.r);
+                const facing = facingFromVec(to.x - from.x, to.y - from.y);
+                if (!facing) continue;
+                const meta = FACING_TO_ROW[facing];
+
+                if (worker.animRow !== meta.row) {
+                    // New facing row → restart the cycle on this row
+                    worker.animRow = meta.row;
+                    worker.animFrame = 0;
+                    worker.animTimer = 0;
+                }
+                worker.flipX = meta.flipX;
+
+                worker.animTimer = (worker.animTimer || 0) + dt;
+                if (worker.animTimer >= VILLAGER_FRAME_DUR) {
+                    worker.animTimer = 0;
+                    worker.animFrame = ((worker.animFrame || 0) + 1) % 3;
                 }
             }
 

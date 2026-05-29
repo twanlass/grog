@@ -476,18 +476,19 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
 }
 
 /**
- * Draw all workers as simple colored dots with smooth interpolated movement.
- * A small darker pip on top of the dot indicates the worker is carrying
- * wood back to a port. Prototype-art only — no sprite yet.
+ * Draw all workers using the villager sprite sheet. Frame is composed
+ * from the worker's facing row (set in gameScene's anim ticker) plus
+ * the walk-cycle column. West-side facings reuse east-side rows with
+ * flipX=true. A small brown cargo pip floats above the head when the
+ * worker is carrying wood.
  */
 export function drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal) {
     const { k, zoom, cameraX, cameraY, halfWidth, halfHeight } = ctx;
     if (!gameState.workers || gameState.workers.length === 0) return;
 
-    const baseRadius = WORKER_CONFIG.radius;
-    const color = k.rgb(...WORKER_CONFIG.color);
     const cargoColor = k.rgb(...WORKER_CONFIG.cargoIndicatorColor);
-    const dyingColor = k.rgb(255, 60, 60);
+    const spriteScale = zoom * (WORKER_CONFIG.spriteScale || 1);
+    const COLS = 3;  // villager sheet has 3 walk-cycle frames per row
 
     for (const worker of gameState.workers) {
         if (!shouldRenderEntity(fogState, worker)) continue;
@@ -498,29 +499,31 @@ export function drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal) {
         if (screenX < -50 || screenX > ctx.screenWidth + 50 ||
             screenY < -50 || screenY > ctx.screenHeight + 50) continue;
 
-        const radius = Math.max(2, baseRadius * zoom);
+        const row = worker.animRow ?? 4;        // default: facing south
+        const col = worker.animFrame ?? 0;
+        const frame = row * COLS + col;
+        const flashShader = worker.hitFlash > 0 ? "redFlash" : undefined;
+        const flashIntensity = worker.hitFlash > 0
+            ? Math.min(worker.hitFlash / 0.15, 1)
+            : 0;
 
-        // Dark outline for legibility against grass
-        k.drawCircle({
+        k.drawSprite({
+            sprite: 'villager',
+            frame,
             pos: k.vec2(screenX, screenY),
-            radius: radius + Math.max(1, zoom),
-            color: k.rgb(30, 20, 10),
-            opacity: 0.7,
+            anchor: "center",
+            scale: spriteScale,
+            flipX: !!worker.flipX,
+            shader: flashShader,
+            opacity: 1.0 - flashIntensity * 0.4,
         });
 
-        // Body — flashes red briefly when hit
-        const bodyColor = worker.hitFlash > 0 ? dyingColor : color;
-        k.drawCircle({
-            pos: k.vec2(screenX, screenY),
-            radius,
-            color: bodyColor,
-        });
-
-        // Cargo pip — small brown dot offset upward
+        // Cargo pip — small brown dot above the head (sprite is 32px tall,
+        // so ~12 world px above center clears the body comfortably).
         if (worker.cargo > 0) {
             k.drawCircle({
-                pos: k.vec2(screenX, screenY - radius * 0.8),
-                radius: Math.max(1.5, radius * 0.45),
+                pos: k.vec2(screenX, screenY - 14 * zoom),
+                radius: Math.max(1.5, 3 * zoom),
                 color: cargoColor,
             });
         }

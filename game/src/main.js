@@ -60,6 +60,24 @@ k.loadSprite("bird", "sprites/assets/bird.png", {
     },
 });
 
+// Villager (worker) sprite: 96×160, 3 walk-cycle frames × 5 facings, 32×32 each.
+// Rows top→bottom: N, NE, E, SE, S. West-side facings (W/NW/SW) are produced
+// at render time by flipping the east-side anims (E/NE/SE) along X — see
+// FACING_TO_ROW in sprites/workers.js. The five anim defs below are loop:true
+// at ~8 fps to match the manual frame ticker in gameScene.js so anyone who
+// later swaps to play()-driven rendering gets the same cadence for free.
+k.loadSprite("villager", "sprites/assets/villager.png", {
+    sliceX: 3,
+    sliceY: 5,
+    anims: {
+        walk_n:  { from: 0,  to: 2,  loop: true, speed: 8 },
+        walk_ne: { from: 3,  to: 5,  loop: true, speed: 8 },
+        walk_e:  { from: 6,  to: 8,  loop: true, speed: 8 },
+        walk_se: { from: 9,  to: 11, loop: true, speed: 8 },
+        walk_s:  { from: 12, to: 14, loop: true, speed: 8 },
+    },
+});
+
 // Load colored cutter variants (3x5: 3 anim frames, 5 directions)
 k.loadSprite("cutter-red", "sprites/assets/cutter-red.png", {
     sliceX: 3,
