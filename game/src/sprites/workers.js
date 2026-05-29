@@ -19,9 +19,10 @@ export const WORKER_CONFIG = {
     cargoCapacity: 5,
 
     // Seconds to chop one cargo's worth of wood. Bigger number = slower
-    // economy. At chopTime=4 with cargoCapacity=5, a worker yields
-    // 5 wood per ~4s of standing on a tree.
-    chopTime: 4,
+    // economy. At chopTime=8 with cargoCapacity=5 and 3 workers per
+    // settlement, a settlement whose workers don't walk far yields about
+    // 3 * 5 / 8 = ~1.9 wood/sec at the chop step (walks subtract from that).
+    chopTime: 8,
 
     // Visual radius of the worker dot (in world pixels at zoom 1)
     radius: 5,

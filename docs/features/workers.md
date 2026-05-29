@@ -124,7 +124,7 @@ tile.depleted = false;
 | `WORKER_CONFIG.speed`             | 0.6     | Walk speed (hexes / sec)                          |
 | `WORKER_CONFIG.health`            | 20      | HP                                                |
 | `WORKER_CONFIG.cargoCapacity`     | 5       | Wood per trip                                     |
-| `WORKER_CONFIG.chopTime`          | 4 s     | Seconds per chop                                  |
+| `WORKER_CONFIG.chopTime`          | 8 s     | Seconds per chop                                  |
 | `TREE_HEX_WOOD`                   | 100     | Initial wood per tree hex                         |
 
 ## Out of scope for this prototype
