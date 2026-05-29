@@ -1,6 +1,13 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-29 | Fold ship commands into the selected-ship menu
+---------------------------------------------------------
+### Improved
+- A single selected ship now shows its Move / Attack / Patrol (+ Broadside / TNT) commands as a 2-column grid inside the bottom-left ship menu, above the Build options — no more reaching for the separate button row by the minimap
+- Commands sit in the menu for both stationary (build) and moving ships, with active-mode highlight, Broadside cooldown fill, and hotkey hints
+- Multi-ship selection and touch keep the existing bottom-right action button row; the two paths share one button list so they stay in sync
+
 2026-05-29 | Show a ship build menu when multiple ports are selected
 -------------------------------------------------------------------
 ### New

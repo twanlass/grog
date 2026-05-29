@@ -4,7 +4,9 @@ Ships, towers, and structures exchange fire through a unified projectile system.
 
 ## Action Modes
 
-When ships are selected, the bottom-center HUD shows a row of action buttons. Each one has a hotkey and corresponds to an entry in `gameState.actionMode.active`.
+When ships are selected, action buttons are shown. Each one has a hotkey and corresponds to an entry in `gameState.actionMode.active`.
+
+**Placement:** On desktop, a **single** selected ship shows its commands as a 2-column grid inside the bottom-left selected-ship menu (`drawShipActionGrid`, between the ship name and the Build options). When **2+ ships** are selected — or on **touch** devices — the commands appear instead as the bottom-right button row left of the minimap (`drawActionButtons`, which returns `null` for the single-ship desktop case). Both paths produce button bounds with the same `{ id, x, y, width, height, disabled }` shape, so the click handler in `gameScene.js` treats them identically.
 
 | Button | Hotkey | When shown | Behavior |
 |--------|--------|------------|----------|
@@ -117,7 +119,7 @@ When a projectile lands on its destination hex and finds nothing there, `updateP
 | `game/src/systems/combat.js` | `handlePlayerAttacks`, `handlePatrolAutoAttack`, `triggerBroadside`, projectile resolution |
 | `game/src/systems/inputHandler.js` | `handleAttackClick`, `handleBroadsideClick` |
 | `game/src/scenes/gameScene.js` | `A`/`B` hotkey wiring, action-mode click routing, multiplayer command dispatch |
-| `game/src/rendering/uiPanels.js` | `drawActionButtons` (button + cooldown fill) |
+| `game/src/rendering/uiPanels.js` | `drawActionButtons` (bottom-right row), `drawShipActionGrid` (single-ship menu grid), shared `getShipActionButtons` |
 | `game/src/sprites/ships.js` | Per-ship `burstAttack` configs and combat stats |
 | `game/src/networking/commands.js` | `COMMAND_TYPES.ATTACK` (with `isAttackMove`), `COMMAND_TYPES.BROADSIDE` |
 | `game/src/networking/commandProcessor.js` | Host-side `handleAttack`, `handleBroadside` |

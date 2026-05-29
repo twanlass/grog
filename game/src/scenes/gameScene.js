@@ -1429,6 +1429,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 shipInfoPanelBounds = drawShipInfoPanel(ctx, ship, gameState);
             }
 
+            // For a single selected ship (desktop), the Move/Attack/Patrol commands are
+            // drawn inside the bottom-left ship menu. Route those bounds through the same
+            // click handler as the bottom-right action buttons (drawActionButtons returns
+            // null in that case, so there's no overlap).
+            const menuActionButtons = shipBuildPanelBounds?.actionButtons || shipInfoPanelBounds?.actionButtons;
+            if (menuActionButtons) {
+                actionButtonBounds = { buttons: menuActionButtons };
+            }
+
             // Draw notification message (bottom center)
             drawNotification(ctx, gameState.notification);
 
@@ -3036,46 +3045,10 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Check UI panel clicks
-            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) {
-                playUIClick();
-                flushGuestCommands();
-                // On mobile, close panel only when entering a placement mode (so the map is visible)
-                if (isMobile && (gameState.portBuildMode.active || gameState.towerBuildMode.active)) {
-                    clearSelection(gameState);
-                }
-                return;
-            }
-            // Multi-port build menu: route ship-build clicks through the round-robin builder.
-            if (buildPanelBounds?.multiPort) {
-                const bp = buildPanelBounds;
-                if (mouseX >= bp.x && mouseX <= bp.x + bp.width && mouseY >= bp.y && mouseY <= bp.y + bp.height) {
-                    for (const btn of bp.buttons) {
-                        if (mouseY >= btn.y && mouseY <= btn.y + btn.height) {
-                            buildShipAtSelectedPortsRoundRobin(btn.shipType);
-                            break;
-                        }
-                    }
-                    playUIClick();
-                    return;
-                }
-                // Click outside the multi-port panel: fall through to other handlers below.
-            } else if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState, fogState)) {
-                playUIClick();
-                flushGuestCommands();
-                // On mobile, close panel only when entering a placement mode. Keep the dock
-                // selected after queueing a ship so the player can queue more without re-tapping.
-                if (isMobile && (gameState.settlementBuildMode.active || gameState.towerBuildMode.active || gameState.portBuildMode.active)) {
-                    clearSelection(gameState);
-                }
-                return;
-            }
-            if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
-            if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState, fogState)) { playUIClick(); flushGuestCommands(); return; }
-            if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
-            if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) { playUIClick(); return; }
-
-            // Check action button clicks (Move, Attack, Patrol, Broadside, TNT)
+            // Check action button clicks (Move, Attack, Patrol, Broadside, TNT).
+            // Must run before the ship build/info panel handlers: for a single ship the
+            // action grid lives *inside* that panel, and those handlers consume any click
+            // within their bounds. A click that misses an action cell falls through to them.
             if (actionButtonBounds) {
                 for (const btn of actionButtonBounds.buttons) {
                     if (mouseX >= btn.x && mouseX <= btn.x + btn.width &&
@@ -3127,6 +3100,45 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                     }
                 }
             }
+
+            // Check UI panel clicks
+            if (handleShipBuildPanelClick(mouseX, mouseY, shipBuildPanelBounds, gameState)) {
+                playUIClick();
+                flushGuestCommands();
+                // On mobile, close panel only when entering a placement mode (so the map is visible)
+                if (isMobile && (gameState.portBuildMode.active || gameState.towerBuildMode.active)) {
+                    clearSelection(gameState);
+                }
+                return;
+            }
+            // Multi-port build menu: route ship-build clicks through the round-robin builder.
+            if (buildPanelBounds?.multiPort) {
+                const bp = buildPanelBounds;
+                if (mouseX >= bp.x && mouseX <= bp.x + bp.width && mouseY >= bp.y && mouseY <= bp.y + bp.height) {
+                    for (const btn of bp.buttons) {
+                        if (mouseY >= btn.y && mouseY <= btn.y + btn.height) {
+                            buildShipAtSelectedPortsRoundRobin(btn.shipType);
+                            break;
+                        }
+                    }
+                    playUIClick();
+                    return;
+                }
+                // Click outside the multi-port panel: fall through to other handlers below.
+            } else if (handleBuildPanelClick(mouseX, mouseY, buildPanelBounds, gameState, fogState)) {
+                playUIClick();
+                flushGuestCommands();
+                // On mobile, close panel only when entering a placement mode. Keep the dock
+                // selected after queueing a ship so the player can queue more without re-tapping.
+                if (isMobile && (gameState.settlementBuildMode.active || gameState.towerBuildMode.active || gameState.portBuildMode.active)) {
+                    clearSelection(gameState);
+                }
+                return;
+            }
+            if (handleBuildQueueClick(mouseX, mouseY, buildQueuePanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleTowerInfoPanelClick(mouseX, mouseY, towerInfoPanelBounds, gameState, fogState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleSettlementInfoPanelClick(mouseX, mouseY, settlementInfoPanelBounds, gameState)) { playUIClick(); flushGuestCommands(); return; }
+            if (handleShipInfoPanelClick(mouseX, mouseY, shipInfoPanelBounds, gameState)) { playUIClick(); return; }
 
             // Convert to world coordinates
             const worldX = (mouseX - k.width() / 2) / zoom + cameraX;

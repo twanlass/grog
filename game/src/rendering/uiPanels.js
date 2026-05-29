@@ -744,8 +744,13 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
     const statusHeight = statusText ? 22 : 0;
     const cargoHeight = shipData.cargo > 0 ? 26 : 0;
     const bottomPadding = 10;
-    const infoPanelWidth = 160;
-    const infoPanelHeight = headerHeight + statusHeight + cargoHeight + bottomPadding;
+    // Action commands (Move/Attack/Patrol…) grid for the selected ship on desktop.
+    // Touch keeps the bottom-right action button row, so it's omitted there.
+    const showActions = !isTouchDevice();
+    const actionGridH = showActions ? shipActionGridHeight(getShipActionButtons([ship]).length) : 0;
+    const actionBlockHeight = showActions ? actionGridH + 8 : 0;  // gap above grid
+    const infoPanelWidth = showActions ? 200 : 160;
+    const infoPanelHeight = headerHeight + statusHeight + cargoHeight + actionBlockHeight + bottomPadding;
     const infoPanelX = 15;  // Bottom left
     const infoPanelY = screenHeight - infoPanelHeight - 15;
 
@@ -755,6 +760,7 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
         width: infoPanelWidth,
         height: infoPanelHeight,
         repairButton: null,
+        actionButtons: null,
     };
 
     // Panel background
@@ -868,6 +874,13 @@ export function drawShipInfoPanel(ctx, ship, gameState) {
             anchor: "center",
             color: statusColor,
         });
+    }
+
+    // Action commands grid (desktop only), below the status/cargo block
+    if (showActions) {
+        const gridY = infoPanelY + headerHeight + cargoHeight + statusHeight + 8;
+        const grid = drawShipActionGrid(ctx, gameState, [ship], infoPanelX, infoPanelWidth, gridY);
+        bounds.actionButtons = grid.buttons;
     }
 
     return bounds;
@@ -1612,7 +1625,12 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
     const sectionGap = 4;
     const portSectionHeight = buildablePortTypes.length * sbpRowHeight;
     const towerSectionHeight = sbpRowHeight;
-    const sbpHeight = sbpPadding + headerHeight + portSectionHeight + sectionGap + towerSectionHeight + sbpPadding;
+    // Action commands (Move/Attack/Patrol…) grid sits between the name and build
+    // options on desktop. Touch keeps the bottom-right action button row.
+    const showActions = !isTouchDevice();
+    const actionGridH = showActions ? shipActionGridHeight(getShipActionButtons([ship]).length) : 0;
+    const actionBlockHeight = showActions ? actionGridH + 12 : 0;  // grid + separator gap
+    const sbpHeight = sbpPadding + headerHeight + actionBlockHeight + portSectionHeight + sectionGap + towerSectionHeight + sbpPadding;
     const sbpX = 15;
     const sbpY = screenHeight - 15 - sbpHeight;
 
@@ -1624,6 +1642,7 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
         height: sbpHeight,
         buttons: [],
         towerButton: null,
+        actionButtons: null,
         shipIndex: shipIndex,
         tooltip: null,
     };
@@ -1642,6 +1661,15 @@ export function drawShipBuildPanel(ctx, ship, shipIndex, gameState, isShipDocked
 
     const mousePos = k.mousePos();
     let currentY = sbpY + sbpPadding + headerHeight;
+
+    // Action commands grid (desktop only), then a divider before the build options
+    if (showActions) {
+        const grid = drawShipActionGrid(ctx, gameState, [ship], sbpX, sbpWidth, currentY);
+        bounds.actionButtons = grid.buttons;
+        currentY += grid.height + 6;
+        drawPanelSeparator(ctx, sbpX, sbpWidth, currentY);
+        currentY += 6;
+    }
 
     // Port buttons
     for (let i = 0; i < buildablePortTypes.length; i++) {
@@ -3044,9 +3072,179 @@ export function drawSelectedShipsPanel(ctx, gameState) {
 }
 
 /**
+ * Build the action-command list for a set of selected ships.
+ * Returns [{ id, label, hotkey, cooldownProgress? }]. Shared by the bottom-right
+ * action-button row (multi-ship) and the bottom-left selected-ship menu (single ship)
+ * so both stay in sync.
+ */
+function getShipActionButtons(selectedShips) {
+    const buttons = [
+        { id: 'move', label: 'Move', hotkey: 'M' },
+        { id: 'attack', label: 'Attack', hotkey: 'A' },
+        { id: 'patrol', label: 'Patrol', hotkey: 'P' },
+    ];
+
+    // Burst-attack (e.g. Cutter "Broadside"): only when every selected ship has a
+    // burstAttack config. Worst-case cooldown across the group drives the fill.
+    const burstConfigs = selectedShips.map(s => SHIPS[s.type] && SHIPS[s.type].burstAttack);
+    if (burstConfigs.length > 0 && burstConfigs.every(cfg => cfg)) {
+        let cooldownProgress = 1;  // 1 = ready
+        for (let i = 0; i < selectedShips.length; i++) {
+            const cfg = burstConfigs[i];
+            const remaining = selectedShips[i].burstCooldown || 0;
+            if (remaining > 0 && cfg.cooldown > 0) {
+                const p = 1 - (remaining / cfg.cooldown);
+                if (p < cooldownProgress) cooldownProgress = p;
+            }
+        }
+        buttons.push({
+            id: 'broadside',
+            label: burstConfigs[0].name || 'Broadside',
+            hotkey: burstConfigs[0].hotkey || 'B',
+            cooldownProgress,
+        });
+    }
+
+    // TNT (kamikaze): one-shot self-destruct, no cooldown. Disabled (visually spent)
+    // once every selected ship has already lit its fuse.
+    const tntConfigs = selectedShips.map(s => SHIPS[s.type] && SHIPS[s.type].tntAttack);
+    if (tntConfigs.length > 0 && tntConfigs.every(cfg => cfg)) {
+        const anyUnarmed = selectedShips.some(s => !s.tntFuse || s.tntFuse <= 0);
+        buttons.push({
+            id: 'tnt',
+            label: tntConfigs[0].name || 'TNT',
+            hotkey: tntConfigs[0].hotkey || 'K',
+            cooldownProgress: anyUnarmed ? 1 : 0,  // 0 = visually "spent"/disabled
+        });
+    }
+
+    return buttons;
+}
+
+// Layout constants for the inline action grid drawn inside the selected-ship menu.
+const SHIP_ACTION_GRID = {
+    rowHeight: 30,
+    rowGap: 4,
+    colGap: 6,
+    sidePadding: 12,
+};
+
+/**
+ * Height the action grid will occupy for a given button count (2-column layout).
+ */
+function shipActionGridHeight(buttonCount) {
+    const rows = Math.ceil(buttonCount / 2);
+    if (rows === 0) return 0;
+    return rows * SHIP_ACTION_GRID.rowHeight + (rows - 1) * SHIP_ACTION_GRID.rowGap;
+}
+
+/**
+ * Draw the Move/Attack/Patrol (+Broadside/TNT) commands as a 2-column grid inside
+ * the selected-ship menu. Returns { buttons, height } where each button bound has the
+ * same shape as drawActionButtons ({ id, x, y, width, height, disabled }) so the click
+ * handler can treat them identically.
+ */
+function drawShipActionGrid(ctx, gameState, selectedShips, panelX, panelWidth, startY) {
+    const { k } = ctx;
+    const mousePos = k.mousePos();
+    const buttons = getShipActionButtons(selectedShips);
+    const { rowHeight, rowGap, colGap, sidePadding } = SHIP_ACTION_GRID;
+    const cellWidth = (panelWidth - sidePadding * 2 - colGap) / 2;
+    const bounds = [];
+
+    for (let i = 0; i < buttons.length; i++) {
+        const btn = buttons[i];
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const x = panelX + sidePadding + col * (cellWidth + colGap);
+        const y = startY + row * (rowHeight + rowGap);
+
+        const hasCooldown = btn.cooldownProgress !== undefined;
+        const isOnCooldown = hasCooldown && btn.cooldownProgress < 1;
+        const isActive = gameState.actionMode.active === btn.id;
+        const isHovered = !isOnCooldown &&
+            mousePos.x >= x && mousePos.x <= x + cellWidth &&
+            mousePos.y >= y && mousePos.y <= y + rowHeight;
+
+        // Cell background (active highlight / hover)
+        if (isActive || isHovered) {
+            k.drawRect({
+                pos: k.vec2(x, y),
+                width: cellWidth,
+                height: rowHeight,
+                color: isActive ? k.rgb(80, 120, 160) : k.rgb(50, 60, 70),
+                radius: 4,
+            });
+        }
+
+        // Cooldown fill (blue bar growing left-to-right behind the label)
+        if (isOnCooldown) {
+            const fillWidth = cellWidth * btn.cooldownProgress;
+            if (fillWidth > 0) {
+                k.drawRect({
+                    pos: k.vec2(x, y),
+                    width: fillWidth,
+                    height: rowHeight,
+                    color: k.rgb(40, 90, 140),
+                    radius: 4,
+                    opacity: 0.85,
+                });
+            }
+        }
+
+        // Border when active
+        if (isActive) {
+            k.drawRect({
+                pos: k.vec2(x, y),
+                width: cellWidth,
+                height: rowHeight,
+                color: k.rgb(100, 160, 220),
+                radius: 4,
+                fill: false,
+                outline: { width: 2, color: k.rgb(100, 160, 220) },
+            });
+        }
+
+        // Label (left) + hotkey hint (right)
+        const textColor = isOnCooldown ? k.rgb(120, 130, 140) :
+                          isActive ? k.rgb(255, 255, 255) :
+                          isHovered ? k.rgb(220, 230, 240) : k.rgb(190, 195, 205);
+        k.drawText({
+            text: btn.label,
+            pos: k.vec2(x + 10, y + rowHeight / 2),
+            size: 14,
+            anchor: "left",
+            color: textColor,
+        });
+        if (btn.hotkey && !isTouchDevice()) {
+            k.drawText({
+                text: `(${btn.hotkey})`,
+                pos: k.vec2(x + cellWidth - 8, y + rowHeight / 2),
+                size: 12,
+                anchor: "right",
+                color: isOnCooldown ? k.rgb(80, 90, 100) : k.rgb(120, 130, 140),
+            });
+        }
+
+        bounds.push({
+            id: btn.id,
+            x, y,
+            width: cellWidth,
+            height: rowHeight,
+            disabled: isOnCooldown,
+        });
+    }
+
+    return { buttons: bounds, height: shipActionGridHeight(buttons.length) };
+}
+
+/**
  * Draw action buttons to the left of the minimap
  * Ships selected: Move, Attack, Patrol buttons
  * Ports selected (no ships): Rally button
+ *
+ * For a single selected ship on desktop, the commands live in the bottom-left
+ * selected-ship menu (drawShipActionGrid) instead of here, so this returns null.
  */
 export function drawActionButtons(ctx, gameState) {
     const { k, screenWidth, screenHeight } = ctx;
@@ -3063,51 +3261,17 @@ export function drawActionButtons(ctx, gameState) {
         .map(u => gameState.ports[u.index])
         .filter(port => port && port.owner === getLocalPlayerId());
 
+    // Single ship on desktop: commands are shown in the bottom-left selected-ship
+    // menu instead of here. (Multi-ship and touch keep this bottom-right row.)
+    if (selectedShips.length === 1 && selectedPorts.length === 0 && !isTouchDevice()) {
+        return null;
+    }
+
     // Determine which buttons to show
     let buttons;
     if (selectedShips.length > 0) {
-        // Ship buttons
-        buttons = [
-            { id: 'move', label: 'Move', hotkey: 'M' },
-            { id: 'attack', label: 'Attack', hotkey: 'A' },
-            { id: 'patrol', label: 'Patrol', hotkey: 'P' },
-        ];
-
-        // Burst-attack button (e.g. Cutter "Broadside"): only show when every
-        // selected ship has a burstAttack config. Per-ship-type label.
-        const burstConfigs = selectedShips.map(s => SHIPS[s.type] && SHIPS[s.type].burstAttack);
-        if (burstConfigs.length > 0 && burstConfigs.every(cfg => cfg)) {
-            // Worst-case cooldown across the group, normalized to that ship's max
-            let cooldownProgress = 1;  // 1 = ready
-            for (let i = 0; i < selectedShips.length; i++) {
-                const cfg = burstConfigs[i];
-                const remaining = selectedShips[i].burstCooldown || 0;
-                if (remaining > 0 && cfg.cooldown > 0) {
-                    const p = 1 - (remaining / cfg.cooldown);
-                    if (p < cooldownProgress) cooldownProgress = p;
-                }
-            }
-            buttons.push({
-                id: 'broadside',
-                label: burstConfigs[0].name || 'Broadside',
-                hotkey: burstConfigs[0].hotkey || 'B',
-                cooldownProgress,
-            });
-        }
-
-        // TNT (kamikaze) button: shown when every selected ship has a tntAttack
-        // config. No cooldown — it's a one-shot self-destruct. Disabled when
-        // every selected ship has already lit its fuse.
-        const tntConfigs = selectedShips.map(s => SHIPS[s.type] && SHIPS[s.type].tntAttack);
-        if (tntConfigs.length > 0 && tntConfigs.every(cfg => cfg)) {
-            const anyUnarmed = selectedShips.some(s => !s.tntFuse || s.tntFuse <= 0);
-            buttons.push({
-                id: 'tnt',
-                label: tntConfigs[0].name || 'TNT',
-                hotkey: tntConfigs[0].hotkey || 'K',
-                cooldownProgress: anyUnarmed ? 1 : 0,  // 0 = visually "spent"/disabled
-            });
-        }
+        // Ship buttons (Move/Attack/Patrol + optional Broadside/TNT)
+        buttons = getShipActionButtons(selectedShips);
     } else if (selectedPorts.length > 0) {
         // Port buttons
         buttons = [

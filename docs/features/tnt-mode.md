@@ -7,7 +7,7 @@ Schooners can light their powder kegs and sail into the enemy. The crew commits 
 | Trigger | Where |
 |---------|-------|
 | **K** hotkey | Any selection where every ship has a `tntAttack` config |
-| **TNT** action button | Right side of HUD, alongside Move / Attack / Patrol / Broadside |
+| **TNT** action button | Alongside Move / Attack / Patrol / Broadside — in the bottom-left ship menu for a single selected ship (desktop), or the bottom-right HUD row for multi-select / touch |
 
 Unlike other action modes, TNT is **instant** — no target click. Pressing the button arms every eligible selected ship and the action button handler returns immediately. The ship continues to obey existing move/attack orders during the fuse, so the standard pattern is:
 
