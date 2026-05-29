@@ -76,6 +76,22 @@ k.loadSprite("villager", "sprites/assets/villager.png", {
     },
 });
 
+// Villager chop animation: 192×160, 6 frames × 5 facings, 32×32 each.
+// Same row order as the walk sheet (N, NE, E, SE, S) but with more frames
+// because the chop motion has bigger amplitude. Worker renderer switches
+// to this sheet whenever worker.state === 'chopping'.
+k.loadSprite("villager-chop", "sprites/assets/villager-chop.png", {
+    sliceX: 6,
+    sliceY: 5,
+    anims: {
+        chop_n:  { from: 0,  to: 5,  loop: true, speed: 8 },
+        chop_ne: { from: 6,  to: 11, loop: true, speed: 8 },
+        chop_e:  { from: 12, to: 17, loop: true, speed: 8 },
+        chop_se: { from: 18, to: 23, loop: true, speed: 8 },
+        chop_s:  { from: 24, to: 29, loop: true, speed: 8 },
+    },
+});
+
 // Load colored cutter variants (3x5: 3 anim frames, 5 directions)
 k.loadSprite("cutter-red", "sprites/assets/cutter-red.png", {
     sliceX: 3,

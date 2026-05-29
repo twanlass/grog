@@ -1206,36 +1206,50 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
-            // Animate villager (worker) sprites. We only run the walk
-            // cycle while a worker is actually moving; idle/chopping
-            // workers freeze on whatever frame they last hit. Turning
-            // E↔W flips the sprite without resetting the cycle (same
-            // row), but turning E↔N restarts the cycle on the new row.
+            // Animate villager (worker) sprites. Walking uses the
+            // 3-frame walk sheet; chopping uses the 6-frame chop sheet.
+            // Idle/returning-arriving workers freeze on whatever frame
+            // they last hit. Turning E↔W flips the sprite without
+            // resetting the cycle (same row); changing row OR animType
+            // (walk↔chop) restarts at frame 0 on the new cycle.
             const VILLAGER_FRAME_DUR = 1 / WORKER_CONFIG.animSpeed;
             for (const worker of gameState.workers) {
                 const isWalking = (worker.state === 'moving' || worker.state === 'returning')
                     && worker.path && worker.path.length > 0;
-                if (!isWalking) continue;
+                const isChopping = worker.state === 'chopping';
+                if (!isWalking && !isChopping) continue;
 
-                const next = worker.path[0];
-                const from = hexToPixel(worker.q, worker.r);
-                const to = hexToPixel(next.q, next.r);
-                const facing = facingFromVec(to.x - from.x, to.y - from.y);
-                if (!facing) continue;
-                const meta = FACING_TO_ROW[facing];
+                // Recompute facing during walks; keep the last facing
+                // when chopping (worker stops in whichever direction
+                // they arrived).
+                if (isWalking) {
+                    const next = worker.path[0];
+                    const from = hexToPixel(worker.q, worker.r);
+                    const to = hexToPixel(next.q, next.r);
+                    const facing = facingFromVec(to.x - from.x, to.y - from.y);
+                    if (facing) {
+                        const meta = FACING_TO_ROW[facing];
+                        if (worker.animRow !== meta.row) {
+                            worker.animRow = meta.row;
+                            worker.animFrame = 0;
+                            worker.animTimer = 0;
+                        }
+                        worker.flipX = meta.flipX;
+                    }
+                }
 
-                if (worker.animRow !== meta.row) {
-                    // New facing row → restart the cycle on this row
-                    worker.animRow = meta.row;
+                const nextType = isChopping ? 'chop' : 'walk';
+                if (worker.animType !== nextType) {
+                    worker.animType = nextType;
                     worker.animFrame = 0;
                     worker.animTimer = 0;
                 }
-                worker.flipX = meta.flipX;
 
+                const cols = nextType === 'chop' ? 6 : 3;
                 worker.animTimer = (worker.animTimer || 0) + dt;
                 if (worker.animTimer >= VILLAGER_FRAME_DUR) {
                     worker.animTimer = 0;
-                    worker.animFrame = ((worker.animFrame || 0) + 1) % 3;
+                    worker.animFrame = ((worker.animFrame || 0) + 1) % cols;
                 }
             }
 

@@ -488,7 +488,6 @@ export function drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal) {
 
     const cargoColor = k.rgb(...WORKER_CONFIG.cargoIndicatorColor);
     const spriteScale = zoom * (WORKER_CONFIG.spriteScale || 1);
-    const COLS = 3;  // villager sheet has 3 walk-cycle frames per row
 
     for (const worker of gameState.workers) {
         if (!shouldRenderEntity(fogState, worker)) continue;
@@ -501,14 +500,19 @@ export function drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal) {
 
         const row = worker.animRow ?? 4;        // default: facing south
         const col = worker.animFrame ?? 0;
-        const frame = row * COLS + col;
+        // Chopping uses the 6-frame chop sheet; everything else uses the
+        // 3-frame walk sheet (frozen-on-current-frame when idle).
+        const isChop = worker.animType === 'chop';
+        const sprite = isChop ? 'villager-chop' : 'villager';
+        const cols = isChop ? 6 : 3;
+        const frame = row * cols + col;
         const flashShader = worker.hitFlash > 0 ? "redFlash" : undefined;
         const flashIntensity = worker.hitFlash > 0
             ? Math.min(worker.hitFlash / 0.15, 1)
             : 0;
 
         k.drawSprite({
-            sprite: 'villager',
+            sprite,
             frame,
             pos: k.vec2(screenX, screenY),
             anchor: "center",

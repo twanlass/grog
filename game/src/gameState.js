@@ -263,10 +263,14 @@ export function createWorker(q, r, owner = 'player', homeSettlementId = null) {
         offsetY: (Math.random() - 0.5) * 8,
         // Sprite animation. animRow is the row in the villager sheet
         // (0=N, 1=NE, 2=E, 3=SE, 4=S) — west facings reuse east rows
-        // with flipX=true. animFrame cycles 0..2 across the walk cycle.
-        // We only advance the frame while moving so idle workers freeze
-        // on whatever frame they're on, and we only reset animFrame=0
-        // when the row actually changes (E↔W flip keeps the cycle going).
+        // with flipX=true. animFrame cycles 0..(cols-1) across the
+        // current cycle (3 cols for walk, 6 for chop). animType picks
+        // the sprite + col count. The ticker only advances the frame
+        // while moving or chopping; idle/returning-arriving workers
+        // freeze on whatever frame they're on. animFrame resets to 0
+        // when either the row OR the animType changes (E↔W same-row
+        // flip keeps the cycle going).
+        animType: 'walk',       // 'walk' | 'chop'
         animRow: 4,             // default: facing south (camera)
         animFrame: 0,
         animTimer: 0,
