@@ -86,5 +86,12 @@ port.buildQueue = {
 - **Port busy (building settlement)**: All ship buttons greyed out
 - **Game paused**: Build progress pauses (uses timeScale)
 
-## Multi-Port Queue Display
-On desktop, when multiple ports are selected and 2+ of them have non-empty build queues, the bottom-center build queue panel renders each port's queue horizontally side-by-side, separated by a thin divider. Clicking a queued item cancels it on the correct port (the `portIndex` is stored on each item bounds). On touch devices, only the single-port queue panel is shown (when exactly one port is selected).
+## Multi-Port Selection
+
+### Build menu
+When 2+ ports are selected, the bottom-left build panel shows a slim **ship-only** menu (`drawMultiPortBuildPanel` in `uiPanels.js`). It lists the union of ship types buildable across the selected ports (in canonical order: cutter, schooner, brigantine, galleon). Per-port options (settlement, watchtower, upgrade, repair) are omitted since they have no clear multi-port meaning.
+
+Clicking a ship — or pressing its hotkey (`C` for cutter) — builds **one** ship at the next eligible selected port using round-robin (`buildShipAtSelectedPortsRoundRobin` in `gameScene.js`, shared by the click handler and the `C` hotkey). Repeated clicks/presses spread builds across the ports. A port is skipped if it can't build that ship type, its queue is full, or it's repairing/under construction. Affordability is only checked for the first item in an empty queue. A button is enabled when at least one selected port can build that ship right now.
+
+### Queue display
+On desktop, when 2+ selected ports have non-empty build queues, the bottom-center build queue panel renders each port's queue horizontally side-by-side, separated by a thin divider. Clicking a queued item cancels it on the correct port (the `portIndex` is stored on each item bounds). On touch devices, the side-by-side queue panel is not shown (the single-port queue panel only appears when exactly one port is selected), but the multi-port build menu above is available on all devices.

@@ -1,6 +1,17 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-29 | Show a ship build menu when multiple ports are selected
+-------------------------------------------------------------------
+### New
+- Selecting 2+ ports now shows a slim ship-only build menu (bottom-left) listing every ship type the selected ports can build
+
+### Fixed
+- No build menu appeared when multiple ports were selected, so ships could only be queued via the C hotkey — the menu now makes ship building reachable by click again
+
+### Improved
+- Clicking a ship in the multi-port menu builds at the next eligible port via round-robin, sharing logic (and selection state) with the C hotkey so clicks and presses spread builds across ports
+
 2026-05-29 | Tutorial vignettes click the build menu and demo panning
 ---------------------------------------------------------------------
 ### New
