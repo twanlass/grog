@@ -1016,9 +1016,18 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             updateWaveSpawner(gameState, map, createShip, hexKey, dt, fogState);
 
             // Tutorial vignette steps run last so cursor moves and scripted
-            // clicks key off the post-update entity state.
+            // clicks key off the post-update entity state. Pass a view snapshot
+            // (camera + last-frame build-panel bounds) so the director can place
+            // the ghost cursor on bottom-left menu buttons and drive pan demos.
             if (tutorialState) {
-                updateTutorial(tutorialState, gameState, map, dt);
+                const tw = k.width();
+                const th = k.height();
+                updateTutorial(tutorialState, gameState, map, {
+                    cameraX, cameraY, zoom,
+                    halfWidth: tw / 2, halfHeight: th / 2,
+                    screenWidth: tw, screenHeight: th,
+                    buildPanelBounds,
+                }, dt);
             }
 
             // Recalculate fog visibility if any vision source changed (throttled for performance)
@@ -1960,6 +1969,13 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (k.isKeyDown("down")) cameraY += panSpeed * k.dt();
                 if (k.isKeyDown("left")) cameraX -= panSpeed * k.dt();
                 if (k.isKeyDown("right")) cameraX += panSpeed * k.dt();
+            }
+
+            // Tutorial mode owns the camera — apply the director's position
+            // (seeded from the vignette anchor, panned by the dragPan step).
+            if (gameState.tutorialActive && tutorialState && tutorialState.cameraX != null) {
+                cameraX = tutorialState.cameraX;
+                cameraY = tutorialState.cameraY;
             }
 
             // Clamp camera to map bounds

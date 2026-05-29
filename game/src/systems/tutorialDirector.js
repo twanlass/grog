@@ -23,14 +23,27 @@ export function createTutorialState(vignette) {
         cameraTarget: null,        // { q, r } - where to center on start
         stepIndex: 0,
         caption: '',
-        // Ghost cursor (world coords; rendering converts to screen)
+        // Ghost cursor. Two modes: 'world' tracks a world-space point (rendering
+        // converts to screen); 'screen' positions the cursor directly in screen
+        // space so it can land on bottom-left build-menu buttons. drawTutorial
+        // keeps cursorScreenX/Y in sync while in world mode so transitions read.
+        cursorMode: 'world',       // 'world' | 'screen'
         cursorWorldX: 0,
         cursorWorldY: 0,
+        cursorScreenX: 0,
+        cursorScreenY: 0,
         cursorSprite: 'cursor-default',
+        // Tutorial-driven camera (world px). gameScene applies these each frame
+        // in tutorial mode, letting the dragPan step simulate a pan gesture.
+        cameraX: null,
+        cameraY: null,
+        // Click feedback ring (screen coords) shown when a scripted click fires.
+        clickPulse: null,          // { x, y, t }
         // Per-step transient state
         stepTimer: 0,
         stepInit: false,
         backButtonBounds: null,    // populated by drawTutorial each frame
+        _panFrom: null,            // captured start state for dragPan
     };
 }
 
@@ -74,6 +87,23 @@ function resolveTarget(tutorial, gameState, target) {
     return null;
 }
 
+// Resolve a build-panel button to its screen-space center. `button` is either
+// 'settlement' or a ship type ('cutter'). Returns null if the panel (or that
+// row) isn't currently on screen — the live bounds come from gameScene's last
+// draw via the `view` object.
+function resolveButton(view, button) {
+    const b = view && view.buildPanelBounds;
+    if (!b) return null;
+    const centerX = b.x + b.width / 2;
+    if (button === 'settlement') {
+        if (!b.settlementButton) return null;
+        return { screenX: centerX, screenY: b.settlementButton.y + b.settlementButton.height / 2 };
+    }
+    const shipBtn = (b.buttons || []).find(btn => btn.shipType === button);
+    if (shipBtn) return { screenX: centerX, screenY: shipBtn.y + shipBtn.height / 2 };
+    return null;
+}
+
 // Run setup() and seed the cursor at the player ship position.
 export function startVignette(tutorial, gameState, map) {
     const result = tutorial.vignette.setup(gameState, map);
@@ -86,9 +116,23 @@ export function startVignette(tutorial, gameState, map) {
     tutorial.cameraTarget = result.cameraTarget || null;
     tutorial.stepIndex = 0;
     tutorial.caption = '';
+    tutorial.cursorMode = 'world';
     tutorial.cursorSprite = 'cursor-default';
+    tutorial.clickPulse = null;
+    tutorial._panFrom = null;
     tutorial.stepTimer = 0;
     tutorial.stepInit = false;
+
+    // Seed the tutorial-owned camera on the vignette's anchor so dragPan has a
+    // known origin to pan from and return to.
+    if (tutorial.cameraTarget) {
+        const cpos = hexToPixel(tutorial.cameraTarget.q, tutorial.cameraTarget.r);
+        tutorial.cameraX = cpos.x;
+        tutorial.cameraY = cpos.y;
+    } else {
+        tutorial.cameraX = null;
+        tutorial.cameraY = null;
+    }
 
     // Seed cursor near the first targetable entity (player ship if available).
     const seed = resolveTarget(tutorial, gameState, 'playerShip');
@@ -100,8 +144,9 @@ export function startVignette(tutorial, gameState, map) {
     return true;
 }
 
-export function updateTutorial(tutorial, gameState, map, dt) {
+export function updateTutorial(tutorial, gameState, map, view, dt) {
     if (!tutorial || !tutorial.vignette) return;
+    view = view || {};
 
     const steps = tutorial.vignette.steps;
     const step = steps[tutorial.stepIndex];
@@ -111,7 +156,7 @@ export function updateTutorial(tutorial, gameState, map, dt) {
     if (!tutorial.stepInit) {
         tutorial.stepInit = true;
         tutorial.stepTimer = 0;
-        applyStepEntry(tutorial, gameState, map, step);
+        applyStepEntry(tutorial, gameState, map, step, view);
     }
 
     let done = false;
@@ -141,6 +186,51 @@ export function updateTutorial(tutorial, gameState, map, dt) {
                 tutorial.cursorWorldX += (dx / dist) * moveAmt;
                 tutorial.cursorWorldY += (dy / dist) * moveAmt;
             }
+            break;
+        }
+
+        case 'moveCursorToButton': {
+            // Tween the screen-space cursor onto a build-menu button so the
+            // player sees exactly where to click. Bounds come from the live
+            // panel (last draw); hold briefly if it isn't on screen yet.
+            tutorial.stepTimer += dt;
+            const tgt = resolveButton(view, step.button);
+            if (!tgt) {
+                if (tutorial.stepTimer >= (step.timeout || 3)) done = true;
+                break;
+            }
+            const dx = tgt.screenX - tutorial.cursorScreenX;
+            const dy = tgt.screenY - tutorial.cursorScreenY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const moveAmt = (step.speed || CURSOR_SPEED) * dt;
+            if (dist <= moveAmt || dist < 1) {
+                tutorial.cursorScreenX = tgt.screenX;
+                tutorial.cursorScreenY = tgt.screenY;
+                done = true;
+            } else {
+                tutorial.cursorScreenX += (dx / dist) * moveAmt;
+                tutorial.cursorScreenY += (dy / dist) * moveAmt;
+            }
+            break;
+        }
+
+        case 'dragPan': {
+            // Simulate right-click-drag panning: glide the screen cursor by
+            // (dx, dy) while panning the camera the opposite way (mirroring the
+            // real `cameraX = startX - drag/zoom` math) with an ease-in-out.
+            tutorial.stepTimer += dt;
+            const dur = step.duration || 1.5;
+            const p = Math.min(1, dur > 0 ? tutorial.stepTimer / dur : 1);
+            const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+            const f = tutorial._panFrom || { camX: tutorial.cameraX, camY: tutorial.cameraY, curX: tutorial.cursorScreenX, curY: tutorial.cursorScreenY, zoom: 1 };
+            const cdx = step.dx || 0;
+            const cdy = step.dy || 0;
+            tutorial.cursorScreenX = f.curX + cdx * ease;
+            tutorial.cursorScreenY = f.curY + cdy * ease;
+            const zoom = f.zoom || 1;
+            tutorial.cameraX = f.camX - (cdx / zoom) * ease;
+            tutorial.cameraY = f.camY - (cdy / zoom) * ease;
+            if (p >= 1) done = true;
             break;
         }
 
@@ -262,12 +352,44 @@ export function updateTutorial(tutorial, gameState, map, dt) {
 }
 
 // Step entry hooks: set state that should apply for the duration of the step.
-function applyStepEntry(tutorial, gameState, map, step) {
+function applyStepEntry(tutorial, gameState, map, step, view) {
     if (step.type === 'caption') {
         tutorial.caption = step.text || '';
     }
-    if (step.type === 'moveCursorTo' && step.sprite) {
-        tutorial.cursorSprite = step.sprite;
+    // Moving to a world target: if we were in screen mode (e.g. just clicked a
+    // build-menu button), project the screen cursor back into world space so
+    // the tween starts from where the cursor actually is.
+    if (step.type === 'moveCursorTo') {
+        if (tutorial.cursorMode === 'screen' && view) {
+            const zoom = view.zoom || 1;
+            tutorial.cursorWorldX = (tutorial.cursorScreenX - view.halfWidth) / zoom + view.cameraX;
+            tutorial.cursorWorldY = (tutorial.cursorScreenY - view.halfHeight) / zoom + view.cameraY;
+        }
+        tutorial.cursorMode = 'world';
+        if (step.sprite) tutorial.cursorSprite = step.sprite;
+    }
+    if (step.type === 'moveCursorToButton') {
+        tutorial.cursorMode = 'screen';
+        tutorial.cursorSprite = 'cursor-default';
+    }
+    if (step.type === 'dragPan') {
+        tutorial.cursorMode = 'screen';
+        tutorial.cursorSprite = 'cursor-default';
+        const zoom = (view && view.zoom) || 1;
+        const camX = tutorial.cameraX != null ? tutorial.cameraX : (view ? view.cameraX : 0);
+        const camY = tutorial.cameraY != null ? tutorial.cameraY : (view ? view.cameraY : 0);
+        tutorial._panFrom = {
+            camX, camY,
+            curX: tutorial.cursorScreenX,
+            curY: tutorial.cursorScreenY,
+            zoom,
+        };
+    }
+    // Pulse a ring wherever a scripted click/action fires so the tap reads.
+    if (step.type === 'click' || step.type === 'rightClick' ||
+        step.type === 'enterSettlementBuildMode' || step.type === 'buildShip' ||
+        step.type === 'placeSettlement') {
+        tutorial.clickPulse = { x: tutorial.cursorScreenX, y: tutorial.cursorScreenY, t: 0 };
     }
     // Reset cursor sprite back to default after a click sequence completes.
     if (step.type === 'click') {
@@ -312,9 +434,39 @@ export function drawTutorial(ctx, tutorial) {
         });
     }
 
-    // Ghost cursor — convert world coords to screen.
-    const cursorScreenX = (tutorial.cursorWorldX - cameraX) * zoom + halfWidth;
-    const cursorScreenY = (tutorial.cursorWorldY - cameraY) * zoom + halfHeight;
+    // Ghost cursor. In world mode, project the tracked world point to screen
+    // (and cache it so a later switch to screen mode starts from the right
+    // spot). In screen mode, the director drives screen coords directly.
+    let cursorScreenX, cursorScreenY;
+    if (tutorial.cursorMode === 'screen') {
+        cursorScreenX = tutorial.cursorScreenX;
+        cursorScreenY = tutorial.cursorScreenY;
+    } else {
+        cursorScreenX = (tutorial.cursorWorldX - cameraX) * zoom + halfWidth;
+        cursorScreenY = (tutorial.cursorWorldY - cameraY) * zoom + halfHeight;
+        tutorial.cursorScreenX = cursorScreenX;
+        tutorial.cursorScreenY = cursorScreenY;
+    }
+
+    // Click feedback ring — an expanding pulse where a scripted tap landed.
+    if (tutorial.clickPulse) {
+        const PULSE_DUR = 0.45;
+        tutorial.clickPulse.t += k.dt();
+        const t = tutorial.clickPulse.t;
+        if (t >= PULSE_DUR) {
+            tutorial.clickPulse = null;
+        } else {
+            const prog = t / PULSE_DUR;
+            k.drawCircle({
+                pos: k.vec2(tutorial.clickPulse.x, tutorial.clickPulse.y),
+                radius: 6 + prog * 22,
+                fill: false,
+                outline: { width: 2, color: k.rgb(255, 220, 80) },
+                opacity: 1 - prog,
+            });
+        }
+    }
+
     // Sprite is anchored top-left for arrow cursors. Offset slightly so the
     // hotspot sits on the target rather than the corner.
     k.drawSprite({

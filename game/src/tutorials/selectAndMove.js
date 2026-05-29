@@ -78,7 +78,13 @@ export const selectAndMoveVignette = {
         { type: 'waitUntil', condition: 'shipArrived', target: 'playerShip', timeout: 15 },
         { type: 'wait', duration: 0.6 },
         { type: 'caption', text: 'Right-click and drag to pan the map' },
-        { type: 'wait', duration: 2.5 },
+        // Glide the cursor while panning the camera the opposite way to mimic a
+        // real drag, then drag back so the view re-centers for the next step.
+        { type: 'wait', duration: 0.4 },
+        { type: 'dragPan', dx: 150, dy: 80, duration: 1.4 },
+        { type: 'wait', duration: 0.3 },
+        { type: 'dragPan', dx: -150, dy: -80, duration: 1.4 },
+        { type: 'wait', duration: 0.3 },
         { type: 'caption', text: 'Scroll the mouse wheel to zoom' },
         { type: 'wait', duration: 2.5 },
         { type: 'nextVignette', id: 'select-and-build' },

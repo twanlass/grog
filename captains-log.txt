@@ -1,6 +1,16 @@
 CAPTAIN'S LOG
 =============
 
+2026-05-29 | Tutorial vignettes click the build menu and demo panning
+---------------------------------------------------------------------
+### New
+- Tutorial ghost cursor now glides onto the bottom-left build-menu buttons and "clicks" them — showing exactly where to tap to build a settlement and a Cutter
+- Pan lesson now simulates a real right-click drag: the cursor sweeps the screen while the camera pans with it, then drifts back to re-center
+- Scripted clicks show an expanding ring pulse so each tap reads clearly
+
+### Improved
+- Tutorial director gained a screen-space cursor mode (alongside the existing world-tracking mode) and a tutorial-owned camera, with smooth transitions between the two cursor modes
+
 2026-05-27 | Broadside now engages every selected cutter, in-range or not
 -------------------------------------------------------------------------
 ### Fixed
