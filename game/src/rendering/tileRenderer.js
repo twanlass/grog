@@ -5,9 +5,10 @@ import { isWater } from "../mapGenerator.js";
 import { TREE_HEX_WOOD } from "../sprites/workers.js";
 
 // Decoration rendering config
-const TREE_SCALE = 1.4;        // Tree size multiplier (base * zoom)
 const PALM_SCALE = 2.4;        // Palm tree size multiplier
 const GRASS_LENGTH = 4;        // Grass blade length in pixels (scaled by zoom)
+const TREES_SPRITE_SCALE = 0.13; // Scale for the trees spritesheet (source frame 251px wide)
+const TREES_SPRITE_Y_OFFSET = 0; // Pixels (×zoom) the sprite's bottom sits below hex center (trunk base sits on hex center)
 
 /**
  * Draw all visible map tiles
@@ -117,29 +118,37 @@ export function drawDecorations(ctx, map, tilePositions, tileDecorations, gameSt
         if (screenX < -margin || screenX > screenWidth + margin ||
             screenY < -margin || screenY > screenHeight + margin) continue;
 
-        // Sparsify trees as workers chop the hex down. Each tree tile
-        // starts with TREE_HEX_WOOD and depletes by 5 per chop; we scale
-        // the visible tree count proportionally so a 50%-chopped hex shows
-        // half its trees. When depleted (or a structure is built here),
-        // all trees vanish but grass keeps drawing so the tile isn't flat.
-        let totalTrees = 0;
-        for (const dec of decorations) {
-            if (dec.type === 'tree' || dec.type === 'palm') totalTrees++;
+        // Tree hexes (woodRemaining defined) render as a single 3-frame sprite
+        // centered on the tile, with the frame chosen from chop progress.
+        // Palms (coast tiles, no woodRemaining) and grass keep their legacy
+        // per-decoration drawing.
+        const isTreeHex = typeof tile.woodRemaining === 'number';
+        let treesFrame = -1;
+        if (isTreeHex) {
+            if (tile.depleted === true) {
+                treesFrame = 2; // stumps remain after depletion
+            } else {
+                const ratio = tile.woodRemaining / TREE_HEX_WOOD;
+                if (ratio > 0.66) treesFrame = 0;
+                else if (ratio > 0.33) treesFrame = 1;
+                else treesFrame = 2;
+            }
         }
-        let visibleTrees = totalTrees;
-        if (tile.depleted === true) {
-            visibleTrees = 0;
-        } else if (typeof tile.woodRemaining === 'number') {
-            const ratio = tile.woodRemaining / TREE_HEX_WOOD;
-            visibleTrees = ratio <= 0 ? 0 : Math.max(1, Math.ceil(ratio * totalTrees));
+        if (treesFrame >= 0 && zoom > 0.35) {
+            k.drawSprite({
+                sprite: 'trees',
+                frame: treesFrame,
+                pos: k.vec2(screenX, screenY + TREES_SPRITE_Y_OFFSET * zoom),
+                anchor: 'bot',
+                scale: zoom * TREES_SPRITE_SCALE,
+            });
         }
-        let treesDrawn = 0;
 
         for (const dec of decorations) {
-            if (dec.type === 'tree' || dec.type === 'palm') {
-                if (treesDrawn >= visibleTrees) continue;
-                treesDrawn++;
-            }
+            // All tree visuals come from the staged trees sprite above; skip
+            // legacy per-tree decorations entirely. Palms (coast) and grass
+            // still draw below.
+            if (dec.type === 'tree') continue;
             const dx = dec.rx * scaledHexSize * 0.4;
             const dy = dec.ry * scaledHexSize * 0.4;
 
@@ -157,29 +166,6 @@ export function drawDecorations(ctx, map, tilePositions, tileDecorations, gameSt
                     p2: k.vec2(screenX + dx + 2 * zoom, screenY + dy - GRASS_LENGTH * zoom),
                     width: 1,
                     color: grassColor,
-                });
-            } else if (dec.type === 'tree') {
-                // Draw tree as triangle (foliage) + rectangle (trunk)
-                const trunkColor = k.rgb(80, 50, 30);
-                const foliageColor = k.rgb(40, 100, 40);
-                const treeScale = zoom * TREE_SCALE;
-
-                // Trunk
-                k.drawRect({
-                    pos: k.vec2(screenX + dx - 1.5 * treeScale, screenY + dy),
-                    width: 3 * treeScale,
-                    height: 6 * treeScale,
-                    color: trunkColor,
-                });
-
-                // Foliage (triangle)
-                k.drawPolygon({
-                    pts: [
-                        k.vec2(screenX + dx, screenY + dy - 10 * treeScale),
-                        k.vec2(screenX + dx - 6 * treeScale, screenY + dy + 2 * treeScale),
-                        k.vec2(screenX + dx + 6 * treeScale, screenY + dy + 2 * treeScale),
-                    ],
-                    color: foliageColor,
                 });
             } else if (dec.type === 'palm') {
                 // Draw palm tree with trunk and fronds

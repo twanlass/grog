@@ -228,6 +228,33 @@ export function updateWorkers(gameState, map, dt, floatingNumbers = []) {
             }
         }
     }
+
+    // Dedup-fade: when multiple workers are chopping the same tree they
+    // visually pile onto a single tile. Only the "primary" stays opaque;
+    // the rest fade to invisible while in 'chopping' state, then fade back
+    // in as soon as they leave (return trip / re-pathing). Primary = first
+    // chopping worker encountered for that hex this tick (stable per frame
+    // since worker list order doesn't churn mid-tick).
+    const chopPrimary = new Set(); // hexKeys that already have a primary
+    const FADE_RATE = 4; // alpha per second toward target
+    for (const worker of gameState.workers) {
+        let target = 1;
+        if (worker.state === 'chopping' && worker.harvestTarget) {
+            const key = hexKey(worker.harvestTarget.q, worker.harvestTarget.r);
+            if (!chopPrimary.has(key)) {
+                chopPrimary.add(key);   // this worker is the visible chopper
+            } else {
+                target = 0;             // duplicate — fade out
+            }
+        }
+        const cur = worker.renderAlpha ?? 1;
+        if (cur !== target) {
+            const step = FADE_RATE * dt;
+            worker.renderAlpha = target > cur
+                ? Math.min(target, cur + step)
+                : Math.max(target, cur - step);
+        }
+    }
 }
 
 /**

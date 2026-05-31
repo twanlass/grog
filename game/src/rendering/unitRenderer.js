@@ -3,7 +3,7 @@ import { hexToPixel, HEX_SIZE, HEX_HEIGHT } from "../hex.js";
 import { drawSprite, drawSpriteFlash, getSpriteSize, PORTS, SHIPS, SETTLEMENTS, TOWERS } from "../sprites/index.js";
 import { isHexVisible, shouldRenderEntity } from "../fogOfWar.js";
 import { getShipVisualPos } from "../systems/shipMovement.js";
-import { drawConstructionProgressBar, drawProgressBar } from "./renderHelpers.js";
+import { drawConstructionProgressBar, drawProgressBar, drawConstructionVFX } from "./renderHelpers.js";
 import { isAIOwner } from "../gameState.js";
 import { getRenderScale } from "../designer/scaleTuner.js";
 import { WORKER_CONFIG } from "../sprites/workers.js";
@@ -182,8 +182,11 @@ export function drawPorts(ctx, gameState, map, fogState) {
             drawFactionHex(k, screenX, screenY, 22 * zoom, getFactionColor(port.owner, k), 0.4);
         }
 
-        // Use PNG sprite for docks (if available), otherwise pixel art
-        if (portData.imageSprite) {
+        // While constructing, hide the building under the dust VFX entirely
+        // (drawConstructionVFX runs below in the construction block).
+        if (isConstructing) {
+            // skip drawing the building sprite
+        } else if (portData.imageSprite) {
             const spriteScale = zoom * getRenderScale(gameState, portData.imageSprite, portData.spriteScale || 1);
             // Use shader for damage flash effect - pass via opacity
             const flashIntensity = port.hitFlash > 0 ? Math.min(port.hitFlash / 0.15, 1) : 0;
@@ -219,6 +222,7 @@ export function drawPorts(ctx, gameState, map, fogState) {
 
         // Draw port CONSTRUCTION progress bar (centered on unit)
         if (port.construction) {
+            drawConstructionVFX(ctx, screenX, screenY, port.q * 0.37 + port.r * 0.13);
             const barY = screenY;
             const progress = Math.min(port.construction.progress / port.construction.buildTime, 1);
             drawConstructionProgressBar(ctx, screenX, barY, progress);
@@ -262,9 +266,11 @@ export function drawSettlements(ctx, gameState, fogState) {
             drawFactionHex(k, screenX, screenY, 16 * zoom, getFactionColor(settlement.owner, k), 0.4);
         }
 
-        // Use image sprite if available, otherwise fall back to pixel art
-        if (settlementData.imageSprite) {
-            const spriteScale = zoom * getRenderScale(gameState, settlementData.imageSprite, 1.0);
+        // While constructing, hide the building under the dust VFX entirely.
+        if (isConstructing) {
+            // skip drawing the settlement sprite
+        } else if (settlementData.imageSprite) {
+            const spriteScale = zoom * getRenderScale(gameState, settlementData.imageSprite, settlementData.spriteScale ?? 1.0);
             // Use shader for damage flash effect - pass via opacity
             const flashIntensity = settlement.hitFlash > 0 ? Math.min(settlement.hitFlash / 0.15, 1) : 0;
             const baseOpacity = isConstructing ? 0.5 : 1.0;
@@ -289,6 +295,7 @@ export function drawSettlements(ctx, gameState, fogState) {
 
         // Draw settlement CONSTRUCTION progress bar (centered on unit)
         if (settlement.construction) {
+            drawConstructionVFX(ctx, screenX, screenY, settlement.q * 0.37 + settlement.r * 0.13);
             const barY = screenY;
             const progress = Math.min(settlement.construction.progress / settlement.construction.buildTime, 1);
             drawConstructionProgressBar(ctx, screenX, barY, progress);
@@ -323,8 +330,10 @@ export function drawTowers(ctx, gameState, fogState) {
             drawFactionHex(k, screenX, screenY, 18 * zoom, getFactionColor(tower.owner, k), 0.4);
         }
 
-        // Use image sprite if available, otherwise fall back to pixel art
-        if (towerData.imageSprite) {
+        // While constructing, hide the building under the dust VFX entirely.
+        if (isConstructing) {
+            // skip drawing the tower sprite
+        } else if (towerData.imageSprite) {
             const spriteScale = zoom * getRenderScale(gameState, towerData.imageSprite, towerData.imageScale || 1.0);
             // Use shader for damage flash effect - pass via opacity
             const flashIntensity = tower.hitFlash > 0 ? Math.min(tower.hitFlash / 0.15, 1) : 0;
@@ -371,6 +380,7 @@ export function drawTowers(ctx, gameState, fogState) {
 
         // Draw tower CONSTRUCTION progress bar (centered on unit)
         if (tower.construction) {
+            drawConstructionVFX(ctx, screenX, screenY, tower.q * 0.37 + tower.r * 0.13);
             const barY = screenY;
             const progress = Math.min(tower.construction.progress / tower.construction.buildTime, 1);
             drawConstructionProgressBar(ctx, screenX, barY, progress);
@@ -511,6 +521,9 @@ export function drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal) {
             ? Math.min(worker.hitFlash / 0.15, 1)
             : 0;
 
+        const renderAlpha = worker.renderAlpha ?? 1;
+        if (renderAlpha < 0.02) continue;   // fully faded — skip draw + cargo pip
+
         k.drawSprite({
             sprite,
             frame,
@@ -519,7 +532,7 @@ export function drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal) {
             scale: spriteScale,
             flipX: !!worker.flipX,
             shader: flashShader,
-            opacity: 1.0 - flashIntensity * 0.4,
+            opacity: (1.0 - flashIntensity * 0.4) * renderAlpha,
         });
 
         // Cargo pip — small brown dot above the head (sprite is 32px tall,
@@ -529,6 +542,7 @@ export function drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal) {
                 pos: k.vec2(screenX, screenY - 14 * zoom),
                 radius: Math.max(1.5, 3 * zoom),
                 color: cargoColor,
+                opacity: renderAlpha,
             });
         }
     }

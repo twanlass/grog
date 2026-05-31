@@ -31,6 +31,7 @@ export const SETTLEMENTS = {
         name: "Settlement",
         sprite: SETTLEMENT,
         imageSprite: "settlement",
+        spriteScale: 0.35,
         cost: { wood: 5 },
         crewCapContribution: 10,
         buildTime: 5,

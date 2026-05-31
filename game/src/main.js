@@ -10,6 +10,7 @@ import { STARTER_ISLAND_TEMPLATES } from "./islandTemplates.js";
 import { hexToPixel, pixelToHex, HEX_SIZE } from "./hex.js";
 import { createRenderContext } from "./rendering/renderContext.js";
 import { drawTiles, drawDecorations } from "./rendering/tileRenderer.js";
+import { PORTS, TOWERS, SETTLEMENTS } from "./sprites/index.js";
 import { computeIslands, drawIslandWaves } from "./rendering/waveRenderer.js";
 import { installCRTPostEffect } from "./rendering/crtPostEffect.js";
 import { enableScreenWakeLock } from "./wakeLock.js";
@@ -50,6 +51,23 @@ let selectedAICount = 3;
 // Load cursor sprites (used via CSS cursor in gameScene.js)
 k.loadSprite("cursor-default", "sprites/assets/cursor.png");
 k.loadSprite("cursor-attack", "sprites/assets/cursor-attack.png");
+
+// Trees decoration sprite: 753×344, 3 frames (251×344 each) showing
+// full → partially chopped → stumps. Frame is chosen per-tile from
+// tile.woodRemaining / TREE_HEX_WOOD in tileRenderer.drawDecorations.
+k.loadSprite("trees", "sprites/assets/trees.png", {
+    sliceX: 3,
+    sliceY: 1,
+});
+
+// Construction VFX: dust cloud puff (5 frames, looped) + hammer icon.
+// Drawn on top of any building with construction !== null. See
+// drawConstructionVFX in renderHelpers.js.
+k.loadSprite("dust-vfx", "sprites/assets/dust-vfx.png", {
+    sliceX: 5,
+    sliceY: 1,
+});
+k.loadSprite("icon-hammer", "sprites/assets/icon-hammer.png");
 
 // Load animated sprites
 k.loadSprite("bird", "sprites/assets/bird.png", {
@@ -137,11 +155,8 @@ k.loadSprite("home-port", "sprites/assets/home-port.png", {
     sliceY: 1,
 });
 
-// Load settlement sprites (2 frames: normal, flash)
-k.loadSprite("settlement", "sprites/assets/settlement.png", {
-    sliceX: 2,
-    sliceY: 1,
-});
+// Settlement sprite (single frame — hit flash is handled by the whiteFlash shader)
+k.loadSprite("settlement", "sprites/assets/settlement.png");
 
 // Load colored watchtower variants (3 frames: animated flag)
 k.loadSprite("tower-red", "sprites/assets/tower-red.png", {
@@ -1074,16 +1089,23 @@ k.scene("title", () => {
             const screenX = (pos.x - cameraX) * zoom + halfWidth;
             const screenY = (pos.y - cameraY) * zoom + halfHeight;
 
-            let spriteName;
-            if (structure.type === 'port') spriteName = 'home-port';
-            else if (structure.type === 'tower') spriteName = 'tower-red';
-            else spriteName = 'settlement';
+            let spriteName, perSpriteScale = 1;
+            if (structure.type === 'port') {
+                spriteName = 'home-port';
+                perSpriteScale = PORTS['home-port']?.spriteScale ?? 1;
+            } else if (structure.type === 'tower') {
+                spriteName = 'tower-red';
+                perSpriteScale = TOWERS.tower?.imageScale ?? 1;
+            } else {
+                spriteName = 'settlement';
+                perSpriteScale = SETTLEMENTS.settlement?.spriteScale ?? 1;
+            }
 
             k.drawSprite({
                 sprite: spriteName,
                 pos: k.vec2(screenX, screenY),
                 anchor: 'center',
-                scale: zoom,
+                scale: zoom * perSpriteScale,
             });
         }
 

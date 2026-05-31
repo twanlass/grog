@@ -59,6 +59,37 @@ export function drawProgressBar(ctx, screenX, screenY, progress, options = {}) {
 }
 
 /**
+ * Construction VFX: a looping dust puff with a hammer swinging on top.
+ * Phase is per-entity (offset by hex coords) so neighboring builds don't
+ * tick in lockstep. Call once per under-construction entity, on top of
+ * the building sprite, before the progress bar.
+ */
+export function drawConstructionVFX(ctx, screenX, screenY, phaseSeed = 0) {
+    const { k, zoom } = ctx;
+    const t = k.time() + phaseSeed;
+
+    // Dust loop: 5 frames at ~7 fps, anchored to the building's footprint.
+    const dustFrame = Math.floor(t * 7) % 5;
+    k.drawSprite({
+        sprite: "dust-vfx",
+        frame: dustFrame,
+        pos: k.vec2(screenX, screenY + 8 * zoom),
+        anchor: "bot",
+        scale: zoom * 0.28,
+    });
+
+    // Hammer swings in a smooth constant arc around the handle tip.
+    const angle = Math.sin(t * 8.4) * 35 - 15;
+    k.drawSprite({
+        sprite: "icon-hammer",
+        pos: k.vec2(screenX + 10 * zoom, screenY - 2 * zoom),
+        anchor: "botright",
+        scale: zoom * 0.28,
+        angle,
+    });
+}
+
+/**
  * Draw construction progress bar (no label, matches health bar thickness)
  * Common pattern used for ports, settlements, and towers under construction
  */

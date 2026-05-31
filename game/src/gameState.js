@@ -275,6 +275,9 @@ export function createWorker(q, r, owner = 'player', homeSettlementId = null) {
         animFrame: 0,
         animTimer: 0,
         flipX: false,
+        // Render-only opacity: lerped toward 1.0 normally, dimmed when
+        // duplicate workers pile on the same chop target (see updateWorkers).
+        renderAlpha: 1,
     };
 }
 
