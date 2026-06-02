@@ -416,6 +416,15 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // iOS/Safari suspends the AudioContext when the app is backgrounded, and Kaplay's
         // audio handles need a kick to resume looped playback.
         let audioListenerActive = true;
+        function nudgeLoop(handle) {
+            // Re-seek to the current position to force Kaplay to recreate the
+            // underlying AudioBufferSourceNode (the kick iOS needs) without
+            // losing playback position. Toggling `.paused` instead would
+            // restart the loop from 0 once accumulated playback exceeded the
+            // buffer duration, because Kaplay's resume passes the raw elapsed
+            // time as the start offset rather than modulo'ing by loop length.
+            try { handle.seek(handle.time()); } catch (e) {}
+        }
         function handleVisibilityChange() {
             if (!audioListenerActive) return;
             if (document.visibilityState !== 'visible') return;
@@ -425,12 +434,14 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 if (ctx && typeof ctx.resume === 'function' && ctx.state === 'suspended') {
                     ctx.resume();
                 }
-                // Re-apply paused state to nudge handles back into playback
                 const shouldPauseAudio = gameState.timeScale === 0 && !menuPanelOpen;
-                ambientOcean.paused = true;
-                ambientMusic.paused = true;
-                ambientOcean.paused = shouldPauseAudio;
-                ambientMusic.paused = shouldPauseAudio;
+                if (shouldPauseAudio) {
+                    ambientOcean.paused = true;
+                    ambientMusic.paused = true;
+                } else {
+                    nudgeLoop(ambientOcean);
+                    nudgeLoop(ambientMusic);
+                }
             } catch (e) {
                 audioListenerActive = false;
             }
