@@ -67,6 +67,185 @@ function isPassable(map, q, r) {
     return tile && isWaterType(tile.type);
 }
 
+// Check if a tile is passable for land units (workers). Any land tile is
+// walkable — ports and settlements occupying a land tile do not block
+// workers for now.
+function isLandPassable(map, q, r) {
+    const key = hexKey(q, r);
+    const tile = map.tiles.get(key);
+    return tile && tile.type === 'land';
+}
+
+/**
+ * A* pathfinding on LAND tiles for worker units.
+ * Mirrors findPath() but with the land-passable predicate. Returns an array
+ * of {q, r} from start to goal (excluding start), or null if no path exists
+ * (different islands, blocked terrain, etc.).
+ */
+export function findLandPath(map, startQ, startR, goalQ, goalR) {
+    const startKey = hexKey(startQ, startR);
+    const goalKey = hexKey(goalQ, goalR);
+
+    if (!isLandPassable(map, goalQ, goalR)) return null;
+
+    const openSet = new MinHeap();
+    openSet.insert({ q: startQ, r: startR, f: 0 });
+    const openKeys = new Set([startKey]);
+
+    const gScore = new Map();
+    gScore.set(startKey, 0);
+
+    const cameFrom = new Map();
+
+    while (!openSet.isEmpty()) {
+        const current = openSet.extractMin();
+        const currentKey = hexKey(current.q, current.r);
+        openKeys.delete(currentKey);
+
+        if (currentKey === goalKey) {
+            return reconstructPath(cameFrom, currentKey);
+        }
+
+        const neighbors = hexNeighbors(current.q, current.r);
+        for (const neighbor of neighbors) {
+            const neighborKey = hexKey(neighbor.q, neighbor.r);
+            if (!isLandPassable(map, neighbor.q, neighbor.r)) continue;
+
+            const tentativeG = gScore.get(currentKey) + 1;
+            if (!gScore.has(neighborKey) || tentativeG < gScore.get(neighborKey)) {
+                cameFrom.set(neighborKey, currentKey);
+                gScore.set(neighborKey, tentativeG);
+                const h = hexDistance(neighbor.q, neighbor.r, goalQ, goalR);
+                const f = tentativeG + h;
+                if (!openKeys.has(neighborKey)) {
+                    openSet.insert({ q: neighbor.q, r: neighbor.r, f });
+                    openKeys.add(neighborKey);
+                }
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * BFS the worker's island for the nearest non-depleted tree hex. Used to
+ * auto-assign the next tree once the current target is exhausted, and to
+ * find a starting tree when a worker is told to chop but the click landed
+ * on a non-tree hex of their island.
+ *
+ * Returns { q, r } of the nearest tree hex, or null if none on this island.
+ */
+export function findNearestTreeOnIsland(map, fromQ, fromR) {
+    const startKey = hexKey(fromQ, fromR);
+    const visited = new Set([startKey]);
+    const queue = [{ q: fromQ, r: fromR }];
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+        const tile = map.tiles.get(hexKey(current.q, current.r));
+        if (!tile || tile.type !== 'land') continue;
+
+        // A tree hex is an inland land tile with wood remaining
+        if (!tile.isPortSite && tile.woodRemaining > 0 && !tile.depleted) {
+            return { q: current.q, r: current.r };
+        }
+
+        for (const n of hexNeighbors(current.q, current.r)) {
+            const nKey = hexKey(n.q, n.r);
+            if (visited.has(nKey)) continue;
+            const nTile = map.tiles.get(nKey);
+            if (!nTile || nTile.type !== 'land') continue;
+            visited.add(nKey);
+            queue.push(n);
+        }
+    }
+    return null;
+}
+
+/**
+ * BFS the worker's island for the nearest deposit hub — a hex with either
+ * a player-owned port or a player-owned settlement. Returns
+ * { q, r } or null if none reachable on this island. Used by worker
+ * return trips: workers deposit at whichever hub is closest.
+ */
+export function findNearestDepositHexOnIsland(map, fromQ, fromR, ports, settlements, owner) {
+    const hubHexes = new Set();
+    for (const p of ports) {
+        if ((p.owner || 'player') !== owner) continue;
+        if (p.construction) continue;
+        hubHexes.add(hexKey(p.q, p.r));
+    }
+    for (const s of settlements) {
+        if ((s.owner || 'player') !== owner) continue;
+        if (s.construction) continue;
+        hubHexes.add(hexKey(s.q, s.r));
+    }
+    if (hubHexes.size === 0) return null;
+
+    const startKey = hexKey(fromQ, fromR);
+    const visited = new Set([startKey]);
+    const queue = [{ q: fromQ, r: fromR }];
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+        const tile = map.tiles.get(hexKey(current.q, current.r));
+        if (!tile || tile.type !== 'land') continue;
+
+        if (hubHexes.has(hexKey(current.q, current.r))) {
+            return { q: current.q, r: current.r };
+        }
+        for (const n of hexNeighbors(current.q, current.r)) {
+            const nKey = hexKey(n.q, n.r);
+            if (visited.has(nKey)) continue;
+            const nTile = map.tiles.get(nKey);
+            if (!nTile || nTile.type !== 'land') continue;
+            visited.add(nKey);
+            queue.push(n);
+        }
+    }
+    return null;
+}
+
+/**
+ * BFS the worker's island for the nearest port hex owned by the given
+ * faction. Returns the port's index in gameState.ports, or null if none
+ * reachable on this island.
+ */
+export function findNearestPortIndexOnIsland(map, fromQ, fromR, ports, owner) {
+    const startKey = hexKey(fromQ, fromR);
+    const visited = new Set([startKey]);
+    const queue = [{ q: fromQ, r: fromR }];
+
+    // Map port hex → index for O(1) lookup
+    const portByHex = new Map();
+    for (let i = 0; i < ports.length; i++) {
+        const p = ports[i];
+        if ((p.owner || 'player') !== owner) continue;
+        if (p.construction) continue;
+        portByHex.set(hexKey(p.q, p.r), i);
+    }
+    if (portByHex.size === 0) return null;
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+        const tile = map.tiles.get(hexKey(current.q, current.r));
+        if (!tile || tile.type !== 'land') continue;
+
+        const portIdx = portByHex.get(hexKey(current.q, current.r));
+        if (portIdx !== undefined) return portIdx;
+
+        for (const n of hexNeighbors(current.q, current.r)) {
+            const nKey = hexKey(n.q, n.r);
+            if (visited.has(nKey)) continue;
+            const nTile = map.tiles.get(nKey);
+            if (!nTile || nTile.type !== 'land') continue;
+            visited.add(nKey);
+            queue.push(n);
+        }
+    }
+    return null;
+}
+
 // Find nearest water tile to a land position (BFS)
 // If fromQ/fromR provided, only returns water that's reachable from that position
 // Returns {q, r} of nearest water, or null if none found

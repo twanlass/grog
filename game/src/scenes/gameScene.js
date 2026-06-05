@@ -21,7 +21,7 @@ function seededRandom(seed) {
     const x = Math.sin(seed * 12.9898) * 43758.5453;
     return x - Math.floor(x);
 }
-import { drawPorts, drawSettlements, drawTowers, drawShips, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
+import { drawPorts, drawSettlements, drawTowers, drawShips, drawWorkers, drawFloatingNumbers, drawBirds, drawDockingProgress } from "../rendering/unitRenderer.js";
 import { drawFloatingDebris, drawProjectiles, drawWaterSplashes, drawExplosions, drawHealthBars, drawLootDrops, drawLootSparkles } from "../rendering/effectsRenderer.js";
 import { drawShipSelectionIndicators, drawPortSelectionIndicators, drawSettlementSelectionIndicators, drawTowerSelectionIndicators, drawSelectionBox, drawAllSelectionUI, drawUnitHoverHighlight, drawWaypointsAndRallyPoints } from "../rendering/selectionUI.js";
 import { drawPortPlacementMode, drawSettlementPlacementMode, drawTowerPlacementMode, drawAllPlacementUI } from "../rendering/placementUI.js";
@@ -33,6 +33,8 @@ import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems
 import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
+import { updateWorkers, getWorkerVisualPos } from "../systems/workers.js";
+import { WORKER_CONFIG, FACING_TO_ROW, facingFromVec } from "../sprites/workers.js";
 import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterSpawnPositions, armTNT } from "../systems/combat.js";
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
@@ -1003,6 +1005,7 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             const constructionDt = gameState.instantBuild ? dt * 10000 : dt;
             updateConstruction(gameState, map, fogState, constructionDt, floatingNumbers);
             updateResourceGeneration(gameState, floatingNumbers, dt, map);
+            updateWorkers(gameState, map, dt, floatingNumbers);
             updateCombat(hexToPixel, gameState, map, dt, fogState);
 
             // Process sound events from combat (only play if visible to player)
@@ -1225,6 +1228,53 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 }
             }
 
+            // Animate villager (worker) sprites. Walking uses the
+            // 3-frame walk sheet; chopping uses the 6-frame chop sheet.
+            // Idle/returning-arriving workers freeze on whatever frame
+            // they last hit. Turning E↔W flips the sprite without
+            // resetting the cycle (same row); changing row OR animType
+            // (walk↔chop) restarts at frame 0 on the new cycle.
+            const VILLAGER_FRAME_DUR = 1 / WORKER_CONFIG.animSpeed;
+            for (const worker of gameState.workers) {
+                const isWalking = (worker.state === 'moving' || worker.state === 'returning')
+                    && worker.path && worker.path.length > 0;
+                const isChopping = worker.state === 'chopping';
+                if (!isWalking && !isChopping) continue;
+
+                // Recompute facing during walks; keep the last facing
+                // when chopping (worker stops in whichever direction
+                // they arrived).
+                if (isWalking) {
+                    const next = worker.path[0];
+                    const from = hexToPixel(worker.q, worker.r);
+                    const to = hexToPixel(next.q, next.r);
+                    const facing = facingFromVec(to.x - from.x, to.y - from.y);
+                    if (facing) {
+                        const meta = FACING_TO_ROW[facing];
+                        if (worker.animRow !== meta.row) {
+                            worker.animRow = meta.row;
+                            worker.animFrame = 0;
+                            worker.animTimer = 0;
+                        }
+                        worker.flipX = meta.flipX;
+                    }
+                }
+
+                const nextType = isChopping ? 'chop' : 'walk';
+                if (worker.animType !== nextType) {
+                    worker.animType = nextType;
+                    worker.animFrame = 0;
+                    worker.animTimer = 0;
+                }
+
+                const cols = nextType === 'chop' ? 6 : 3;
+                worker.animTimer = (worker.animTimer || 0) + dt;
+                if (worker.animTimer >= VILLAGER_FRAME_DUR) {
+                    worker.animTimer = 0;
+                    worker.animFrame = ((worker.animFrame || 0) + 1) % cols;
+                }
+            }
+
         });
 
         // Check if a ship is docked (on water adjacent to land, and stationary)
@@ -1246,6 +1296,11 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Local wrapper for getShipVisualPos (passes hexToPixel)
         function getShipVisualPosLocal(ship) {
             return getShipVisualPos(hexToPixel, ship);
+        }
+
+        // Same for workers — interpolates between hexes while walking
+        function getWorkerVisualPosLocal(worker) {
+            return getWorkerVisualPos(worker, hexToPixel);
         }
 
 
@@ -1303,6 +1358,9 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
             // Draw ships (migrated to rendering module)
             drawShips(ctx, gameState, fogState, getShipVisualPosLocal);
+
+            // Draw workers (autonomous land dots, not player-selectable)
+            drawWorkers(ctx, gameState, fogState, getWorkerVisualPosLocal);
 
             // Draw projectiles (migrated to rendering module)
             drawProjectiles(ctx, gameState, fogState);
@@ -2425,7 +2483,6 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
 
         // Hotkey 'S' to enter settlement build mode when port panel is open
         k.onKeyPress("s", () => {
-            // Only works if settlement button is visible in the build panel and can afford
             const port = buildPanelBounds?.portIndex != null ? gameState.ports[buildPanelBounds.portIndex] : null;
             if (buildPanelBounds?.settlementButton &&
                 port && !port.repair &&
@@ -2439,8 +2496,8 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
         // Hotkey 'T' to enter watchtower build mode when ship or port panel is open
         k.onKeyPress("t", () => {
             const watchtowerData = TOWERS.watchtower;
-            // Ship panel takes priority if both are somehow open
             const tRes = getResourcesForOwner(gameState, localPlayerId);
+            // Ship panel takes priority over port panel
             if (shipBuildPanelBounds?.towerButton && canAfford(tRes, watchtowerData.cost)) {
                 if (!canAffordCrew(gameState, watchtowerData.crewCost || 0, localPlayerId)) {
                     showNotification(gameState, "Max crew reached. Build more settlements.");

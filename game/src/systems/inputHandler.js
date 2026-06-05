@@ -640,6 +640,7 @@ export function handleHomePortUnloadClick(gameState, map, worldX, worldY, hexToP
     return true;
 }
 
+
 /**
  * Handle unit selection (ship, port, or settlement)
  * @param {function} getShipVisualPos - Function to get ship visual position for smooth hit detection

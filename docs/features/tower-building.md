@@ -1,6 +1,6 @@
 # Tower Building
 
-Ships can construct defensive towers on nearby land. Towers automatically attack pirates within range.
+Ships and ports can construct defensive towers on nearby land. Towers automatically attack pirates within range.
 
 ## Behavior
 

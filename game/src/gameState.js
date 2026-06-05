@@ -3,6 +3,7 @@ import { PORTS } from "./sprites/ports.js";
 import { SHIPS } from "./sprites/ships.js";
 import { SETTLEMENTS } from "./sprites/settlements.js";
 import { TOWERS, TOWER_TECH_TREE } from "./sprites/towers.js";
+import { WORKER_CONFIG } from "./sprites/workers.js";
 import { hexKey, hexNeighbors, hexDistance } from "./hex.js";
 import { AI_DIFFICULTY } from "./systems/aiPlayer.js";
 import { isWater } from "./mapGenerator.js";
@@ -58,6 +59,12 @@ export function createGameState(config = {}) {
 
         // Player's towers: [{ type, q, r, health, construction, attackCooldown }]
         towers: [],
+
+        // Autonomous land workers. Spawned by settlements (and the home
+        // port at game start). Not player-controlled — they auto-find
+        // trees and deposit at the nearest player hub. See
+        // systems/workers.js for the state machine.
+        workers: [],
 
         // Tower building placement mode (always builds watchtower)
         towerBuildMode: {
@@ -222,6 +229,58 @@ export function createShip(type, q, r, owner = 'player') {
     };
 }
 
+// Create a new worker. Workers walk on land, harvest wood from inland
+// land tiles, and deposit it at the settlement that spawned them.
+// `homeSettlementId` is the id of that settlement — set by construction.js
+// when a settlement completes. If the home settlement is later destroyed
+// the worker idles (orphaned) instead of falling back to another hub.
+export function createWorker(q, r, owner = 'player', homeSettlementId = null) {
+    return {
+        id: nextEntityId('worker'),
+        owner,
+        homeSettlementId,
+        q,
+        r,
+        // Movement (mirrors ship movement: A* path + per-hex moveProgress)
+        path: null,                 // Array of { q, r } hexes to walk through
+        moveProgress: 0,
+        movingToward: null,         // { q, r } - hex we're currently walking toward
+        // State machine: 'idle' | 'moving' | 'chopping' | 'returning'
+        state: 'idle',
+        // Hex of the tree the worker is currently chopping or walking to
+        harvestTarget: null,
+        // Cargo
+        cargo: 0,
+        // Chopping progress (seconds elapsed in the current chop)
+        chopProgress: 0,
+        // Combat
+        health: WORKER_CONFIG.health,
+        hitFlash: 0,
+        // Small per-worker pixel offset so a group of villagers parked on
+        // the same hex (chopping a tree, queueing at a settlement) fan
+        // out a bit instead of stacking. Set once at spawn for stability.
+        offsetX: (Math.random() - 0.5) * 10,
+        offsetY: (Math.random() - 0.5) * 8,
+        // Sprite animation. animRow is the row in the villager sheet
+        // (0=N, 1=NE, 2=E, 3=SE, 4=S) — west facings reuse east rows
+        // with flipX=true. animFrame cycles 0..(cols-1) across the
+        // current cycle (3 cols for walk, 6 for chop). animType picks
+        // the sprite + col count. The ticker only advances the frame
+        // while moving or chopping; idle/returning-arriving workers
+        // freeze on whatever frame they're on. animFrame resets to 0
+        // when either the row OR the animType changes (E↔W same-row
+        // flip keeps the cycle going).
+        animType: 'walk',       // 'walk' | 'chop'
+        animRow: 4,             // default: facing south (camera)
+        animFrame: 0,
+        animTimer: 0,
+        flipX: false,
+        // Render-only opacity: lerped toward 1.0 normally, dimmed when
+        // duplicate workers pile on the same chop target (see updateWorkers).
+        renderAlpha: 1,
+    };
+}
+
 // Create a new port (optionally under construction)
 export function createPort(type, q, r, isConstructing = false, builderShipIndex = null, owner = 'player') {
     return {
@@ -237,7 +296,7 @@ export function createPort(type, q, r, isConstructing = false, builderShipIndex 
         construction: isConstructing ? {
             progress: 0,
             buildTime: PORTS[type].buildTime,
-            builderShipIndex: builderShipIndex,  // Ship that's building this port
+            builderShipIndex: builderShipIndex,
         } : null,
         // Combat state
         health: PORTS[type].health,  // Current health (from port metadata)
@@ -259,6 +318,7 @@ function getEntityId(gameState, type, index) {
     const entity = type === 'ship' ? gameState.ships[index]
         : type === 'port' ? gameState.ports[index]
         : type === 'settlement' ? gameState.settlements[index]
+        : type === 'worker' ? gameState.workers[index]
         : gameState.towers[index];
     return entity?.id || null;
 }
@@ -304,6 +364,7 @@ export function getSelectedUnits(gameState) {
         if (type === 'port') return gameState.ports[index];
         if (type === 'settlement') return gameState.settlements[index];
         if (type === 'tower') return gameState.towers[index];
+        if (type === 'worker') return gameState.workers[index];
         return null;
     }).filter(u => u !== null);
 }
@@ -331,6 +392,7 @@ export function saveSelectionToGroup(gameState, slot) {
         else if (unit.type === 'port') entity = gameState.ports[unit.index];
         else if (unit.type === 'settlement') entity = gameState.settlements[unit.index];
         else if (unit.type === 'tower') entity = gameState.towers[unit.index];
+        else if (unit.type === 'worker') entity = gameState.workers[unit.index];
 
         if (entity?.id) {
             saved.push({ type: unit.type, id: entity.id });
@@ -353,6 +415,7 @@ export function recallSelectionFromGroup(gameState, slot) {
         else if (entry.type === 'port') collection = gameState.ports;
         else if (entry.type === 'settlement') collection = gameState.settlements;
         else if (entry.type === 'tower') collection = gameState.towers;
+        else if (entry.type === 'worker') collection = gameState.workers;
 
         if (collection) {
             const index = collection.findIndex(e => e.id === entry.id);
@@ -377,6 +440,7 @@ export function getGroupCenterPosition(gameState, slot, hexToPixelFn) {
         else if (unit.type === 'port') entity = gameState.ports[unit.index];
         else if (unit.type === 'settlement') entity = gameState.settlements[unit.index];
         else if (unit.type === 'tower') entity = gameState.towers[unit.index];
+        else if (unit.type === 'worker') entity = gameState.workers[unit.index];
 
         if (entity) {
             const pos = hexToPixelFn(entity.q, entity.r);
@@ -961,12 +1025,12 @@ export function startPortUpgrade(port) {
 export function createSettlement(q, r, isConstructing = false, builderPortIndex = null, owner = 'player') {
     return {
         id: nextEntityId('settlement'),
-        owner,  // 'player' | 'ai1' | 'ai2'
+        owner,
         q,
         r,
-        parentPortIndex: builderPortIndex,  // Track which port owns this settlement
-        generationTimer: 0,  // Timer for resource generation
-        health: SETTLEMENTS.settlement.health,  // Combat health
+        parentPortIndex: builderPortIndex,
+        generationTimer: 0,
+        health: SETTLEMENTS.settlement.health,
         construction: isConstructing ? {
             progress: 0,
             buildTime: SETTLEMENTS.settlement.buildTime,
@@ -1089,8 +1153,16 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
     const tile = map.tiles.get(hexKey(q, r));
     if (!tile || tile.type !== 'land') return false;
 
-    // Only allow settlements on inland (grass) tiles, not coastal (sand) tiles
-    if (tile.isPortSite) return false;
+    // Settlements can go on any land hex — coast or inland — EXCEPT a
+    // hex that still has trees on it. Players have to chop the forest
+    // clean first; once the tile is depleted, it's fair game for crew
+    // cap. (Coastal/port-site hexes don't have woodRemaining, so they
+    // pass through automatically.)
+    if (typeof tile.woodRemaining === 'number'
+        && tile.woodRemaining > 0
+        && !tile.depleted) {
+        return false;
+    }
 
     // Check if already occupied by a settlement
     for (const settlement of existingSettlements) {
@@ -1119,7 +1191,7 @@ export function isValidSettlementSite(map, q, r, existingSettlements, existingPo
 export function createTower(type, q, r, isConstructing = false, builderShipIndex = null, builderPortIndex = null, owner = 'player') {
     return {
         id: nextEntityId('tower'),
-        owner,  // 'player' | 'ai1' | 'ai2'
+        owner,
         type,
         q,
         r,
@@ -1128,11 +1200,10 @@ export function createTower(type, q, r, isConstructing = false, builderShipIndex
         construction: isConstructing ? {
             progress: 0,
             buildTime: TOWERS[type].buildTime,
-            builderShipIndex: builderShipIndex,
-            builderPortIndex: builderPortIndex,
+            builderShipIndex,
+            builderPortIndex,
         } : null,
-        // Repair state
-        repair: null,  // { progress, totalTime, healthToRestore } | null
+        repair: null,
     };
 }
 

@@ -1788,7 +1788,7 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
     // Count number of section gaps needed
     const numSections = [settlementHeight > 0, shipSectionHeight > 0, defenseHeight > 0, upgradeHeight > 0, repairHeight > 0].filter(Boolean).length;
     const totalSectionGaps = Math.max(0, numSections - 1) * sectionGap;
-    // New order: Header, Settlement, Ships, Watchtower, Upgrades, Repair (with padding top/bottom)
+    // Order: Header, Settlement, Ships, Watchtower, Upgrades, Repair (with padding top/bottom)
     const bpHeight = bpPadding + headerHeight + storageHeight + settlementHeight + shipSectionHeight + defenseHeight + upgradeHeight + repairHeight + totalSectionGaps + bpPadding;
     const bpX = 15;
     const bpY = screenHeight - 15 - bpHeight;
@@ -1846,7 +1846,6 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         const settlementBtnHeight = bpRowHeight - 4;
         bounds.settlementButton = canBuildSettlement ? { y: settlementBtnY, height: settlementBtnHeight } : null;
 
-        // Check if mouse is over settlement button (for highlighting when affordable)
         const isMouseOverSettlement = mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
                                       mousePos.y >= settlementBtnY && mousePos.y <= settlementBtnY + settlementBtnHeight;
         const isSettlementHovered = canBuildSettlementNow && isMouseOverSettlement;
@@ -1855,12 +1854,11 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         drawPanelButton(ctx, bpX, bpWidth, settlementBtnY, settlementBtnHeight, settlementData, settlementName,
             settlementData.cost, settlementData.buildTime, isSettlementHovered, canBuildSettlementNow);
 
-        // Store tooltip info if mouse is over (show regardless of affordability)
         if (isMouseOverSettlement) {
             bounds.tooltip = {
                 x: bpX + bpWidth + 8,
                 y: settlementBtnY,
-                text: "Produces wood and increases your crew cap allowing you to build more ships and structures",
+                text: "Increases your crew cap and spawns autonomous workers that chop nearby trees for wood.",
             };
         }
 
@@ -1932,7 +1930,6 @@ export function drawPortBuildPanel(ctx, port, portIndex, gameState, helpers) {
         drawPanelButton(ctx, bpX, bpWidth, towerBtnY, towerBtnHeight, watchtowerData, `Build ${watchtowerData.name} (T)`,
             watchtowerData.cost, watchtowerData.buildTime, isTowerHovered, towerAffordable);
 
-        // Tooltip for Watchtower
         const isMouseOverTower = mousePos.x >= bpX && mousePos.x <= bpX + bpWidth &&
                                  mousePos.y >= towerBtnY && mousePos.y <= towerBtnY + towerBtnHeight;
         if (isMouseOverTower) {

@@ -1,20 +1,58 @@
 // Construction system - handles port, settlement, and tower building progress
 import {
-    createShip, createPort, findFreeAdjacentWater, canAfford, deductCost,
+    createShip, createPort, createWorker, findFreeAdjacentWater, canAfford, deductCost,
     canAffordCrew, isValidPortSite, getResourcesForOwner, showNotification,
     PORT_DOCK_DISTANCE,
 } from "../gameState.js";
 import { SHIPS, SETTLEMENTS, TOWERS, PORTS } from "../sprites/index.js";
+import { SETTLEMENT_WORKERS } from "../sprites/workers.js";
 import { markVisibilityDirty } from "../fogOfWar.js";
-import { hexDistance } from "../hex.js";
+import { hexDistance, hexKey, hexNeighbors } from "../hex.js";
+
+// Mark a tile as depleted (trees consumed) — used when a structure
+// completes on that hex so workers don't try to chop under it.
+function markHexDepleted(map, q, r) {
+    const tile = map.tiles.get(hexKey(q, r));
+    if (!tile) return;
+    tile.woodRemaining = 0;
+    tile.depleted = true;
+}
+
+/**
+ * Spawn `count` autonomous workers on land hexes adjacent to a freshly-
+ * completed settlement. BFS outward from the settlement hex; falls back
+ * to stacking on the settlement hex if the island has too few free land
+ * hexes. Each worker is bound to this settlement via homeSettlementId
+ * and will only deposit there.
+ */
+export function spawnSettlementWorkers(gameState, map, settlement, count) {
+    if (count <= 0) return 0;
+    const placed = [];
+    const visited = new Set([hexKey(settlement.q, settlement.r)]);
+    const queue = [{ q: settlement.q, r: settlement.r }];
+    while (queue.length > 0 && placed.length < count) {
+        const current = queue.shift();
+        for (const n of hexNeighbors(current.q, current.r)) {
+            const nKey = hexKey(n.q, n.r);
+            if (visited.has(nKey)) continue;
+            visited.add(nKey);
+            const tile = map.tiles.get(nKey);
+            if (!tile || tile.type !== 'land') continue;
+            placed.push({ q: n.q, r: n.r });
+            queue.push(n);
+            if (placed.length >= count) break;
+        }
+    }
+    while (placed.length < count) placed.push({ q: settlement.q, r: settlement.r });
+    const owner = settlement.owner || 'player';
+    for (const spot of placed) {
+        gameState.workers.push(createWorker(spot.q, spot.r, owner, settlement.id));
+    }
+    return placed.length;
+}
 
 /**
  * Updates all construction progress for ports, settlements, and towers
- * @param {Object} gameState - The game state
- * @param {Object} map - The game map
- * @param {Object} fogState - Fog of war state
- * @param {number} dt - Delta time (already scaled by timeScale)
- * @param {Array} floatingNumbers - Array to push floating number animations to
  */
 export function updateConstruction(gameState, map, fogState, dt, floatingNumbers = []) {
     if (dt === 0) return; // Paused
@@ -26,13 +64,13 @@ export function updateConstruction(gameState, map, fogState, dt, floatingNumbers
     updatePortBuildQueues(gameState, map, fogState, dt);
 
     // Update port construction/upgrade progress
-    updatePortConstruction(gameState, fogState, dt, floatingNumbers);
+    updatePortConstruction(gameState, fogState, dt, floatingNumbers, map);
 
-    // Update settlement construction progress
-    updateSettlementConstruction(gameState, fogState, dt, floatingNumbers);
+    // Update settlement construction progress (spawns worker crew on completion)
+    updateSettlementConstruction(gameState, map, fogState, dt, floatingNumbers);
 
     // Update tower construction progress
-    updateTowerConstruction(gameState, fogState, dt);
+    updateTowerConstruction(gameState, fogState, dt, map);
 }
 
 /**
@@ -182,7 +220,7 @@ function updatePortBuildQueues(gameState, map, fogState, dt) {
 /**
  * Update port construction/upgrade progress
  */
-function updatePortConstruction(gameState, fogState, dt, floatingNumbers) {
+function updatePortConstruction(gameState, fogState, dt, floatingNumbers, map = null) {
     for (const port of gameState.ports) {
         if (!port.construction) continue;
 
@@ -198,6 +236,9 @@ function updatePortConstruction(gameState, fogState, dt, floatingNumbers) {
                 console.log(`Port upgraded: ${oldType} → ${port.type} at (${port.q}, ${port.r})`);
             } else {
                 console.log(`Port construction complete: ${port.type} at (${port.q}, ${port.r})`);
+                // Trees on the port hex are displaced. Mark depleted so
+                // workers don't try to chop on top of the structure.
+                if (map) markHexDepleted(map, port.q, port.r);
 
                 // Spawn floating crew number for new port (player only)
                 if (!port.owner || port.owner === 'player') {
@@ -229,7 +270,7 @@ function updatePortConstruction(gameState, fogState, dt, floatingNumbers) {
 /**
  * Update settlement construction progress
  */
-function updateSettlementConstruction(gameState, fogState, dt, floatingNumbers) {
+function updateSettlementConstruction(gameState, map, fogState, dt, floatingNumbers) {
     for (const settlement of gameState.settlements) {
         if (!settlement.construction) continue;
 
@@ -239,6 +280,16 @@ function updateSettlementConstruction(gameState, fogState, dt, floatingNumbers) 
         if (settlement.construction.progress >= settlement.construction.buildTime) {
             console.log(`Settlement construction complete at (${settlement.q}, ${settlement.r})`);
             settlement.construction = null;  // Clear construction state
+            // Settlement displaces the trees on its hex.
+            if (map) markHexDepleted(map, settlement.q, settlement.r);
+
+            // Spawn the settlement's worker crew (player settlements only —
+            // AI settlements still use the timer-based wood generator in
+            // resourceGeneration.js, since the AI doesn't manage workers).
+            const owner = settlement.owner || 'player';
+            if (owner === 'player' && map) {
+                spawnSettlementWorkers(gameState, map, settlement, SETTLEMENT_WORKERS);
+            }
 
             // Spawn floating crew number for new settlement (player only)
             if (!settlement.owner || settlement.owner === 'player') {
@@ -265,7 +316,7 @@ function updateSettlementConstruction(gameState, fogState, dt, floatingNumbers) 
 /**
  * Update tower construction/upgrade progress
  */
-function updateTowerConstruction(gameState, fogState, dt) {
+function updateTowerConstruction(gameState, fogState, dt, map = null) {
     for (const tower of gameState.towers) {
         if (!tower.construction) continue;
 
@@ -281,6 +332,7 @@ function updateTowerConstruction(gameState, fogState, dt) {
                 console.log(`Tower upgraded: ${oldType} → ${tower.type} at (${tower.q}, ${tower.r})`);
             } else {
                 console.log(`Tower construction complete at (${tower.q}, ${tower.r})`);
+                if (map) markHexDepleted(map, tower.q, tower.r);
             }
 
             tower.construction = null;  // Clear construction state

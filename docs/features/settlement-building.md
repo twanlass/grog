@@ -1,6 +1,13 @@
 # Settlement Building
 
-Ports can construct settlements on nearby land. Settlements generate wood and food over time.
+> **Prototype note (autonomous workers iteration):** Ports build
+> settlements via the existing BUILD SETTLEMENT button (unchanged). On
+> completion a settlement now **spawns `SETTLEMENT_WORKERS` (3)
+> autonomous workers** next to it; those workers handle the wood-chopping
+> loop. Player settlements no longer directly produce wood — the workers
+> they spawn do. Settlements still raise the **crew cap**. AI settlements
+> still auto-produce wood via the legacy timer (no AI workers yet). See
+> [Workers](workers.md) for the worker loop.
 
 ## Behavior
 
@@ -35,7 +42,7 @@ Ports can construct settlements on nearby land. Settlements generate wood and fo
 ## Restrictions
 - Port can only build one thing at a time (ship, settlement, or upgrade)
 - Port can only have one settlement under construction at a time
-- **Must be placed on grass (inland) tiles** - cannot build on sand (coastal/port site) tiles
+- **Any land hex except those that still have trees.** Coast (port-site sand) is fine immediately; inland hexes must be chopped clean first (`woodRemaining === 0`) before the placement preview lights them up.
 - Must be placed on land hex within 10 hexes of port
 - Must be land-connected to the builder port
 - Cannot place on hex already occupied by port or settlement

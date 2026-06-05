@@ -1852,6 +1852,30 @@ export function cancelTowerConstruction(gameState, towerIndex, resources, fogSta
 }
 
 /**
+ * Cancel a settlement that is under construction and refund cost.
+ * Settlements have no upgrade tier, so cancelling always removes the entity
+ * from the array (and cleans up references / fog state).
+ * @returns {boolean} true if cancelled
+ */
+export function cancelSettlementConstruction(gameState, settlementIndex, resources, fogState) {
+    const settlement = gameState.settlements[settlementIndex];
+    if (!settlement || !settlement.construction) return false;
+
+    const refundData = SETTLEMENTS.settlement;
+    if (refundData?.cost && resources) {
+        for (const [resource, amount] of Object.entries(refundData.cost)) {
+            resources[resource] = (resources[resource] || 0) + amount;
+        }
+    }
+
+    gameState.settlements.splice(settlementIndex, 1);
+    cleanupStaleReferences(gameState, 'settlement', settlementIndex);
+    if (fogState) markVisibilityDirty(fogState);
+    console.log(`Cancelled settlement construction at (${settlement.q}, ${settlement.r})`);
+    return true;
+}
+
+/**
  * Update pirate respawn timers and spawn new pirates when ready
  * @param {Object} gameState - The game state
  * @param {Object} map - The map object with tiles
