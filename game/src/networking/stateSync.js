@@ -33,6 +33,8 @@ export function extractNetworkState(gameState) {
             health: s.health,
             attackCooldown: s.attackCooldown,
             burstCooldown: s.burstCooldown,
+            boostTimer: s.boostTimer || 0,
+            boostCooldown: s.boostCooldown || 0,
             tntFuse: s.tntFuse || 0,
             attackTarget: s.attackTarget,
             pendingBroadside: s.pendingBroadside || null,

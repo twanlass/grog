@@ -201,6 +201,8 @@ export function createShip(type, q, r, owner = 'player') {
         health: SHIPS[type].health,  // Current health (from ship metadata)
         attackCooldown: 0,           // Timer for shot cooldown
         burstCooldown: 0,            // Timer for special burst attack (e.g. Cutter Broadside)
+        boostTimer: 0,               // Seconds of active speed boost remaining (0 = inactive)
+        boostCooldown: 0,            // Seconds until the speed boost can be used again
         tntFuse: 0,                  // Seconds until kamikaze detonation (0 = inactive)
         attackTarget: null,          // { type: 'ship', index } for player ships attacking pirates
         pendingBroadside: null,      // { type, index } - queued broadside; fires when cutter reaches range

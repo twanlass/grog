@@ -264,7 +264,11 @@ export function updateShipMovement(hexToPixel, gameState, map, fogState, dt, flo
 
         // Move along path
         if (ship.path && ship.path.length > 0) {
-            const speed = SHIPS[ship.type].speed;
+            let speed = SHIPS[ship.type].speed;
+            // Active speed boost (Cutter "Full Sail") multiplies movement speed
+            if (ship.boostTimer > 0 && SHIPS[ship.type].speedBoost?.speedMult) {
+                speed *= SHIPS[ship.type].speedBoost.speedMult;
+            }
             const currentKey = hexKey(ship.q, ship.r);
 
             const next = ship.path[0];

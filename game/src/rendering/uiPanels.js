@@ -3126,23 +3126,23 @@ function getShipActionButtons(selectedShips) {
         { id: 'patrol', label: 'Patrol', hotkey: 'P' },
     ];
 
-    // Burst-attack (e.g. Cutter "Broadside"): only when every selected ship has a
-    // burstAttack config. Worst-case cooldown across the group drives the fill.
-    const burstConfigs = selectedShips.map(s => SHIPS[s.type] && SHIPS[s.type].burstAttack);
-    if (burstConfigs.length > 0 && burstConfigs.every(cfg => cfg)) {
+    // Speed boost (e.g. Cutter "Full Sail"): only when every selected ship has a
+    // speedBoost config. Worst-case cooldown across the group drives the fill.
+    const boostConfigs = selectedShips.map(s => SHIPS[s.type] && SHIPS[s.type].speedBoost);
+    if (boostConfigs.length > 0 && boostConfigs.every(cfg => cfg)) {
         let cooldownProgress = 1;  // 1 = ready
         for (let i = 0; i < selectedShips.length; i++) {
-            const cfg = burstConfigs[i];
-            const remaining = selectedShips[i].burstCooldown || 0;
+            const cfg = boostConfigs[i];
+            const remaining = selectedShips[i].boostCooldown || 0;
             if (remaining > 0 && cfg.cooldown > 0) {
                 const p = 1 - (remaining / cfg.cooldown);
                 if (p < cooldownProgress) cooldownProgress = p;
             }
         }
         buttons.push({
-            id: 'broadside',
-            label: burstConfigs[0].name || 'Broadside',
-            hotkey: burstConfigs[0].hotkey || 'B',
+            id: 'boost',
+            label: boostConfigs[0].name || 'Full Sail',
+            hotkey: boostConfigs[0].hotkey || 'B',
             cooldownProgress,
         });
     }

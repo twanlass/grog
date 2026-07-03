@@ -32,9 +32,15 @@ Attack-move ships cascade through a base because `handlePatrolAutoAttack()` scan
 
 The `isAttackMove` flag is also propagated through the multiplayer `ATTACK` command so the host applies the same `guardMode` on the guest's ships.
 
-## Broadside (Burst Attack)
+## Broadside (Burst Attack) — *dormant*
 
-Cutters can fire a 5-shot volley at a single target on a 60-second cooldown. Firing costs the cutter 10 HP (recoil/strain), so it's a real risk/reward call. The ability is configured per ship type, so other hulls can opt in with different tuning later by adding a `burstAttack` block to their `SHIPS[type]` entry:
+> **Note:** Broadside is currently **dormant**. The Cutter's old `burstAttack` config was replaced by
+> the [Speed Boost ("Full Sail")](speed-boost.md) ability, so **no ship ships with a `burstAttack`
+> block today**. All of the plumbing below (`triggerBroadside`, the `BROADSIDE` command,
+> `pendingBroadside`, the cooldown-fill button path) is retained and reusable — add a `burstAttack`
+> block to any `SHIPS[type]` entry to bring the button and behavior back for that hull.
+
+The Broadside ability fires a 5-shot volley at a single target on a 60-second cooldown. Firing costs the cutter 10 HP (recoil/strain), so it's a real risk/reward call. The ability is configured per ship type, so other hulls can opt in with different tuning by adding a `burstAttack` block to their `SHIPS[type]` entry:
 
 ```js
 SHIPS.cutter = {

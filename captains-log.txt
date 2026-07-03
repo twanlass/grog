@@ -1,6 +1,15 @@
 CAPTAIN'S LOG
 =============
 
+2026-07-03 | Replace Cutter Broadside with "Full Sail" timed speed/fire-rate boost
+--------------------------------------------------------------------------------
+### New
+- Cutters now have "Full Sail" (hotkey B) — an instant self-cast stim-pack buff that grants +50% movement speed and +50% fire rate for 8 seconds
+- Boosted Cutters show a pulsing cyan ring so the buff is readable at a glance
+
+### Improved
+- Full Sail costs 10 HP to activate and shares the old 60-second cooldown, keeping the risk/reward feel of the ability it replaces
+
 2026-05-29 | Add a Mute checkbox to the controls AUDIO section
 ------------------------------------------------------------
 ### New

@@ -33,7 +33,7 @@ import { updateShipMovement, getShipVisualPos, updatePirateAI } from "../systems
 import { updateTradeRoutes } from "../systems/tradeRoutes.js";
 import { updateConstruction } from "../systems/construction.js";
 import { updateResourceGeneration } from "../systems/resourceGeneration.js";
-import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterSpawnPositions, armTNT } from "../systems/combat.js";
+import { updateCombat, updatePirateRespawns, handlePatrolAutoAttack, findCenterSpawnPositions, armTNT, triggerSpeedBoost } from "../systems/combat.js";
 import { updateWaveSpawner, getWaveStatus } from "../systems/waveSpawner.js";
 import { updateRepair } from "../systems/repair.js";
 import { startRepair } from "../systems/repair.js";
@@ -2208,23 +2208,17 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
             }
         });
 
-        // B to enter Broadside burst-attack mode (when ALL selected ships have a burstAttack and at least one is off-cooldown)
+        // B to activate the speed boost (Cutter "Full Sail") on selected ships.
+        // Instant self-cast (no target click) — when ALL selected ships have a speedBoost config.
         k.onKeyPress("b", () => {
             const selectedShips = getSelectedShips(gameState);
             const playerShips = selectedShips.filter(ship =>
                 ship && ship.type !== 'pirate' && ship.owner === localPlayerId
             );
             if (playerShips.length === 0) return;
-            const allHaveBurst = playerShips.every(s => SHIPS[s.type] && SHIPS[s.type].burstAttack);
-            if (!allHaveBurst) return;
-            const anyReady = playerShips.some(s => (s.burstCooldown || 0) <= 0);
-            if (!anyReady) return;
-            if (gameState.actionMode.active === 'broadside') {
-                exitActionMode(gameState);
-            } else {
-                enterActionMode(gameState, 'broadside');
-                showNotification(gameState, "Choose Broadside target");
-            }
+            const allHaveBoost = playerShips.every(s => SHIPS[s.type] && SHIPS[s.type].speedBoost);
+            if (!allHaveBoost) return;
+            triggerBoostOnSelected();
         });
 
         // K to light TNT fuses on selected schooners (instant — no target click)
@@ -2315,6 +2309,31 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                 sendPlayerCommand(createCommand(COMMAND_TYPES.DETONATE_TNT, { shipIds: armedIds }));
             }
             showNotification(gameState, armedIds.length > 1 ? "TNT lit on " + armedIds.length + " ships!" : "TNT lit!");
+        }
+
+        // Activate the speed boost (Cutter "Full Sail") on every selected boost-capable
+        // ship the local player owns. Instant self-cast — no target click. Ships on
+        // cooldown, already boosting, or too damaged are skipped silently.
+        // For multiplayer guests, sends a SPEED_BOOST command listing the ship ids.
+        function triggerBoostOnSelected() {
+            const boostedIds = [];
+            for (const sel of gameState.selectedUnits) {
+                if (sel.type !== 'ship') continue;
+                if (isShipBuildingPort(sel.index, gameState.ports)) continue;
+                if (isShipBuildingTower(sel.index, gameState.towers)) continue;
+                const ship = gameState.ships[sel.index];
+                if (!ship || isPirateShip(ship)) continue;
+                if (ship.owner !== localPlayerId) continue;
+                if (!SHIPS[ship.type] || !SHIPS[ship.type].speedBoost) continue;
+                if (triggerSpeedBoost(gameState, sel.index)) {
+                    boostedIds.push(ship.id);
+                }
+            }
+            if (boostedIds.length === 0) return;
+            if (isMultiplayer && isGuest) {
+                sendPlayerCommand(createCommand(COMMAND_TYPES.SPEED_BOOST, { shipIds: boostedIds }));
+            }
+            showNotification(gameState, boostedIds.length > 1 ? "Full Sail on " + boostedIds.length + " ships!" : "Full Sail!");
         }
 
         // Snap camera to home port and reset zoom (used by H key and mobile minimap double-tap)
@@ -3080,6 +3099,12 @@ export function createGameScene(k, getScenarioId = () => DEFAULT_SCENARIO_ID, ge
                         // TNT is an instant action (no target click) — light the fuse and return
                         if (btn.id === 'tnt') {
                             triggerTNTOnSelected();
+                            return;
+                        }
+
+                        // Speed boost (Full Sail) is an instant self-cast — activate and return
+                        if (btn.id === 'boost') {
+                            triggerBoostOnSelected();
                             return;
                         }
 

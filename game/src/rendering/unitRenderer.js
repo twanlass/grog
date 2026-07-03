@@ -32,6 +32,14 @@ function tntBlinkIntensity(ship) {
     return (phase - Math.floor(phase)) < 0.5 ? 1 : 0;
 }
 
+// Speed-boost telegraph: a smooth 0..1 pulse driven off the remaining boost
+// timer, used to modulate a cyan "Full Sail" ring under boosted ships. Computed
+// from boostTimer alone so multiplayer guests render the same pulse for free.
+function boostPulseIntensity(ship) {
+    if (!ship.boostTimer || ship.boostTimer <= 0) return 0;
+    return 0.5 + 0.5 * Math.sin(ship.boostTimer * Math.PI * 2 * 3);  // ~3 Hz
+}
+
 /**
  * Convert ship heading (radians) to sprite direction for 5-row sprites with mirroring
  * Sprite rows: 0=S, 1=NE, 2=SE, 3=N, 4=E
@@ -405,6 +413,14 @@ export function drawShips(ctx, gameState, fogState, getShipVisualPosLocal) {
         if (isEnemyOwner(ship.owner, fogState)) {
             const ringWidth = Math.max(1.5, 2 * zoom);
             drawFactionHexOutline(k, screenX, screenY, 18 * zoom, getFactionColor(ship.owner, k), 0.9, ringWidth);
+        }
+
+        // Active speed boost ("Full Sail"): a pulsing cyan ring under the ship so
+        // the buff is legible at a glance. Drawn for friend and foe off boostTimer.
+        if (ship.boostTimer > 0) {
+            const pulse = boostPulseIntensity(ship);
+            const ringWidth = Math.max(1.5, 2.5 * zoom);
+            drawFactionHexOutline(k, screenX, screenY, (19 + pulse * 3) * zoom, k.rgb(90, 220, 255), 0.5 + 0.45 * pulse, ringWidth);
         }
 
         // A burning TNT fuse overrides the white hit-flash with a red telegraph

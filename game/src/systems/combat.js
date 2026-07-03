@@ -798,6 +798,14 @@ function handlePlayerAttacks(gameState, dt, fogState) {
             ship.burstCooldown = Math.max(0, ship.burstCooldown - dt);
         }
 
+        // Decrement speed-boost timers (active duration and recharge cooldown)
+        if (ship.boostCooldown > 0) {
+            ship.boostCooldown = Math.max(0, ship.boostCooldown - dt);
+        }
+        if (ship.boostTimer > 0) {
+            ship.boostTimer = Math.max(0, ship.boostTimer - dt);
+        }
+
         // Decrement chase cooldown timer
         if (ship.chaseCooldownTimer > 0) {
             ship.chaseCooldownTimer = Math.max(0, ship.chaseCooldownTimer - dt);
@@ -876,8 +884,13 @@ function handlePlayerAttacks(gameState, dt, fogState) {
                 });
             }
 
-            // Reset cooldown (with micro variation to stagger volleys)
-            ship.attackCooldown = shipData.fireCooldown + (Math.random() - 0.5) * 0.04;
+            // Reset cooldown (with micro variation to stagger volleys). A speed
+            // boost shortens the cooldown by its fire-rate multiplier.
+            let fireCooldown = shipData.fireCooldown;
+            if (ship.boostTimer > 0 && shipData.speedBoost?.fireRateMult) {
+                fireCooldown /= shipData.speedBoost.fireRateMult;
+            }
+            ship.attackCooldown = fireCooldown + (Math.random() - 0.5) * 0.04;
         }
     }
 }
@@ -952,6 +965,40 @@ export function triggerBroadside(gameState, shipIndex, targetType, targetIndex) 
     ship.burstCooldown = burstCfg.cooldown;
 
     // Apply self-damage penalty for firing the volley
+    if (hpPenalty > 0) {
+        ship.health = Math.max(1, ship.health - hpPenalty);
+        ship.hitFlash = HIT_FLASH_DURATION;
+    }
+    return true;
+}
+
+/**
+ * Activate a ship's timed speed boost (Cutter "Full Sail"): a stim-pack-style
+ * buff that multiplies movement speed and fire rate for a fixed duration at a
+ * one-time HP cost, then goes on cooldown. Instant self-cast — no target.
+ *
+ * The multipliers are applied where speed/fire-rate are read (shipMovement.js
+ * and handlePlayerAttacks) by checking ship.boostTimer > 0; this only sets the
+ * timers and pays the HP cost.
+ *
+ * Returns true if activated, false if the ship is ineligible (no speedBoost
+ * config, on cooldown, already boosting, or too damaged to pay the HP cost).
+ */
+export function triggerSpeedBoost(gameState, shipIndex) {
+    const ship = gameState.ships[shipIndex];
+    if (!ship) return false;
+    const cfg = SHIPS[ship.type] && SHIPS[ship.type].speedBoost;
+    if (!cfg) return false;
+    if (ship.boostCooldown > 0) return false;  // Still recharging
+    if (ship.boostTimer > 0) return false;      // Already boosting (no stacking/refresh)
+
+    // HP penalty gate: the strain damage can't kill the ship — repair first.
+    const hpPenalty = cfg.hpPenalty || 0;
+    if (hpPenalty > 0 && ship.health <= hpPenalty) return false;
+
+    ship.boostTimer = cfg.duration;
+    ship.boostCooldown = cfg.cooldown;
+
     if (hpPenalty > 0) {
         ship.health = Math.max(1, ship.health - hpPenalty);
         ship.hitFlash = HIT_FLASH_DURATION;

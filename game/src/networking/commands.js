@@ -10,6 +10,7 @@ export const COMMAND_TYPES = {
     MOVE_SHIPS: 'MOVE_SHIPS',           // { shipIds[], waypoints[], append }
     ATTACK: 'ATTACK',                   // { shipIds[], targetType, targetId }
     BROADSIDE: 'BROADSIDE',             // { shipIds[], targetType, targetId }
+    SPEED_BOOST: 'SPEED_BOOST',         // { shipIds[] } — activates timed speed boost, no target
     DETONATE_TNT: 'DETONATE_TNT',       // { shipIds[] } — arms kamikaze fuse, no target
 
     // Building

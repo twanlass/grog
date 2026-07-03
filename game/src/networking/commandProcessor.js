@@ -11,7 +11,7 @@ import {
 } from '../gameState.js';
 import { findPath, findNearestWater, distributeDestinations } from '../pathfinding.js';
 import { startRepair } from '../systems/repair.js';
-import { triggerBroadside, armTNT, cancelPortConstruction, cancelTowerConstruction } from '../systems/combat.js';
+import { triggerBroadside, triggerSpeedBoost, armTNT, cancelPortConstruction, cancelTowerConstruction } from '../systems/combat.js';
 import { hexKey, hexDistance } from '../hex.js';
 import { isWater } from '../mapGenerator.js';
 
@@ -34,6 +34,8 @@ export function processGuestCommand(command, gameState, map, fogState) {
             return handleAttack(command, gameState, map);
         case COMMAND_TYPES.BROADSIDE:
             return handleBroadside(command, gameState, map);
+        case COMMAND_TYPES.SPEED_BOOST:
+            return handleSpeedBoost(command, gameState);
         case COMMAND_TYPES.DETONATE_TNT:
             return handleDetonateTNT(command, gameState);
         case COMMAND_TYPES.BUILD_PORT:
@@ -282,6 +284,21 @@ function handleDetonateTNT(command, gameState) {
         if (armTNT(gameState, idx)) armedAny = true;
     }
     return armedAny;
+}
+
+function handleSpeedBoost(command, gameState) {
+    const { shipIds } = command;
+    if (!shipIds) return false;
+
+    // findShipByIdForGuest validates guest ownership; triggerSpeedBoost applies
+    // the cooldown/HP gates and the one-time HP penalty host-side.
+    let boostedAny = false;
+    for (const id of shipIds) {
+        const idx = findShipByIdForGuest(gameState, id);
+        if (idx < 0) continue;
+        if (triggerSpeedBoost(gameState, idx)) boostedAny = true;
+    }
+    return boostedAny;
 }
 
 function handleBuildPort(command, gameState, map) {

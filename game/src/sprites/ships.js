@@ -127,13 +127,14 @@ export const SHIPS = {
         maxChaseDistance: 8,            // Give up chase after this many hex moves
         cost: { wood: 10 },             // Build resource costs (object: wood)
         crewCost: 5,                    // Crew required to operate
-        burstAttack: {                  // Special ability: rapid burst of cannon shots
-            name: "Broadside",
-            shots: 5,
-            staggerDelay: 0.2,
-            cooldown: 60,
+        speedBoost: {                   // Special ability: timed stim-pack speed/fire-rate boost
+            name: "Full Sail",          // Button label
             hotkey: "B",
-            hpPenalty: 10,              // Self-damage applied when fired (recoil/strain)
+            duration: 8,                // Seconds the boost lasts
+            speedMult: 1.5,             // Movement-speed multiplier while active
+            fireRateMult: 1.5,          // Fire-rate multiplier (cooldown divided by this)
+            cooldown: 60,               // Seconds before reusable
+            hpPenalty: 10,              // One-time self-damage on activation (recoil/strain, clamped)
         },
         description: "Small, scrappy starter", // Description for UI/tooltips
     },
