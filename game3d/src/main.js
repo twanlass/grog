@@ -17,6 +17,10 @@ import { showTitle } from './ui/title.js';
 import { createMinimap } from './ui/minimap.js';
 import * as actions from './actions.js';
 
+// ?mode= names the title screen's three modes; Grog's own id for Skirmish is 'versus'. Anything else
+// (tutorial, debug) falls back to Skirmish rather than to getScenario's default, the tutorial map.
+const PLAY_MODES = { skirmish: 'versus', versus: 'versus', defend: 'defend', sandbox: 'sandbox' };
+
 // Grog 3D: the 2D game's simulation under a Three.js renderer built the sim-taxi way.
 //
 // Frame order: sim step (Grog's systems, untouched) → read gameState into meshes (units, effects,
@@ -170,7 +174,7 @@ function frame(now) {
 }
 
 if (params.has('play')) {
-  startGame({ scenarioId: params.get('mode') || 'versus', aiCount: Number(params.get('ai') || 3), difficulty: params.get('difficulty') || 'normal', seed: params.has('seed') ? Number(params.get('seed')) : undefined }, true);
+  startGame({ scenarioId: PLAY_MODES[params.get('mode')] || 'versus', aiCount: Number(params.get('ai') || 3), difficulty: params.get('difficulty') || 'normal', seed: params.has('seed') ? Number(params.get('seed')) : undefined }, true);
 } else {
   toTitle();
 }
