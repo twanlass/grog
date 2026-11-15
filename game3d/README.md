@@ -11,6 +11,8 @@ npm run check    # headless suite: modules, geometry winding, fog lookup, a sim 
 npm run build
 ```
 
+Netlify builds it alongside the 2D game and serves it at `/3d/` (see `netlify.toml`).
+
 URL params: `?play&mode=skirmish|defend|sandbox&ai=1-3&difficulty=easy|normal|hard&seed=N`, `fog=off`, `shadows=off`.
 
 ## Layout
