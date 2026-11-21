@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+import { SURFACE_OF } from '../palette.js';
 
 // The low-poly toolkit, carried over from sim-taxi (src/util/geo.js). The look is the same three
 // things there:
@@ -23,8 +24,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
  * Non-indexed, one baked colour, no uv. Same contract as sim-taxi's: anything that will be merged
  * goes through here (or `bakeColors`) first, because mergeGeometries needs identical attribute sets.
  */
-export function bakeColor(geometry, colorInput) {
+export function bakeColor(geometry, colorInput, opts = {}) {
   const geo = geometry.index ? geometry.toNonIndexed() : geometry;
+  if (opts.mat === undefined && typeof colorInput === 'string') opts = { ...opts, mat: SURFACE_OF[colorInput] || 0 };
   const c = colorInput instanceof THREE.Color ? colorInput : new THREE.Color(colorInput);
   const count = geo.attributes.position.count;
   const colors = new Float32Array(count * 3);
@@ -33,20 +35,24 @@ export function bakeColor(geometry, colorInput) {
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
   }
-  return bakeColors(geo, colors);
+  return bakeColors(geo, colors, opts);
 }
 
 /**
  * The same with a colour per vertex. `flatShading` only reaches the *normal* (a screen-space
  * derivative); `vColor` still interpolates, so a gradient across a facet costs nothing.
  */
-export function bakeColors(geometry, colors) {
-  const geo = geometry.index ? geometry.toNonIndexed() : geometry;
+export function bakeColors(geometry, colors, { mat = 0, crease = 0 } = {}) {
+  let geo = geometry.index ? geometry.toNonIndexed() : geometry;
   for (const name of Object.keys(geo.attributes)) {
     if (name !== 'position' && name !== 'normal') geo.deleteAttribute(name);
   }
+  // `crease` (radians) rounds a part: faces meeting at less than that angle share a normal, so a
+  // sail bellies and a hull curves while a box keeps its edges. Zero is the faceted default.
+  if (crease > 0) geo = toCreasedNormals(geo, crease);
+  else geo.computeVertexNormals();
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  geo.computeVertexNormals();
+  geo.setAttribute('mat', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count).fill(mat), 1));
   return geo;
 }
 
@@ -96,49 +102,75 @@ export function merge(parts) {
 // roadworks ramp and bridge deck both shipped wound backwards).
 
 /** Box `w×h×d` whose base is centred on (x, y, z). */
-export function box(w, h, d, x, y, z, col, { segX = 1, segY = 1, segZ = 1 } = {}) {
+export function box(w, h, d, x, y, z, col, { segX = 1, segY = 1, segZ = 1, ...opts } = {}) {
   const g = new THREE.BoxGeometry(w, h, d, segX, segY, segZ);
   g.translate(x, y + h / 2, z);
-  return bakeColor(g, col);
+  return bakeColor(g, col, opts);
 }
 
 /** Upright cylinder (or cone when rTop is 0) whose base is centred on (x, y, z). */
-export function cyl(rTop, rBot, h, x, y, z, col, sides = 8) {
+export function cyl(rTop, rBot, h, x, y, z, col, sides = 8, opts = {}) {
   const g = new THREE.CylinderGeometry(rTop, rBot, h, sides);
   g.translate(x, y + h / 2, z);
-  return bakeColor(g, col);
+  return bakeColor(g, col, { crease: sides >= 7 ? 1.0 : 0, ...opts });
 }
 
 /** A thin square rod from `a` to `b`. Rotation preserves winding. */
-export function rod(a, b, t, col) {
+export function rod(a, b, t, col, opts = {}) {
   const dir = new THREE.Vector3().subVectors(b, a);
   const g = new THREE.BoxGeometry(t, t, dir.length());
   g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.normalize()));
   g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-  return bakeColor(g, col);
+  return bakeColor(g, col, opts);
+}
+
+/** `rod` from plain coordinates, for rigging runs where six numbers read better than two vectors. */
+export function line(ax, ay, az, bx, by, bz, t, col, opts) {
+  return rod(new THREE.Vector3(ax, ay, az), new THREE.Vector3(bx, by, bz), t, col, opts);
+}
+
+/**
+ * A horizontal plank from (ax, az) to (bx, bz), `h` tall with its base at `y` and `t` thick: rails,
+ * wales, fences, wall runs. Overruns each end by half its thickness so a chain of them has no gaps.
+ */
+export function plank(ax, az, bx, bz, y, h, t, col, opts = {}) {
+  const dx = bx - ax, dz = bz - az;
+  const g = new THREE.BoxGeometry(Math.hypot(dx, dz) + t * 0.6, h, t);
+  g.rotateY(Math.atan2(-dz, dx));
+  g.translate((ax + bx) / 2, y + h / 2, (az + bz) / 2);
+  return bakeColor(g, col, opts);
+}
+
+/** A cylinder lying along a horizontal direction (cannon barrels, logs, spars), centred on (x,y,z). */
+export function tube(r0, r1, len, x, y, z, yaw, col, sides = 7, opts = {}) {
+  const g = new THREE.CylinderGeometry(r1, r0, len, sides);
+  g.rotateZ(-Math.PI / 2);   // +Y → +X
+  g.rotateY(yaw);
+  g.translate(x, y, z);
+  return bakeColor(g, col, { crease: 1.0, ...opts });
 }
 
 /** A low icosahedron blob — rocks, crowns, smoke. */
-export function blob(r, x, y, z, col, rng, { detail = 0, jitter = 0.18, sy = 1 } = {}) {
+export function blob(r, x, y, z, col, rng, { detail = 0, jitter = 0.18, sy = 1, ...opts } = {}) {
   const g = new THREE.IcosahedronGeometry(r, detail);
   if (rng && jitter) jitterVertices(g, rng, r * jitter);
   g.scale(1, sy, 1);
   g.translate(x, y, z);
-  return bakeColor(g, col);
+  return bakeColor(g, col, opts);
 }
 
 /**
  * A gabled roof over a `w × d` footprint, ridge along X, eaves at `y`. Built from a box whose top
  * edge is pinched to the ridge — a positive per-vertex move, so no face can turn over.
  */
-export function gable(w, d, h, x, y, z, col, overhang = 0.12) {
+export function gable(w, d, h, x, y, z, col, overhang = 0.12, opts = {}) {
   const g = new THREE.BoxGeometry(w + overhang * 2, h, d + overhang * 2);
   const pos = g.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     if (pos.getY(i) > 0) pos.setZ(i, pos.getZ(i) * 0.02);
   }
   g.translate(x, y + h / 2, z);
-  return bakeColor(g, col);
+  return bakeColor(g, col, opts);
 }
 
 /** A flat hexagon (flat-top, like Grog's grid) of radius `r` at height `y`. */
@@ -251,4 +283,192 @@ export function propMaterial({ smooth = false, fog = true, key = 'prop' } = {}) 
  */
 export function unlitMaterial(params = {}) {
   return new THREE.MeshBasicMaterial({ fog: false, ...params });
+}
+
+// --- Surfaces ----------------------------------------------------------------------------------
+// Texture without texture files. Every part carries a surface kind in its `mat` attribute, and
+// this patch draws that kind's detail procedurally in *object* space (so it rides a turning ship
+// and a rising building): plank seams and grain on wood, panel seams on canvas, coursed blocks on
+// stone, overlapping rows on a roof. The same height field that tints the colour also bends the
+// normal (a derivative bump, three's bumpMap recipe without the map) and sets the roughness, so
+// planks catch the sun along their edges and iron glints where wood does not.
+//
+// Detail is faded by its own screen-space frequency: at play zoom a plank is under a pixel wide,
+// and unfaded it would crawl. Zoomed in, it resolves.
+
+const SURFACE_VERTEX_PARS = /* glsl */ `
+attribute float mat;
+varying float vMat;
+varying vec3 vObj;
+varying vec3 vObjN;
+`;
+const SURFACE_VERTEX = /* glsl */ `
+vMat = mat;
+vObj = position;
+vObjN = normal;
+`;
+const SURFACE_FRAGMENT_PARS = /* glsl */ `
+varying float vMat;
+varying vec3 vObj;
+varying vec3 vObjN;
+
+float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float gNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(gHash(i), gHash(i + vec2(1.0, 0.0)), f.x), mix(gHash(i + vec2(0.0, 1.0)), gHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float gFbm(vec2 p) { return gNoise(p) * 0.55 + gNoise(p * 2.3 + 7.1) * 0.3 + gNoise(p * 5.1 + 3.7) * 0.15; }
+// 1 inside a cell, falling to 0 in a groove of width w at both edges; aa is the pixel footprint.
+float gGroove(float f, float w, float aa) {
+  return smoothstep(0.0, w + aa, f) * smoothstep(0.0, w + aa, 1.0 - f);
+}
+
+// rgb = albedo multiplier, a = height (0 groove .. 1 face). Also writes roughness and glow.
+vec4 grogSurface(out float rough, out float glow) {
+  rough = 0.9; glow = 0.0;
+  int m = int(vMat + 0.5);
+  if (m == 0) return vec4(1.0, 1.0, 1.0, 1.0);
+  vec3 n = abs(normalize(vObjN));
+  // (u, v): u runs along the grain or course, v across it, picked by which way the face looks.
+  vec2 uv = n.y > max(n.x, n.z) ? vObj.xz : (n.z > n.x ? vObj.xy : vObj.zy);
+  float top = step(max(n.x, n.z), n.y);
+  vec3 tint = vec3(1.0);
+  float h = 1.0;
+  if (m == 1 || m == 7) {            // planks; paint is the same boards under a coat
+    float W = 0.105;
+    float pv = uv.y / W;
+    float aa = fwidth(pv);
+    float fade = clamp(1.0 - aa * 1.4, 0.0, 1.0);
+    float row = floor(pv);
+    float pu = uv.x / 0.95 + gHash(vec2(row, 3.0)) * 9.0;
+    float seam = gGroove(fract(pv), 0.05, aa) * gGroove(fract(pu), 0.012, fwidth(pu));
+    float board = gHash(vec2(row, floor(pu)));
+    float grain = gNoise(vec2(uv.x * 2.2 + board * 31.0, uv.y * 46.0));
+    float knots = smoothstep(0.78, 0.9, gNoise(vec2(uv.x * 3.1 + board * 17.0, uv.y * 9.0)));
+    float k = m == 7 ? 0.45 : 1.0;
+    h = mix(1.0, seam * (0.86 + 0.14 * grain), fade);
+    float shade = (0.7 + 0.3 * seam) * (0.86 + 0.26 * board) * (0.92 + 0.16 * grain) * (1.0 - 0.2 * knots);
+    tint = vec3(mix(1.0, shade, fade * k));
+    tint *= mix(1.0, 0.88 + 0.24 * gFbm(vObj.xz * 1.3 + vObj.y), 0.8);   // weathering survives the fade
+    rough = m == 7 ? 0.62 : 0.86;
+  } else if (m == 2) {               // canvas: sewn panels, reef bands, weather stains
+    float pu = uv.x / 0.34;
+    float aa = fwidth(pu);
+    float fade = clamp(1.0 - aa * 1.4, 0.0, 1.0);
+    float seam = gGroove(fract(pu), 0.03, aa);
+    float pv = uv.y / 0.62;
+    float reef = gGroove(fract(pv), 0.02, fwidth(pv));
+    float weave = 0.96 + 0.08 * gNoise(uv * vec2(90.0, 90.0));
+    h = mix(1.0, seam * reef, fade);
+    float stain = gFbm(uv * 1.6 + 2.0);
+    tint = vec3(mix(1.0, (0.91 + 0.09 * seam) * (0.96 + 0.04 * reef) * weave, fade));
+    tint *= vec3(0.9 + 0.16 * stain, 0.9 + 0.15 * stain, 0.86 + 0.18 * stain);
+    rough = 0.95;
+  } else if (m == 3 || m == 10) {    // coursed masonry / brick
+    vec2 cell = m == 10 ? vec2(0.24, 0.1) : vec2(0.46, 0.21);
+    if (top > 0.5) cell = vec2(0.4, 0.4);
+    float pv = uv.y / cell.y;
+    float row = floor(pv);
+    float pu = uv.x / cell.x + mod(row, 2.0) * 0.5 + gHash(vec2(row, 1.0)) * 0.2;
+    float aa = max(fwidth(pv), fwidth(pu));
+    float fade = clamp(1.0 - aa * 1.4, 0.0, 1.0);
+    float mortar = gGroove(fract(pv), 0.07, fwidth(pv)) * gGroove(fract(pu), 0.04, fwidth(pu));
+    float blk = gHash(vec2(row, floor(pu)));
+    float pit = gFbm(uv * 9.0);
+    h = mix(1.0, mortar * (0.8 + 0.2 * pit), fade);
+    tint = vec3(mix(1.0, (0.62 + 0.38 * mortar) * (0.82 + 0.34 * blk) * (0.9 + 0.2 * pit), fade));
+    // Moss and damp toward the foot of a wall, lichen blotches everywhere.
+    float damp = smoothstep(0.9, 0.0, vObj.y) * (1.0 - top) * gFbm(vObj.xz * 2.0 + vObj.y);
+    tint *= mix(vec3(1.0), vec3(0.72, 0.84, 0.66), damp * 0.7);
+    tint *= 0.9 + 0.2 * gFbm(uv * 0.9 + 11.0);
+    rough = 0.93;
+  } else if (m == 4) {               // shingles / tiles, each row lapping the one below
+    float pv = uv.y / 0.15;
+    if (top < 0.5) pv = vObj.y / 0.15;
+    float row = floor(pv);
+    float pu = uv.x / 0.16 + mod(row, 2.0) * 0.5;
+    float aa = max(fwidth(pv), fwidth(pu));
+    float fade = clamp(1.0 - aa * 1.4, 0.0, 1.0);
+    float lap = fract(pv);
+    float gap = gGroove(fract(pu), 0.05, fwidth(pu));
+    float tile = gHash(vec2(row, floor(pu)));
+    h = mix(1.0, (0.35 + 0.65 * lap) * gap, fade);
+    tint = vec3(mix(1.0, (0.7 + 0.3 * smoothstep(0.0, 0.35, lap)) * (0.6 + 0.4 * gap) * (0.82 + 0.36 * tile), fade));
+    tint *= 0.9 + 0.2 * gFbm(uv * 1.1 + 5.0);
+    rough = 0.8;
+  } else if (m == 5) {               // thatch: combed straw in thick layers
+    float pv = (top > 0.5 ? uv.y : vObj.y) / 0.28;
+    float aa = fwidth(pv);
+    float fade = clamp(1.0 - aa * 1.4, 0.0, 1.0);
+    float straw = gNoise(vec2(uv.x * 60.0, uv.y * 3.0));
+    float lap = fract(pv + 0.06 * gNoise(vec2(uv.x * 8.0, 0.0)));
+    h = mix(1.0, 0.5 + 0.5 * lap * straw, fade);
+    tint = vec3(mix(1.0, (0.72 + 0.28 * lap) * (0.82 + 0.3 * straw), fade));
+    tint *= 0.9 + 0.2 * gFbm(uv * 1.4);
+    rough = 1.0;
+  } else if (m == 6) {               // iron and brass: smooth, with a little pitting
+    float pit = gFbm(vObj.xy * 14.0 + vObj.z * 9.0);
+    tint = vec3(0.86 + 0.24 * pit);
+    h = 0.9 + 0.1 * pit;
+    rough = 0.38 + 0.2 * pit;
+  } else if (m == 8) {               // limewashed plaster: blotchy, cracked at the corners
+    float b = gFbm(uv * 2.2 + 3.0);
+    float fine = gNoise(uv * 38.0);
+    tint = vec3(0.86 + 0.2 * b) * (0.97 + 0.06 * fine);
+    tint *= mix(vec3(1.0), vec3(0.8, 0.76, 0.66), smoothstep(0.45, 0.0, vObj.y) * 0.6);   // splashback
+    h = 0.92 + 0.08 * fine;
+    rough = 0.95;
+  } else if (m == 9) {               // lit glass
+    glow = 1.0;
+    rough = 0.3;
+  } else if (m == 11) {              // rope: a twist along its length
+    float tw = fract((uv.x + uv.y) * 22.0);
+    float aa = fwidth((uv.x + uv.y) * 22.0);
+    tint = vec3(mix(1.0, 0.75 + 0.25 * tw, clamp(1.0 - aa, 0.0, 1.0)));
+    rough = 1.0;
+  }
+  return vec4(tint, h);
+}
+
+vec3 grogBump(vec3 pos, vec3 nrm, float h, float scale) {
+  vec3 sx = dFdx(pos), sy = dFdy(pos);
+  vec3 r1 = cross(sy, nrm), r2 = cross(nrm, sx);
+  float det = dot(sx, r1);
+  vec3 grad = sign(det) * (dFdx(h) * r1 + dFdy(h) * r2) * scale;
+  return normalize(abs(det) * nrm - grad);
+}
+`;
+
+/** Emissive strength of `SURF.glow` parts (lanterns, lit windows). One uniform, so dusk can raise it. */
+export const SURFACE_UNIFORMS = { uGlow: { value: 1.6 } };
+
+/**
+ * The material for every built thing: merged, vertex-coloured, physically lit, with the procedural
+ * surface detail above. `flatShading` is off because parts bring their own normals — faceted by
+ * default, rounded where a builder asked for a `crease`.
+ */
+export function surfaceMaterial({ fog = true, key = 'surface' } = {}) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uGlow = SURFACE_UNIFORMS.uGlow;
+    shader.vertexShader = replaceOnce(shader.vertexShader, '#include <common>', `#include <common>\n${SURFACE_VERTEX_PARS}`);
+    shader.vertexShader = replaceOnce(shader.vertexShader, '#include <begin_vertex>', `#include <begin_vertex>\n${SURFACE_VERTEX}`);
+    shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <common>', `#include <common>\nuniform float uGlow;\n${SURFACE_FRAGMENT_PARS}`);
+    shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <color_fragment>', `#include <color_fragment>
+float grogRough; float grogGlow;
+vec4 grogSurf = grogSurface(grogRough, grogGlow);
+diffuseColor.rgb *= grogSurf.rgb;`);
+    shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+roughnessFactor = grogRough;`);
+    shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
+metalnessFactor = int(vMat + 0.5) == 6 ? 0.75 : 0.0;`);
+    shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+normal = grogBump(-vViewPosition, normal, grogSurf.a, 0.035);`);
+    shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+totalEmissiveRadiance += diffuseColor.rgb * grogGlow * uGlow;`);
+  };
+  if (fog) patchFog(m, `surface-${key}`);
+  else m.customProgramCacheKey = () => `grog-surface-${key}`;
+  return m;
 }

@@ -3,7 +3,7 @@ import { createScene, followSun } from './render/scene.js';
 import { createCamera } from './render/camera.js';
 import { shipGeometry, SHIP_TYPES } from './art/ships.js';
 import { structureGeometry } from './art/structures.js';
-import { propMaterial, FOG_UNIFORMS, hexDisc, merge } from './util/geo.js';
+import { surfaceMaterial, FOG_UNIFORMS, hexDisc, merge } from './util/geo.js';
 import { PALETTE } from './palette.js';
 
 // Every model on one bench, under the game's own sun and camera — the 2D game's galleryScene and a
@@ -20,7 +20,7 @@ const { scene, sun } = createScene();
 scene.fog = null;
 FOG_UNIFORMS.uFogOn.value = 0;
 const cam = createCamera();
-const mat = propMaterial({ key: 'gallery' });
+const mat = surfaceMaterial({ key: 'gallery' });
 
 const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: PALETTE.ocean }));
 sea.receiveShadow = true;

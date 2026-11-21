@@ -8,7 +8,7 @@ import { PORTS } from '@grog/sprites/ports.js';
 import { TOWERS } from '@grog/sprites/towers.js';
 import { SETTLEMENTS } from '@grog/sprites/settlements.js';
 import { PALETTE, ownerColor } from '../palette.js';
-import { propMaterial, unlitMaterial, hash01 } from '../util/geo.js';
+import { surfaceMaterial, unlitMaterial, hash01 } from '../util/geo.js';
 import { shipGeometry, SHIP_SIZE, SHIP_HEIGHT } from '../art/ships.js';
 import { structureGeometry, scaffoldGeometry, factionHexGeometry, STRUCTURE_SIZE } from '../art/structures.js';
 import { tileTop } from '../art/terrain.js';
@@ -20,7 +20,7 @@ import { BILLBOARD } from './camera.js';
 // 2D renderer draws with), visibility from shouldRenderEntity, construction progress, hit flashes —
 // and never writes to it.
 
-const unitMat = propMaterial({ key: 'units' });
+const unitMat = surfaceMaterial({ key: 'units' });
 const flashMat = unlitMaterial({ color: '#ffffff' });
 const hexMats = new Map();
 function factionHexMat(owner) {

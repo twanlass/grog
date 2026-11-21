@@ -62,6 +62,17 @@ export const PALETTE = {
   iron: '#3A3A3E',
   field: '#C7B45A',
   pirateSail: '#2A2522',
+  plaster: '#E4D8BE',
+  timber: '#4A3220',
+  rope: '#B79E6E',
+  gold: '#D9A93A',
+  glass: '#FFD98A',     // lit windows and lanterns: drawn emissive, so they glow at dusk and bloom
+  canvas: '#CDBE9C',    // tarpaulins, awnings, furled sails
+  skin: '#E0B48C',
+  shirt: '#DCD6C6',
+  brick: '#A8664C',
+  slate: '#5C6470',
+  hay: '#D8B95C',
 
   // Factions — unitRenderer.js FACTION_COLORS.
   player: '#C04040',
@@ -99,6 +110,25 @@ export const OWNER_COLORS = {
   ai2: PALETTE.ai2,
   ai3: PALETTE.ai3,
   pirate: PALETTE.pirate,
+};
+
+/**
+ * Surface kinds, by id. Every baked part carries one in a `mat` vertex attribute, and the surface
+ * shader (util/geo.js `surfaceMaterial`) draws that kind's procedural detail over the baked colour:
+ * planking on wood, seams on canvas, coursed blocks on stone, shingles on a roof.
+ */
+export const SURF = { plain: 0, wood: 1, cloth: 2, stone: 3, roof: 4, thatch: 5, metal: 6, paint: 7, plaster: 8, glow: 9, brick: 10, rope: 11 };
+
+/** The default surface of each built-material colour, so builders say a colour and get its texture. */
+export const SURFACE_OF = {
+  [PALETTE.wood]: SURF.wood, [PALETTE.woodDark]: SURF.wood, [PALETTE.hull]: SURF.wood, [PALETTE.mast]: SURF.wood,
+  [PALETTE.timber]: SURF.wood,
+  [PALETTE.sail]: SURF.cloth, [PALETTE.pirateSail]: SURF.cloth, [PALETTE.canvas]: SURF.cloth,
+  [PALETTE.stone]: SURF.stone, [PALETTE.stoneDark]: SURF.stone,
+  [PALETTE.roof]: SURF.roof, [PALETTE.slate]: SURF.roof, [PALETTE.thatch]: SURF.thatch, [PALETTE.hay]: SURF.thatch,
+  [PALETTE.iron]: SURF.metal, [PALETTE.gold]: SURF.metal, [PALETTE.cannonball]: SURF.metal,
+  [PALETTE.plaster]: SURF.plaster, [PALETTE.glass]: SURF.glow, [PALETTE.brick]: SURF.brick, [PALETTE.rope]: SURF.rope,
+  [PALETTE.player]: SURF.paint, [PALETTE.player2]: SURF.paint, [PALETTE.ai1]: SURF.paint, [PALETTE.ai3]: SURF.paint,
 };
 
 export function ownerColor(owner) {
