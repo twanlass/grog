@@ -4,6 +4,8 @@ import { createScene, followSun } from './render/scene.js';
 import { createCamera, DISTANCE, ELEVATION } from './render/camera.js';
 import { createSession } from './session.js';
 import { buildTerrain } from './art/terrain.js';
+import { createHeightField } from './art/heightfield.js';
+import { SURFACE_UNIFORMS } from './util/geo.js';
 import { buildWater, WATER_UNIFORMS } from './art/water.js';
 import { createUnitLayer } from './render/units.js';
 import { createEffects } from './render/effects.js';
@@ -14,6 +16,8 @@ import { createHud } from './ui/hud.js';
 import { createSfx } from './sfx.js';
 import { mapBounds, hexToWorld } from './world.js';
 import { showTitle } from './ui/title.js';
+import { createPost, skyEnvironment } from './render/post.js';
+import { PALETTE } from './palette.js';
 import { createMinimap } from './ui/minimap.js';
 import * as actions from './actions.js';
 
@@ -37,8 +41,14 @@ renderer.shadowMap.enabled = params.get('shadows') !== 'off';
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-const { scene, sun } = createScene({ shadowMapSize: params.get('shadows') === 'off' ? 0 : 4096 });
+const { scene, sun, sky, hemi } = createScene({ shadowMapSize: params.get('shadows') === 'off' ? 0 : 4096 });
 const cam = createCamera();
+// Sky light from the dome itself, then the frame's finishing passes. `?post=off` draws the bare scene.
+scene.environment = skyEnvironment(renderer, sky, PALETTE.ocean);
+scene.environmentIntensity = 0.55;
+hemi.intensity *= 0.55;      // the environment map now carries most of the ambient
+const post = params.get('post') === 'off' ? null : createPost(renderer, scene, cam.camera, { ao: params.get('ao') !== 'off', bloom: params.get('bloom') !== 'off' });
+if (!post) { renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0; }
 const sfx = createSfx();
 window.addEventListener('pointerdown', () => sfx.unlock(), { once: false });
 window.addEventListener('keydown', () => sfx.unlock(), { once: false });
@@ -63,10 +73,11 @@ function startGame(opts, interactive = true) {
   scene.add(world);
 
   const t0 = performance.now();
-  const { group: terrain, rings } = buildTerrain(session.map);
-  world.add(terrain);
   const bounds = mapBounds(session.map);
-  world.add(buildWater(session.map, bounds));
+  const field = createHeightField(session.map, bounds);
+  const { group: terrain, rings } = buildTerrain(session.map, field);
+  world.add(terrain);
+  world.add(buildWater(session.map, bounds, field));
   const units = createUnitLayer(world, session.map, rings);
   const effects = createEffects(world);
   const markers = createMarkers(world, session.map, rings);
@@ -94,7 +105,7 @@ function startGame(opts, interactive = true) {
     sfx.loop('ocean', 0.25, 'sfx');
     sfx.loop('music', 0.25, 'music');
   }
-  game = { session, world, units, effects, markers, fog, input, hud, interactive, opts, actions, cam };
+  game = { session, world, props: terrain.getObjectByName('props'), units, effects, markers, fog, input, hud, interactive, opts, actions, cam };
   window.__grog = game;   // test hook, like sim-taxi's window.__taxi
   return game;
 }
@@ -124,6 +135,7 @@ function updateHaze() {
 function resize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
+  post?.setSize(w, h);
   canvas.style.width = `${w}px`; canvas.style.height = `${h}px`;
   cam.resize(w, h);
 }
@@ -132,13 +144,33 @@ resize();
 
 document.addEventListener('visibilitychange', () => sfx.suspend(document.hidden));
 
+// Quality steps itself down on a machine that cannot hold the frame rate: ambient occlusion goes
+// first (the most expensive pass), then bloom, then the device pixel ratio. Measured over a window
+// of frames after the world is up, never during the build hitch. `?quality=high` pins it.
+const quality = { level: 0, frames: 0, time: 0, pinned: params.get('quality') === 'high' };
+function watchQuality(dt) {
+  if (quality.pinned || !post || quality.level >= 3 || document.hidden) return;
+  quality.frames++; quality.time += dt;
+  if (quality.frames < 90) return;
+  const avg = quality.time / quality.frames;
+  quality.frames = 0; quality.time = 0;
+  if (avg < 1 / 38) return;
+  quality.level++;
+  if (quality.level === 1 && post.gtao) post.gtao.enabled = false;
+  else if (quality.level === 2 && post.bloom) post.bloom.enabled = false;
+  else { renderer.setPixelRatio(1); resize(); quality.level = 3; }
+  console.info(`[grog3d] quality stepped down to level ${quality.level} (avg frame ${(avg * 1000).toFixed(1)} ms)`);
+}
+
 const selectedIds = new Set();
 let last = performance.now();
 let wallTime = 0;
 function frame(now) {
+  const last0 = last;
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   wallTime += dt;
+  if (wallTime > 3 && !params.has('shot')) watchQuality((now - last0) / 1000);
   if (game) {
     const { session } = game;
     session.step(dt);
@@ -159,17 +191,19 @@ function frame(now) {
       if (list[u.index]) selectedIds.add(list[u.index].id);
     }
     WATER_UNIFORMS.uTime.value = wallTime;
+    SURFACE_UNIFORMS.uTime.value = wallTime;
     game.input.update(dt);
     game.units.update(session.gameState, session.fogState, wallTime, selectedIds);
     game.effects.update(session.gameState, session.fogState, wallTime, dt * session.gameState.timeScale);
     game.markers.update(session.gameState, session.fogState, game.input.hover, wallTime);
     game.fog.update(session.fogState, session.time);
+    game.props?.userData.syncOccupied(session.gameState);
     game.hud.update(dt, { w: window.innerWidth, h: window.innerHeight });
   }
   cam.update(dt);
   followSun(sun, cam.state.target, cam.state.zoom * cam.state.aspect);
   updateHaze();
-  renderer.render(scene, cam.camera);
+  if (post) post.render(); else renderer.render(scene, cam.camera);
   requestAnimationFrame(frame);
 }
 

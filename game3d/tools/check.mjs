@@ -129,24 +129,36 @@ await section('terrain and sea face the sky', async () => {
   const { buildTerrain } = await load('/src/art/terrain.js');
   const { buildWater } = await load('/src/art/water.js');
   const map = generateMap({ width: 30, height: 30, versusMode: true, seed: 5 });
-  const { group } = buildTerrain(map);
+  const { group, field } = buildTerrain(map);
   const land = group.getObjectByName('land').geometry;
-  sane('land', land);
-  // Hex tops: the triangles whose three vertices are all near the top must face up.
-  const p = land.attributes.position;
-  let tops = 0, badTops = 0;
-  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
-  for (let i = 0; i < p.count; i += 3) {
-    a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
-    if (Math.min(a.y, b.y, c.y) < 0) continue; // a side quad reaches below the sea
-    tops++;
-    if (b.clone().sub(a).cross(c.clone().sub(a)).y <= 0) badTops++;
+  // The ground and the sea are indexed sheets: walk the index (sim-taxi: reading an indexed
+  // geometry's positions in order tests triangles that do not exist) and check each winding.
+  const sheetDown = (geo, minY) => {
+    const p = geo.attributes.position, ix = geo.index;
+    let down = 0;
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    for (let i = 0; i < ix.count; i += 3) {
+      a.fromBufferAttribute(p, ix.getX(i)); b.fromBufferAttribute(p, ix.getX(i + 1)); c.fromBufferAttribute(p, ix.getX(i + 2));
+      if (b.sub(a).cross(c.sub(a)).normalize().y < minY) down++;
+    }
+    return down;
+  };
+  check('land: indexed, coloured, finite', !!land.index && !!land.attributes.color && !!land.attributes.mat && land.attributes.position.array.every(Number.isFinite));
+  check('every ground triangle faces up', land.index.count > 0 && sheetDown(land, 0.05) === 0);
+  // Each land hex is flat at its pad height where a building would stand, and above the sea.
+  const { tileTop } = await load('/src/art/heightfield.js');
+  let padOff = 0, pads = 0;
+  for (const t of map.tiles.values()) {
+    if (t.type !== 'land') continue;
+    pads++;
+    const w = world.hexToWorld(t.q, t.r);
+    if (Math.abs(field.heightAt(w.x, w.z) - tileTop(t, field.rings)) > 1e-6 || field.heightAt(w.x + 1, w.z) < 0.3) padOff++;
   }
-  check('every hex top faces up', tops > 0 && badTops === 0, `${badTops}/${tops}`);
-  const water = buildWater(map, world.mapBounds(map));
-  check('every sea triangle faces up', faceNormalsUp(water.geometry, 0.99) === 0);
+  check('every land hex has a level pad at its centre', pads > 0 && padOff === 0, `${padOff}/${pads}`);
+  const water = buildWater(map, world.mapBounds(map), field);
+  check('every sea triangle faces up', sheetDown(water.geometry, 0.99) === 0);
   const props = group.getObjectByName('props');
-  if (props) sane('props', props.geometry);
+  check('vegetation is instanced and can clear a hex', props.children.length > 0 && props.children.every((m) => m.isInstancedMesh && m.frustumCulled === false) && typeof props.userData.syncOccupied === 'function');
 });
 
 // --- 4. The simulation runs under the 3D session glue, every mode, and the AI actually plays.

@@ -5,6 +5,7 @@ import { shipGeometry, SHIP_TYPES } from './art/ships.js';
 import { structureGeometry } from './art/structures.js';
 import { surfaceMaterial, FOG_UNIFORMS, hexDisc, merge } from './util/geo.js';
 import { PALETTE } from './palette.js';
+import { createPost, skyEnvironment } from './render/post.js';
 
 // Every model on one bench, under the game's own sun and camera — the 2D game's galleryScene and a
 // cut-down sim-taxi /workshop/. `?zoom=` and `?x=&z=` frame it; `?owner=` repaints the trims.
@@ -16,13 +17,17 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-const { scene, sun } = createScene();
+const { scene, sun, sky, hemi } = createScene();
 scene.fog = null;
 FOG_UNIFORMS.uFogOn.value = 0;
 const cam = createCamera();
+scene.environment = skyEnvironment(renderer, sky, PALETTE.ocean);
+scene.environmentIntensity = 0.55;
+hemi.intensity *= 0.55;
+const post = createPost(renderer, scene, cam.camera, { ao: params.get('ao') !== 'off' });
 const mat = surfaceMaterial({ key: 'gallery' });
 
-const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: PALETTE.ocean }));
+const sea = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: PALETTE.ocean, roughness: 0.25 }));
 sea.receiveShadow = true;
 scene.add(sea);
 
@@ -50,13 +55,13 @@ structures.forEach(([k, t], i) => {
 
 cam.state.zoom = Number(params.get('zoom') || 26);
 cam.lookAt(Number(params.get('x') || 0), Number(params.get('z') || 8));
-function resize() { renderer.setSize(innerWidth, innerHeight, false); cam.resize(innerWidth, innerHeight); }
+function resize() { renderer.setSize(innerWidth, innerHeight, false); post.setSize(innerWidth, innerHeight); cam.resize(innerWidth, innerHeight); }
 addEventListener('resize', resize);
 resize();
 function frame() {
   cam.update(0);
   followSun(sun, cam.state.target, 60);
-  renderer.render(scene, cam.camera);
+  post.render();
   requestAnimationFrame(frame);
 }
 frame();

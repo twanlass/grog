@@ -11,7 +11,7 @@ export const YAW = 0;
 export const DISTANCE = 600;
 
 /** Frustum half-height bounds, world units. 2D Grog's zoom range is about 0.4–2.5×. */
-export const ZOOM_MIN = 18;
+export const ZOOM_MIN = 7;
 export const ZOOM_MAX = 150;
 export const ZOOM_DEFAULT = 30;
 

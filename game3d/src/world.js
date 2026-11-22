@@ -17,8 +17,8 @@ export const HEX_H = Math.sqrt(3) * HEX_R; // flat-to-flat
 /** Heights. The sea surface is y = 0; everything is measured off it. */
 export const SEA_Y = 0;
 export const SEABED = { shallow: -0.9, ocean: -2.2, deep_ocean: -3.6 };
-export const BEACH_Y = 0.35;
-export const LAND_STEP = 0.55;      // each ring inland climbs this much
+export const BEACH_Y = 0.6;
+export const LAND_STEP = 0.5;       // each ring inland climbs this much
 export const LAND_MAX_RINGS = 4;
 
 export function hexToWorld(q, r) {

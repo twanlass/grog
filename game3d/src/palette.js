@@ -25,10 +25,11 @@ export const PALETTE = {
   shallow: '#3B86BE',
   shoal: '#5FB4D2',     // the last shallow ring against a beach, where the sand shows through
   foam: '#E8F6FA',
+  lagoon: '#4FD0C8',    // water a hand deep over pale sand
 
   // Land. Climate drives the top colour exactly as in 2D: arctic snow, temperate grass, tropical sand.
-  snow: '#E6EEF4',
-  snowShade: '#BCCAD6',
+  snow: '#CBD6E0',
+  snowShade: '#AEBCCB',
   grass: '#5E9E4A',
   grassDark: '#4C8A3E',
   sand: '#E2CC8E',
@@ -40,6 +41,19 @@ export const PALETTE = {
   cliffArctic: '#8C98A4',
   rock: '#8E8A84',
   rockDark: '#6D6964',
+
+  // Ground under the trees and on the sea floor.
+  jungle: '#4E9440',
+  jungleDark: '#3B7E3A',
+  dryGrass: '#8FA050',
+  meadow: '#74B052',
+  tundra: '#A9B6A6',
+  seabed: '#C8B98C',
+  seabedDeep: '#7E8F86',
+  frond: '#4FA046',
+  bush: '#4A8A3C',
+  flower: '#F2E36A',
+  coconut: '#5A3A22',
 
   // Vegetation.
   trunk: '#6B4A2E',
@@ -117,7 +131,7 @@ export const OWNER_COLORS = {
  * shader (util/geo.js `surfaceMaterial`) draws that kind's procedural detail over the baked colour:
  * planking on wood, seams on canvas, coursed blocks on stone, shingles on a roof.
  */
-export const SURF = { plain: 0, wood: 1, cloth: 2, stone: 3, roof: 4, thatch: 5, metal: 6, paint: 7, plaster: 8, glow: 9, brick: 10, rope: 11 };
+export const SURF = { plain: 0, wood: 1, cloth: 2, stone: 3, roof: 4, thatch: 5, metal: 6, paint: 7, plaster: 8, glow: 9, brick: 10, rope: 11, leaf: 12, ground: 13, rock: 14, bark: 15 };
 
 /** The default surface of each built-material colour, so builders say a colour and get its texture. */
 export const SURFACE_OF = {

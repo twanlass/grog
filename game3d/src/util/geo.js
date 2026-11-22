@@ -109,8 +109,8 @@ export function box(w, h, d, x, y, z, col, { segX = 1, segY = 1, segZ = 1, ...op
 }
 
 /** Upright cylinder (or cone when rTop is 0) whose base is centred on (x, y, z). */
-export function cyl(rTop, rBot, h, x, y, z, col, sides = 8, opts = {}) {
-  const g = new THREE.CylinderGeometry(rTop, rBot, h, sides);
+export function cyl(rTop, rBot, h, x, y, z, col, sides = 8, { open = false, ...opts } = {}) {
+  const g = new THREE.CylinderGeometry(rTop, rBot, h, sides, 1, open);
   g.translate(x, y + h / 2, z);
   return bakeColor(g, col, { crease: sides >= 7 ? 1.0 : 0, ...opts });
 }
@@ -312,7 +312,9 @@ varying float vMat;
 varying vec3 vObj;
 varying vec3 vObjN;
 
-float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+// Sine-free (Hoskins) hash: terrain is textured in world space, hundreds of units from the origin,
+// where the classic sine hash runs out of precision and goes blocky.
+float gHash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float gNoise(vec2 p) {
   vec2 i = floor(p), f = fract(p);
   f = f * f * (3.0 - 2.0 * f);
@@ -422,6 +424,54 @@ vec4 grogSurface(out float rough, out float glow) {
   } else if (m == 9) {               // lit glass
     glow = 1.0;
     rough = 0.3;
+  } else if (m == 12) {              // foliage: mottled, with a fine leafy break-up
+    float mottle = gFbm(vObj.xz * 3.0 + vObj.y * 2.0);
+    float fine = gNoise(vObj.xy * 17.0 + vObj.z * 11.0);
+    float aa = clamp(1.0 - fwidth(vObj.x * 17.0), 0.0, 1.0);
+    tint = vec3(0.8 + 0.36 * mottle) * mix(1.0, 0.88 + 0.24 * fine, aa);
+    tint *= 0.82 + 0.3 * smoothstep(0.0, 1.6, vObj.y);       // darker under the canopy, lit at the crown
+    h = mix(1.0, fine, aa);
+    rough = 0.82;
+  } else if (m == 13) {              // the ground itself, in world space
+    vec2 w = vObj.xz;
+    float nrmY = normalize(vObjN).y;
+    float broad = gFbm(w * 0.55);
+    float fine = gNoise(w * 7.0) * 0.6 + gNoise(w * 19.0) * 0.4;
+    float aa = clamp(1.0 - fwidth(w.x * 7.0) * 1.2, 0.0, 1.0);
+    tint = vec3(0.86 + 0.26 * broad) * mix(1.0, 0.9 + 0.2 * fine, aa);
+    // Steep ground shows its strata.
+    float steep = smoothstep(0.88, 0.7, nrmY);
+    float strata = gNoise(vec2(vObj.y * 9.0 + broad * 2.5, dot(w, vec2(0.33, 0.21))));
+    tint *= mix(1.0, 0.72 + 0.5 * strata, steep);
+    // Wet sand along the waterline, then dry.
+    float wet = smoothstep(0.26, 0.04, vObj.y) * step(-0.05, vObj.y);
+    tint *= 1.0 - 0.3 * wet;
+    h = mix(1.0, fine * (0.6 + 0.4 * strata * steep), aa);
+    rough = mix(0.96, 0.45, wet);
+    // The hex grid, faintly: this is still a game played on hexes.
+    if (uGrid > 0.0 && vObj.y > 0.12) {
+      float q = (2.0 / 3.0 * w.x) / 4.0;
+      float r = (-1.0 / 3.0 * w.x + 0.57735027 * w.y) / 4.0;
+      float s2 = -q - r;
+      float rq = floor(q + 0.5), rr = floor(r + 0.5), rs = floor(s2 + 0.5);
+      float dq = abs(rq - q), dr = abs(rr - r), ds = abs(rs - s2);
+      if (dq > dr && dq > ds) rq = -rr - rs; else if (dr > ds) rr = -rq - rs;
+      vec2 d = w - vec2(6.0 * rq, 6.92820323 * (rr + rq * 0.5));
+      float e = max(abs(d.y), max(abs(d.x * 0.8660254 + d.y * 0.5), abs(d.x * 0.8660254 - d.y * 0.5)));
+      float edge = 3.46410162 - e;
+      tint *= 1.0 - uGrid * (1.0 - smoothstep(0.0, 0.06 + fwidth(e) * 1.5, edge));
+    }
+  } else if (m == 14) {              // bare rock: bedding and cracks
+    float bed = gFbm(vec2(vObj.y * 5.0 + gFbm(vObj.xz * 1.5) * 2.0, dot(vObj.xz, vec2(0.7, 0.5)) * 1.3));
+    float speck = gNoise(vObj.xz * 23.0 + vObj.y * 17.0);
+    tint = vec3(0.76 + 0.4 * bed) * (0.94 + 0.12 * speck);
+    h = bed * 0.7 + speck * 0.3;
+    rough = 0.9;
+  } else if (m == 15) {              // bark: long vertical furrows
+    float furrow = gNoise(vec2((vObj.x + vObj.z) * 26.0, vObj.y * 3.0));
+    tint = vec3(0.78 + 0.4 * furrow);
+    h = furrow;
+    rough = 0.95;
   } else if (m == 11) {              // rope: a twist along its length
     float tw = fract((uv.x + uv.y) * 22.0);
     float aa = fwidth((uv.x + uv.y) * 22.0);
@@ -441,7 +491,7 @@ vec3 grogBump(vec3 pos, vec3 nrm, float h, float scale) {
 `;
 
 /** Emissive strength of `SURF.glow` parts (lanterns, lit windows). One uniform, so dusk can raise it. */
-export const SURFACE_UNIFORMS = { uGlow: { value: 1.6 } };
+export const SURFACE_UNIFORMS = { uGlow: { value: 1.6 }, uGrid: { value: 0.1 }, uTime: { value: 0 }, uWind: { value: new THREE.Vector2(1, 0.35) } };
 
 /**
  * The material for every built thing: merged, vertex-coloured, physically lit, with the procedural
@@ -452,9 +502,10 @@ export function surfaceMaterial({ fog = true, key = 'surface' } = {}) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uGlow = SURFACE_UNIFORMS.uGlow;
+    shader.uniforms.uGrid = SURFACE_UNIFORMS.uGrid;
     shader.vertexShader = replaceOnce(shader.vertexShader, '#include <common>', `#include <common>\n${SURFACE_VERTEX_PARS}`);
     shader.vertexShader = replaceOnce(shader.vertexShader, '#include <begin_vertex>', `#include <begin_vertex>\n${SURFACE_VERTEX}`);
-    shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <common>', `#include <common>\nuniform float uGlow;\n${SURFACE_FRAGMENT_PARS}`);
+    shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <common>', `#include <common>\nuniform float uGlow;\nuniform float uGrid;\n${SURFACE_FRAGMENT_PARS}`);
     shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <color_fragment>', `#include <color_fragment>
 float grogRough; float grogGlow;
 vec4 grogSurf = grogSurface(grogRough, grogGlow);
@@ -471,4 +522,57 @@ totalEmissiveRadiance += diffuseColor.rgb * grogGlow * uGlow;`);
   if (fog) patchFog(m, `surface-${key}`);
   else m.customProgramCacheKey = () => `grog-surface-${key}`;
   return m;
+}
+
+// --- Vegetation: wind ----------------------------------------------------------------------------
+// Props are instanced, so each one's root is its instance origin. In the vertex shader a vertex
+// leans downwind by the square of its height above the root, in gusts that travel across the map,
+// so a wood moves in waves rather than in step. The same patch goes on the shadow pass's depth
+// material, or the shadows would stand still under moving trees (sim-taxi: vertex animation has to
+// be patched into every depth pass).
+
+const PROPS_VERTEX_PARS = /* glsl */ `
+uniform float uTime;
+uniform vec2 uWind;
+uniform float uSway;
+`;
+const PROPS_VERTEX = /* glsl */ `
+#ifdef USE_INSTANCING
+{
+  vec3 root = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  float hgt = max(0.0, transformed.y);
+  float gust = sin(dot(root.xz, uWind) * 0.11 - uTime * 1.3) * 0.6 + sin(dot(root.xz, vec2(-uWind.y, uWind.x)) * 0.23 + uTime * 2.1) * 0.25 + 0.55;
+  float flutter = sin(uTime * 5.3 + root.x * 3.1 + transformed.x * 4.0) * 0.15;
+  // The lean is in world space; instances only turn about Y, so project it onto their own axes.
+  vec2 lean = uWind * (gust + flutter) * uSway * 0.045 * hgt * hgt;
+  vec3 ax = instanceMatrix[0].xyz, az = instanceMatrix[2].xyz;
+  float sx = max(length(ax), 1e-5), sz = max(length(az), 1e-5);
+  transformed.x += dot(vec2(ax.x, ax.z), lean) / (sx * sx);
+  transformed.z += dot(vec2(az.x, az.z), lean) / (sz * sz);
+}
+#endif
+`;
+
+const propsCache = new Map();
+/** Surface material plus wind, and the matching depth material, per sway strength. */
+export function propsMaterial(sway) {
+  if (propsCache.has(sway)) return propsCache.get(sway);
+  const uSway = { value: sway };
+  const patch = (shader) => {
+    shader.uniforms.uTime = SURFACE_UNIFORMS.uTime;
+    shader.uniforms.uWind = SURFACE_UNIFORMS.uWind;
+    shader.uniforms.uSway = uSway;
+    shader.vertexShader = replaceOnce(shader.vertexShader, '#include <common>', `#include <common>\n${PROPS_VERTEX_PARS}`);
+    shader.vertexShader = replaceOnce(shader.vertexShader, '#include <begin_vertex>', `#include <begin_vertex>\n${PROPS_VERTEX}`);
+  };
+  const material = surfaceMaterial({ key: 'props' });
+  const base = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => { patch(shader); base(shader, renderer); };
+  material.customProgramCacheKey = () => 'grog-props';
+  const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  depth.onBeforeCompile = patch;
+  depth.customProgramCacheKey = () => 'grog-props-depth';
+  const out = { material, depth };
+  propsCache.set(sway, out);
+  return out;
 }

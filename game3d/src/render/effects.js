@@ -36,6 +36,7 @@ export function createEffects(scene) {
   const glow = unlitMaterial({ vertexColors: true });
   const group = new THREE.Group();
   group.name = 'effects';
+  group.userData.noAO = true;
   scene.add(group);
 
   const balls = pool(white(new THREE.IcosahedronGeometry(0.28, 1)), lit, 'cannonballs', { shadow: true });

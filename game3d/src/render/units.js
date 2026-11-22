@@ -95,10 +95,12 @@ export function createUnitLayer(scene, map, rings) {
     root.add(body);
     const rec = { kind, root, body, typeKey: null, yaw: 0, seen: 0, bar: makeBar(), bar2: makeBar(), hex: null, scaffold: null };
     group.add(root);
+    rec.bar.userData.noAO = rec.bar2.userData.noAO = true;
     group.add(rec.bar, rec.bar2);
     if (kind !== 'ship') {
       rec.hex = new THREE.Mesh(hexGeo, factionHexMat(entity.owner));
       rec.hex.renderOrder = 1;
+      rec.hex.userData.noAO = true;
       group.add(rec.hex);
     }
     records.set(entity.id, rec);

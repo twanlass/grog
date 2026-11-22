@@ -9,10 +9,10 @@ const page = await browser.newPage({ viewport: { width: Number(w), height: Numbe
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-await page.goto(base + query);
+await page.goto(base + query + (query.includes('?') ? '&' : '?') + 'shot');
 await page.waitForTimeout(Number(wait));
 if (process.env.GROG_EVAL) await page.evaluate(process.env.GROG_EVAL);
 if (process.env.GROG_EVAL) await page.waitForTimeout(Number(process.env.GROG_AFTER || 800));
-await page.screenshot({ path: out });
-if (errors.length) console.log('ERRORS:\n' + errors.join('\n'));
+if (errors.length) console.log('ERRORS:\n' + [...new Set(errors)].slice(0, 12).join('\n'));
+await page.screenshot({ path: out, timeout: 120000 });
 await browser.close();

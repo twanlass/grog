@@ -48,6 +48,7 @@ export function createMarkers(scene, map, rings) {
   const cloths = pool(flagGeo[1], unlitMaterial({}), 'flag-cloths', 5);
   const group = new THREE.Group();
   group.name = 'markers';
+  group.userData.noAO = true;
   group.add(rings_, dots, hexes, rims, poles, cloths);
   scene.add(group);
 

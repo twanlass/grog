@@ -79,7 +79,7 @@ export function createScene({ shadowMapSize = 4096 } = {}) {
   return { scene, sun, hemi, sky };
 }
 
-const sunDir = new THREE.Vector3(
+export const SUN_DIR = new THREE.Vector3(
   Math.cos(SUN.azimuth) * Math.cos(SUN.elevation),
   Math.sin(SUN.elevation),
   Math.sin(SUN.azimuth) * Math.cos(SUN.elevation),
@@ -98,5 +98,5 @@ export function followSun(sun, target, extent) {
   const x = Math.round(target.x / texel) * texel;
   const z = Math.round(target.z / texel) * texel;
   sun.target.position.set(x, 0, z);
-  sun.position.set(x + sunDir.x * 400, sunDir.y * 400, z + sunDir.z * 400);
+  sun.position.set(x + SUN_DIR.x * 400, SUN_DIR.y * 400, z + SUN_DIR.z * 400);
 }

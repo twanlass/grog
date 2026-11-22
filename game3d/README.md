@@ -13,7 +13,17 @@ npm run build
 
 Netlify builds it alongside the 2D game and serves it at `/3d/` (see `netlify.toml`).
 
-URL params: `?play&mode=skirmish|defend|sandbox&ai=1-3&difficulty=easy|normal|hard&seed=N`, `fog=off`, `shadows=off`.
+## How it looks the way it does
+
+Nothing is loaded from a model or texture file. Everything below is generated in code.
+
+- **Surfaces** (`util/geo.js`, `surfaceMaterial`): every part carries a surface kind (wood, canvas, stone, roof, thatch, metal, plaster, foliage, ground...). One shader patch draws that kind's detail procedurally in object space, bends the normal with the same height field, and sets roughness, so planks, masonry courses and shingles hold up when zoomed in.
+- **Models** (`art/ships.js`, `art/structures.js`): hulls with bulwarks, wales and sheer; two-part masts, yards, shrouds and stays; decks with guns, boats, lanterns and crew. Ports are quays with timber-framed buildings, cranes and cargo.
+- **Islands** (`art/heightfield.js`, `art/terrain.js`): one continuous height function blended from the hex tiles. Each land hex keeps a level pad at its centre for buildings. Vegetation is instanced, sways in the wind, and clears off a hex when something is built there.
+- **Sea** (`art/water.js`): depth comes from the same height field, so the water is clear over the beach, turquoise on the shelf and the tile's deep colour beyond, with surf at the shore, ripple normals and sky reflection.
+- **Frame** (`render/post.js`): sky-dome environment light, ambient occlusion, bloom, ACES tone mapping. Quality steps down by itself if the frame rate drops.
+
+URL params: `post=off`, `ao=off`, `bloom=off`, `quality=high` (never step down), and `?play&mode=skirmish|defend|sandbox&ai=1-3&difficulty=easy|normal|hard&seed=N`, `fog=off`, `shadows=off`.
 
 ## Layout
 
@@ -31,4 +41,4 @@ Fog is applied per surface: a map-sized texture (shroud, unexplored) is sampled 
 
 ## Not ported yet
 
-Multiplayer, voice chat, the tutorial, and touch input. sim-taxi's post effects (SSAO, bloom) aren't in.
+Multiplayer, voice chat, the tutorial, and touch input.
