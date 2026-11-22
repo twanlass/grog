@@ -298,6 +298,7 @@ export function unlitMaterial(params = {}) {
 
 const SURFACE_VERTEX_PARS = /* glsl */ `
 attribute float mat;
+uniform float uSurfTime;
 varying float vMat;
 varying vec3 vObj;
 varying vec3 vObjN;
@@ -306,6 +307,11 @@ const SURFACE_VERTEX = /* glsl */ `
 vMat = mat;
 vObj = position;
 vObjN = normal;
+// Canvas breathes: sails, flags and awnings ripple a few centimetres along their own normal. Too
+// small to need the shadow pass patched, large enough that a fleet at anchor is not a still life.
+if (mat > 1.5 && mat < 2.5) {
+  transformed += normal * sin(uSurfTime * 2.6 + position.x * 1.9 + position.y * 2.7 + position.z * 1.3) * 0.04;
+}
 `;
 const SURFACE_FRAGMENT_PARS = /* glsl */ `
 varying float vMat;
@@ -503,6 +509,7 @@ export function surfaceMaterial({ fog = true, key = 'surface' } = {}) {
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uGlow = SURFACE_UNIFORMS.uGlow;
     shader.uniforms.uGrid = SURFACE_UNIFORMS.uGrid;
+    shader.uniforms.uSurfTime = SURFACE_UNIFORMS.uTime;
     shader.vertexShader = replaceOnce(shader.vertexShader, '#include <common>', `#include <common>\n${SURFACE_VERTEX_PARS}`);
     shader.vertexShader = replaceOnce(shader.vertexShader, '#include <begin_vertex>', `#include <begin_vertex>\n${SURFACE_VERTEX}`);
     shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <common>', `#include <common>\nuniform float uGlow;\nuniform float uGrid;\n${SURFACE_FRAGMENT_PARS}`);

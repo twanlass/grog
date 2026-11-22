@@ -243,6 +243,31 @@ await section('actions: build, place, upgrade through the 2D handlers', async ()
   }
 });
 
+// --- 6. Particles: bursts come from sim events once, and the pool retires what has died.
+await section('effects: sim events become particle bursts', async () => {
+  const { createEffects } = await load('/src/render/effects.js');
+  const { createSession } = await load('/src/session.js');
+  const session = await quiet(() => createSession({ scenarioId: 'versus', aiCount: 1, seed: 5 }));
+  const gs = session.gameState;
+  session.fogState.debugHideFog = true;
+  const effects = createEffects(new THREE.Group());
+  const ship = gs.ports[0];      // any hex will do; the burst does not care what is there
+  effects.update(gs, session.fogState, 0, 1 / 60);
+  check('quiet sea: no particles', effects.particles.count === 0, String(effects.particles.count));
+  gs.shipExplosions.push({ q: ship.q, r: ship.r, age: 0, duration: 1, ignoreFog: true });
+  gs.waterSplashes.push({ q: ship.q, r: ship.r, age: 0, duration: 0.5 });
+  effects.update(gs, session.fogState, 0.02, 1 / 60);
+  const burst = effects.particles.count;
+  check('explosion and splash emit a burst', burst > 40, String(burst));
+  effects.update(gs, session.fogState, 0.04, 1 / 60);
+  check('the same events do not emit twice', effects.particles.count <= burst, `${effects.particles.count} > ${burst}`);
+  gs.shipExplosions.length = 0; gs.waterSplashes.length = 0;
+  for (let i = 0; i < 300; i++) effects.update(gs, session.fogState, 0.1 + i / 60, 1 / 60);
+  check('particles die and are retired', effects.particles.count === 0, String(effects.particles.count));
+  const a = effects.particles.soft.mesh.geometry.attributes.iA.array;
+  check('packed particle data is finite', a.every(Number.isFinite));
+});
+
 await server.close();
 console.log(`\n${failures ? `✗ ${failures} failed` : '✓ all passed'} — ${passes} assertions, ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 process.exit(failures ? 1 : 0);

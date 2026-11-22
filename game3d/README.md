@@ -21,6 +21,7 @@ Nothing is loaded from a model or texture file. Everything below is generated in
 - **Models** (`art/ships.js`, `art/structures.js`): hulls with bulwarks, wales and sheer; two-part masts, yards, shrouds and stays; decks with guns, boats, lanterns and crew. Ports are quays with timber-framed buildings, cranes and cargo.
 - **Islands** (`art/heightfield.js`, `art/terrain.js`): one continuous height function blended from the hex tiles. Each land hex keeps a level pad at its centre for buildings. Vegetation is instanced, sways in the wind, and clears off a hex when something is built there.
 - **Sea** (`art/water.js`): depth comes from the same height field, so the water is clear over the beach, turquoise on the shelf and the tile's deep colour beyond, with surf at the shore, ripple normals and sky reflection.
+- **Motion** (`render/particles.js`, `render/effects.js`): smoke, fire, spray and foam are soft particles drawn by one shader with no textures. A sim event (an explosion, a splash, a cannon firing) emits one burst; moving ships lay a wake and a bow wave; anything under half health trails smoke, and burns under a quarter. Sails and flags ripple.
 - **Frame** (`render/post.js`): sky-dome environment light, ambient occlusion, bloom, ACES tone mapping. Quality steps down by itself if the frame rate drops.
 
 URL params: `post=off`, `ao=off`, `bloom=off`, `quality=high` (never step down), and `?play&mode=skirmish|defend|sandbox&ai=1-3&difficulty=easy|normal|hard&seed=N`, `fog=off`, `shadows=off`.
@@ -34,7 +35,7 @@ URL params: `post=off`, `ao=off`, `bloom=off`, `quality=high` (never step down),
 | `src/input.js` | Grog's click priority: select, box, right-click move/attack/trade, placement modes, hotkeys |
 | `src/world.js` | 1 world unit = 8 Grog pixels; Grog x → world X, Grog y → world Z |
 | `src/art/` | Terrain (stepped hex islands, climate props), water (swell shader), ships, structures |
-| `src/render/` | Scene/sun/haze, ortho camera, units, effects pools, markers, fog DataTexture |
+| `src/render/` | Scene/sun/haze, ortho camera, units, effects and particles, markers, fog DataTexture |
 | `src/ui/` | DOM HUD, title screen, minimap |
 
 Fog is applied per surface: a map-sized texture (shroud, unexplored) is sampled in an `onBeforeCompile` patch that repeats `hex.js`'s hex rounding in GLSL, which `npm run check` compares against the JS.
