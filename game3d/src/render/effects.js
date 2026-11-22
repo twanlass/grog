@@ -60,6 +60,7 @@ export function createEffects(scene) {
   const C = (hex) => new THREE.Color(hex);
   const cFireCore = C('#FFD98A'), cFire = C(PALETTE.fire), cEmber = C('#FF5210');
   const cSoot = C('#2A2623'), cSmoke = C('#6E6A66'), cPowder = C('#D9D5CC');
+  const cHearth = C('#B9BDC6');
   const cWhite = C(PALETTE.splash), cFoam = C(PALETTE.foam), cWood = C(PALETTE.wood), cDust = C('#B79E7C');
   const tmpC = new THREE.Color();
   const rnd = (a, b) => a + Math.random() * (b - a);
@@ -158,7 +159,7 @@ export function createEffects(scene) {
 
   return {
     particles: fx,
-    update(gameState, fogState, time, dt) {
+    update(gameState, fogState, time, dt, chimneys = null) {
       // --- Projectiles: the 2D arc (peak 40px for a ball, 12px for an arrow), now a real height.
       let nb = 0, na = 0;
       for (const p of gameState.projectiles) {
@@ -309,6 +310,14 @@ export function createEffects(scene) {
       }
       finish(barrels, nl);
 
+      // Hearth smoke: a thin pale thread from every chimney, bent by the wind.
+      if (chimneys) {
+        for (let i = 0; i < chimneys.length; i += 3) {
+          if (Math.random() > 3.2 * dt) continue;
+          fx.soft.emit({ x: chimneys[i], y: chimneys[i + 1] + 0.05, z: chimneys[i + 2], vx: wind.x * 0.55 + rnd(-0.1, 0.1), vy: rnd(0.7, 1.1), vz: wind.y * 0.55 + rnd(-0.1, 0.1),
+            drag: 0.25, life: rnd(2.4, 3.4), size: 0.22, size1: 1.25, color: cHearth, alpha: 0.5, spin: rnd(-0.4, 0.4) });
+        }
+      }
       fx.update(dt);
     },
   };

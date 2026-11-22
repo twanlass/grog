@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { hexKey } from '@grog/hex.js';
 import { TILE_TYPES } from '@grog/mapGenerator.js';
 import { PALETTE } from '../palette.js';
-import { patchFog, replaceOnce } from '../util/geo.js';
+import { patchFog, replaceOnce, CLOUD_GLSL, CLOUD_UNIFORMS, SURFACE_UNIFORMS } from '../util/geo.js';
 import { hexToWorld, worldToHex } from '../world.js';
 import { SUN_DIR } from '../render/scene.js';
 
@@ -83,6 +83,17 @@ vec3 swell(vec2 p, float t) {
 `;
 
 const WATER_FRAGMENT_PARS = /* glsl */ `
+${CLOUD_GLSL}
+// Caustics: the bright web sunlight draws on a shallow floor. One noise warped by another, folded
+// about its middle so the ridges come out as thin lines.
+float wNoise(vec2 p);
+float caustic(vec2 p, float t) {
+  float a = wNoise(p * 0.6 + t * 0.2);
+  float b = wNoise(p * 1.1 - t * 0.24 + a * 1.4);
+  float c = wNoise(p * 1.9 + t * 0.28 - a * 1.0);
+  float v = (1.0 - abs(2.0 * b - 1.0)) * (0.55 + 0.45 * (1.0 - abs(2.0 * c - 1.0)));
+  return pow(v, 7.0);
+}
 uniform vec3 uShallow;
 uniform vec3 uFoam;
 uniform vec3 uSkyTop;
@@ -157,6 +168,8 @@ export function buildWater(map, bounds, field = null) {
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.16, metalness: 0, transparent: true });
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, WATER_UNIFORMS);
+    shader.uniforms.uCloudTime = SURFACE_UNIFORMS.uTime;
+    shader.uniforms.uCloud = CLOUD_UNIFORMS.uCloud;
     shader.vertexShader = replaceOnce(shader.vertexShader, '#include <common>', `#include <common>\n${WATER_PARS}`);
     shader.vertexShader = replaceOnce(shader.vertexShader, '#include <begin_vertex>', `#include <begin_vertex>
 // The swell dies away over the shelf, so the sea never climbs a beach.
@@ -186,6 +199,10 @@ float wCaps = 0.0;
 float wFoam = clamp(max(wEdge * (0.55 + 0.6 * wBreak), wSurf * wBreak * 1.1) + wCaps, 0.0, 1.0);
 diffuseColor.rgb = mix(diffuseColor.rgb, uFoam, wFoam);
 diffuseColor.a = max(wAlpha, wFoam);
+float wCloud = cloudCover(wp);
+diffuseColor.rgb *= mix(vec3(1.0), vec3(0.55, 0.62, 0.76), wCloud);
+// Caustics over the shelf: strongest in a hand's depth of water, gone by the drop-off.
+float wCaustic = caustic(wp, uTime) * smoothstep(0.05, 0.4, wDepth) * smoothstep(1.5, 0.45, wDepth) * (1.0 - wFoam) * (1.0 - wCloud);
 if (wDepth < -0.3) discard;`);
     shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 roughnessFactor = mix(0.14, 0.9, wFoam);`);
@@ -200,8 +217,9 @@ normal = normalize((viewMatrix * vec4(wN, 0.0)).xyz);`);
   vec3 wSky = mix(uSkyBottom, uSkyTop, pow(clamp(wR.y, 0.0, 1.0), 0.6));
   // Glitter: the sun's reflection, sharpened far past what the lit specular gives.
   float wSun = pow(max(dot(wR, uSunDir), 0.0), 220.0) * 6.0 + pow(max(dot(wR, uSunDir), 0.0), 24.0) * 0.25;
-  totalEmissiveRadiance += (wSky * wF * 0.45 + uSunColor * wSun) * (1.0 - wFoam);
-  diffuseColor.a = max(diffuseColor.a, clamp(wF * 1.5 + wSun, 0.0, 1.0));
+  wSun *= 1.0 - wCloud;
+  totalEmissiveRadiance += (wSky * wF * 0.45 + uSunColor * wSun) * (1.0 - wFoam) + uSunColor * wCaustic * 0.2;
+  diffuseColor.a = max(diffuseColor.a, clamp(wF * 1.5 + wSun + wCaustic * 0.3, 0.0, 1.0));
 }`);
   };
   patchFog(mat, 'water');

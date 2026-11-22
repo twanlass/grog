@@ -10,9 +10,9 @@ import { SETTLEMENTS } from '@grog/sprites/settlements.js';
 import { PALETTE, ownerColor } from '../palette.js';
 import { surfaceMaterial, unlitMaterial, hash01 } from '../util/geo.js';
 import { shipGeometry, SHIP_SIZE, SHIP_HEIGHT } from '../art/ships.js';
-import { structureGeometry, scaffoldGeometry, factionHexGeometry, STRUCTURE_SIZE } from '../art/structures.js';
+import { structureGeometry, scaffoldGeometry, STRUCTURE_SIZE } from '../art/structures.js';
 import { tileTop } from '../art/terrain.js';
-import { grogToWorld, hexToWorld } from '../world.js';
+import { grogToWorld, hexToWorld, HEX_R } from '../world.js';
 import { BILLBOARD } from './camera.js';
 
 // Keeps one mesh per Grog entity, in step with gameState every frame. The sim owns every number;
@@ -25,11 +25,53 @@ const flashMat = unlitMaterial({ color: '#ffffff' });
 const hexMats = new Map();
 function factionHexMat(owner) {
   if (!hexMats.has(owner)) {
-    hexMats.set(owner, unlitMaterial({ color: ownerColor(owner), transparent: true, opacity: 0.38, depthWrite: false }));
+    // A territory mark, not a slab: a firm line at the hex's edge fading to a light wash inside,
+    // so the ground and whatever is built on it still read through it.
+    hexMats.set(owner, new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: new THREE.Color(ownerColor(owner)) } },
+      vertexShader: /* glsl */ `varying vec2 vP; void main() { vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uColor;
+        varying vec2 vP;
+        void main() {
+          float e = max(abs(vP.y), max(abs(vP.x * 0.8660254 + vP.y * 0.5), abs(vP.x * 0.8660254 - vP.y * 0.5))) / ${(0.92 * 3.4641016).toFixed(5)};
+          float a = 0.07 + 0.2 * smoothstep(0.55, 0.95, e) + 0.5 * smoothstep(0.9, 0.97, e);
+          gl_FragColor = vec4(uColor, a);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    }));
   }
   return hexMats.get(owner);
 }
-const hexGeo = factionHexGeometry();
+
+/**
+ * The territory mark for one hex, draped over the ground: each of the hex's six triangles cut into
+ * sixteen, every vertex lifted to the terrain under it. A flat disc was half buried wherever the
+ * ground rose away from the building's pad.
+ */
+function drapedHex(cx, cz, heightAt) {
+  const R = HEX_R * 0.92, N = 4, pos = [];
+  const corner = (i) => [Math.cos((i * Math.PI) / 3) * R, Math.sin((i * Math.PI) / 3) * R];
+  const at = (ax, az, bx, bz, u, v) => {
+    const x = ax * u + bx * v, z = az * u + bz * v;
+    pos.push(x, Math.max(heightAt(cx + x, cz + z), 0.02) + 0.07, z);
+  };
+  for (let i = 0; i < 6; i++) {
+    const [ax, az] = corner(i), [bx, bz] = corner(i + 1);
+    for (let a = 0; a < N; a++) {
+      for (let b = 0; b < N - a; b++) {
+        const u0 = a / N, v0 = b / N, d = 1 / N;
+        at(ax, az, bx, bz, u0, v0); at(ax, az, bx, bz, u0 + d, v0); at(ax, az, bx, bz, u0, v0 + d);
+        if (b < N - a - 1) { at(ax, az, bx, bz, u0 + d, v0); at(ax, az, bx, bz, u0 + d, v0 + d); at(ax, az, bx, bz, u0, v0 + d); }
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
 
 // Bars: a unit-height quad, scaled. Billboarded with the camera's own orientation.
 const barGeo = new THREE.PlaneGeometry(1, 1);
@@ -81,7 +123,7 @@ function seaFacing(map, q, r) {
   return Math.atan2(-sz, sx);
 }
 
-export function createUnitLayer(scene, map, rings) {
+export function createUnitLayer(scene, map, rings, field = null) {
   const group = new THREE.Group();
   group.name = 'units';
   scene.add(group);
@@ -98,7 +140,8 @@ export function createUnitLayer(scene, map, rings) {
     rec.bar.userData.noAO = rec.bar2.userData.noAO = true;
     group.add(rec.bar, rec.bar2);
     if (kind !== 'ship') {
-      rec.hex = new THREE.Mesh(hexGeo, factionHexMat(entity.owner));
+      const hw = hexToWorld(entity.q, entity.r);
+      rec.hex = new THREE.Mesh(drapedHex(hw.x, hw.z, field ? field.heightAt : () => groundY(entity.q, entity.r)), factionHexMat(entity.owner));
       rec.hex.renderOrder = 1;
       rec.hex.userData.noAO = true;
       group.add(rec.hex);
@@ -109,7 +152,7 @@ export function createUnitLayer(scene, map, rings) {
 
   function dispose(id, rec) {
     group.remove(rec.root, rec.bar, rec.bar2);
-    if (rec.hex) group.remove(rec.hex);
+    if (rec.hex) { group.remove(rec.hex); rec.hex.geometry.dispose(); }
     records.delete(id);
   }
 
@@ -138,7 +181,7 @@ export function createUnitLayer(scene, map, rings) {
     rec.root.position.set(x, y, z);
     if (kind === 'port') rec.root.rotation.y = seaFacing(map, e.q, e.r);
     else rec.root.rotation.y = (hash01(e.q, e.r) - 0.5) * 1.2;
-    rec.hex.position.set(x, y + 0.04, z);
+    rec.hex.position.set(x, 0, z);
 
     // Construction (new build or upgrade): rise out of a scaffold.
     const con = e.construction;
@@ -147,6 +190,13 @@ export function createUnitLayer(scene, map, rings) {
       rec.body.scale.set(1, 0.15 + 0.85 * p, 1);
     } else {
       rec.body.scale.set(1, 1, 1);
+    }
+    // Hearths: lit once the building stands. Chimney anchors turn with the building (about Y only).
+    if (!con) {
+      const th = rec.root.rotation.y, c = Math.cos(th), sn = Math.sin(th);
+      for (const a of rec.body.geometry.userData.smoke || []) {
+        chimneys.push(x + a.x * c + a.z * sn, y + a.y, z - a.x * sn + a.z * c);
+      }
     }
     if (con) {
       if (!rec.scaffold) {
@@ -230,11 +280,14 @@ export function createUnitLayer(scene, map, rings) {
   }
 
   let frame = 0;
+  const chimneys = [];     // x, y, z triples of every visible, finished building's chimney tops, this frame
   return {
     group,
     records,
+    chimneys,
     update(gameState, fogState, time, selectedSet) {
       frame++;
+      chimneys.length = 0;
       for (const s of gameState.ships) syncShip(s, frame, fogState, time, selectedSet.has(s.id));
       for (const p of gameState.ports) syncStructure('port', p, frame, fogState, selectedSet.has(p.id));
       for (const s of gameState.settlements) syncStructure('settlement', s, frame, fogState, selectedSet.has(s.id));

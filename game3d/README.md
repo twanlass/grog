@@ -22,7 +22,8 @@ Nothing is loaded from a model or texture file. Everything below is generated in
 - **Islands** (`art/heightfield.js`, `art/terrain.js`): one continuous height function blended from the hex tiles. Each land hex keeps a level pad at its centre for buildings. Vegetation is instanced, sways in the wind, and clears off a hex when something is built there.
 - **Sea** (`art/water.js`): depth comes from the same height field, so the water is clear over the beach, turquoise on the shelf and the tile's deep colour beyond, with surf at the shore, ripple normals and sky reflection.
 - **Motion** (`render/particles.js`, `render/effects.js`): smoke, fire, spray and foam are soft particles drawn by one shader with no textures. A sim event (an explosion, a splash, a cannon firing) emits one burst; moving ships lay a wake and a bow wave; anything under half health trails smoke, and burns under a quarter. Sails and flags ripple.
-- **Frame** (`render/post.js`): sky-dome environment light, ambient occlusion, bloom, ACES tone mapping. Quality steps down by itself if the frame rate drops.
+- **Atmosphere**: cloud shadows drift across land, sea and everything on them (`CLOUD_GLSL` in `util/geo.js`); caustics play over the shallows; gull flocks wheel over the coasts (`render/birds.js`); chimneys smoke.
+- **Frame** (`render/post.js`): sky-dome environment light, ambient occlusion, bloom, ACES tone mapping, then a light grade (contrast, split tone, vignette). Quality steps down by itself if the frame rate drops.
 
 URL params: `post=off`, `ao=off`, `bloom=off`, `quality=high` (never step down), and `?play&mode=skirmish|defend|sandbox&ai=1-3&difficulty=easy|normal|hard&seed=N`, `fog=off`, `shadows=off`.
 

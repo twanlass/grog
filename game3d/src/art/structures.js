@@ -171,7 +171,9 @@ function house(w, h, d, { wall = PALETTE.plaster, roof = PALETTE.roof, frame = P
   }
   if (chimney) {
     parts.push(box(0.17, roofH + 0.28, 0.17, w * 0.28, 0.1 + h, -d * 0.2, PALETTE.brick));
-    parts.push(box(0.21, 0.04, 0.21, w * 0.28, 0.1 + h + roofH + 0.28, -d * 0.2, PALETTE.stoneDark));
+    const cap = box(0.21, 0.04, 0.21, w * 0.28, 0.1 + h + roofH + 0.28, -d * 0.2, PALETTE.stoneDark);
+    cap.userData.smoke = true;      // structureGeometry reads where this ended up; effects smoke from it
+    parts.push(cap);
   }
   return parts;
 }
@@ -452,14 +454,14 @@ function watchtower(trim) {
   for (const [ax, az, bx, bz] of [[-0.76, -0.76, 0.76, -0.76], [0.76, -0.76, 0.76, 0.76], [0.76, 0.76, -0.76, 0.76], [-0.76, 0.76, -0.76, -0.76]]) {
     parts.push(plank(ax, az, bx, bz, 2.7, 0.28, 0.04, PALETTE.woodDark), plank(ax, az, bx, bz, 3.0, 0.04, 0.07, PALETTE.wood));
   }
-  for (const [x, z] of legs) parts.push(cyl(0.05, 0.05, 0.95, x * 1.42, 2.7, z * 1.42, PALETTE.timber, 5));
-  parts.push(cyl(0, 1.3, 0.8, 0, 3.62, 0, PALETTE.roof, 4, { crease: 0 }).rotateY(Math.PI / 4));
-  parts.push(box(1.62, 0.05, 1.62, 0, 3.6, 0, PALETTE.timber));
+  for (const [x, z] of legs) parts.push(cyl(0.05, 0.05, 1.2, x * 1.42, 2.7, z * 1.42, PALETTE.timber, 5));
+  parts.push(cyl(0, 1.22, 0.8, 0, 3.87, 0, PALETTE.roof, 4, { crease: 0 }).rotateY(Math.PI / 4));
+  parts.push(box(1.56, 0.05, 1.56, 0, 3.85, 0, PALETTE.timber));
   // A signal brazier, a bell, a lookout.
   parts.push(cyl(0.12, 0.08, 0.1, 0.45, 2.92, -0.45, PALETTE.iron, 6), blob(0.09, 0.45, 3.06, -0.45, PALETTE.glass, null, { mat: SURF.glow }));
   parts.push(line(0.45, 2.7, -0.45, 0.45, 2.92, -0.45, 0.03, PALETTE.iron));
   parts.push(...person(-0.2, 2.7, 0.3, trim, PALETTE.iron, 0.8));
-  parts.push(...flag(0, 4.38, 0, trim, 1.0, 0.55));
+  parts.push(...flag(0, 4.63, 0, trim, 1.0, 0.55));
   return parts;
 }
 
@@ -577,9 +579,18 @@ export function structureGeometry(kind, type, owner, seed = 1) {
   let parts;
   if (kind === 'settlement') parts = settlement(trim, (seed % 4) + 1);
   else parts = (BUILDERS[kind][type] || Object.values(BUILDERS[kind])[0])(trim);
+  // Chimney tops, found after every `put` has moved them: where the hearth smoke rises from.
+  const smoke = [];
+  for (const part of parts) {
+    if (!part.userData.smoke) continue;
+    part.computeBoundingBox();
+    const b = part.boundingBox;
+    smoke.push({ x: (b.min.x + b.max.x) / 2, y: b.max.y, z: (b.min.z + b.max.z) / 2 });
+  }
   const geo = merge(parts);
   const k = STRUCTURE_SCALE[kind === 'settlement' ? 'settlement' : type] || 1;
   geo.scale(k, k, k);
+  geo.userData.smoke = smoke.map((a) => ({ x: a.x * k, y: a.y * k, z: a.z * k }));
   geo.computeBoundingSphere();
   cache.set(key, geo);
   return geo;

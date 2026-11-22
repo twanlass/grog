@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 // The frame after the scene is drawn: ambient occlusion, bloom, then filmic tone mapping.
 //
@@ -16,9 +17,33 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 //     off in-material tone mapping and the sRGB encode by itself, so every shader patch here mixes
 //     in linear light and never needs to know.
 //
+//   - Grade: last, in display space. A little more contrast and saturation, shadows pulled cool and
+//     highlights warm, and a soft vignette. Small numbers; it is the difference between a render
+//     and a picture of one.
+//
 // Anything that is *about* the game rather than in it — selection rings, health bars, placement
 // hexes, particles — carries `userData.noAO` and is left out of the occlusion pass; otherwise a
 // health bar would cast a dark halo on the sea.
+
+const GRADE = {
+  uniforms: { tDiffuse: { value: null }, uAmount: { value: 1 } },
+  vertexShader: /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform float uAmount;
+    varying vec2 vUv;
+    void main() {
+      vec4 src = texture2D(tDiffuse, vUv);
+      vec3 c = src.rgb;
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c = mix(vec3(l), c, 1.12);                                   // saturation
+      c = mix(c, c * c * (3.0 - 2.0 * c), 0.22);                    // a gentle S-curve
+      c += mix(vec3(-0.012, 0.0, 0.022), vec3(0.02, 0.008, -0.018), smoothstep(0.15, 0.85, l));   // split tone
+      vec2 d = vUv - 0.5;
+      c *= 1.0 - 0.34 * smoothstep(0.32, 0.95, dot(d, d) * 2.2);    // vignette
+      gl_FragColor = vec4(mix(src.rgb, clamp(c, 0.0, 1.0), uAmount), src.a);
+    }`,
+};
 
 export function createPost(renderer, scene, camera, { ao = true, bloom = true } = {}) {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -48,6 +73,7 @@ export function createPost(renderer, scene, camera, { ao = true, bloom = true } 
     composer.addPass(glow);
   }
   composer.addPass(new OutputPass());
+  composer.addPass(new ShaderPass(GRADE));
 
   return {
     composer, gtao, bloom: glow,

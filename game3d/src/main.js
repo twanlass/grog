@@ -9,6 +9,7 @@ import { SURFACE_UNIFORMS } from './util/geo.js';
 import { buildWater, WATER_UNIFORMS } from './art/water.js';
 import { createUnitLayer } from './render/units.js';
 import { createEffects } from './render/effects.js';
+import { createBirds } from './render/birds.js';
 import { createMarkers } from './render/markers.js';
 import { createFog } from './render/fog.js';
 import { createInput } from './input.js';
@@ -78,7 +79,7 @@ function startGame(opts, interactive = true) {
   const { group: terrain, rings } = buildTerrain(session.map, field);
   world.add(terrain);
   world.add(buildWater(session.map, bounds, field));
-  const units = createUnitLayer(world, session.map, rings);
+  const units = createUnitLayer(world, session.map, rings, field);
   const effects = createEffects(world);
   const markers = createMarkers(world, session.map, rings);
   const fog = createFog(session.map);
@@ -89,6 +90,8 @@ function startGame(opts, interactive = true) {
   cam.setBounds({ minX: bounds.minX, maxX: bounds.maxX, minZ: bounds.minZ + 10, maxZ: bounds.maxZ + 25 });
   const home = session.gameState.ports.find((p) => p.owner === 'player');
   if (home) { const w = hexToWorld(home.q, home.r); cam.lookAt(w.x, w.z + 8); }
+
+  const birds = createBirds(world, session.map, rings, home);
 
   let input = { dispose() {}, update() {}, hover: {} };
   let hud = { update() {}, showBox() {} };
@@ -105,7 +108,7 @@ function startGame(opts, interactive = true) {
     sfx.loop('ocean', 0.25, 'sfx');
     sfx.loop('music', 0.25, 'music');
   }
-  game = { session, world, props: terrain.getObjectByName('props'), units, effects, markers, fog, input, hud, interactive, opts, actions, cam };
+  game = { session, world, props: terrain.getObjectByName('props'), units, effects, birds, markers, fog, input, hud, interactive, opts, actions, cam };
   window.__grog = game;   // test hook, like sim-taxi's window.__taxi
   return game;
 }
@@ -194,7 +197,8 @@ function frame(now) {
     SURFACE_UNIFORMS.uTime.value = wallTime;
     game.input.update(dt);
     game.units.update(session.gameState, session.fogState, wallTime, selectedIds);
-    game.effects.update(session.gameState, session.fogState, wallTime, dt * session.gameState.timeScale);
+    game.effects.update(session.gameState, session.fogState, wallTime, dt * session.gameState.timeScale, game.units.chimneys);
+    game.birds.update(game.interactive ? session.fogState : null, wallTime);
     game.markers.update(session.gameState, session.fogState, game.input.hover, wallTime);
     game.fog.update(session.fogState, session.time);
     game.props?.userData.syncOccupied(session.gameState);

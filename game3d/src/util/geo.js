@@ -296,17 +296,48 @@ export function unlitMaterial(params = {}) {
 // Detail is faded by its own screen-space frequency: at play zoom a plank is under a pixel wide,
 // and unfaded it would crawl. Zoomed in, it resolves.
 
+// Cloud shadows: one slow noise field drifting downwind, read in world space by the land, the sea
+// and everything standing on them, so a shadow crosses an island, its harbour and the fleet as one
+// shape. It dims and cools the surface rather than touching the light, which keeps it out of every
+// program's light state (sim-taxi: anything that changes what a pass counts as a light relinks the
+// city).
+export const CLOUD_UNIFORMS = { uCloud: { value: 0.9 } };
+export const CLOUD_GLSL = /* glsl */ `
+uniform float uCloudTime;
+uniform float uCloud;
+float cHash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float cNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(cHash(i), cHash(i + vec2(1.0, 0.0)), f.x), mix(cHash(i + vec2(0.0, 1.0)), cHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float cloudCover(vec2 w) {
+  vec2 p = (w - vec2(1.0, 0.35) * uCloudTime * 1.4) * 0.016;
+  float n = cNoise(p) * 0.6 + cNoise(p * 2.1 + 5.3) * 0.28 + cNoise(p * 4.3 + 1.7) * 0.12;
+  return smoothstep(0.5, 0.72, n) * uCloud;
+}
+vec3 cloudShade(vec2 w) { return mix(vec3(1.0), vec3(0.55, 0.62, 0.76), cloudCover(w)); }
+`;
+
 const SURFACE_VERTEX_PARS = /* glsl */ `
 attribute float mat;
 uniform float uSurfTime;
 varying float vMat;
 varying vec3 vObj;
 varying vec3 vObjN;
+varying vec2 vWorldXZ;
 `;
 const SURFACE_VERTEX = /* glsl */ `
 vMat = mat;
 vObj = position;
 vObjN = normal;
+{
+  vec4 gw = vec4(position, 1.0);
+  #ifdef USE_INSTANCING
+    gw = instanceMatrix * gw;
+  #endif
+  vWorldXZ = (modelMatrix * gw).xz;
+}
 // Canvas breathes: sails, flags and awnings ripple a few centimetres along their own normal. Too
 // small to need the shadow pass patched, large enough that a fleet at anchor is not a still life.
 if (mat > 1.5 && mat < 2.5) {
@@ -317,6 +348,8 @@ const SURFACE_FRAGMENT_PARS = /* glsl */ `
 varying float vMat;
 varying vec3 vObj;
 varying vec3 vObjN;
+varying vec2 vWorldXZ;
+${CLOUD_GLSL}
 
 // Sine-free (Hoskins) hash: terrain is textured in world space, hundreds of units from the origin,
 // where the classic sine hash runs out of precision and goes blocky.
@@ -510,6 +543,8 @@ export function surfaceMaterial({ fog = true, key = 'surface' } = {}) {
     shader.uniforms.uGlow = SURFACE_UNIFORMS.uGlow;
     shader.uniforms.uGrid = SURFACE_UNIFORMS.uGrid;
     shader.uniforms.uSurfTime = SURFACE_UNIFORMS.uTime;
+    shader.uniforms.uCloudTime = SURFACE_UNIFORMS.uTime;
+    shader.uniforms.uCloud = CLOUD_UNIFORMS.uCloud;
     shader.vertexShader = replaceOnce(shader.vertexShader, '#include <common>', `#include <common>\n${SURFACE_VERTEX_PARS}`);
     shader.vertexShader = replaceOnce(shader.vertexShader, '#include <begin_vertex>', `#include <begin_vertex>\n${SURFACE_VERTEX}`);
     shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <common>', `#include <common>\nuniform float uGlow;\nuniform float uGrid;\n${SURFACE_FRAGMENT_PARS}`);
@@ -524,7 +559,8 @@ metalnessFactor = int(vMat + 0.5) == 6 ? 0.75 : 0.0;`);
     shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 normal = grogBump(-vViewPosition, normal, grogSurf.a, 0.035);`);
     shader.fragmentShader = replaceOnce(shader.fragmentShader, '#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-totalEmissiveRadiance += diffuseColor.rgb * grogGlow * uGlow;`);
+totalEmissiveRadiance += diffuseColor.rgb * grogGlow * uGlow;
+diffuseColor.rgb *= cloudShade(vWorldXZ);`);
   };
   if (fog) patchFog(m, `surface-${key}`);
   else m.customProgramCacheKey = () => `grog-surface-${key}`;
